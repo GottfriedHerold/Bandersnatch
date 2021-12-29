@@ -1,0 +1,46 @@
+This file analyses the behaviour of NaP (Not-A-Point) objects if used in the library.
+While we do not guarantee any kind of behaviour on those objects, we still want to make it hard(er) for the users
+to shoot themselves in the foot and detect NaPs when they appear.
+
+NaPs can appear either from
+- users using uninitialized points
+- singular cases of curve operations (which must not happen for points on the the correct subgroup)
+- users continuing to work with results of NaPs
+- bugs in the library (which we try hard to avoid)
+
+NaP - definitions
+These defininitions aim to ensure that they cover all values that arise from uninitialized variables being used.
+and that they are closed under all operations the user can perform with the library.
+
+Point_xtw:
+x=y=t=z=0: "true" singularity type X0: 
+x=y=0 (and always t=0, not sure?): Aff1 - singularity
+
+Point_axtw:
+x=y=0 (and always t=0, not sure?): Aff1 - singularity
+
+Point_efgh:
+f=h=0: "true" singularity type S1
+e=g=0: "true" singularity type S2 (rarely appears)
+e=h=0: Aff2-singularity
+e=f=g=h=0: full singularity S
+
+"true" singularities are NaPs that can arise from exceptional cases of the laws for curve operations in projective form(s).
+These are mild in the sense that they still (trivially) satisfy the curve equations and working with them gives either
+"true" singularities or division by zero.
+The A1, A2 singularities are artifiacts of uninitialized _affine_ coos and working with them.
+(Note that X0 is covered by A1, but there's a difference in "meaning")
+
+---
+uninitialized Point_xtw -> X0
+uninitialized Point_axtw -> A1
+uninitialized Point_efgh -> S1 (and S2 and A2)
+
+endo_tt: infinite points -> X0, [N,A -> X0 avoided due to check]
+endo_tt: X0 -> X0, A1 -> X0 (both due to explicit check, causes alert)
+endo_st: infinite points -> S, [N,A -> S2 avoided due to check]
+endo_st: X0 -> S, A1 -> S (both due to explicit checks, causes alert)
+endo_ta: [N,A -> X0 avoided due to check]
+endo_ta: Aff1 -> X0 (due to explicit check, causes alert)
+endo_sa: [N,A -> S2 avoided due to explicit check]
+endo_sa: Aff1 -> X0 (due to explicit check, causes alert)
