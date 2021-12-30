@@ -103,6 +103,28 @@ var bsFieldElement_64_minusone bsFieldElement_64 = bsFieldElement_64{words: [4]u
 // The number 2^256 in Montgomery form.
 var bsFieldElement_64_r bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: rsquared_64_0, 1: rsquared_64_1, 2: rsquared_64_2, 3: rsquared_64_3}}
 
+var _ = AddNewCallCounter("FieldOps", "Field Operations", "")
+var _ = AddNewCallCounter("AddSubFe", "Additions and Subtractions", "FieldOps")
+var _ = AddNewCallCounter("Multiplications", "", "FieldOps")
+var _ = AddNewCallCounter("Divisions", "", "FieldOps")
+var _ = AddNewCallCounter("OtherFe", "Others", "FieldOps")
+var _ = AddNewCallCounter("AddFe", "Additions", "AddSubFe")
+var _ = AddNewCallCounter("SubFe", "Subtractions", "AddSubFe")
+var _ = AddNewCallCounter("Jacobi", "Jacobi symbols", "OtherFe")
+var _ = AddNewCallCounter("NegFe", "Negations", "OtherFe")
+var _ = AddNewCallCounter("MulFe", "generic Multiplications", "Multiplications")
+var _ = AddNewCallCounter("MulByFive", "Multiplications by 5", "Multiplications")
+var _ = AddNewCallCounter("Squarings", "", "Multiplications")
+var _ = AddNewCallCounter("SqrtFe", "Square roots", "OtherFe")
+var _ = AddNewCallCounter("InvFe", "Inversions", "Divisions")
+var _ = AddNewCallCounter("DivideFe", "generic Divisions", "Divisions")
+
+/* var _ = CreateAttachedCallCounter("AddFeEq", "", "AddFe")
+var _ = CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
+var _ = CreateAttachedCallCounter("MulFromDivide", "", "MulFe").AppendAddSubTarget("", "FieldOps")
+var _ = CreateAttachedCallCounter("InvFromDivide", "", "InvFe").AppendAddSubTarget("", "FieldOps")
+*/
+
 // maybe_reduce_once changes the representation of z to restore the invariant that z.words + BaseFieldSize must not overflow.
 func (z *bsFieldElement_64) maybe_reduce_once() {
 	var borrow uint64
@@ -157,7 +179,10 @@ func (z *bsFieldElement_64) Sign() int {
 	// Of course, the property that Sign(z) == =Sign(-z) would hold either way (and not switching would actually be more efficient).
 	// However, Sign() enters into (De)Serialization routines for curve points. This choice is probably more portable.
 	var low_endian_words [4]uint64 = z.undoMontgomery()
+
+	// Go's lack of const-arrays is annoying.
 	var mhalf_copy [4]uint64 = [4]uint64{mhalved_64_0, mhalved_64_1, mhalved_64_2, mhalved_64_3}
+
 	for i := int(3); i >= 0; i-- {
 		if low_endian_words[i] > mhalf_copy[i] {
 			return -1
@@ -177,11 +202,11 @@ func (z *bsFieldElement_64) Jacobi() int {
 	return big.Jacobi(tempInt, BaseFieldSize)
 }
 
-var _ = AddNewCounter("Jacobi", "", "FieldOps")
-
 // Add is used to perform addition.
 // Use z.Add(&x, &y) to add x + y and store the result in z.
 func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
+	IncrementCallCounter("AddFe")
+
 	var carry uint64
 	z.words[0], carry = bits.Add64(x.words[0], y.words[0], 0)
 	z.words[1], carry = bits.Add64(x.words[1], y.words[1], carry)
@@ -197,12 +222,12 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	}
 	// else?
 	z.maybe_reduce_once()
-
 }
 
 // Sub is used to perform subtraction.
 // Use z.Sub(&x, &y) to compute x - y and store the result in z.
 func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
+	IncrementCallCounter("SubFe")
 	var borrow uint64 // only takes values 0,1
 	z.words[0], borrow = bits.Sub64(x.words[0], y.words[0], 0)
 	z.words[1], borrow = bits.Sub64(x.words[1], y.words[1], borrow)
@@ -225,9 +250,15 @@ func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
 	}
 }
 
+var _ = CreateAttachedCallCounter("SubFromNeg", "Subtractions called by Neg", "SubFe").
+	AddToThisFromSource("NegFe", 1).
+	AddThisToTarget("FieldOps", -1)
+
 // Neg computes the additive inverse (i.e. -x)
 // Use z.Neg(&x) to compute z := -x
 func (z *bsFieldElement_64) Neg(x *bsFieldElement_64) {
+	IncrementCallCounter("NegFe")
+	// IncrementCallCounter("SubFromNeg") -- done automatically
 	z.Sub(&bsFieldElement_64_zero_alt, x) // using alt here makes the if borrow!=0 in Sub unlikely.
 }
 
@@ -308,7 +339,7 @@ func montgomery_step_64(t *[4]uint64, q uint64) {
 // Mul computes multiplication in the field.
 // Use z.Mul(&x, &y) to perform z := x * y
 func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
-
+	IncrementCallCounter("MulFe")
 	/*
 		We perform Montgomery multiplication, i.e. we need to find x*y / r^4 bmod BaseFieldSize with r==2^64
 		To do so, note that x*y == x*(y[0] + ry[1]+r^2y[2]+r^3y[3]), so
@@ -432,7 +463,7 @@ func (z *bsFieldElement_64) shift_once() (result uint64) {
 func (z *bsFieldElement_64) undoMontgomery() [4]uint64 {
 
 	// What we need to do here is equivalent to
-	// temp.Mul(z, [1,0,0,0])  // where [1,0,0,0] corresponds to 1/r
+	// temp.Mul(z, [1,0,0,0])  // where the [1,0,0,0] is the Montgomery representation of the number 1/r.
 	// temp.Normalize()
 	// return temp.words
 
@@ -466,9 +497,12 @@ func (z *bsFieldElement_64) undoMontgomery() [4]uint64 {
 	return temp.words
 }
 
+var _ = CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
+
 // restoreMontgomery restores the internal Montgomery representation, assuming the current internal representation is *NOT* in Montgomery form.
 // This must only be used internally.
 func (z *bsFieldElement_64) restoreMontgomery() {
+	IncrementCallCounter("MulEqFromMontgomery")
 	z.MulEq(&bsFieldElement_64_r)
 }
 
@@ -483,7 +517,7 @@ func (z *bsFieldElement_64) SetInt(v *big.Int) {
 	w.Abs(w)
 
 	// Can be done much more efficiently if desired, but we do not convert often.
-	w.Lsh(w, 256)
+	w.Lsh(w, 256) // To account for Montgomery form
 	w.Mod(w, BaseFieldSize)
 	if sign < 0 {
 		w.Sub(BaseFieldSize, w)
@@ -491,7 +525,12 @@ func (z *bsFieldElement_64) SetInt(v *big.Int) {
 	z.words = intTouintarray(w)
 }
 
-// If z represents a value that can be represented by a uint64, returns it (and err == false), otherwise set err to true
+/*
+	TODO: Return an error or ok bool instead (consistency?)
+*/
+
+// ToUint64 returns z, false if z can be represented by a uint64.
+// If z cannot be represented in Montgomery form, returns <something>, true
 func (z *bsFieldElement_64) ToUint64() (result uint64, err bool) {
 	temp := z.undoMontgomery()
 	result = temp[0]
@@ -499,7 +538,7 @@ func (z *bsFieldElement_64) ToUint64() (result uint64, err bool) {
 	return
 }
 
-// Sets z to the given value of type uint64
+// SetUInt64 sets z to the given value.
 func (z *bsFieldElement_64) SetUInt64(value uint64) {
 	// Sets z.words to the correct value (not in Montgomery form)
 	z.words[0] = value
@@ -510,19 +549,21 @@ func (z *bsFieldElement_64) SetUInt64(value uint64) {
 	z.restoreMontgomery()
 }
 
-// Generate uniformly random number. Note that this is not crypto-grade randomness. Testing only.
+// Generate uniformly random number. Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
 func (z *bsFieldElement_64) setRandomUnsafe(rnd *rand.Rand) {
-
-	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given rnd
+	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
 	var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize)
 	z.SetInt(xInt)
 }
 
 // Computes z *= 5. This is useful, because the coefficient of a in the twisted Edwards representation of Bandersnatch is a=-5
 func (z *bsFieldElement_64) multiply_by_five() {
+	IncrementCallCounter("MulByFive")
 
-	var overflow1, overflow2, overflow3, overflow4 uint64 // overflow_i contributes to the i-th uint64
+	// We multiply by five by multiplying each individual word by 5 and then correcting the overflows later.
+
+	var overflow1, overflow2, overflow3, overflow4 uint64 // overflow_i *contributes to* the i-th uint64 (i.e. comes from the i-1'th)
 	var carry uint64
 	// could do this with bit fiddling as well, but that's more complicated and probably slower (depends on compiler)
 	overflow1, z.words[0] = bits.Mul64(z.words[0], 5)
@@ -532,19 +573,26 @@ func (z *bsFieldElement_64) multiply_by_five() {
 
 	// Note that due to the size restrictions on z and the particular value of BaseFieldSize, 0 <= overflow4 <= 2
 	// overflow4 contributes overflow4 * 2^256 == overflow4 * rModBaseField (mod BaseField) to the total result.
+	// splitting this into words gives the following contributions
 
 	// contributions due to overflows:
-	overflow1 += overflow4 * rModBaseField_64_1
+	overflow1 += overflow4 * rModBaseField_64_1 // cannot overflow, because 2*rModBaseField_1 + 2 is not large enough
 	overflow2 += overflow4 * rModBaseField_64_2 // this overflows itself iff overflow4 == 2
 	overflow3 += overflow4*rModBaseField_64_3 + (overflow4 / 2)
-	overflow4 *= rModBaseField_64_0 // read as overflow0 := overflow4 * rModBaseField_64_0
+
+	// Read this as overflow0 := overflow4 * rModBaseField_64_0
+	// and mentally rename overflow4 -> overflow0 from here on
+	overflow4 *= rModBaseField_64_0
 
 	z.words[0], carry = bits.Add64(z.words[0], overflow4, 0)
 	z.words[1], carry = bits.Add64(z.words[1], overflow1, carry)
 	z.words[2], carry = bits.Add64(z.words[2], overflow2, carry)
 	z.words[3], carry = bits.Add64(z.words[3], overflow3, carry)
 
-	overflow4 = carry * 0xFFFFFFFF_FFFFFFFF
+	// if carry == 1, we need to add 1<<256 mod BaseField == rModBaseField.
+	// We do this via bit-masking rather than with an if
+
+	overflow4 = -carry // == carry * 0xFFFFFFFF_FFFFFFFF
 
 	z.words[0], carry = bits.Add64(z.words[0], overflow4&rModBaseField_64_0, 0)
 	z.words[1], carry = bits.Add64(z.words[1], overflow4&rModBaseField_64_1, carry)
@@ -554,17 +602,31 @@ func (z *bsFieldElement_64) multiply_by_five() {
 	z.maybe_reduce_once()
 }
 
-// Multiplicative Inverse. If x is 0, the behaviour is undefined.
+// Inv computes the multiplicative Inverse: z.Inv(x) performs z:= 1/x. If x is 0, the behaviour is undefined (possibly panic)
 func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
-
+	IncrementCallCounter("InvFe")
 	// Slow, but rarely used anyway (due to working in projective coordinates)
 	t := x.ToInt()
-	t.ModInverse(t, BaseFieldSize)
+	if t.ModInverse(t, BaseFieldSize) == nil {
+		panic("field_element_64: division by 0")
+	}
 	z.SetInt(t)
 }
 
+var _ = CreateAttachedCallCounter("InvFromDivide", "Inversion in Divide", "InvFe").
+	AddToThisFromSource("DivideFe", +1).
+	AddThisToTarget("Divisions", -1)
+
+var _ = CreateAttachedCallCounter("MulFromDivide", "Multiplications called by Didive", "MulFe").
+	AddToThisFromSource("DivideFe", +1).
+	AddThisToTarget("FieldOps", -1)
+
+// Divide performs division: z.Divide(num, denom) means z = num/denom
+// Division by zero causes undefined behaviour (possibly panic, possibly returns 0)
 func (z *bsFieldElement_64) Divide(num *bsFieldElement_64, denom *bsFieldElement_64) {
-	var temp bsFieldElement_64 // needed, because z, num, denom might alias
+	IncrementCallCounter("DivideFe")
+
+	var temp bsFieldElement_64 // needed, because some of z, num, denom might alias
 	temp.Inv(denom)
 	z.Mul(num, &temp)
 }
@@ -600,6 +662,7 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 }
 
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
+	IncrementCallCounter("SqrtFe")
 	xInt := x.ToInt()
 	// yInt := big.NewInt(0)
 	if xInt.ModSqrt(xInt, BaseFieldSize) == nil {
@@ -751,33 +814,55 @@ func (z *bsFieldElement_64) String() string {
 	return z.ToInt().String()
 }
 
+var _ = CreateAttachedCallCounter("AddEqFe", "", "AddFe")
+
 func (z *bsFieldElement_64) AddEq(x *bsFieldElement_64) {
+	IncrementCallCounter("AddEqFe")
 	z.Add(z, x)
 }
 
+var _ = CreateAttachedCallCounter("SubEqFe", "", "SubFe")
+
 func (z *bsFieldElement_64) SubEq(x *bsFieldElement_64) {
+	IncrementCallCounter("SubEqFe")
 	z.Sub(z, x)
 }
 
+var _ = CreateAttachedCallCounter("MulEqFe", "", "MulFe")
+
 func (z *bsFieldElement_64) MulEq(x *bsFieldElement_64) {
+	IncrementCallCounter("MulEqFe")
 	z.Mul(z, x)
 }
 
+var _ = CreateAttachedCallCounter("MulFromSqure", "as part of non-optimized Squaring", "MulFe").
+	AddToThisFromSource("Squarings", +1).
+	AddThisToTarget("Multiplications", -1)
+
 func (z *bsFieldElement_64) Square(x *bsFieldElement_64) {
+	IncrementCallCounter("Squarings")
 	z.Mul(x, x)
 }
 
 func (z *bsFieldElement_64) SquareEq() {
+	IncrementCallCounter("Squarings")
 	z.Mul(z, z)
 }
 
+var _ = CreateAttachedCallCounter("NegEqFe", "", "NegFe")
+
 func (z *bsFieldElement_64) NegEq() {
+	IncrementCallCounter("NegEqFe")
 	z.Neg(z)
 }
+
+var _ = CreateAttachedCallCounter("InvEqFe", "", "InvFe")
 
 func (z *bsFieldElement_64) InvEq() {
 	z.Inv(z)
 }
+
+var _ = CreateAttachedCallCounter("DivideEqFe", "", "DivideFe")
 
 func (z *bsFieldElement_64) DivideEq(denom *bsFieldElement_64) {
 	z.Divide(z, denom)

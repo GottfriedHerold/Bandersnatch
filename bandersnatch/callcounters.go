@@ -1,22 +1,26 @@
 package bandersnatch
 
-import "strconv"
+import (
+	"strconv"
+)
+
+type CallCounterId string
 
 type callCounter struct {
-	id               string
+	id               CallCounterId
 	display          bool
 	displayName      string
 	subcounters      []*callCounter
-	addTo            []*callCounter
-	addToRecursive   []*callCounter
-	subFrom          []*callCounter
-	subFromRecursive []*callCounter
+	addTo            map[*callCounter]int
+	addToRecursive   map[*callCounter]int
 	count_direct     int
 	count_modified   int
 	initialized      bool
 	rootnode         bool
 	displayremaining bool
 }
+
+var callCounters map[CallCounterId]*callCounter = make(map[CallCounterId]*callCounter)
 
 func (v *callCounter) reset() {
 	v.count_direct = 0
@@ -29,18 +33,12 @@ func (v *callCounter) resetEval() {
 
 func (v *callCounter) recursivelyModifyBy(amount int) {
 	v.count_modified += amount
-	var recurse *callCounter
-	for _, recurse = range v.addTo {
-		recurse.count_modified += amount
+	// var recurse *callCounter
+	for recurse, multiplier := range v.addTo {
+		recurse.count_modified += amount * multiplier
 	}
-	for _, recurse = range v.subFrom {
-		recurse.count_modified -= amount
-	}
-	for _, recurse = range v.addToRecursive {
-		recurse.recursivelyModifyBy(amount)
-	}
-	for _, recurse = range v.subFromRecursive {
-		recurse.recursivelyModifyBy(-amount)
+	for recurse, multiplier := range v.addToRecursive {
+		recurse.recursivelyModifyBy(amount * multiplier)
 	}
 }
 
@@ -49,21 +47,21 @@ func correctDependencies() {
 		cc.resetEval()
 	}
 	for _, cc := range callCounters {
-		cc.recursivelyModifyBy(cc.count_direct)
+		if cc.count_direct != 0 {
+			cc.recursivelyModifyBy(cc.count_direct)
+		}
 	}
 }
 
-var callCounters map[string]*callCounter = make(map[string]*callCounter)
-
 // TODO: Mutex?
 
-func Reset() {
+func ResetCallCounters() {
 	for _, cc := range callCounters {
 		cc.reset()
 	}
 }
 
-func Get(id string) (ret int, ok bool) {
+func (id CallCounterId) Get(ret int, ok bool) {
 	if id == "" {
 		panic("callCounters: called Get with empty string")
 	}
@@ -93,8 +91,11 @@ func (cc *callCounter) getStringsBelowNode(indent string) (ret string, number in
 	ret += indent
 	number = cc.count_modified
 	ret += strconv.Itoa(number)
-	ret += " x " + cc.id + ": "
-	ret += cc.displayName + "\n"
+	var s string = cc.displayName
+	if s == "" {
+		s = string(cc.id)
+	}
+	ret += " x " + s + "\n"
 
 	indent += "  "
 	childsum := 0
@@ -115,7 +116,7 @@ func (cc *callCounter) getStringsBelowNode(indent string) (ret string, number in
 	return
 }
 
-func StringToPrint() string {
+func CallPointersStringToPrint() string {
 	var ret string
 	for _, cc := range callCounters {
 		if !cc.rootnode || !cc.display {
@@ -127,7 +128,7 @@ func StringToPrint() string {
 	return ret
 }
 
-func CounterExists(id string) (ret bool) {
+func (id CallCounterId) CallCounterExists() (ret bool) {
 	if id == "" {
 		return false
 	}
@@ -135,33 +136,35 @@ func CounterExists(id string) (ret bool) {
 	return
 }
 
-func addDummyCounter(id string) *callCounter {
-	if CounterExists(id) {
+func addDummyCounter(id CallCounterId) *callCounter {
+	if id.CallCounterExists() {
 		panic("Trying to add existing counter as dummy")
 	}
 	cc := callCounter{id: id}
+	cc.addTo = make(map[*callCounter]int)
+	cc.addToRecursive = make(map[*callCounter]int)
 	callCounters[id] = &cc
 	return &cc
 }
 
-func getCounter(id string) (ret *callCounter, ok bool) {
+func getCounter(id CallCounterId) (ret *callCounter, already_existed bool) {
 	if id == "" {
-		panic("Counter id is empty")
+		panic("callCounters: called getCounter with empty id")
 	}
-	ret, ok = callCounters[id]
-	if !ok {
+	ret, already_existed = callCounters[id]
+	if !already_existed {
 		if ret != nil {
 			panic(0)
 		}
 		ret = addDummyCounter(id)
 	}
-	if ok && ret == nil {
+	if ret == nil {
 		panic(0)
 	}
 	return
 }
 
-func AddNewCounter(id string, displayName string, parentName string) *callCounter {
+func AddNewCallCounter(id CallCounterId, displayName string, parentName CallCounterId) *callCounter {
 	if id == "" {
 		panic("callCounter: called AddNewCounter with empty string")
 	}
@@ -184,14 +187,17 @@ func AddNewCounter(id string, displayName string, parentName string) *callCounte
 			parentcc.initialized = true
 		}
 		parentcc.subcounters = append(parentcc.subcounters, cc)
-		cc.addToRecursive = append(cc.addToRecursive, parentcc)
+		cc.addToRecursive[parentcc] += 1 // this creates the map entry if it did not exist before
+		if cc.addToRecursive[parentcc] == 0 {
+			delete(cc.addToRecursive, parentcc)
+		}
 	} else {
 		cc.rootnode = true
 	}
 	return cc
 }
 
-func SetDisplayRemaining(id string, displayremaining bool) {
+func (id CallCounterId) SetDisplayRemaining(displayremaining bool) {
 	if id == "" {
 		panic("callCounter: called SetDisplayRemaining with empty string")
 	}
@@ -199,11 +205,19 @@ func SetDisplayRemaining(id string, displayremaining bool) {
 	cc.displayremaining = displayremaining
 }
 
-func CreateNewCounter(id string, displayName string, doDisplay bool, attach string, root bool) {
+func (cc *callCounter) SetDisplayRemaining(displayremaining bool) *callCounter {
+	if cc == nil {
+		panic("calling SetDisplayRemaining with nil receiver")
+	}
+	cc.displayremaining = displayremaining
+	return cc
+}
+
+func CreateNewCallCounter(id CallCounterId, displayName string, doDisplay bool, attach CallCounterId, root bool) (cc *callCounter) {
 	if id == "" {
 		panic("callCounter: called CreateNewCounter with empty id string")
 	}
-	cc, _ := getCounter(id)
+	cc, _ = getCounter(id)
 	cc.displayName = displayName
 	cc.id = id
 	cc.initialized = true
@@ -212,14 +226,55 @@ func CreateNewCounter(id string, displayName string, doDisplay bool, attach stri
 		parentcc, _ := getCounter(attach)
 		parentcc.subcounters = append(parentcc.subcounters, cc)
 	}
+	return
 }
 
-func IncrementCallCounter(id string) {
+func CreateAttachedCallCounter(id CallCounterId, displayName string, attachTo CallCounterId) (cc *callCounter) {
+	cc = CreateNewCallCounter(id, displayName, true, attachTo, false)
+	attachTo.SetDisplayRemaining(true)
+	return
+}
+
+func IncrementCallCounter(id CallCounterId) {
 	if id == "" {
 		panic("callCounters: IncrementCallCounter called with empty id")
 	}
-	cc, _ := callCounters[id]
-	cc.count_direct++ // This will panic (dereference nil) by design if id does not exist in callCounters.
+	cc := callCounters[id]
+	// We will panic (dereference nil) by design if id does not exist in callCounters.
+	if !cc.initialized {
+		panic("callCounters: IncrementCallCounter called on inintialized counter")
+	}
+	cc.count_direct++
+}
+
+func (cc *callCounter) AddThisToTarget(targetId CallCounterId, multiplier int) *callCounter {
+	if multiplier == 0 {
+		return cc
+	}
+	if targetId == "" {
+		panic("callCounter: called AddThisToTarget with empty target id")
+	}
+	target, _ := getCounter(targetId)
+	cc.addToRecursive[target] += multiplier
+	if cc.addToRecursive[target] == 0 {
+		delete(cc.addToRecursive, target)
+	}
+	return cc
+}
+
+func (cc *callCounter) AddToThisFromSource(sourceId CallCounterId, multiplier int) *callCounter {
+	if multiplier == 0 {
+		return cc
+	}
+	if sourceId == "" {
+		panic("callCounter: called AddToThisFromSource with empty source id")
+	}
+	source, _ := getCounter(sourceId)
+	source.addToRecursive[cc] += multiplier
+	if source.addToRecursive[cc] == 0 {
+		delete(source.addToRecursive, cc)
+	}
+	return cc
 }
 
 // TODO: Set Add/SubRecursive
