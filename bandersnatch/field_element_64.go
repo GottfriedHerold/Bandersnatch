@@ -214,12 +214,14 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	z.words[3], carry = bits.Add64(x.words[3], y.words[3], carry)
 	// carry == 1 basically only happens here if you do it on purpose (add up *lots* of non-normalized numbers).
 	// NOTE: If carry == 1, then z.maybe_reduce_once() actually commutes with the -=mdoubled here: it won't do anything either before or after it.
+
 	if carry != 0 {
 		z.words[0], carry = bits.Sub64(z.words[0], mdoubled_64_0, 0)
 		z.words[1], carry = bits.Sub64(z.words[1], mdoubled_64_1, carry)
 		z.words[2], carry = bits.Sub64(z.words[2], mdoubled_64_2, carry)
 		z.words[3], _ = bits.Sub64(z.words[3], mdoubled_64_3, carry)
 	}
+
 	// else?
 	z.maybe_reduce_once()
 }
@@ -661,6 +663,8 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 	}
 }
 
+// TODO: error or bool?
+
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToInt()
@@ -816,9 +820,54 @@ func (z *bsFieldElement_64) String() string {
 
 var _ = CreateAttachedCallCounter("AddEqFe", "", "AddFe")
 
-func (z *bsFieldElement_64) AddEq(x *bsFieldElement_64) {
+// var _ = AddNewCallCounter("AddEqFe", "", "AddSubFe")
+
+func (z *bsFieldElement_64) AddEq(y *bsFieldElement_64) {
 	IncrementCallCounter("AddEqFe")
-	z.Add(z, x)
+
+	// z.Add(z,x) is strangely slow (x2.5 compared to z.Add(x,y) for z!=x,y)
+	// I have no idea why, probably the writes to z stall the reads from z (even though they shouldn't).
+	z.Add(z, y)
+
+	// This should work as well, but adds complexity and error-proneness while
+	// being only slightly faster, so we use the simple approach for now.
+	// Proably, we would need to write it in assembly anyway.
+	/*
+		var carry uint64
+		var too_large bool
+		var overflow uint64
+		var temp0, temp1, temp2, temp3 uint64
+		temp3, overflow = bits.Add64(z.words[3], y.words[3], 0)
+		too_large = temp3 > m_64_3
+		way_too_large := temp3 > mdoubled_64_3
+		temp0, carry = bits.Add64(z.words[0], y.words[0], 0)
+		temp1, carry = bits.Add64(z.words[1], y.words[1], carry)
+		temp2, carry = bits.Add64(z.words[2], y.words[2], carry)
+
+		temp3 += carry // this might overflow, but that's fine, because then way_too_large is true
+
+		// overflow == true basically only happens here if you do it on purpose (add up *lots* of non-normalized numbers).
+		// Also, overflow and too_large are exclusive due to the size constraints on the input (x+BaseField, z+Basefield do not overflow)
+
+		var borrow uint64
+		// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words. At any rate, we do not really need to.
+		if too_large {
+			z.words[0], borrow = bits.Sub64(temp0, m_64_0, 0)
+			z.words[1], borrow = bits.Sub64(temp1, m_64_1, borrow)
+			z.words[2], borrow = bits.Sub64(temp2, m_64_2, borrow)
+			z.words[3], _ = bits.Sub64(temp3+carry, m_64_3, borrow) // _ is guaranteed to be 0
+		} else if way_too_large || overflow != 0 {
+			z.words[0], borrow = bits.Sub64(temp0, mdoubled_64_0, 0)
+			z.words[1], borrow = bits.Sub64(temp1, mdoubled_64_1, borrow)
+			z.words[2], borrow = bits.Sub64(temp2, mdoubled_64_2, borrow)
+			z.words[3], _ = bits.Sub64(temp3+carry, mdoubled_64_3, borrow)
+		} else {
+			z.words[0] = temp0
+			z.words[1] = temp1
+			z.words[2] = temp2
+			z.words[3] = temp3 + carry
+		}
+	*/
 }
 
 var _ = CreateAttachedCallCounter("SubEqFe", "", "SubFe")
