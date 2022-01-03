@@ -1,6 +1,8 @@
-//go:build ignore
+//go:build callcounters
 
 package bandersnatch
+
+// This file is only compiled if tags=callcounters is set
 
 import "strconv"
 

@@ -122,10 +122,8 @@ func test_decomposition_correctness(x *big.Int, decomposition []decompositionCoe
 			panic("decompositionCoefficient::sign not +/- 1")
 		}
 	}
-	if accumulator.Cmp(x) == 0 {
-		return true
-	}
-	return false
+	return accumulator.Cmp(x) == 0 // This is true iff x and accumulator hold the same value
+
 }
 
 func TestDecomposition(t *testing.T) {

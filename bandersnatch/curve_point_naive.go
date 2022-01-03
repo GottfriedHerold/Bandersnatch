@@ -84,3 +84,30 @@ func makeRandomPointInSubgroup_t(rnd *rand.Rand) Point_xtw {
 	r.DoubleEq()
 	return r
 }
+
+func makeRandomPointOnCurve_a(rnd *rand.Rand) (ret Point_axtw) {
+	var temp Point_xtw = makeRandomPointOnCurve_t(rnd)
+	if temp.IsAtInfinity() {
+		return makeRandomPointOnCurve_a(rnd)
+	}
+	ret.SetFrom(&temp)
+	return
+}
+
+func makeRandomPointInSubgroup_a(rnd *rand.Rand) (ret Point_axtw) {
+	var temp Point_xtw = makeRandomPointInSubgroup_t(rnd)
+	ret.SetFrom(&temp)
+	return
+}
+
+func makeRandomPointOnCurve_s(rnd *rand.Rand) (ret Point_efgh) {
+	var temp Point_xtw = makeRandomPointOnCurve_t(rnd)
+	ret.SetFrom(&temp)
+	return
+}
+
+func makeRandomPointInSubgroup_s(rnd *rand.Rand) (ret Point_efgh) {
+	var temp Point_xtw = makeRandomPointInSubgroup_t(rnd)
+	ret.SetFrom(&temp)
+	return
+}

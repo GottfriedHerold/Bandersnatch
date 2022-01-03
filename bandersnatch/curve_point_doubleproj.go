@@ -196,7 +196,8 @@ func (p *Point_efgh) IsNaP() bool {
 
 	if p.g.IsZero() && p.e.IsZero() {
 		return true
-		panic("Type-2 efgh NaP encountered") // This is for testing only. -- remove / reconsider later; maybe we can avoid NaP-type2.
+		// This is for testing only. -- remove / reconsider later; maybe we can avoid NaP-type2.
+		// panic("Type-2 efgh NaP encountered")
 	}
 
 	if p.f.IsZero() {
@@ -272,7 +273,15 @@ func (p *Point_efgh) Add(x, y CurvePointPtrInterfaceRead) {
 		}
 	default:
 		var x_conv Point_xtw = x.ExtendedTwistedEdwards()
-		p.Add(&x_conv, y)
+		switch y := y.(type) {
+		case *Point_xtw:
+			p.add_stt(&x_conv, y)
+		case *Point_axtw:
+			p.add_sta(&x_conv, y)
+		default: // including *Point_efgh
+			var y_conv Point_xtw = y.ExtendedTwistedEdwards()
+			p.add_stt(&x_conv, &y_conv)
+		}
 	}
 }
 
@@ -441,7 +450,7 @@ func (p *Point_efgh) SetFrom(input CurvePointPtrInterfaceRead) {
 		} else {
 			// The general interface does not allow to distinguish the two points at infinity.
 			// We could fix that, but it seems hardly worth it.
-			panic("Trying to convert point of unknown type in efgh when point is at infinity")
+			panic("Trying to convert point at infinity of unknown type into efgh format")
 		}
 	}
 }

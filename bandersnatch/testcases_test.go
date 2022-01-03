@@ -49,6 +49,19 @@ func PointTypeToString(c PointType) string {
 	}
 }
 
+func PointTypeToTag(c PointType) string {
+	switch c {
+	case pointTypeXTW:
+		return "t"
+	case pointTypeAXTW:
+		return "a"
+	case pointTypeEFGH:
+		return "s"
+	default:
+		return "U"
+	}
+}
+
 func canRepresentInfinity(pointType PointType) bool {
 	switch pointType {
 	case pointTypeXTW:

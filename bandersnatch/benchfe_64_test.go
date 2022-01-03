@@ -1,31 +1,8 @@
 package bandersnatch
 
 import (
-	"math/rand"
 	"testing"
 )
-
-// benchmarks read from and write to these global variable in order to
-// a) allow easy initialization outside of the measured function
-// b) avoid the compiler optimizating away the writes.
-const benchS = 2 << 8
-
-var DumpBools [benchS]bool
-var DumpFe_64 [benchS]bsFieldElement_64
-var bench_x_64 [benchS]bsFieldElement_64
-var bench_y_64 [benchS]bsFieldElement_64
-var bench_z_64 [benchS]bsFieldElement_64
-
-func prepareBenchTests_64(b *testing.B) {
-	var drng *rand.Rand = rand.New(rand.NewSource(666))
-	for i := 0; i < benchS; i++ {
-		bench_x_64[i].setRandomUnsafe(drng)
-		bench_y_64[i].setRandomUnsafe(drng)
-		bench_z_64[i].setRandomUnsafe(drng)
-	}
-	ResetCallCounters()
-	b.ResetTimer()
-}
 
 func BenchmarkEnsureBuildFlags(b *testing.B) {
 	if CallCountersActive {

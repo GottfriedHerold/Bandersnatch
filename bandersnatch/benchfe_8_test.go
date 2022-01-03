@@ -1,25 +1,8 @@
 package bandersnatch
 
 import (
-	"math/rand"
 	"testing"
 )
-
-var DumpFe_8 [benchS]bsFieldElement_8
-var bench_x_8 [benchS]bsFieldElement_8
-var bench_y_8 [benchS]bsFieldElement_8
-var bench_z_8 [benchS]bsFieldElement_8
-
-func prepareBenchTests_8(b *testing.B) {
-	var drng *rand.Rand = rand.New(rand.NewSource(666))
-	for i := 0; i < benchS; i++ {
-		bench_x_8[i].setRandomUnsafe(drng)
-		bench_y_8[i].setRandomUnsafe(drng)
-		bench_z_8[i].setRandomUnsafe(drng)
-	}
-	ResetCallCounters()
-	b.ResetTimer()
-}
 
 func BenchmarkDummyRead_8(b *testing.B) {
 	prepareBenchTests_8(b)
