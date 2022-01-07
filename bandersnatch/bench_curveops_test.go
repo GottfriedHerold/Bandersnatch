@@ -11,7 +11,6 @@ func BenchmarkCurveNegUntyped(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			DumpCPI[n%benchS].Neg(bench_CPI1[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
@@ -36,7 +35,6 @@ func BenchmarkCurveEndoUntyped(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			DumpCPI[n%benchS].Endo(bench_CPI1[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
@@ -45,7 +43,6 @@ func BenchmarkCurveConversionUntyped(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			DumpCPI[n%benchS].SetFrom(bench_CPI1[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 	prepareBenchTest_Curve(b)
 	for _, argType := range allTestPointTypes {

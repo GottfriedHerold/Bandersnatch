@@ -2,8 +2,6 @@ package bandersnatch
 
 import (
 	"testing"
-
-	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 )
 
 /*
@@ -100,117 +98,92 @@ func BenchmarkCurveAddTyped(b *testing.B) {
 func BenchmarkCurveAddEqTyped(b *testing.B) {
 	prepareBenchTest_Curve(b)
 	b.Run("tt->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			bench_xtw1[n%benchS].add_ttt(&bench_xtw1[n%benchS], &bench_xtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 	b.Run("ta->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			bench_xtw2[n%benchS].add_tta(&bench_xtw2[n%benchS], &bench_axtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
 func BenchmarkCurveSubTyped(b *testing.B) {
 	prepareBenchTest_Curve(b)
 	b.Run("tt->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpXTW[n%benchS].sub_ttt(&bench_xtw1[n%benchS], &bench_xtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("ta->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpXTW[n%benchS].sub_tta(&bench_xtw1[n%benchS], &bench_axtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("at->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpXTW[n%benchS].sub_tat(&bench_axtw1[n%benchS], &bench_xtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("aa->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpXTW[n%benchS].sub_taa(&bench_axtw1[n%benchS], &bench_axtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("tt->s", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpEFGH[n%benchS].sub_stt(&bench_xtw1[n%benchS], &bench_xtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("ta->s", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpEFGH[n%benchS].sub_sta(&bench_xtw1[n%benchS], &bench_axtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("at->s", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpEFGH[n%benchS].sub_sat(&bench_axtw1[n%benchS], &bench_xtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("aa->s", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			DumpEFGH[n%benchS].sub_saa(&bench_axtw1[n%benchS], &bench_axtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
 func BenchmarkCurveSubEqTyped(b *testing.B) {
 	prepareBenchTest_Curve(b)
 	b.Run("tt->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			bench_xtw1[n%benchS].sub_ttt(&bench_xtw1[n%benchS], &bench_xtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 
 	b.Run("ta->t", func(b *testing.B) {
-		callcounters.ResetAllCounters()
-		b.ResetTimer()
+		setupBenchmarkCurvePoints(b)
 		for n := 0; n < b.N; n++ {
 			bench_xtw2[n%benchS].sub_tta(&bench_xtw2[n%benchS], &bench_axtw2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
@@ -219,7 +192,6 @@ func BenchmarkCurveAddUntyped(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			DumpCPI[n%benchS].Add(bench_CPI1[n%benchS], bench_CPI2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
@@ -228,7 +200,6 @@ func BenchmarkCurveSubUntyped(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			DumpCPI[n%benchS].Sub(bench_CPI1[n%benchS], bench_CPI2[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
 
@@ -237,6 +208,5 @@ func BenchmarkCurveDoubleUntyped(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			DumpCPI[n%benchS].Double(bench_CPI1[n%benchS])
 		}
-		postProcessBenchmarkCurvePoints(b)
 	})
 }
