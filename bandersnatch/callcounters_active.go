@@ -24,6 +24,6 @@ func BenchmarkWithCallCounters(b *testing.B) {
 	b.StopTimer()
 	reports := callcounters.ReportCallCounters(true, false)
 	for _, item := range reports {
-		b.ReportMetric(float64(item.Calls)/float64(b.N), item.Tag)
+		b.ReportMetric(float64(item.Calls)/float64(b.N), item.Tag+"/op")
 	}
 }

@@ -2,8 +2,6 @@ package bandersnatch
 
 import (
 	"testing"
-
-	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 )
 
 func BenchmarkCurveNegUntyped(b *testing.B) {
@@ -20,12 +18,10 @@ func BenchmarkCurveClone(b *testing.B) {
 		prepareBenchInterfaces(b, &bench_CPI1, receiverType, 1)
 		var tag string = PointTypeToTag(receiverType)
 		b.Run(tag, func(b *testing.B) {
-			callcounters.ResetAllCounters()
-			b.ResetTimer()
+			setupBenchmarkCurvePoints(b)
 			for n := 0; n < b.N; n++ {
 				_ = bench_CPI1[n%benchS].Clone()
 			}
-			postProcessBenchmarkCurvePoints(b)
 		})
 	}
 }
@@ -48,12 +44,10 @@ func BenchmarkCurveConversionUntyped(b *testing.B) {
 	for _, argType := range allTestPointTypes {
 		prepareBenchInterfaces(b, &bench_CPI1, argType, 1)
 		b.Run(PointTypeToTag(argType)+"(cloned)->a", func(b *testing.B) {
-			callcounters.ResetAllCounters()
-			b.ResetTimer()
+			setupBenchmarkCurvePoints(b)
 			for n := 0; n < b.N; n++ {
 				DumpAXTW[n%benchS].SetFrom(bench_CPI1[n%benchS].Clone())
 			}
-			postProcessBenchmarkCurvePoints(b)
 		})
 	}
 }

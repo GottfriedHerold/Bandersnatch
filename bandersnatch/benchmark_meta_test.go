@@ -73,7 +73,11 @@ func init() {
 // For the teardown code (which atm only makes sure that call counters are added to the benchmarking output if those are active in the current build),
 // this needs to be called *inside the sub-test*.
 
-// For benchmarking curve point functionalities, it is suggested to use setup
+// For benchmarking curve point functionalities,
+// it is suggested to use setupBenchmarkCurvePoints(b) INSIDE each innermost sub-test.
+// Be aware that go's testing/benchmarking framework runs the benchmark several times with
+// varying values of b.N until the statistics stabilize -- In particular, call counters need to reset upon retrying with a different b.N.
+// setupBenchmarkCurvePoints(b) takes care of that
 
 // prepareBenchTests_8 runs common setup code for benchmarks for the naive 8-bit field element operations
 func prepareBenchTests_8(b *testing.B) {
@@ -234,7 +238,7 @@ func setupBenchmarkCurvePoints(b *testing.B) {
 // (i.e. the function to be benchmarked has the form Dump_CPI[i].some_fun() where some_fun has 0 non-receiver arguments.
 func benchmarkForAllPointTypesNoneary(b *testing.B, receiverTypes []PointType, fun func(*testing.B)) {
 	f := func(b *testing.B) {
-		b.Cleanup(func() { postProcessBenchmarkCurvePoints(b) })
+		setupBenchmarkCurvePoints(b)
 		fun(b)
 	}
 	prepareBenchTest_Curve(b)
@@ -250,7 +254,7 @@ func benchmarkForAllPointTypesNoneary(b *testing.B, receiverTypes []PointType, f
 // (i.e the function to be benchmarked probably has the form Dump_CPI[i].some_fun(arg1) with 1 non-receiver argument)
 func benchmarkForAllPointTypesUnary(b *testing.B, receiverTypes []PointType, arg1Types []PointType, fun func(*testing.B)) {
 	f := func(b *testing.B) {
-		b.Cleanup(func() { postProcessBenchmarkCurvePoints(b) })
+		setupBenchmarkCurvePoints(b)
 		fun(b)
 	}
 	prepareBenchTest_Curve(b)
@@ -269,7 +273,7 @@ func benchmarkForAllPointTypesUnary(b *testing.B, receiverTypes []PointType, arg
 // (i.e the function to be benchmarked probably has the form Dump_CPI[i].some_fun(arg1, arg2) with 2 non-receiver argument)
 func benchmarkForAllPointTypesBinary(b *testing.B, receiverTypes []PointType, arg1Types []PointType, arg2Types []PointType, fun func(*testing.B)) {
 	f := func(b *testing.B) {
-		b.Cleanup(func() { postProcessBenchmarkCurvePoints(b) })
+		setupBenchmarkCurvePoints(b)
 		fun(b)
 	}
 	prepareBenchTest_Curve(b)
@@ -293,7 +297,7 @@ func benchmarkForAllPointTypesBinary(b *testing.B, receiverTypes []PointType, ar
 // (this is to not clog up the output for functions where the dispatch takes care of this anyway.)
 func benchmarkForAllPointTypesBinaryCommutative(b *testing.B, receiverTypes []PointType, argTypes []PointType, fun func(*testing.B)) {
 	f := func(b *testing.B) {
-		b.Cleanup(func() { postProcessBenchmarkCurvePoints(b) })
+		setupBenchmarkCurvePoints(b)
 		fun(b)
 	}
 	prepareBenchTest_Curve(b)
