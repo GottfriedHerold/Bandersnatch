@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"math/bits"
 	"math/rand"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 )
 
 /*
@@ -103,27 +105,21 @@ var bsFieldElement_64_minusone bsFieldElement_64 = bsFieldElement_64{words: [4]u
 // The number 2^256 in Montgomery form.
 var bsFieldElement_64_r bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: rsquared_64_0, 1: rsquared_64_1, 2: rsquared_64_2, 3: rsquared_64_3}}
 
-var _ = AddNewCallCounter("FieldOps", "Field Operations", "")
-var _ = AddNewCallCounter("AddSubFe", "Additions and Subtractions", "FieldOps")
-var _ = AddNewCallCounter("Multiplications", "", "FieldOps")
-var _ = AddNewCallCounter("Divisions", "", "FieldOps")
-var _ = AddNewCallCounter("OtherFe", "Others", "FieldOps")
-var _ = AddNewCallCounter("AddFe", "Additions", "AddSubFe")
-var _ = AddNewCallCounter("SubFe", "Subtractions", "AddSubFe")
-var _ = AddNewCallCounter("Jacobi", "Jacobi symbols", "OtherFe")
-var _ = AddNewCallCounter("NegFe", "Negations", "OtherFe")
-var _ = AddNewCallCounter("MulFe", "generic Multiplications", "Multiplications")
-var _ = AddNewCallCounter("MulByFive", "Multiplications by 5", "Multiplications")
-var _ = AddNewCallCounter("Squarings", "", "Multiplications")
-var _ = AddNewCallCounter("SqrtFe", "Square roots", "OtherFe")
-var _ = AddNewCallCounter("InvFe", "Inversions", "Divisions")
-var _ = AddNewCallCounter("DivideFe", "generic Divisions", "Divisions")
-
-/* var _ = CreateAttachedCallCounter("AddFeEq", "", "AddFe")
-var _ = CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
-var _ = CreateAttachedCallCounter("MulFromDivide", "", "MulFe").AppendAddSubTarget("", "FieldOps")
-var _ = CreateAttachedCallCounter("InvFromDivide", "", "InvFe").AppendAddSubTarget("", "FieldOps")
-*/
+var _ = callcounters.CreateHierarchicalCallCounter("FieldOps", "Field Operations", "")
+var _ = callcounters.CreateHierarchicalCallCounter("AddSubFe", "Additions and Subtractions", "FieldOps")
+var _ = callcounters.CreateHierarchicalCallCounter("Multiplications", "", "FieldOps")
+var _ = callcounters.CreateHierarchicalCallCounter("Divisions", "", "FieldOps")
+var _ = callcounters.CreateHierarchicalCallCounter("OtherFe", "Others", "FieldOps")
+var _ = callcounters.CreateHierarchicalCallCounter("AddFe", "Additions", "AddSubFe")
+var _ = callcounters.CreateHierarchicalCallCounter("SubFe", "Subtractions", "AddSubFe")
+var _ = callcounters.CreateHierarchicalCallCounter("Jacobi", "Jacobi symbols", "OtherFe")
+var _ = callcounters.CreateHierarchicalCallCounter("NegFe", "Negations", "OtherFe")
+var _ = callcounters.CreateHierarchicalCallCounter("MulFe", "generic Multiplications", "Multiplications")
+var _ = callcounters.CreateHierarchicalCallCounter("MulByFive", "Multiplications by 5", "Multiplications")
+var _ = callcounters.CreateHierarchicalCallCounter("Squarings", "", "Multiplications")
+var _ = callcounters.CreateHierarchicalCallCounter("SqrtFe", "Square roots", "OtherFe")
+var _ = callcounters.CreateHierarchicalCallCounter("InvFe", "Inversions", "Divisions")
+var _ = callcounters.CreateHierarchicalCallCounter("DivideFe", "generic Divisions", "Divisions")
 
 // maybe_reduce_once changes the representation of z to restore the invariant that z.words + BaseFieldSize must not overflow.
 func (z *bsFieldElement_64) maybe_reduce_once() {
@@ -252,7 +248,7 @@ func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
 	}
 }
 
-var _ = CreateAttachedCallCounter("SubFromNeg", "Subtractions called by Neg", "SubFe").
+var _ = callcounters.CreateAttachedCallCounter("SubFromNeg", "Subtractions called by Neg", "SubFe").
 	AddToThisFromSource("NegFe", 1).
 	AddThisToTarget("FieldOps", -1)
 
@@ -499,7 +495,7 @@ func (z *bsFieldElement_64) undoMontgomery() [4]uint64 {
 	return temp.words
 }
 
-var _ = CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
+var _ = callcounters.CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
 
 // restoreMontgomery restores the internal Montgomery representation, assuming the current internal representation is *NOT* in Montgomery form.
 // This must only be used internally.
@@ -615,11 +611,11 @@ func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
 	z.SetInt(t)
 }
 
-var _ = CreateAttachedCallCounter("InvFromDivide", "Inversion in Divide", "InvFe").
+var _ = callcounters.CreateAttachedCallCounter("InvFromDivide", "Inversion in Divide", "InvFe").
 	AddToThisFromSource("DivideFe", +1).
 	AddThisToTarget("Divisions", -1)
 
-var _ = CreateAttachedCallCounter("MulFromDivide", "Multiplications called by Didive", "MulFe").
+var _ = callcounters.CreateAttachedCallCounter("MulFromDivide", "Multiplications called by Didive", "MulFe").
 	AddToThisFromSource("DivideFe", +1).
 	AddThisToTarget("FieldOps", -1)
 
@@ -818,9 +814,9 @@ func (z *bsFieldElement_64) String() string {
 	return z.ToInt().String()
 }
 
-var _ = CreateAttachedCallCounter("AddEqFe", "", "AddFe")
+var _ = callcounters.CreateAttachedCallCounter("AddEqFe", "", "AddFe")
 
-// var _ = AddNewCallCounter("AddEqFe", "", "AddSubFe")
+// var _ = callcounters.CreateHierarchicalCallCounter("AddEqFe", "", "AddSubFe")
 
 func (z *bsFieldElement_64) AddEq(y *bsFieldElement_64) {
 	IncrementCallCounter("AddEqFe")
@@ -870,21 +866,21 @@ func (z *bsFieldElement_64) AddEq(y *bsFieldElement_64) {
 	*/
 }
 
-var _ = CreateAttachedCallCounter("SubEqFe", "", "SubFe")
+var _ = callcounters.CreateAttachedCallCounter("SubEqFe", "", "SubFe")
 
 func (z *bsFieldElement_64) SubEq(x *bsFieldElement_64) {
 	IncrementCallCounter("SubEqFe")
 	z.Sub(z, x)
 }
 
-var _ = CreateAttachedCallCounter("MulEqFe", "", "MulFe")
+var _ = callcounters.CreateAttachedCallCounter("MulEqFe", "", "MulFe")
 
 func (z *bsFieldElement_64) MulEq(x *bsFieldElement_64) {
 	IncrementCallCounter("MulEqFe")
 	z.Mul(z, x)
 }
 
-var _ = CreateAttachedCallCounter("MulFromSqure", "as part of non-optimized Squaring", "MulFe").
+var _ = callcounters.CreateAttachedCallCounter("MulFromSqure", "as part of non-optimized Squaring", "MulFe").
 	AddToThisFromSource("Squarings", +1).
 	AddThisToTarget("Multiplications", -1)
 
@@ -898,20 +894,20 @@ func (z *bsFieldElement_64) SquareEq() {
 	z.Mul(z, z)
 }
 
-var _ = CreateAttachedCallCounter("NegEqFe", "", "NegFe")
+var _ = callcounters.CreateAttachedCallCounter("NegEqFe", "", "NegFe")
 
 func (z *bsFieldElement_64) NegEq() {
 	IncrementCallCounter("NegEqFe")
 	z.Neg(z)
 }
 
-var _ = CreateAttachedCallCounter("InvEqFe", "", "InvFe")
+var _ = callcounters.CreateAttachedCallCounter("InvEqFe", "", "InvFe")
 
 func (z *bsFieldElement_64) InvEq() {
 	z.Inv(z)
 }
 
-var _ = CreateAttachedCallCounter("DivideEqFe", "", "DivideFe")
+var _ = callcounters.CreateAttachedCallCounter("DivideEqFe", "", "DivideFe")
 
 func (z *bsFieldElement_64) DivideEq(denom *bsFieldElement_64) {
 	z.Divide(z, denom)

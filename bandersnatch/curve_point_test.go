@@ -6,7 +6,7 @@ import (
 )
 
 /*
-	This file contains tests on curve points that can be expressed properties on the exported interface of CurvePointPtrInterface.
+	This file contains tests on curve points that can be expressed as properties on the exported interface of CurvePointPtrInterface.
 	Using our testing framework and a little bit of reflection (hidden in helper functions) and interfaces, these tests are then run on all concrete curve point types.
 */
 

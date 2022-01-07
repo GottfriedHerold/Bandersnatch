@@ -1,21 +1,13 @@
-//go:build !callcounters
+//go:build callcounters
+
+// This file contains (dummy) implementations of the
 
 package bandersnatch
 
 const CallCountersActive = false
 
-func ResetCallCounters() {
+func IncrementCallCounter(id callcounters.Id) {
 }
 
-func (id CallCounterId) Get() (ret int, ok bool) {
-	_, ok = callCounters[id]
-	return // ret == 0
-
-}
-
-func CallPointersStringToPrint() string {
-	return "Call Counters inactive\n"
-}
-
-func IncrementCallCounter(id CallCounterId) {
+func BenchmarkWithCallCounters(b *testing.B) {
 }

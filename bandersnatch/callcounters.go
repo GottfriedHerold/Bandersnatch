@@ -1,6 +1,9 @@
 package bandersnatch
 
-import "fmt"
+/*
+import (
+	"fmt"
+)
 
 type CallCounterId string
 
@@ -190,6 +193,37 @@ func printCallCounterStructure() {
 	}
 }
 
+type ccreport struct {
+	tag    string
+	number int
+}
+
+func getActiveCallCountersBelowNode(cc *callCounter) (ret []ccreport, value int) {
+	ret = make([]ccreport, 0)
+	if !cc.display || cc.count_modified == 0 {
+		return
+	}
+	value = cc.count_modified
+	childsum := 0
+	haschildren := false
+
+	ret = append(ret, ccreport{tag: string(cc.id), number: cc.count_modified})
+	for _, child_cc := range cc.subcounters {
+		childreport, childvalue := getActiveCallCountersBelowNode(child_cc)
+		if childvalue == 0 {
+			continue
+		}
+		haschildren = true
+		childsum += childvalue
+		ret = append(ret, childreport...)
+	}
+	if haschildren && cc.displayremaining && childsum < value {
+		ret = append(ret, ccreport{tag: "Other" + string(cc.id), number: value - childsum})
+	}
+	return
+}
+
 func PrintCallCounters() {
 	fmt.Println(CallPointersStringToPrint())
 }
+*/

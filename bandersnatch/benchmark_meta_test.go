@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 )
 
 // This file contains code that is shared by a lot of benchmarking code
@@ -67,7 +69,7 @@ func prepareBenchTests_8(b *testing.B) {
 		bench_y_8[i].setRandomUnsafe(drng)
 		bench_z_8[i].setRandomUnsafe(drng)
 	}
-	ResetCallCounters()
+	callcounters.ResetAllCounters()
 	b.ResetTimer()
 }
 
@@ -78,19 +80,26 @@ func prepareBenchTests_64(b *testing.B) {
 		bench_y_64[i].setRandomUnsafe(drng)
 		bench_z_64[i].setRandomUnsafe(drng)
 	}
-	ResetCallCounters()
+	callcounters.ResetAllCounters()
 	b.ResetTimer()
 }
 
-var consistentRandom667xtw [benchS]Point_xtw
+const consistentRandom667samples = 4
+
+var consistentRandom667xtw [consistentRandom667samples][benchS]Point_xtw
 var consistentRandom667xtw_initialized bool = false
 
-func prepareBenchInterfaces(b *testing.B, target *[benchS]CurvePointPtrInterface_FullCurve, pointType PointType) {
+func prepareBenchInterfaces(b *testing.B, target *[benchS]CurvePointPtrInterface_FullCurve, pointType PointType, suffix int) {
+	if suffix >= consistentRandom667samples {
+		panic("suffix number too large")
+	}
 	// only do this once, and only if needed. It's slow.
 	if !consistentRandom667xtw_initialized {
 		var rng *rand.Rand = rand.New(rand.NewSource(667))
-		for i := 0; i < benchS; i++ {
-			consistentRandom667xtw[i] = makeRandomPointInSubgroup_t(rng)
+		for s := 0; s < consistentRandom667samples; s++ {
+			for i := 0; i < benchS; i++ {
+				consistentRandom667xtw[s][i] = makeRandomPointInSubgroup_t(rng)
+			}
 		}
 		consistentRandom667xtw_initialized = true
 	}
@@ -100,9 +109,9 @@ func prepareBenchInterfaces(b *testing.B, target *[benchS]CurvePointPtrInterface
 
 	for i := 0; i < benchS; i++ {
 		(*target)[i] = values.Elem().Index(i).Addr().Interface().(CurvePointPtrInterface_FullCurve)
-		(*target)[i].SetFrom(&consistentRandom667xtw[i])
+		(*target)[i].SetFrom(consistentRandom667xtw[suffix][i].Clone())
 	}
-	ResetCallCounters()
+	callcounters.ResetAllCounters()
 	b.ResetTimer()
 }
 
@@ -112,7 +121,7 @@ func prepareDumpCPI(b *testing.B, pointType PointType) {
 	for i := 0; i < benchS; i++ {
 		DumpCPI[i] = values.Elem().Index(i).Addr().Interface().(CurvePointPtrInterfaceWrite_FullCurve)
 	}
-	ResetCallCounters()
+	callcounters.ResetAllCounters()
 	b.ResetTimer()
 }
 
@@ -149,7 +158,17 @@ func prepareBenchTest_Curve(b *testing.B) {
 		bench_efgh1[i] = consistentRandomPoints668[i].efgh1
 		bench_efgh2[i] = consistentRandomPoints668[i].efgh2
 	}
-	ResetCallCounters()
+	callcounters.ResetAllCounters()
+	b.ResetTimer()
+}
+
+func postProcessBenchmarkCurvePoints(b *testing.B) {
+	BenchmarkWithCallCounters(b)
+}
+
+func setupBenchmarkCurvePoints(b *testing.B) {
+	callcounters.ResetAllCounters()
+	b.Cleanup(func() { postProcessBenchmarkCurvePoints(b) })
 	b.ResetTimer()
 }
 
@@ -167,7 +186,7 @@ func benchmarkForAllPointTypesUnary(b *testing.B, receiverTypes []PointType, arg
 	for _, receiverType := range receiverTypes {
 		prepareDumpCPI(b, receiverType)
 		for _, arg1Type := range arg1Types {
-			prepareBenchInterfaces(b, &bench_CPI1, arg1Type)
+			prepareBenchInterfaces(b, &bench_CPI1, arg1Type, 1)
 			var tag string = PointTypeToTag(arg1Type) + "->" + PointTypeToTag(receiverType)
 			b.Run(tag, fun)
 		}
@@ -179,13 +198,12 @@ func benchmarkForAllPointTypesBinary(b *testing.B, receiverTypes []PointType, ar
 	for _, receiverType := range receiverTypes {
 		prepareDumpCPI(b, receiverType)
 		for _, arg1Type := range arg1Types {
-			prepareBenchInterfaces(b, &bench_CPI1, arg1Type)
+			prepareBenchInterfaces(b, &bench_CPI1, arg1Type, 2)
 			for _, arg2Type := range arg2Types {
-				prepareBenchInterfaces(b, &bench_CPI2, arg2Type)
+				prepareBenchInterfaces(b, &bench_CPI2, arg2Type, 3)
 				var tag string = PointTypeToTag(arg1Type) + PointTypeToTag(arg2Type) + "->" + PointTypeToTag(receiverType)
 				b.Run(tag, fun)
 			}
-
 		}
 	}
 }
@@ -195,16 +213,15 @@ func benchmarkForAllPointTypesBinaryCommutative(b *testing.B, receiverTypes []Po
 	for _, receiverType := range receiverTypes {
 		prepareDumpCPI(b, receiverType)
 		for i, arg1Type := range argTypes {
-			prepareBenchInterfaces(b, &bench_CPI1, arg1Type)
+			prepareBenchInterfaces(b, &bench_CPI1, arg1Type, 0)
 			for j, arg2Type := range argTypes {
 				if i > j {
 					continue
 				}
-				prepareBenchInterfaces(b, &bench_CPI2, arg2Type)
+				prepareBenchInterfaces(b, &bench_CPI2, arg2Type, 2)
 				var tag string = PointTypeToTag(arg1Type) + PointTypeToTag(arg2Type) + "->" + PointTypeToTag(receiverType)
 				b.Run(tag, fun)
 			}
-
 		}
 	}
 }
