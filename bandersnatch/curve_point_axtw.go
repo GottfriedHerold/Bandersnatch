@@ -128,6 +128,7 @@ func (p *Point_axtw) IsAtInfinity() bool {
 	return false
 }
 
+// CanRepresentInfinity reports whether the curve type can represent the points at infinity -- i.e returns false for Point_axtw
 func (p *Point_axtw) CanRepresentInfinity() bool {
 	return false
 }
@@ -187,6 +188,7 @@ func (p *Point_axtw) Sub(x, y CurvePointPtrInterfaceRead) {
 	*p = temp.AffineExtended()
 }
 
+// Double computes the sum of a point with itself. p.double(x) means p := x + x
 func (p *Point_axtw) Double(in CurvePointPtrInterfaceRead) {
 	// TODO: Use specialized formulas.
 	p.Add(in, in)

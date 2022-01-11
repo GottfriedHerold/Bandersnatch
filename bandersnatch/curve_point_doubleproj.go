@@ -176,6 +176,7 @@ func (p *Point_efgh) IsAtInfinity() bool {
 	return p.g.IsZero()
 }
 
+// CanRepresentInfinity reports whether the underlying point type can represent points at infinity, i.e. returns true for Point_efgh
 func (p *Point_efgh) CanRepresentInfinity() bool {
 	return true
 }

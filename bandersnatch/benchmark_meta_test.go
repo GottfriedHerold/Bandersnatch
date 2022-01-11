@@ -68,7 +68,7 @@ func init() {
 // They set up the global variables that benchmarks consume and reset the benchmarking timers and call counters.
 // If using sub-benchmarks with b.Run(...), the prepareBench... functions can generally be run in the outer benchmark.
 // However, the inner sub-benchmarks might still need to reset call counters; also rerunning prepareBench... is
-// genrally safer as it ensures that global variables are restored. (Note that functions might inadvertedly change those)
+// generally safer as it ensures that global variables are restored. (Note that functions might inadvertedly change those)
 
 // For the teardown code (which atm only makes sure that call counters are added to the benchmarking output if those are active in the current build),
 // this needs to be called *inside the sub-test*.
