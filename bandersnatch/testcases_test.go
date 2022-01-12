@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import (
 	"math/rand"
 	"reflect"
@@ -584,14 +586,6 @@ func MakeTestSamples2(random_size int, point_type1 PointType, point_type2 PointT
 	return
 }
 
-/*
-func TestMakeSample(t *testing.T) {
-	x := MakeTestSamples2(10, pointTypeXTW, pointTypeAXTW, Case_infinite)
-	for _, item := range x {
-		fmt.Println(item)
-	}
-}
-*/
 
 type checkfunction func(TestSample) (bool, string)
 
@@ -623,3 +617,14 @@ func make_samples2_and_run_tests(t *testing.T, f checkfunction, err_string strin
 	Samples := MakeTestSamples2(random_size, point_type1, point_type2, excluded_flags)
 	run_tests_on_samples(f, t, Samples, err_string)
 }
+
+*/
+
+/*
+func TestMakeSample(t *testing.T) {
+	x := MakeTestSamples2(10, pointTypeXTW, pointTypeAXTW, Case_infinite)
+	for _, item := range x {
+		fmt.Println(item)
+	}
+}
+*/

@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import "testing"
 
 // checks whether AffineExtended gives a point that is considered equal to the original.
@@ -141,3 +143,5 @@ func TestConversionForAXTW(t *testing.T) {
 func TestConverstionForEFGH(t *testing.T) {
 	test_conversion_properties(t, pointTypeEFGH, 0)
 }
+
+*/

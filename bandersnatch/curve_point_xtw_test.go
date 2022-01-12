@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import (
 	"math/rand"
 	"testing"
@@ -83,6 +85,10 @@ func checkfun_addnaive(s TestSample) (bool, string) {
 	}
 	return true, ""
 }
+
+*/
+
+// TODO !
 
 /*
 OLD TESTS -- They work, but we want to have coverage displayed for the new tests only

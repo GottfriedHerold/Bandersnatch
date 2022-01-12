@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import "testing"
 
 // checks whether IsAtInfinity correctly recognizes points at infinity.
@@ -63,3 +65,5 @@ func TestQueriesForAXTW(t *testing.T) {
 func TestQueriesForEFGH(t *testing.T) {
 	test_queries(t, pointTypeEFGH, 0)
 }
+
+*/

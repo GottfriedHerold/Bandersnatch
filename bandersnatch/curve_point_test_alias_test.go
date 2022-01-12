@@ -1,12 +1,10 @@
 package bandersnatch
 
-import (
-	"testing"
-)
-
 /*
 	These tests verify whether our functions work even if receiver and arguments (which are usually pointers) alias.
 */
+
+/*
 
 func checkfun_alias_IsEqual(s TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
@@ -201,3 +199,5 @@ func TestAliasingForAXTW(t *testing.T) {
 func TestAliasingForEFGH(t *testing.T) {
 	test_aliasing_CurvePointPtrInterface(t, pointTypeEFGH, 0)
 }
+
+*/

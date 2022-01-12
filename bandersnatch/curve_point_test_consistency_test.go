@@ -1,15 +1,13 @@
 package bandersnatch
 
-import (
-	"testing"
-)
-
 /*
 	This file contains tests that ensure that different implementations of the CurvePointPtrInterface interface agree with each other.
 	For this we check that everything commutes with conversion to ExtendedTwistedEdwards.
 
 	Note that these checks are quite redundant with other tests, actually. Still, we keep them to be sure.
 */
+
+/*
 
 // Only check affine
 // This test is somewhat redundant with checkfun_projective_coordinate_queries and checkfun_affine_coordinate_queries anyway.
@@ -323,3 +321,5 @@ func TestConsistencyXTWForAXTW(t *testing.T) {
 func TestConsistencyXTWForEFGH(t *testing.T) {
 	test_consistency_with_xtw(t, pointTypeEFGH, 0)
 }
+
+*/

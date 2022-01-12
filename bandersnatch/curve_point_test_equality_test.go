@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import "testing"
 
 // checks whether IsNeutralElement correctly recognized neutral elements
@@ -60,3 +62,5 @@ func TestEqualityForAXTW(t *testing.T) {
 func TestEqualityForEFGH(t *testing.T) {
 	test_equality_properties(t, pointTypeEFGH, 0)
 }
+
+*/

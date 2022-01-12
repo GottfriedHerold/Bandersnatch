@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import "testing"
 
 // This function checks whether the endomorphism factors through P=P+A and Endo and Endo_FullCurve agree
@@ -180,3 +182,5 @@ func TestEndomorphismPropertiesForAXTW(t *testing.T) {
 func TestEndomorphismPropertiesForEFGH(t *testing.T) {
 	test_endomorphism_properties(t, pointTypeEFGH, 0)
 }
+
+*/

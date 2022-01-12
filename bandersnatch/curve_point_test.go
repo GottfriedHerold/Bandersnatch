@@ -1,14 +1,11 @@
 package bandersnatch
 
-import (
-	"math/big"
-	"testing"
-)
-
 /*
 	This file contains tests on curve points that can be expressed as properties on the exported interface of CurvePointPtrInterface.
 	Using our testing framework and a little bit of reflection (hidden in helper functions) and interfaces, these tests are then run on all concrete curve point types.
 */
+
+/*
 
 // Tests properties of some global parameters
 func TestGlobalParameter(t *testing.T) {
@@ -24,6 +21,17 @@ func TestGlobalParameter(t *testing.T) {
 	temp.Neg(&temp)
 	if !temp.IsEqual(&CurveParameterD_fe) {
 		t.Fatal("SqrtDDivA is not a square root of d/a")
+	}
+	if (Cofactor*GroupOrder - CurveOrder) != 0 {
+		t.Fatal("Relationship between constants violated")
+	}
+	var tempInt *big.Int = big.NewInt(0)
+	var twoInt *big.Int = big.NewInt(2)
+	tempInt.Mul(EndomorphismEigenvalue_Int, EndomorphismEigenvalue_Int)
+	tempInt.Add(tempInt, twoInt)
+	tempInt.Mod(tempInt, GroupOrder_Int)
+	if tempInt.Sign() != 0 {
+		t.Fatal("EndomorphismEigentvalue_Int is not a square root of -2 modulo p253")
 	}
 }
 
@@ -44,6 +52,8 @@ func TestInterfaces(t *testing.T) {
 	var _ CurvePointPtrInterface_FullCurve = &Point_efgh{}
 }
 
+*/
+
 /*
 	checkfun_<foo> are functions of type checkfun (i.e. func(TestSample)(bool, string))
 	They are to be run on TestSamples containing a Tuple of CurvePointPtrInterfaces and Flags and return true, <ignored> on success
@@ -58,4 +68,8 @@ func TestInterfaces(t *testing.T) {
 	make_checkfun_<foo>(extra arguments) that return checkfunctions with the extra arguments bound.
 */
 
+// TODO !
+
+/*
 var allTestPointTypes = []PointType{pointTypeXTW, pointTypeAXTW, pointTypeEFGH}
+*/

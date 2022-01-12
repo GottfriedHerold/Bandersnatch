@@ -1,10 +1,10 @@
 package bandersnatch
 
-import "testing"
-
 /*
 	Tests whether p.AddEq(x) and p.Add(x,x) are the same (and similar for SubEq, DoubleEq, NegEq, EndoEq)
 */
+
+/*
 
 func checkfun_AddEq(s TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
@@ -186,3 +186,5 @@ func TestEqVariantsForAXTW(t *testing.T) {
 func TestEqVariantsForEFGH(t *testing.T) {
 	test_CurvePointPtrInterface_EqVariants(t, pointTypeEFGH, 0)
 }
+
+*/

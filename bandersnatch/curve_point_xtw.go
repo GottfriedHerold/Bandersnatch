@@ -1,7 +1,6 @@
 package bandersnatch
 
 import (
-	"io"
 	"math/big"
 )
 
@@ -9,6 +8,8 @@ import (
 // Extended means that we additionally store T with T = X*Y/Z. Note that Z is never 0 for points in the subgroup, but see code comment about desingularisation.)
 // cf. https://iacr.org/archive/asiacrypt2008/53500329/53500329.pdf
 type Point_xtw struct {
+	thisCurvePointCanOnlyRepresentSubgroup
+	thisCurvePointCanRepresentInfinity
 	x FieldElement
 	y FieldElement
 	z FieldElement
@@ -115,20 +116,28 @@ func (p *Point_xtw) normalizeAffineZ() {
 	p.z.SetOne()
 }
 
+func (p *Point_xtw) normalizeSubgroup() {
+	panic(0)
+	// TODO !
+}
+
 // X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates.
 func (p *Point_xtw) X_affine() FieldElement {
+	panic(0)
 	p.normalizeAffineZ()
 	return p.x
 }
 
 // Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates.
 func (p *Point_xtw) Y_affine() FieldElement {
+	panic(0)
 	p.normalizeAffineZ()
 	return p.y
 }
 
 // T_affine returns the T coordinate (i.e. T=XY) of the given point in affine twisted Edwards coordinates.
 func (p *Point_xtw) T_affine() FieldElement {
+	panic(0)
 	p.normalizeAffineZ()
 	return p.t
 }
@@ -137,6 +146,7 @@ func (p *Point_xtw) T_affine() FieldElement {
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
 func (p *Point_xtw) X_projective() FieldElement {
+	panic(0)
 	return p.x
 }
 
@@ -144,6 +154,7 @@ func (p *Point_xtw) X_projective() FieldElement {
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
 func (p *Point_xtw) Y_projective() FieldElement {
+	panic(0)
 	return p.y
 }
 
@@ -151,6 +162,7 @@ func (p *Point_xtw) Y_projective() FieldElement {
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
 func (p *Point_xtw) Z_projective() FieldElement {
+	panic(0)
 	return p.z
 }
 
@@ -158,9 +170,12 @@ func (p *Point_xtw) Z_projective() FieldElement {
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
 func (p *Point_xtw) T_projective() FieldElement {
+	panic(0)
 	return p.t
 }
 
+// TODO
+/*
 // SerializeLong serialize the given point in long serialization format. err==nil iff everything worked OK.
 func (p *Point_xtw) SerializeLong(output io.Writer) (bytes_written int, err error) {
 	return default_SerializeLong(p, output)
@@ -170,8 +185,12 @@ func (p *Point_xtw) SerializeLong(output io.Writer) (bytes_written int, err erro
 func (p *Point_xtw) SerializeShort(output io.Writer) (bytes_written int, err error) {
 	return default_SerializeShort(p, output)
 }
+*/
 
-// DeserialzeShort deserialize from the given input byte stream (expecting it to start with a point in short serialization format) and store the result in the receiver.
+// TODO !
+
+/*
+// DeserializeShort deserialize from the given input byte stream (expecting it to start with a point in short serialization format) and store the result in the receiver.
 // err==nil iff no error occured. trusted should be one of the constants TrustedInput or UntrustedInput.
 // For UntrustedInput, we perform a specially-tailored efficient curve and subgroup membership tests.
 // Note that long format is considerably more efficient to deserialize.
@@ -179,7 +198,7 @@ func (p *Point_xtw) DeserializeShort(input io.Reader, trusted IsPointTrusted) (b
 	return default_DeserializeShort(p, input, trusted)
 }
 
-// DeserialzeLong deserialize from the given input byte stream (expecting it to start with a point in long serialization format) and store the result in the receiver.
+// DeserializeLong deserialize from the given input byte stream (expecting it to start with a point in long serialization format) and store the result in the receiver.
 // err==nil iff no error occured. trusted should be one of the constants TrustedInput or UntrustedInput.
 // For UntrustedInput, we perform a specially-tailored efficient curve and subgroup membership tests.
 // Note that long format is considerably more efficient to deserialize.
@@ -187,7 +206,7 @@ func (p *Point_xtw) DeserializeLong(input io.Reader, trusted IsPointTrusted) (by
 	return default_DeserializeLong(p, input, trusted)
 }
 
-// DeserialzeAtuo deserialize from the given input byte stream (expecting it to start with a point in either short or long serialization format -- it autodetects that) and store the result in the receiver.
+// DeserializeAuto deserialize from the given input byte stream (expecting it to start with a point in either short or long serialization format -- it autodetects that) and store the result in the receiver.
 // err==nil iff no error occured. trusted should be one of the constants TrustedInput or UntrustedInput.
 // For UntrustedInput, we perform a specially-tailored efficient curve and subgroup membership tests.
 // Note that long format is considerably more efficient to deserialize.
@@ -195,10 +214,13 @@ func (p *Point_xtw) DeserializeAuto(input io.Reader, trusted IsPointTrusted) (by
 	return default_DeserializeAuto(p, input, trusted)
 }
 
+*/
+
 // String prints the point in X:Y:T:Z - format
 func (p *Point_xtw) String() string {
 	// Not the most efficient way to concatenate strings, but good enough.
-	return p.x.String() + ":" + p.y.String() + ":" + p.t.String() + ":" + p.z.String()
+	// TODO: Normalize?
+	return p.x.String() + ":" + p.y.String() + ":" + p.t.String() + ":" + p.z.String() + " modulo A"
 }
 
 // AffineExtended returns a copy of the point in affine extended coordinates.
@@ -206,6 +228,17 @@ func (p *Point_xtw) AffineExtended() Point_axtw {
 	p.normalizeAffineZ()
 	return Point_axtw{x: p.x, y: p.y, t: p.t}
 }
+
+func (p *Point_xtw) ToDecaf_xtw() Point_xtw {
+	return *p
+}
+
+func (p *Point_xtw) ToDecaf_axtw() Point_axtw {
+	p.normalizeAffineZ()
+	return Point_axtw{x: p.x, y: p.y, t: p.t}
+}
+
+// TODO !
 
 // ExtendedTwistedEdwards() returns a copy of the given point in extended twited Edwards coordinates.
 func (p *Point_xtw) ExtendedTwistedEdwards() Point_xtw {
@@ -228,11 +261,12 @@ func (P *Point_xtw) IsNeutralElement() bool {
 }
 
 // Clone creates a copy of the point of the same type and returns it (Note that the returned value has interface type and containing a value of type *Point_xtw)
-func (p *Point_xtw) Clone() CurvePointPtrInterfaceRead {
+func (p *Point_xtw) Clone() interface{} {
 	p_copy := *p
 	return &p_copy
 }
 
+/*
 // IsNeutralElement_FullCurve tests for zero-ness. It does *NOT* identify P with P+A and works for points outside the subgroup.
 // We only assume that x,y,t,z satisfy the curve equations.
 func (p *Point_xtw) IsNeutralElement_FullCurve() bool {
@@ -249,6 +283,7 @@ func (p *Point_xtw) IsNeutralElement_FullCurve() bool {
 	// This implies z == +/- y
 	return p.y.IsEqual(&p.z)
 }
+*/
 
 // SetNeutral sets the Point P to the neutral element of the curve.
 func (p *Point_xtw) SetNeutral() {
@@ -265,38 +300,39 @@ func (p *Point_xtw) IsNaP() bool {
 
 // z.Add(x,y) computes z = x+y according to the elliptic curve group law.
 func (p *Point_xtw) Add(x CurvePointPtrInterfaceRead, y CurvePointPtrInterfaceRead) {
-	switch x_real := x.(type) {
+	switch x := x.(type) {
 	case *Point_xtw:
-		switch y_real := y.(type) {
+		switch y := y.(type) {
 		case *Point_xtw:
-			p.add_ttt(x_real, y_real)
+			p.add_ttt(x, y)
 		case *Point_axtw:
-			p.add_tta(x_real, y_real)
+			p.add_tta(x, y)
 		default:
-			var y_temp Point_xtw
-			y_temp.SetFrom(y_real)
-			p.add_ttt(x_real, &y_temp)
+			var y_converted Point_xtw = convertToPoint_xtw(y)
+			p.add_ttt(x, &y_converted)
 		}
 	case *Point_axtw:
-		switch y_real := y.(type) {
+		switch y := y.(type) {
 		case *Point_xtw:
-			p.add_tta(y_real, x_real)
+			p.add_tta(y, x)
 		case *Point_axtw:
-			p.add_taa(x_real, y_real)
+			p.add_taa(x, y)
 		default:
-			y_temp := y_real.ExtendedTwistedEdwards()
-			p.add_tta(&y_temp, x_real)
+			var y_converted Point_xtw = convertToPoint_xtw(y)
+			p.add_tta(&y_converted, x)
+
 		}
 	default: // for x
-		var x_temp Point_xtw
-		x_temp.SetFrom(x_real)
-		switch y_real := y.(type) {
+		var x_converted Point_xtw = convertToPoint_xtw(x)
+
+		switch y := y.(type) {
 		case *Point_xtw:
-			p.add_ttt(&x_temp, y_real)
+			p.add_ttt(&x_converted, y)
+		case *Point_axtw:
+			p.add_tta(&x_converted, y)
 		default:
-			var y_temp Point_xtw
-			y_temp.SetFrom(y_real)
-			p.add_ttt(&x_temp, &y_temp)
+			var y_converted Point_xtw = convertToPoint_xtw(y)
+			p.add_ttt(&x_converted, &y_converted)
 		}
 	}
 }
@@ -311,9 +347,8 @@ func (p *Point_xtw) Sub(x CurvePointPtrInterfaceRead, y CurvePointPtrInterfaceRe
 		case *Point_axtw:
 			p.sub_tta(x, y)
 		default:
-			var y_temp Point_xtw
-			y_temp.SetFrom(y)
-			p.sub_ttt(x, &y_temp)
+			var y_converted Point_xtw = convertToPoint_xtw(y)
+			p.sub_ttt(x, &y_converted)
 		}
 	case *Point_axtw: // for x
 		switch y := y.(type) {
@@ -322,20 +357,19 @@ func (p *Point_xtw) Sub(x CurvePointPtrInterfaceRead, y CurvePointPtrInterfaceRe
 		case *Point_axtw:
 			p.sub_taa(x, y)
 		default:
-			var y_temp Point_xtw
-			y_temp.SetFrom(y)
-			p.sub_tat(x, &y_temp)
+			var y_converted Point_xtw = convertToPoint_xtw(y)
+			p.sub_tat(x, &y_converted)
 		}
 	default: // for x
-		var x_temp Point_xtw
-		x_temp.SetFrom(x)
+		var x_converted Point_xtw = convertToPoint_xtw(x)
 		switch y := y.(type) {
 		case *Point_xtw:
-			p.sub_ttt(&x_temp, y)
+			p.sub_ttt(&x_converted, y)
+		case *Point_axtw:
+			p.sub_tta(&x_converted, y)
 		default:
-			var y_temp Point_xtw
-			y_temp.SetFrom(y)
-			p.sub_ttt(&x_temp, &y_temp)
+			var y_converted Point_xtw = convertToPoint_xtw(y)
+			p.sub_ttt(&x_converted, &y_converted)
 		}
 	}
 }
@@ -348,6 +382,7 @@ func (p *Point_xtw) Double(input CurvePointPtrInterfaceRead) {
 	case *Point_axtw:
 		p.double_ta(input)
 	default:
+		// TODO !
 		default_Double(p, input)
 	}
 }
@@ -360,7 +395,7 @@ func (p *Point_xtw) Neg(input CurvePointPtrInterfaceRead) {
 	case *Point_axtw:
 		p.neg_ta(input)
 	default:
-		p.SetFrom(input)
+		*p = convertToPoint_xtw(input)
 		p.NegEq()
 	}
 }
@@ -372,12 +407,15 @@ func (p *Point_xtw) Endo(input CurvePointPtrInterfaceRead) {
 		p.computeEndomorphism_tt(input)
 	case *Point_axtw:
 		p.computeEndomorphism_ta(input)
+	case *Point_efgh:
+		p.computeEndomorphism_ts(input)
 	default:
-		p.SetFrom(input)
-		p.computeEndomorphism_tt(p)
+		p_converted := convertToPoint_xtw(p)
+		p.computeEndomorphism_tt(&p_converted)
 	}
 }
 
+/*
 // Endo_FullCurve computes the efficient order-2 endomorphism on the given input point (of any coordinate format).
 // This function works even if the input may be a point at infinity; note that the output is never at infinity anyway.
 // Be aware that the statement that the endomorpism acts by multiplication by the constant sqrt(2) mod p253 is only meaningful/true on the p253 subgroup.
@@ -391,8 +429,16 @@ func (output *Point_xtw) Endo_FullCurve(input CurvePointPtrInterfaceRead_FullCur
 		output.Endo(input)
 	}
 }
+*/
 
 func (p *Point_xtw) IsAtInfinity() bool {
+	if p.IsNaP() {
+		return napEncountered("checking whether NaP point is at infinity", false, p)
+	}
+	return false
+
+	// TODO !
+	panic(0)
 	if p.IsNaP() {
 		return napEncountered("checking whether NaP point is at infinity", false, p)
 	}
@@ -411,31 +457,34 @@ func (p *Point_xtw) IsAtInfinity() bool {
 	return false
 }
 
-// Point_xtw is able to represent points at infinity.
-func (p *Point_xtw) CanRepresentInfinity() bool {
-	return true
-}
-
 // IsEqual compares two curve points for equality, working modulo the P = P + A identification. The two points do not have the be in the same coordinate format.
 func (p *Point_xtw) IsEqual(other CurvePointPtrInterfaceRead) bool {
-	switch other_real := other.(type) {
+	switch other := other.(type) {
 	case *Point_xtw:
-		return p.is_equal_tt(other_real)
+		return p.is_equal_tt(other)
 	case *Point_axtw:
-		return p.is_equal_ta(other_real)
+		return p.is_equal_ta(other)
+	case *Point_efgh:
+		other_converted := convertToPoint_xtw(other)
+		return p.IsEqual(&other_converted)
 	default:
-		if p.IsNaP() || other.IsNaP() {
-			return napEncountered("point was invalid when comparing points for equality", true, p, other)
-		}
-		var temp1, temp2 FieldElement
-		var temp_fe FieldElement = other_real.Y_projective()
-		temp1.Mul(&p.x, &temp_fe)
-		temp_fe = other_real.X_projective()
-		temp2.Mul(&p.y, &temp_fe)
-		return temp1.IsEqual(&temp2)
+		// TODO !
+		panic(0)
+		/*
+			if p.IsNaP() || other.IsNaP() {
+				return napEncountered("point was invalid when comparing points for equality", true, p, other)
+			}
+			var temp1, temp2 FieldElement
+			var temp_fe FieldElement = other_real.Y_projective()
+			temp1.Mul(&p.x, &temp_fe)
+			temp_fe = other_real.X_projective()
+			temp2.Mul(&p.y, &temp_fe)
+			return temp1.IsEqual(&temp2)
+		*/
 	}
 }
 
+/*
 // IsEqual_FullCurve compares two curve points for equality WITHOUT working modulo the P = P+A identification. The two points do not have to be in the same coordinate format.
 // This also works for points outside the subgroup or even at infinity.
 func (p *Point_xtw) IsEqual_FullCurve(other CurvePointPtrInterfaceRead_FullCurve) bool {
@@ -452,6 +501,7 @@ func (p *Point_xtw) IsEqual_FullCurve(other CurvePointPtrInterfaceRead_FullCurve
 		return p.is_equal_exact_tt(&other_temp)
 	}
 }
+*/
 
 // EndoEq applies the endomorphism on the given point. p.EndoEq() is shorthand for p.Endo(&p).
 func (p *Point_xtw) EndoEq() {
@@ -479,6 +529,8 @@ func (p *Point_xtw) NegEq() {
 	p.t.NegEq()
 }
 
+// TODO !
+
 // SetFrom initializes the point from the given input point (which may have a different coordinate format)
 func (p *Point_xtw) SetFrom(input CurvePointPtrInterfaceRead) {
 	switch input := input.(type) {
@@ -490,8 +542,12 @@ func (p *Point_xtw) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.t = input.t
 		p.z.SetOne()
 	case *Point_efgh:
-		*p = input.ExtendedTwistedEdwards()
+		*p = input.ToDecaf_xtw()
 	default:
+		// TODO !
+		*p = convertToPoint_xtw(input)
+		return
+		panic(0)
 		p.x = input.X_projective()
 		p.y = input.Y_projective()
 		p.z = input.Z_projective()

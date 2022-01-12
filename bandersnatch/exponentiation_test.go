@@ -1,5 +1,7 @@
 package bandersnatch
 
+/*
+
 import (
 	"math/big"
 	"math/rand"
@@ -165,3 +167,5 @@ func TestQuotientGroup(t *testing.T) {
 	}
 
 }
+
+*/

@@ -14,13 +14,21 @@ const (
 	GroupOrder_string = "0x1cfb69d4ca675f520cce760202687600ff8f87007419047174fd06b52876e7e1"
 )
 
-const Cofactor = 4
-const CurveOrder = Cofactor * GroupOrder
+const (
+	Cofactor        = 4
+	Cofactor_string = "4"
+)
+const (
+	CurveOrder        = 52435875175126190479447740508185965837236623573762281007145613226918750691204 // = Cofactor * GroupOrder
+	CurveOrder_string = "52435875175126190479447740508185965837236623573762281007145613226918750691204"
+)
 
 var GroupOrder_Int *big.Int = initIntFromString(GroupOrder_string)
 var Cofactor_Int *big.Int = big.NewInt(Cofactor)
 var CurveOrder_Int *big.Int = new(big.Int).Mul(GroupOrder_Int, Cofactor_Int)
 
+// The efficient degree-2 endomorphism acts by multiplication by this constant on the p253-subgroup.
+// Note that this is a square root of -2 modulo GroupOrder
 const (
 	EndomorphismEivenvalue        = 0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05
 	EndomorphismEigenvalue_string = "0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05"
@@ -32,7 +40,10 @@ var EndomorphismEigenvalue_Int *big.Int = initIntFromString(EndomorphismEigenval
 
 // Note: both a and d are non-squares
 
-const CurveParameterA = -5
+const (
+	CurveParameterA        = -5
+	CurveParameterA_string = "-5"
+)
 
 const (
 	CurveParameterD        = 0x6389c12633c267cbc66e3bf86be3b6d8cb66677177e54f92b369f2f5188d58e7
@@ -43,6 +54,8 @@ const (
 var (
 	CurveParameterD_Int *big.Int     = initIntFromString(CurveParameterD_string)
 	CurveParameterD_fe  FieldElement = initFieldElementFromString(CurveParameterD_string)
+	CurveParameterA_Int *big.Int     = initIntFromString(CurveParameterA_string)
+	CurveParameterA_fe  FieldElement = initFieldElementFromString(CurveParameterA_string)
 )
 
 // squareRootDByA is a square root of d/a. Due to the way the bandersnatch curve was constructed, we have (sqrt(d/a) + 1)^2 == 2.
@@ -58,7 +71,7 @@ var (
 	squareRootDbyA_fe FieldElement = initFieldElementFromString(squareRootDByA_string)
 )
 
-// The point here is to be able to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
+// The point here is to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
 // in order to have better understandable semantics
 // Golang does not have enum types, sadly, so we need to use structs: declaring a "type InPointTrusted bool" would cause Deserialze(..., true, ...)  to actually work due to implicit conversion.
 type IsPointTrusted struct {
@@ -104,7 +117,7 @@ var (
 // Note: The actual implementations that are provided for Point_xtw, Point_axtw, Point_efgh
 // give correct results even if types are mixed.
 
-type CurvePointPtrInterfaceRead interface {
+type CurvePointPtrInterfaceCooReadProjective interface {
 	// These give coordinates of the point in projective coordinates.
 	// Calls to other functions are allowed to modify the internal representation to change to an equivalent point (and thereby change coordinates)
 	// Subsequent calls to <foo>_projective (with different foos) are guaranteed to be consistent only if there are no intermediate calls to other functions.
@@ -112,13 +125,107 @@ type CurvePointPtrInterfaceRead interface {
 	Y_projective() FieldElement
 	// T_Projective() FieldElement  -- might be available for some concrete types
 	Z_projective() FieldElement
+}
 
+type CurvePointPtrInterfaceCooReadAffine interface {
 	// These give coordinates of the point in affine coordinates.
 	// Calls to other functions are allowed to modify the internal representation to change to an equivalent point (and thereby change coordinates -- Note that the P=P+A identification allows this even for affine coordinates).
 	// Subsequent calls to <foo>_affine (with different foos) are guaranteed to be consistent only if there are no intermediate calls to other functions.
 	X_affine() FieldElement
 	Y_affine() FieldElement
 	// T_affine() FieldElement -- might be available for some concrete types
+}
+
+type CurvePointPtrInterfaceCooRead interface {
+	CurvePointPtrInterfaceCooReadProjective
+	CurvePointPtrInterfaceCooReadAffine
+}
+
+type CurvePointPtrInterfaceTypeQuery interface {
+	CanRepresentInfinity() bool
+	CanOnlyRepresentSubgroup() bool
+}
+
+type thisCurvePointCanRepresentInfinity struct{}
+type thisCurvePointCannotRepresentInfinity struct{}
+type thisCurvePointCanOnlyRepresentSubgroup struct{}
+type thisCurvePointCanRepresentFullCurve struct{}
+
+func (thisCurvePointCanRepresentInfinity) CanRepresentInfinity() bool         { return true }
+func (thisCurvePointCannotRepresentInfinity) CanRepresentInfinity() bool      { return false }
+func (thisCurvePointCanOnlyRepresentSubgroup) CanOnlyRepresentSubgroup() bool { return true }
+func (thisCurvePointCanOnlyRepresentSubgroup) IsInSubgroup() bool             { return true }
+func (thisCurvePointCanRepresentFullCurve) CanOnlyRepresentSubgroup() bool    { return false }
+
+type CurvePointPtrInterfaceReadConvert interface {
+	fmt.Stringer
+	Clone() interface{}
+	// ToPoint_xtw() Point_xtw
+	// TODO ! Rename
+	ExtendedTwistedEdwards() Point_xtw
+	//
+}
+
+type CurvePointPtrInterfaceReadConvertToDecaf interface {
+	ToDecaf_xtw() Point_xtw
+	ToDecaf_axtw() Point_axtw
+}
+
+type CurvePointPtrInterfaceReadSerialize interface {
+	// SerializeShort and SerializeLong serialize the given point in either short or long serialization format. err==nil iff everything worked OK.
+	SerializeShort(output io.Writer) (bytes_written int, err error)
+	SerializeLong(output io.Writer) (bytes_written int, err error)
+}
+
+type CurvePointPtrInterfaceReadCompare interface {
+	IsNeutralElement() bool
+	IsNaP() bool
+	IsEqual(CurvePointPtrInterfaceRead) bool
+	IsInSubgroup() bool
+}
+
+type CurvePointPtrInterfaceRead interface {
+	CurvePointPtrInterfaceCooRead
+	CurvePointPtrInterfaceReadCompare
+	CurvePointPtrInterfaceReadConvert
+	CurvePointPtrInterfaceTypeQuery
+}
+
+type CurvePointPtrInterfaceWriteArithmeticBase interface {
+	SetNeutral()
+	Add(CurvePointPtrInterfaceRead, CurvePointPtrInterfaceRead)
+	Sub(CurvePointPtrInterfaceRead, CurvePointPtrInterfaceRead)
+	Neg(CurvePointPtrInterfaceRead)
+	Double(CurvePointPtrInterfaceRead)
+	AddEq(CurvePointPtrInterfaceRead)
+	SubEq(CurvePointPtrInterfaceRead)
+	NegEq()
+	DoubleEq()
+}
+
+type CurvePointPtrInterfaceWriteEndo interface {
+	Endo(CurvePointPtrInterfaceRead)
+	EndoEq()
+}
+
+type CurvePointPtrInterfaceWriteConvert interface {
+	SetFrom(CurvePointPtrInterfaceRead)
+}
+
+type CurvePointPtrInterfaceWrite interface {
+	CurvePointPtrInterfaceWriteArithmeticBase
+	CurvePointPtrInterfaceWriteEndo
+	CurvePointPtrInterfaceWriteConvert
+}
+
+type CurvePointPtrInterface interface {
+	CurvePointPtrInterfaceRead
+	CurvePointPtrInterfaceWrite
+}
+
+/*
+type CurvePointPtrInterfaceRead interface {
+	CurvePointPtrInterfaceCooRead
 
 	// Checks whether the given curve point is the neutral element of the curve.
 	IsNeutralElement() bool
@@ -126,8 +233,9 @@ type CurvePointPtrInterfaceRead interface {
 	// IsEqual checks equality of points. Note that the library acts as if the points were converted to the same concrete type.
 	IsEqual(CurvePointPtrInterfaceRead) bool
 
-	// IsNaP checks whether the point is a NaP (Not-A-Point). NaP's can only appear due to bugs in the library or due to screw-ups on the user's side such as using uninitialized variables or deserializing erroneous points as trusted inputs.
-	// We mostly use this internally at certain places to protect/alert users when certain errors.
+	// IsNaP checks whether the point is a NaP (Not-A-Point).
+	// NaP's can only appear due to bugs in the library or due to screw-ups on the user's side such as using uninitialized variables or deserializing erroneous points as trusted inputs.
+	// We mostly use this internally at certain places to protect/alert users when certain errors occur.
 	// Note that singular cases for group operations also lead to NaPs (But these cases can only appear (outside of testing or working on the full curve) due to bugs in the library or the user screwing up)
 	IsNaP() bool
 
@@ -150,7 +258,9 @@ type CurvePointPtrInterfaceRead interface {
 	// If this returns true, CurvePointPtrInterfaceRead_FullCurve must be provided.
 	CanRepresentInfinity() bool
 }
+*/
 
+/*
 // CurvePointPtrInterfaceRead_FullCurve is the "extended interface" that contains functions that are needed to operate outside the p253 - subgroup and the identification P=P+A.
 // Question: We might *not* export this interface at all.
 type CurvePointPtrInterfaceRead_FullCurve interface {
@@ -159,7 +269,9 @@ type CurvePointPtrInterfaceRead_FullCurve interface {
 	IsEqual_FullCurve(CurvePointPtrInterfaceRead_FullCurve) bool
 	IsAtInfinity() bool
 }
+*/
 
+/*
 type CurvePointPtrInterfaceWrite interface {
 	// z.Add(x,y) computes z = x+y according to the elliptic curve group law.
 	Add(CurvePointPtrInterfaceRead, CurvePointPtrInterfaceRead)
@@ -215,21 +327,28 @@ type CurvePointPtrInterfaceWrite interface {
 	// Note that long format is considerably more efficient to deserialize.
 	DeserializeAuto(input io.Reader, trusted IsPointTrusted) (bytes_read int, err error)
 }
+*/
 
+/*
 type CurvePointPtrInterfaceWrite_FullCurve interface {
 	CurvePointPtrInterfaceWrite
 	Endo_FullCurve(CurvePointPtrInterfaceRead_FullCurve)
 }
+*/
 
+/*
 type CurvePointPtrInterface interface {
 	CurvePointPtrInterfaceRead
 	CurvePointPtrInterfaceWrite
 }
+*/
 
+/*
 type CurvePointPtrInterface_FullCurve interface {
 	CurvePointPtrInterfaceRead_FullCurve
 	CurvePointPtrInterfaceWrite_FullCurve
 }
+*/
 
 // Note: We also have MapToFieldElement(CurvePointRead) FieldElement as a free-function that acts as an injective map p253 -> BaseField
 

@@ -4,6 +4,7 @@ package bandersnatch
 // Extended means that we additionally store T with T = X*Y.
 // a Point_axtw with coos x:y:t corresponds to a Point_xtw with coos x:y:t:1 (i.e. with z==1). Note that on the p253 subgroup, all points have z!=0 (and also y!=0).
 type Point_axtw struct {
+	thisCurvePointCanOnlyRepresentSubgroup
 	x FieldElement
 	y FieldElement
 	t FieldElement
@@ -15,7 +16,7 @@ var NeutralElement_axtw Point_axtw = Point_axtw{x: FieldElementZero, y: FieldEle
 // var orderTwoPoint_axtw Point_axtw = Point_axtw{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementMinusOne} -- UNUSED
 
 // Note: The general CurvePointPtrInterface ask that calls to <foo>_projective and <foo>_affine must
-// note be inteleaved with other calls. This warning is omitted here, as it actually does not apply to Point_axtw.
+// note be interleaved with other calls. This warning is omitted here, as it actually does not apply to Point_axtw.
 
 // X_projective returns the X coordinate of the given point P in projective twisted Edwards coordinates.
 // Since Point_axtw stores affine coordinates, this is the same as X_affine()
@@ -64,6 +65,7 @@ func (p *Point_axtw) IsNeutralElement() bool {
 	return false
 }
 
+/*
 // IsNeutralElement_FullCurve tests for zero-ness like IsNeutralElement. The difference is that it does *NOT* identify P with P+A. We only assume that x,y,t,z satisfy the curve equations.
 func (p *Point_axtw) IsNeutralElement_FullCurve() bool {
 	if !p.x.IsZero() {
@@ -77,6 +79,7 @@ func (p *Point_axtw) IsNeutralElement_FullCurve() bool {
 	}
 	return p.y.IsOne() // p.y must be either 1 or -1 at this point.
 }
+*/
 
 // IsEqual compares two curve points for equality, working modulo the P = P + A identification. The two points do not have the be in the same coordinate format.
 // TODO/Question: Should we export the variants for specific non-interface types to get more type safety?
@@ -90,6 +93,8 @@ func (p *Point_axtw) IsEqual(other CurvePointPtrInterfaceRead) bool {
 		if p.IsNaP() || other.IsNaP() {
 			return napEncountered("When comparing an axtw point with another point, a NaP was encountered", true, p, other)
 		}
+		// TODO !
+		panic(0)
 		// We check whether x1/y1 == x2/y2
 
 		var temp1, temp2 FieldElement
@@ -102,6 +107,7 @@ func (p *Point_axtw) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	}
 }
 
+/*
 // IsEqual_FullCurve compares two curve points for equality WITHOUT working modulo the P = P+A identification. The two points do not have to be in the same coordinate format.
 // This also works if the other point is at infinity (which can only happen if the types differ, of course)
 func (p *Point_axtw) IsEqual_FullCurve(other CurvePointPtrInterfaceRead_FullCurve) bool {
@@ -118,6 +124,7 @@ func (p *Point_axtw) IsEqual_FullCurve(other CurvePointPtrInterfaceRead_FullCurv
 		return p.is_equal_exact_at(&other_copy)
 	}
 }
+*/
 
 // IsAtInfinity tests whether the point is an infinite (neccessarily order-2) point. Since these points cannot be represented in affine coordinates in the first place, this always returns false.
 func (p *Point_axtw) IsAtInfinity() bool {
@@ -152,8 +159,16 @@ func (p *Point_axtw) ExtendedTwistedEdwards() Point_xtw {
 	return Point_xtw{x: p.x, y: p.y, t: p.t, z: FieldElementOne}
 }
 
+func (p *Point_axtw) ToDecaf_xtw() Point_xtw {
+	return Point_xtw{x: p.x, y: p.y, t: p.t, z: FieldElementOne}
+}
+
+func (p *Point_axtw) ToDecaf_axtw() Point_axtw {
+	return *p
+}
+
 // Clone creates a copy of the given point as a CurvePointPtrInterfaceRead. (Be aware that the returned interface value stores a pointer)
-func (p *Point_axtw) Clone() CurvePointPtrInterfaceRead {
+func (p *Point_axtw) Clone() interface{} {
 	p_copy := *p
 	return &p_copy
 }
@@ -163,12 +178,15 @@ func (p *Point_axtw) Clone() CurvePointPtrInterfaceRead {
 // String prints the point in X:Y:T - format
 func (p *Point_axtw) String() string {
 	// Not the most efficient way, but good enough.
-	return p.x.String() + ":" + p.y.String() + ":" + p.t.String()
+	return p.x.String() + ":" + p.y.String() + ":" + p.t.String() + " modulo A"
 }
 
 // SetFrom initializes the point from the given input point (which may have a different coordinate format)
 func (p *Point_axtw) SetFrom(input CurvePointPtrInterfaceRead) {
+	// TODO !
+	/*
 	*p = input.AffineExtended()
+	 */
 }
 
 // Add performs curve point addition according to the group law.
@@ -177,7 +195,7 @@ func (p *Point_axtw) SetFrom(input CurvePointPtrInterfaceRead) {
 func (p *Point_axtw) Add(x, y CurvePointPtrInterfaceRead) {
 	var temp Point_efgh
 	temp.Add(x, y)
-	*p = temp.AffineExtended()
+	*p = temp.ToDecaf_axtw()
 }
 
 // Sub performs curve point addition according to the group law.
@@ -185,7 +203,7 @@ func (p *Point_axtw) Add(x, y CurvePointPtrInterfaceRead) {
 func (p *Point_axtw) Sub(x, y CurvePointPtrInterfaceRead) {
 	var temp Point_efgh
 	temp.Sub(x, y)
-	*p = temp.AffineExtended()
+	*p = temp.ToDecaf_axtw()
 }
 
 // Double computes the sum of a point with itself. p.double(x) means p := x + x
@@ -203,10 +221,11 @@ func (p *Point_axtw) Neg(input CurvePointPtrInterfaceRead) {
 		p.y = input.y
 		p.t.Neg(&input.t)
 	case *Point_xtw:
+		// TODO !
 		*p = input.AffineExtended()
 		p.NegEq()
 	case *Point_efgh:
-		*p = input.AffineExtended()
+		*p = input.ToDecaf_axtw()
 		p.NegEq()
 	default:
 		*p = input.AffineExtended()
@@ -221,6 +240,7 @@ func (p *Point_axtw) Endo(input CurvePointPtrInterfaceRead) {
 	*p = temp.AffineExtended()
 }
 
+/*
 // Endo_FullCurve computes the efficient order-2 endomorphism on the given input point (of any coordinate format).
 // This function works even if the input may be a point at infinity; note that the output is never at infinity anyway.
 // Be aware that the statement that the endomorpism acts by multiplication by the constant sqrt(2) mod p253 is only meaningful/true on the p253 subgroup.
@@ -229,6 +249,7 @@ func (p *Point_axtw) Endo_FullCurve(input CurvePointPtrInterfaceRead_FullCurve) 
 	temp.Endo_FullCurve(input)
 	*p = temp.AffineExtended()
 }
+*/
 
 // SetNeutral sets the Point p to the neutral element of the curve.
 func (p *Point_axtw) SetNeutral() {

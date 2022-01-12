@@ -18,6 +18,7 @@ import "io"
 // E:=X, F:=Z, G:=Z, H:=Y or
 // (The first two options have singularities at neutral and affine-order-2, the third option at the points at infinity)
 type Point_efgh struct {
+	thisCurvePointCanOnlyRepresentSubgroup
 	e FieldElement
 	f FieldElement
 	g FieldElement
@@ -159,12 +160,15 @@ func (p *Point_efgh) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	}
 }
 
+/*
+
 // IsEqual_FullCurve compares two curve points for equality WITHOUT working modulo the P = P+A identification. The two points do not have to be in the same coordinate format.
 // This also works for points outside the subgroup or even at infinity.
 func (p *Point_efgh) IsEqual_FullCurve(other CurvePointPtrInterfaceRead_FullCurve) bool {
 	temp := p.ExtendedTwistedEdwards()
 	return temp.IsEqual_FullCurve(other)
 }
+*/
 
 // IsAtInfinity tests whether the point is an infinite (neccessarily order-2) point.
 // Note that these points are NOT in the p253-subgroup, so these are not supposed to appear under normal operation.
@@ -228,8 +232,28 @@ func (P *Point_efgh) ExtendedTwistedEdwards() (ret Point_xtw) {
 	return
 }
 
+func (P *Point_efgh) ToDecaf_xtw() (ret Point_xtw) {
+	ret.x.Mul(&P.e, &P.f)
+	ret.y.Mul(&P.g, &P.h)
+	ret.t.Mul(&P.e, &P.h)
+	ret.z.Mul(&P.f, &P.g)
+	return
+}
+
+func (P *Point_efgh) ToDecaf_axtw() (ret Point_axtw) {
+	// TODO ! Review
+	// Note: Going eghj -> axtw directly is cheaper by 1 multiplication compared to going via xtw.
+	// The reason is that we normalize first and then compute the t coordinate. This effectively saves comptuing t *= z^-1.
+
+	P.normalize_affine()
+	ret.x = P.e
+	ret.y = P.h
+	ret.t.Mul(&P.e, &P.h)
+	return
+}
+
 // Clone creates a copy of the given point as a CurvePointPtrInterfaceRead. (Be aware that the returned interface value stores a *pointer* of type *Point_efgh)
-func (P *Point_efgh) Clone() CurvePointPtrInterfaceRead {
+func (P *Point_efgh) Clone() interface{} {
 	p_copy := *P
 	return &p_copy
 }
@@ -259,8 +283,11 @@ func (p *Point_efgh) Add(x, y CurvePointPtrInterfaceRead) {
 		case *Point_axtw:
 			p.add_sta(x, y)
 		default: // including *Point_efgh
-			var y_conv Point_xtw = y.ExtendedTwistedEdwards()
-			p.add_stt(x, &y_conv)
+			// TODO !
+			/*
+				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
+				p.add_stt(x, &y_conv)
+			*/
 		}
 	case *Point_axtw:
 		switch y := y.(type) {
@@ -269,20 +296,26 @@ func (p *Point_efgh) Add(x, y CurvePointPtrInterfaceRead) {
 		case *Point_axtw:
 			p.add_saa(x, y)
 		default: // including *Point_efgh
-			var y_conv Point_xtw = y.ExtendedTwistedEdwards()
-			p.add_sta(&y_conv, x)
+			// TODO !
+			/*
+				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
+					p.add_sta(&y_conv, x)
+			*/
 		}
 	default:
-		var x_conv Point_xtw = x.ExtendedTwistedEdwards()
-		switch y := y.(type) {
-		case *Point_xtw:
-			p.add_stt(&x_conv, y)
-		case *Point_axtw:
-			p.add_sta(&x_conv, y)
-		default: // including *Point_efgh
-			var y_conv Point_xtw = y.ExtendedTwistedEdwards()
-			p.add_stt(&x_conv, &y_conv)
-		}
+		// TODO !
+		/*
+			var x_conv Point_xtw = x.ExtendedTwistedEdwards()
+			switch y := y.(type) {
+			case *Point_xtw:
+				p.add_stt(&x_conv, y)
+			case *Point_axtw:
+				p.add_sta(&x_conv, y)
+			default: // including *Point_efgh
+				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
+				p.add_stt(&x_conv, &y_conv)
+			}
+		*/
 	}
 }
 
@@ -296,8 +329,11 @@ func (p *Point_efgh) Sub(x, y CurvePointPtrInterfaceRead) {
 		case *Point_axtw:
 			p.sub_sta(x, y)
 		default:
-			var y_conv Point_xtw = y.ExtendedTwistedEdwards()
-			p.sub_stt(x, &y_conv)
+			// TODO !
+			/*
+				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
+				p.sub_stt(x, &y_conv)
+			*/
 		}
 	case *Point_axtw:
 		switch y := y.(type) {
@@ -306,12 +342,18 @@ func (p *Point_efgh) Sub(x, y CurvePointPtrInterfaceRead) {
 		case *Point_axtw:
 			p.sub_saa(x, y)
 		default:
-			var y_conv Point_xtw = y.ExtendedTwistedEdwards()
-			p.sub_sat(x, &y_conv)
+			// TODO !
+			/*
+				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
+				p.sub_sat(x, &y_conv)
+			*/
 		}
 	default:
-		var x_conv Point_xtw = x.ExtendedTwistedEdwards()
-		p.Sub(&x_conv, y)
+		// TODO !
+		/*
+			var x_conv Point_xtw = x.ExtendedTwistedEdwards()
+			p.Sub(&x_conv, y)
+		*/
 	}
 }
 
@@ -342,11 +384,15 @@ func (p *Point_efgh) Endo(input CurvePointPtrInterfaceRead) {
 	case *Point_axtw:
 		p.computeEndomorphism_sa(input)
 	default:
-		var input_conv = input.ExtendedTwistedEdwards()
-		p.computeEndomorphism_st(&input_conv)
+		// TODO !
+		/*
+			var input_conv = input.ExtendedTwistedEdwards()
+			p.computeEndomorphism_st(&input_conv)
+		*/
 	}
 }
 
+/*
 // Endo_FullCurve computes the efficient order-2 endomorphism on the given input point (of any coordinate format).
 // This function works even if the input may be a point at infinity; note that the output is never at infinity anyway.
 // Be aware that the statement that the endomorpism acts by multiplication by the constant sqrt(2) mod p253 is only meaningful/true on the p253 subgroup.
@@ -375,6 +421,7 @@ func (p *Point_efgh) Endo_FullCurve(input CurvePointPtrInterfaceRead_FullCurve) 
 		}
 	}
 }
+*/
 
 // SetNeutral sets the Point p to the neutral element of the curve.
 func (p *Point_efgh) SetNeutral() {
@@ -435,27 +482,32 @@ func (p *Point_efgh) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.g.SetOne()
 		p.h = input.y
 	default:
-		if input.IsNaP() {
-			napEncountered("Trying to convert NaP of unknown type to efgh", false, input)
-			*p = Point_efgh{}
-		} else if !input.CanRepresentInfinity() {
-			p.e = input.X_projective()
-			p.f = input.Z_projective()
-			p.g = p.f
-			p.h = input.Y_projective()
-		} else if !input.(CurvePointPtrInterfaceRead_FullCurve).IsAtInfinity() {
-			p.e = input.X_projective()
-			p.f = input.Z_projective()
-			p.g = p.f
-			p.h = input.Y_projective()
-		} else {
-			// The general interface does not allow to distinguish the two points at infinity.
-			// We could fix that, but it seems hardly worth it.
-			panic("Trying to convert point at infinity of unknown type into efgh format")
-		}
+		// TODO !
+		panic(0)
+		/*
+			if input.IsNaP() {
+				napEncountered("Trying to convert NaP of unknown type to efgh", false, input)
+				*p = Point_efgh{}
+			} else if !input.CanRepresentInfinity() {
+				p.e = input.X_projective()
+				p.f = input.Z_projective()
+				p.g = p.f
+				p.h = input.Y_projective()
+			} else if !input.(CurvePointPtrInterfaceRead_FullCurve).IsAtInfinity() {
+				p.e = input.X_projective()
+				p.f = input.Z_projective()
+				p.g = p.f
+				p.h = input.Y_projective()
+			} else {
+				// The general interface does not allow to distinguish the two points at infinity.
+				// We could fix that, but it seems hardly worth it.
+				panic("Trying to convert point at infinity of unknown type into efgh format")
+			}
+		*/
 	}
 }
 
+/*
 // DeserialzeShort deserialize from the given input byte stream (expecting it to start with a point in short serialization format) and store the result in the receiver.
 // err==nil iff no error occured. trusted should be one of the constants TrustedInput or UntrustedInput.
 // For UntrustedInput, we perform a specially-tailored efficient curve and subgroup membership tests.
@@ -472,10 +524,11 @@ func (p *Point_efgh) DeserializeLong(input io.Reader, trusted IsPointTrusted) (b
 	return default_DeserializeLong(p, input, trusted)
 }
 
-// DeserialzeAtuo deserialize from the given input byte stream (expecting it to start with a point in either short or long serialization format -- it autodetects that) and store the result in the receiver.
+// DeserialzeAuto deserialize from the given input byte stream (expecting it to start with a point in either short or long serialization format -- it autodetects that) and store the result in the receiver.
 // err==nil iff no error occured. trusted should be one of the constants TrustedInput or UntrustedInput.
 // For UntrustedInput, we perform a specially-tailored efficient curve and subgroup membership tests.
 // Note that long format is considerably more efficient to deserialize.
 func (p *Point_efgh) DeserializeAuto(input io.Reader, trusted IsPointTrusted) (bytes_read int, err error) {
 	return default_DeserializeAuto(p, input, trusted)
 }
+*/

@@ -1,5 +1,6 @@
 package bandersnatch
 
+/*
 import (
 	"strconv"
 	"testing"
@@ -208,3 +209,4 @@ func TestAdditionPropertiesForAXTW(t *testing.T) {
 func TestAdditionPropertiesForEFGH(t *testing.T) {
 	test_addition_properties(t, pointTypeEFGH, 0)
 }
+*/
