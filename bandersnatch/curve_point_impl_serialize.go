@@ -1,3 +1,5 @@
+//go:build ignore
+
 package bandersnatch
 
 import (
@@ -57,16 +59,6 @@ import (
 var (
 	ErrCannotSerializePointAtInfinity = errors.New("serialization: cannot serialize point at infinity")
 	ErrCannotSerializeNaP             = errors.New("serialization: cannot serialize NaP")
-)
-
-// Note: If X/Z is not on the curve, we might get either a "not on curve" or "not in subgroup" error. Should we clarify the wording to reflect that?
-var (
-	ErrXNotInSubgroup     = errors.New("deserialization: received affine X coordinate does not correspond to any point in the p253 subgroup of the Bandersnatch curve")
-	ErrXNotOnCurve        = errors.New("deserialization: received affine X coordinate does not correspond to any (finite, rational) point of the Bandersnatch curve")
-	ErrNotInSubgroup      = errors.New("deserialization: received affine X and Y coordinates do not correspond to a point in the p253 subgroup of the Bandersnatch curve")
-	ErrNotOnCurve         = errors.New("deserialization: received affine X and Y corrdinates do not correspond to a point on the Bandersnatch curve")
-	ErrWrongSignY         = errors.New("deserialization: encountered affine Y coordinate with unexpected Sign bit")
-	ErrUnrecognizedFormat = errors.New("deserialization: could not automatically detect serialization format")
 )
 
 // Default implementation of DeserializeShort in terms of Point_axtw::DeserializeShort
@@ -395,70 +387,6 @@ func (p *Point_axtw) DeserializeAuto(input io.Reader, trusted IsPointTrusted) (b
 	} else {
 		panic("This cannot happen") // prefix_read must be either 0b0 or 0b1
 	}
-}
-
-// recoverYFromXAffine computes y from x such that (x,y) is on the curve. Note that the result only depends on x up to sign.
-// For valid input x, for which some y exists in the first place, there are always exatly two possible y which differ by sign.
-// recoverYFromXAffine makes no guarantees about the choice of y. It need not even be consistent for multiple calls with the same x.
-// If checkSubgroup is set to true, we also check that the resulting (+/-x,+/-y) is on the subgroup for some choice of signs.
-// Returns err==nil if no error occurred (meaning that some y existed and the subgroup check, if requrested, did not fail).
-func recoverYFromXAffine(x *FieldElement, checkSubgroup bool) (y FieldElement, err error) {
-
-	// We have y^2 = (1-ax^2) / (1-dx^2)
-	// So, we first compute (1-ax^2) / 1-dx^2
-	var num, denom FieldElement
-
-	num.Square(x)                        // x^2, only compute this once
-	denom.Mul(&num, &CurveParameterD_fe) // dx^2
-	num.multiply_by_five()               // 5x^2 = -ax^2
-	num.AddEq(&FieldElementOne)          // 1 - ax^2
-	denom.Sub(&FieldElementOne, &denom)  // 1 - dx^2
-	// Note that x is in the correct subgroup iff *both* num and denom are squares
-	if checkSubgroup {
-		if num.Jacobi() < 0 {
-			err = ErrXNotInSubgroup
-			return
-		}
-	}
-	num.DivideEq(&denom) // (1-ax^2)/(1-dx^2). Note that 1-dx^2 cannot be 0, as d is a non-square.
-	if !y.SquareRoot(&num) {
-		err = ErrXNotOnCurve
-		return
-	}
-	err = nil // err is nil at this point anyway, but we prefer to be explicit.
-	return
-}
-
-// isPointOnCurve checks whether the given point is actually on the curve.
-// Note: This does NOT verify that the point is in the correct subgroup.
-// Note2: On encountering singular values (0:0:0:0), we just return false *without* calling any error handler.
-// Note3: This function is only provided for xtw and only used internally.
-func (p *Point_xtw) isPointOnCurve() bool {
-
-	// Singular points are not on the curve
-	if p.IsNaP() {
-		return false
-	}
-
-	// check whether x*y == t*z
-	var u, v FieldElement
-	u.Mul(&p.x, &p.y)
-	v.Mul(&p.t, &p.z)
-	if !u.IsEqual(&v) {
-		return false
-	}
-
-	// We now check the main curve equation, i.e. whether ax^2 + y^2 == z^2 + dt^2
-	u.Mul(&p.t, &p.t)
-	u.MulEq(&CurveParameterD_fe) // u = d*t^2
-	v.Mul(&p.z, &p.z)
-	u.AddEq(&v) // u= dt^2 + z^2
-	v.Mul(&p.y, &p.y)
-	u.SubEq(&v) // u = z^2 + dt^2 - y^2
-	v.Mul(&p.x, &p.x)
-	v.multiply_by_five()
-	u.AddEq(&v) // u = z^2 + dt^2 - y^2 + 5x^2 ==  z^2 + dt^2 - y^2 - ax^2
-	return u.IsZero()
 }
 
 // checkLegendreX(X/Z) checks whether the provided x=X/Z value may be the x-coordinate of a point in the subgroup spanned by p253 and A, assuming the curve equation has a rational solution for the given X/Z.

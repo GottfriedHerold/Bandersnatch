@@ -481,3 +481,20 @@ func (p *Point_axtw_subgroup) EndoEq() {
 func (p *Point_axtw_full) EndoEq() {
 	p.Endo(p)
 }
+
+func (p *point_axtw_base) Validate() bool {
+	return p.isPointOnCurve()
+}
+
+func (p *Point_axtw_subgroup) Validate() bool {
+	return p.point_axtw_base.isPointOnCurve() && legendreCheckA_affineX(p.x)
+}
+
+func (p *Point_axtw_full) sampleRandomUnsafe(rnd *rand.Rand) {
+	p.point_axtw_base = makeRandomPointOnCurve_a(rnd)
+}
+
+func (p *Point_axtw_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
+	p.point_axtw_base = makeRandomPointOnCurve_a(rnd)
+	p.point_axtw_base.DoubleEq()
+}

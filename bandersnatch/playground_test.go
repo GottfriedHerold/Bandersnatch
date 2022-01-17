@@ -1,13 +1,6 @@
 package bandersnatch
 
-import (
-	"fmt"
-	"math/rand"
-	"testing"
-
-	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
-)
-
+/*
 func TestPlayground(t *testing.T) {
 	fmt.Println(callcounters.GetCallCounterStructureReport("--"))
 	// printCallCounterStructure()
@@ -60,3 +53,5 @@ func TestCofactorGroup(t *testing.T) {
 
 	}
 }
+
+*/

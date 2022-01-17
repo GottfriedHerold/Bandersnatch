@@ -32,6 +32,16 @@ var _ Rerandomizeable = &Point_axtw_full{}
 var _ CurvePointPtrInterfaceReadCanDistinguishInfinity = &point_efgh_base{}
 var _ CurvePointPtrInterfaceReadCanDistinguishInfinity = &point_xtw_base{}
 
+var _ Validateable = &point_xtw_base{}
+var _ Validateable = &Point_xtw_full{}
+var _ Validateable = &Point_xtw_subgroup{}
+var _ Validateable = &point_axtw_base{}
+var _ Validateable = &Point_axtw_full{}
+var _ Validateable = &Point_axtw_subgroup{}
+var _ Validateable = &point_efgh_base{}
+var _ Validateable = &Point_efgh_full{}
+var _ Validateable = &Point_efgh_subgroup{}
+
 /*
 	This file contains tests on curve points that can be expressed as properties on the exported interface of CurvePointPtrInterface.
 	Using our testing framework and a little bit of reflection (hidden in helper functions) and interfaces, these tests are then run on all concrete curve point types.

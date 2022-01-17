@@ -1,8 +1,6 @@
 package bandersnatch
 
-import (
-	"math/rand"
-)
+import "math/big"
 
 /*
 	This file contains naive implementations of various elliptic curve operations that are not actually used in production, but only serve
@@ -10,7 +8,7 @@ import (
 */
 
 // naive implementation using the affine definition. This is just used to test the other formulas against.
-func (out *Point_xtw) addNaive_ttt(input1, input2 *Point_xtw) {
+func (out *point_xtw_base) addNaive_ttt(input1, input2 *point_xtw_base) {
 	var x1, y1, z1inv, x2, y2, z2inv bsFieldElement_64
 
 	z1inv.Inv(&input1.z)
@@ -46,68 +44,30 @@ func (out *Point_xtw) addNaive_ttt(input1, input2 *Point_xtw) {
 	out.y.Mul(&numerator_y, &denom_x)
 }
 
-// Creates a random point on the curve, which does not neccessarily need to be in the correct subgroup.
-func makeRandomPointOnCurve_t(rnd *rand.Rand) Point_xtw {
+// exp_naive_xx(p, exponent) computes the exponentiation p^exponent (multiplicative notation) resp. p*exponent (additive notation) and stores the result in the receiver. exponent has type math.big.
+// This functon uses a very simple squre-and-multiply method and is only used for either debugging or subgroup membership tests (because our faster methods implicitly assume the point to be in the subgroup for correctness)
+// If using this function for inputs that might not be on the subgroup, be wary of the fact that the group law is not complete in that case.
+func (out *point_xtw_base) exp_naive_xx(p *point_xtw_base, exponent *big.Int) {
+	// simple square-and-multiply
 
-	var x, y, t, z bsFieldElement_64
+	// We need to deal with the fact that exponent may be negative.
+	var absexponent *big.Int       // to be set to abs(exponent)
+	var to_add point_xtw_base = *p // to be set to +/- p
+	if exponent.Sign() < 0 {
+		absexponent = new(big.Int).Abs(exponent)
+		to_add.neg_tt(p)
+	} else {
+		absexponent = new(big.Int).Set(exponent)
+	}
 
-	// Set x randomly, compute y from x
-	for {
-		x.setRandomUnsafe(rnd)
-		// x.SetUInt64(1)
-		var err error
-		y, err = recoverYFromXAffine(&x, false)
-		if err == nil {
-			break
+	// actual square-and-multiply algorithm. We process bits from msb to lsb.
+	bitlen := absexponent.BitLen()
+	var accumulator point_xtw_base = NeutralElement_xtw
+	for i := bitlen - 1; i >= 0; i-- {
+		accumulator.DoubleEq()
+		if absexponent.Bit(i) == 1 {
+			accumulator.add_ttt(&accumulator, &to_add)
 		}
 	}
-
-	// Set t = x*y. If we would set z to 1, this is now a correct point.
-	t.Mul(&x, &y)
-
-	// As this is only used for debugging, we set z randomly and scale the point.
-	z.setRandomUnsafe(rnd)
-	if z.IsZero() { // This should only happens with negligle proability anyway.
-		z.SetOne()
-	}
-	x.MulEq(&z)
-	y.MulEq(&z)
-	t.MulEq(&z)
-
-	return Point_xtw{x: x, y: y, z: z, t: t}
-}
-
-// Creates a random point on the correct subgroup
-func makeRandomPointInSubgroup_t(rnd *rand.Rand) Point_xtw {
-	r := makeRandomPointOnCurve_t(rnd)
-	// r.clearCofactor2()
-	r.DoubleEq()
-	return r
-}
-
-func makeRandomPointOnCurve_a(rnd *rand.Rand) (ret Point_axtw) {
-	var temp Point_xtw = makeRandomPointOnCurve_t(rnd)
-	if temp.IsAtInfinity() {
-		return makeRandomPointOnCurve_a(rnd)
-	}
-	ret.SetFrom(&temp)
-	return
-}
-
-func makeRandomPointInSubgroup_a(rnd *rand.Rand) (ret Point_axtw) {
-	var temp Point_xtw = makeRandomPointInSubgroup_t(rnd)
-	ret.SetFrom(&temp)
-	return
-}
-
-func makeRandomPointOnCurve_s(rnd *rand.Rand) (ret Point_efgh) {
-	var temp Point_xtw = makeRandomPointOnCurve_t(rnd)
-	ret.SetFrom(&temp)
-	return
-}
-
-func makeRandomPointInSubgroup_s(rnd *rand.Rand) (ret Point_efgh) {
-	var temp Point_xtw = makeRandomPointInSubgroup_t(rnd)
-	ret.SetFrom(&temp)
-	return
+	*out = accumulator
 }

@@ -793,3 +793,25 @@ func (p *Point_efgh_full) SetFrom(input CurvePointPtrInterfaceRead) {
 func (p *Point_efgh_full) IsInSubgroup() bool {
 	return legendreCheckA_EG(p.e, p.g) && legendreCheckE1_FH(p.f, p.h)
 }
+
+func (p *point_efgh_base) Validate() bool {
+	return p.isPointOnCurve()
+}
+
+func (p *Point_efgh_subgroup) Validate() bool {
+	return p.point_efgh_base.isPointOnCurve() && legendreCheckA_EG(p.e, p.g)
+}
+
+func (p *Point_efgh_full) sampleRandomUnsafe(rnd *rand.Rand) {
+	var p_axtw Point_axtw_full
+	p_axtw.sampleRandomUnsafe(rnd)
+	p.SetFrom(&p_axtw)
+	p.rerandomizeRepresentation(rnd)
+}
+
+func (p *Point_efgh_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
+	var p_axtw Point_axtw_subgroup
+	p_axtw.sampleRandomUnsafe(rnd)
+	p.SetFrom(&p_axtw)
+	p.rerandomizeRepresentation(rnd)
+}

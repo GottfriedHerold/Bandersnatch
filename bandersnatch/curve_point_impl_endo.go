@@ -157,6 +157,7 @@ func (output *point_xtw_base) computeEndomorphism_ta(input *point_axtw_base) {
 }
 */
 
+/*
 // Basically equivalent to computeEndomorphism_ss, followed by a converstion to xtw - coordinates
 func (output *point_xtw_base) computeEndomorphism_ts(input *point_efgh_base) {
 	var hh, hhByb, ff, bff, fh FieldElement
@@ -183,3 +184,4 @@ func (output *point_xtw_base) computeEndomorphism_ts(input *point_efgh_base) {
 	output.t.Mul(&E, &H)
 	output.z.Mul(&F, &G)
 }
+*/

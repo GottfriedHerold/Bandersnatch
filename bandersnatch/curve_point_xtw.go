@@ -742,3 +742,20 @@ func (p *Point_xtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.z.SquareEq()
 	}
 }
+
+func (p *point_xtw_base) Validate() bool {
+	return p.isPointOnCurve()
+}
+
+func (p *Point_xtw_subgroup) Validate() bool {
+	return p.point_xtw_base.isPointOnCurve() && legendreCheckA_projectiveXZ(p.x, p.z)
+}
+
+func (p *Point_xtw_full) sampleRandomUnsafe(rnd *rand.Rand) {
+	p.point_xtw_base = makeRandomPointOnCurve_t(rnd)
+}
+
+func (p *Point_xtw_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
+	p.point_xtw_base = makeRandomPointOnCurve_t(rnd)
+	p.point_xtw_base.DoubleEq()
+}

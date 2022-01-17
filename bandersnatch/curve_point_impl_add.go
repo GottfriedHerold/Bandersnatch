@@ -1,5 +1,7 @@
 package bandersnatch
 
+// TODO: Exceptional cases not specified.
+
 /*
 	Note: Suffixes like _ttt or _tta refer to the type of input point (with order output, input1 [,input2] )
 	t denote extended projective,

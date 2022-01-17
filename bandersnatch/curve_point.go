@@ -126,6 +126,15 @@ type Rerandomizeable interface {
 	rerandomizeRepresentation(rnd *rand.Rand)
 }
 
+type Validateable interface {
+	Validate() bool
+}
+
+// debug only
+type sampleable interface {
+	sampleRandomUnsafe(rnd *rand.Rand)
+}
+
 type CurvePointPtrInterfaceCooReadProjectiveXYZ interface {
 	// These give coordinates of the point in projective coordinates.
 	// Calls to other functions are allowed to modify the internal representation to change to an equivalent point (and thereby change coordinates)
