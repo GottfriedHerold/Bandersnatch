@@ -555,6 +555,20 @@ func (z *bsFieldElement_64) setRandomUnsafe(rnd *rand.Rand) {
 	z.SetInt(xInt)
 }
 
+// Generate uniformly random non-zero number. Note that this is not crypto-grade randomness. This is used in unit-testing only.
+// We do NOT guarantee that the distribution is even close to uniform.
+func (z *bsFieldElement_64) setRandomUnsafeNonZero(rnd *rand.Rand) {
+	for {
+		var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize)
+		if xInt.Sign() != 0 {
+			z.SetInt(xInt)
+			return
+		}
+		// We only get here with negligible probability, but we prefer to be precise if we can.
+		// (in particular, because rnd could be crafted)
+	}
+}
+
 // Computes z *= 5. This is useful, because the coefficient of a in the twisted Edwards representation of Bandersnatch is a=-5
 func (z *bsFieldElement_64) multiply_by_five() {
 	IncrementCallCounter("MulByFive")
@@ -880,7 +894,7 @@ func (z *bsFieldElement_64) MulEq(x *bsFieldElement_64) {
 	z.Mul(z, x)
 }
 
-var _ = callcounters.CreateAttachedCallCounter("MulFromSqure", "as part of non-optimized Squaring", "MulFe").
+var _ = callcounters.CreateAttachedCallCounter("MulFromSquare", "as part of non-optimized Squaring", "MulFe").
 	AddToThisFromSource("Squarings", +1).
 	AddThisToTarget("Multiplications", -1)
 
@@ -892,6 +906,14 @@ func (z *bsFieldElement_64) Square(x *bsFieldElement_64) {
 func (z *bsFieldElement_64) SquareEq() {
 	IncrementCallCounter("Squarings")
 	z.Mul(z, z)
+}
+
+func (z *bsFieldElement_64) Double(x *bsFieldElement_64) {
+	z.Add(x, x)
+}
+
+func (z *bsFieldElement_64) DoubleEq() {
+	z.Add(z, z)
 }
 
 var _ = callcounters.CreateAttachedCallCounter("NegEqFe", "", "NegFe")
@@ -911,4 +933,16 @@ var _ = callcounters.CreateAttachedCallCounter("DivideEqFe", "", "DivideFe")
 
 func (z *bsFieldElement_64) DivideEq(denom *bsFieldElement_64) {
 	z.Divide(z, denom)
+}
+
+func (z *bsFieldElement_64) CmpAbs(x *bsFieldElement_64) (AbsEqual bool, exact bool) {
+	if z.IsEqual(x) {
+		return true, true
+	}
+	var tmp FieldElement
+	tmp.Neg(x)
+	if tmp.IsEqual(z) {
+		return true, false
+	}
+	return false, false
 }

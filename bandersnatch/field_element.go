@@ -103,5 +103,6 @@ var (
 	// IsZero() subsequently fail.
 	// FieldElementZero_alt = bsFieldElement_64_zero_alt
 
-	FieldElementMinusOne = bsFieldElement_64_minusone
+	FieldElementMinusOne              = bsFieldElement_64_minusone
+	FieldElementTwo      FieldElement = initFieldElementFromString("2") // should probably have bsFieldElements
 )

@@ -1,36 +1,6 @@
+//go:build ignore
+
 package bandersnatch
-
-import "io"
-
-// Point_efgh describes points (usually on the p253-subgroup of) the bandersnatch curve in E:G, H:F - coordinates (called double-projective or "efgh"-coos), i.e.
-// we represent X/Z as E/G and Y/Z as H/F. From a computational view, this effectively means that we use a separate denominator for X and Y (instead of a joint one Z).
-// We can recover X:Y:Z coordinates by computing Z = F*G, X = E*F, Y = G*H. Then T = E*H. This is meaningful even if one of E,G is zero. There are no rational points with F=0 or H=0.
-// Observe that in fact all default formulae in extended twisted edwards coordinates *produce* points in such efgh coordinates and then transform them into the desired form
-// Using double-projective coordinates can be used to make this explicit and can save computation if a coordinate is unused:
-// The doubling formula and the endomorphism can be expressed in double-projective coordinates by first converting to extended twisted edwards and then computing the double/endo(rather than the other way round).
-// Since these formulae do not use the input's t coordinate, this saves a multiplication.
-// (In fact, for the endomorphism, some further optimisation is possible if the input is in efgh-coordinates)
-// On the p253-subgroup, the only coordinate that may be zero is actually e.
-
-// Note: Conversion from X:Y:T:Z to EFGH is available as e.g.
-// E:=X, F:=X, G:=Z, H:=T or
-// E:=T, F:=X, G:=Y, H:=T or
-// E:=X, F:=Z, G:=Z, H:=Y or
-// (The first two options have singularities at neutral and affine-order-2, the third option at the points at infinity)
-type Point_efgh struct {
-	thisCurvePointCanOnlyRepresentSubgroup
-	e FieldElement
-	f FieldElement
-	g FieldElement
-	h FieldElement
-}
-
-var (
-	NeutralElement_efgh     = Point_efgh{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementOne}        // Note: g!=0 is actually arbitrary.
-	orderTwoPoint_efgh      = Point_efgh{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementMinusOne}   // Note: g!=0 is actually arbitrary.
-	exceptionalPoint_1_efgh = Point_efgh{e: FieldElementOne, f: squareRootDbyA_fe, g: FieldElementZero, h: FieldElementOne}      // Note: e!=0 is actually arbitrary.
-	exceptionalPoint_2_efgh = Point_efgh{e: FieldElementOne, f: squareRootDbyA_fe, g: FieldElementZero, h: FieldElementMinusOne} // Note: e!=0 is actually arbitrary.
-)
 
 /*
 	Without the P=P+A identification, all finite rational points have a unique "normalized" representative with p==f==1.
@@ -39,66 +9,19 @@ var (
 	Since multiple such coordinate reads are likely to come in a row, we check whether we already are in that form to save some work.
 */
 
-// is_normalized checks whether p is in that form.
-func (p *Point_efgh) is_normalized() bool {
-	return p.f.IsOne() && p.g.IsOne()
-}
-
-// normalize_affine puts the point in an equivalent "normalized" state with f==g==1.
-// NaPs will be put into the uninitialized, default e==f==g==h==0 NaP state. Points at infinity panic.
-func (p *Point_efgh) normalize_affine() {
-	if p.is_normalized() {
-		return
-	}
-	var temp FieldElement
-	temp.Mul(&p.f, &p.g)
-	if temp.IsZero() {
-		if p.IsNaP() {
-			napEncountered("Trying to normalize singular point", false, p)
-			// If the error handler did not panic, we intentionally set the NaP p to a "full" NaP with all coos 0 (rather than at least 2).
-			// This has the effect that all conversion routines that start by calling normalize_affine will only need to worry about NaPs with e==f==g==h==0
-			*p = Point_efgh{}
-			return
-		}
-		panic("Trying to normalize point at infinity")
-	}
-	temp.Inv(&temp)
-	p.e.MulEq(&p.f)
-	p.h.MulEq(&p.g)
-	p.e.MulEq(&temp)
-	p.h.MulEq(&temp)
-	p.f.SetOne()
-	p.g.SetOne()
-}
-
-// X_projective returns the X coordinate of the given point p in projective twisted Edwards coordinates.
-// Note that calling functions on P other than X_projective(), Y_projective(), T_projective(), Z_projective() might change the representations of P at will,
-// so callers must not interleave calling other functions.
-func (p *Point_efgh) X_projective() (X FieldElement) {
+func (p *Point_efgh) XYZ_projective() (X FieldElement, Y FieldElement, Z FieldElement) {
+	p.normalizeSubgroup()
 	X.Mul(&p.e, &p.f)
-	return
-}
-
-// Y_projective returns the Y coordinate of the given point p in projective twisted Edwards coordinates.
-// Note that calling functions on p other than X_projective(), Y_projective(), T_projective(), Z_projective() might change the representations of p at will,
-// so callers must not interleave calling other functions.
-func (p *Point_efgh) Y_projective() (Y FieldElement) {
 	Y.Mul(&p.g, &p.h)
+	Z.Mul(&p.f, &p.g)
 	return
 }
 
-// T_projective returns the T coordinate of the given point p in projective twisted Edwards coordinates.
-// Note that calling functions on p other than X_projective(), Y_projective(), T_projective(), Z_projective() might change the representations of p at will,
-// so callers must not interleave calling other functions.
-func (p *Point_efgh) T_projective() (T FieldElement) {
+func (p *Point_efgh) XYTZ_projective() (X FieldElement, Y FieldElement, T FieldElement, Z FieldElement) {
+	p.normalizeSubgroup()
+	X.Mul(&p.e, &p.f)
+	Y.Mul(&p.g, &p.h)
 	T.Mul(&p.e, &p.h)
-	return
-}
-
-// Z_projective returns the Z coordinate of the given point p in projective twisted Edwards coordinates.
-// Note that calling functions on p other than X_projective(), Y_projective(), T_projective(), Z_projective() might change the representations of p at will,
-// so callers must not interleave calling other functions.
-func (p *Point_efgh) Z_projective() (Z FieldElement) {
 	Z.Mul(&p.f, &p.g)
 	return
 }
@@ -106,19 +29,37 @@ func (p *Point_efgh) Z_projective() (Z FieldElement) {
 // X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates, (i.e. X/Z in projective coos)
 func (p *Point_efgh) X_affine() FieldElement {
 	p.normalize_affine()
+	p.normalizeSubgroup()
 	return p.e
 }
 
 // Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates, (i.e. Y/Z in projective coos)
 func (p *Point_efgh) Y_affine() FieldElement {
 	p.normalize_affine()
+	p.normalizeSubgroup()
 	return p.h
 }
 
 // T_affine returns the T coordinate of the given point in affine twisted Edwards coordinates, (i.e. T/Z == X*Y/Z^2 in projective coos)
 func (p *Point_efgh) T_affine() (T FieldElement) {
 	p.normalize_affine()
+	p.normalizeSubgroup()
 	T.Mul(&p.e, &p.h)
+	return
+}
+
+func (p *Point_efgh) XY_affine() (X FieldElement, Y FieldElement) {
+	p.normalizeSubgroup()
+	p.normalize_affine()
+	return p.e, p.h
+}
+
+func (p *Point_efgh) XYT_affine() (X FieldElement, Y FieldElement, T FieldElement) {
+	p.normalizeSubgroup()
+	p.normalize_affine()
+	X = p.e
+	Y = p.f
+	T.Mul(&X, &Y)
 	return
 }
 
@@ -132,10 +73,12 @@ func (p *Point_efgh) IsNeutralElement() bool {
 	return p.e.IsZero()
 }
 
+/*
 // IsNeutralElement_FullCurve tests for zero-ness like IsNeutralElement. The difference is that it does *NOT* identify P with P+A. We only assume that the point satisfies the curve equations.
 func (p *Point_efgh) IsNeutralElement_FullCurve() bool {
 	return p.IsNeutralElement() && p.f.IsEqual(&p.h)
 }
+*/
 
 // IsEqual compares two curve points for equality, working modulo the P = P + A identification. The two points do not have the be in the same coordinate format.
 func (p *Point_efgh) IsEqual(other CurvePointPtrInterfaceRead) bool {
@@ -145,6 +88,9 @@ func (p *Point_efgh) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	switch other := other.(type) {
 	// Not sure if specific implementation can be faster.
 	default:
+		// TODO !
+		panic("Comparison not implemented yet")
+
 		// This basically checks x1/y1 == x2/y2.
 		var other_x = other.X_projective()
 		var other_y = other.Y_projective()
@@ -258,6 +204,7 @@ func (P *Point_efgh) Clone() interface{} {
 	return &p_copy
 }
 
+/*
 // SerializeShort serializes the given point in short serialization format by writing to output. err==nil iff no error occurred.
 func (p *Point_efgh) SerializeShort(output io.Writer) (bytes_written int, err error) {
 	return default_SerializeShort(p, output)
@@ -267,10 +214,15 @@ func (p *Point_efgh) SerializeShort(output io.Writer) (bytes_written int, err er
 func (p *Point_efgh) SerializeLong(output io.Writer) (bytes_written int, err error) {
 	return default_SerializeLong(p, output)
 }
+*/
 
 // String() returns a (somewhat) human-readable string describing the point. Useful for debugging.
-func (p *Point_efgh) String() string {
-	return "E=" + p.e.String() + " F=" + p.f.String() + " G=" + p.g.String() + " H=" + p.h.String()
+func (p *Point_efgh) String() (ret string) {
+	ret = "E=" + p.e.String() + " F=" + p.f.String() + " G=" + p.g.String() + " H=" + p.h.String()
+	if !legendreCheckE1_FH(p.f, p.h) {
+		ret += " [modified by +A]"
+	}
+	return
 }
 
 // z.Add(x,y) computes z = x+y according to the elliptic curve group law.
@@ -284,6 +236,7 @@ func (p *Point_efgh) Add(x, y CurvePointPtrInterfaceRead) {
 			p.add_sta(x, y)
 		default: // including *Point_efgh
 			// TODO !
+			panic(0)
 			/*
 				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
 				p.add_stt(x, &y_conv)
@@ -297,6 +250,7 @@ func (p *Point_efgh) Add(x, y CurvePointPtrInterfaceRead) {
 			p.add_saa(x, y)
 		default: // including *Point_efgh
 			// TODO !
+			panic(0)
 			/*
 				var y_conv Point_xtw = y.ExtendedTwistedEdwards()
 					p.add_sta(&y_conv, x)
@@ -304,6 +258,7 @@ func (p *Point_efgh) Add(x, y CurvePointPtrInterfaceRead) {
 		}
 	default:
 		// TODO !
+		panic(0)
 		/*
 			var x_conv Point_xtw = x.ExtendedTwistedEdwards()
 			switch y := y.(type) {

@@ -1,5 +1,37 @@
 package bandersnatch
 
+var _ CurvePointPtrInterfaceBaseRead = &point_efgh_base{}
+var _ CurvePointPtrInterfaceBaseRead = &point_xtw_base{}
+var _ CurvePointPtrInterfaceBaseRead = &point_axtw_base{}
+
+var _ CurvePointPtrInterfaceRead = &Point_efgh_subgroup{}
+var _ CurvePointPtrInterfaceRead = &Point_efgh_full{}
+var _ CurvePointPtrInterfaceWrite = &Point_efgh_subgroup{}
+var _ CurvePointPtrInterfaceWrite = &Point_efgh_full{}
+
+var _ CurvePointPtrInterfaceRead = &Point_axtw_subgroup{}
+var _ CurvePointPtrInterfaceRead = &Point_axtw_full{}
+var _ CurvePointPtrInterfaceWrite = &Point_axtw_subgroup{}
+var _ CurvePointPtrInterfaceWrite = &Point_axtw_full{}
+
+var _ CurvePointPtrInterfaceRead = &Point_xtw_subgroup{}
+var _ CurvePointPtrInterfaceRead = &Point_xtw_full{}
+var _ CurvePointPtrInterfaceWrite = &Point_xtw_subgroup{}
+var _ CurvePointPtrInterfaceWrite = &Point_xtw_full{}
+
+var _ Rerandomizeable = &point_efgh_base{}
+var _ Rerandomizeable = &Point_efgh_subgroup{}
+var _ Rerandomizeable = &Point_efgh_full{}
+var _ Rerandomizeable = &point_xtw_base{}
+var _ Rerandomizeable = &Point_xtw_full{}
+var _ Rerandomizeable = &Point_xtw_subgroup{}
+var _ Rerandomizeable = &point_axtw_base{}
+var _ Rerandomizeable = &Point_axtw_subgroup{}
+var _ Rerandomizeable = &Point_axtw_full{}
+
+var _ CurvePointPtrInterfaceReadCanDistinguishInfinity = &point_efgh_base{}
+var _ CurvePointPtrInterfaceReadCanDistinguishInfinity = &point_xtw_base{}
+
 /*
 	This file contains tests on curve points that can be expressed as properties on the exported interface of CurvePointPtrInterface.
 	Using our testing framework and a little bit of reflection (hidden in helper functions) and interfaces, these tests are then run on all concrete curve point types.

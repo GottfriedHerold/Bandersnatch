@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"math/rand"
 )
 
 // Curve parameters
@@ -117,28 +118,54 @@ var (
 // Note: The actual implementations that are provided for Point_xtw, Point_axtw, Point_efgh
 // give correct results even if types are mixed.
 
-type CurvePointPtrInterfaceCooReadProjective interface {
+type Cloneable interface {
+	Clone() interface{}
+}
+
+type Rerandomizeable interface {
+	rerandomizeRepresentation(rnd *rand.Rand)
+}
+
+type CurvePointPtrInterfaceCooReadProjectiveXYZ interface {
 	// These give coordinates of the point in projective coordinates.
 	// Calls to other functions are allowed to modify the internal representation to change to an equivalent point (and thereby change coordinates)
 	// Subsequent calls to <foo>_projective (with different foos) are guaranteed to be consistent only if there are no intermediate calls to other functions.
 	X_projective() FieldElement
 	Y_projective() FieldElement
-	// T_Projective() FieldElement  -- might be available for some concrete types
 	Z_projective() FieldElement
+	XYZ_projective() (FieldElement, FieldElement, FieldElement)
 }
 
-type CurvePointPtrInterfaceCooReadAffine interface {
+type CurvePointPtrInterfaceCooReadAffineXY interface {
 	// These give coordinates of the point in affine coordinates.
 	// Calls to other functions are allowed to modify the internal representation to change to an equivalent point (and thereby change coordinates -- Note that the P=P+A identification allows this even for affine coordinates).
 	// Subsequent calls to <foo>_affine (with different foos) are guaranteed to be consistent only if there are no intermediate calls to other functions.
 	X_affine() FieldElement
 	Y_affine() FieldElement
-	// T_affine() FieldElement -- might be available for some concrete types
+	XY_affine() (FieldElement, FieldElement)
 }
 
-type CurvePointPtrInterfaceCooRead interface {
-	CurvePointPtrInterfaceCooReadProjective
-	CurvePointPtrInterfaceCooReadAffine
+type CurvePointPtrInterfaceCooReadProjectiveT interface {
+	T_projective() FieldElement
+	XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement)
+}
+
+type CurvePointPtrInterfaceCooReadAffineT interface {
+	T_affine() FieldElement
+	XYT_affine() (FieldElement, FieldElement, FieldElement)
+}
+
+type CurvePointPtrInterfaceCooReadDecafProjective interface {
+	X_decaf_projective() FieldElement
+	Y_decaf_projective() FieldElement
+	T_decaf_projective() FieldElement
+	Z_decaf_projective() FieldElement
+}
+
+type CurvePointPtrInterfaceCooReadDecafAffine interface {
+	X_decaf_affine() FieldElement
+	Y_decaf_affine() FieldElement
+	T_decaf_affine() FieldElement
 }
 
 type CurvePointPtrInterfaceTypeQuery interface {
@@ -146,29 +173,24 @@ type CurvePointPtrInterfaceTypeQuery interface {
 	CanOnlyRepresentSubgroup() bool
 }
 
-type thisCurvePointCanRepresentInfinity struct{}
-type thisCurvePointCannotRepresentInfinity struct{}
-type thisCurvePointCanOnlyRepresentSubgroup struct{}
-type thisCurvePointCanRepresentFullCurve struct{}
-
-func (thisCurvePointCanRepresentInfinity) CanRepresentInfinity() bool         { return true }
-func (thisCurvePointCannotRepresentInfinity) CanRepresentInfinity() bool      { return false }
-func (thisCurvePointCanOnlyRepresentSubgroup) CanOnlyRepresentSubgroup() bool { return true }
-func (thisCurvePointCanOnlyRepresentSubgroup) IsInSubgroup() bool             { return true }
-func (thisCurvePointCanRepresentFullCurve) CanOnlyRepresentSubgroup() bool    { return false }
-
-type CurvePointPtrInterfaceReadConvert interface {
-	fmt.Stringer
-	Clone() interface{}
-	// ToPoint_xtw() Point_xtw
-	// TODO ! Rename
-	ExtendedTwistedEdwards() Point_xtw
-	//
+type CurvePointPtrInterfaceCompare interface {
+	IsNeutralElement() bool
+	IsNaP() bool
+	IsEqual(CurvePointPtrInterfaceRead) bool
+	IsInSubgroup() bool
+	IsAtInfinity() bool
 }
 
-type CurvePointPtrInterfaceReadConvertToDecaf interface {
-	ToDecaf_xtw() Point_xtw
-	ToDecaf_axtw() Point_axtw
+type CurvePointPtrInterfaceReadCanDistinguishInfinity interface {
+	IsE1() bool
+}
+
+type CurvePointPtrInterfaceBaseRead interface {
+	fmt.Stringer
+	Cloneable
+	CurvePointPtrInterfaceCooReadDecafAffine
+	CurvePointPtrInterfaceCooReadDecafProjective
+	CurvePointPtrInterfaceTypeQuery
 }
 
 type CurvePointPtrInterfaceReadSerialize interface {
@@ -177,21 +199,14 @@ type CurvePointPtrInterfaceReadSerialize interface {
 	SerializeLong(output io.Writer) (bytes_written int, err error)
 }
 
-type CurvePointPtrInterfaceReadCompare interface {
-	IsNeutralElement() bool
-	IsNaP() bool
-	IsEqual(CurvePointPtrInterfaceRead) bool
-	IsInSubgroup() bool
-}
-
 type CurvePointPtrInterfaceRead interface {
-	CurvePointPtrInterfaceCooRead
-	CurvePointPtrInterfaceReadCompare
-	CurvePointPtrInterfaceReadConvert
-	CurvePointPtrInterfaceTypeQuery
+	CurvePointPtrInterfaceBaseRead
+	CurvePointPtrInterfaceCompare
+	CurvePointPtrInterfaceCooReadProjectiveXYZ
+	CurvePointPtrInterfaceCooReadAffineXY
 }
 
-type CurvePointPtrInterfaceWriteArithmeticBase interface {
+type CurvePointPtrInterfaceWriteArithmetic interface {
 	SetNeutral()
 	Add(CurvePointPtrInterfaceRead, CurvePointPtrInterfaceRead)
 	Sub(CurvePointPtrInterfaceRead, CurvePointPtrInterfaceRead)
@@ -213,7 +228,7 @@ type CurvePointPtrInterfaceWriteConvert interface {
 }
 
 type CurvePointPtrInterfaceWrite interface {
-	CurvePointPtrInterfaceWriteArithmeticBase
+	CurvePointPtrInterfaceWriteArithmetic
 	CurvePointPtrInterfaceWriteEndo
 	CurvePointPtrInterfaceWriteConvert
 }
@@ -221,6 +236,23 @@ type CurvePointPtrInterfaceWrite interface {
 type CurvePointPtrInterface interface {
 	CurvePointPtrInterfaceRead
 	CurvePointPtrInterfaceWrite
+}
+
+type thisCurvePointCanRepresentInfinity struct{}
+type thisCurvePointCannotRepresentInfinity struct{}
+type thisCurvePointCanOnlyRepresentSubgroup struct{}
+type thisCurvePointCanRepresentFullCurve struct{}
+
+func (thisCurvePointCanRepresentInfinity) CanRepresentInfinity() bool         { return true }
+func (thisCurvePointCannotRepresentInfinity) CanRepresentInfinity() bool      { return false }
+func (thisCurvePointCanOnlyRepresentSubgroup) CanOnlyRepresentSubgroup() bool { return true }
+func (thisCurvePointCanOnlyRepresentSubgroup) IsInSubgroup() bool             { return true }
+func (thisCurvePointCanRepresentFullCurve) CanOnlyRepresentSubgroup() bool    { return false }
+
+func ensureSubgroupOnly(input CurvePointPtrInterfaceTypeQuery) {
+	if !input.CanOnlyRepresentSubgroup() {
+		panic("curve_point: You are trying to assign (via an operation) to a point type that can only store subgroup points, but the operands are general. This is not allowed. Use explicit conversion instead.")
+	}
 }
 
 /*

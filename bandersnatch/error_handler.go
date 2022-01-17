@@ -11,33 +11,36 @@ import (
 	Also, certain exceptional cases for some group operations can result in this (we take care they cannot appear while working on the good subgroup)
 	To protect the user from mistakes (the naive implementation would give true for comparisons involving NaPs -- this is potentially a disaster if used in any kind of cryptographic verification),
 	we check for NaP-ness whenever we "exit" the library, i.e. on Equality or Zero-Ness comparisons.
-	If a NaP is found, we call an error handler that the user can replace by whatever he wishes.
+	If a NaP is found, we call an error handler that the user can replace by whatever they wish.
 	Panic is appropriate here IMO, but there is a school of thought that strongly dislikes panic, so the user can choose.
 */
 
 // NaPErrorHandler is the function type for error handler that can be installed for dealing with NaPs.
 // When such a handler is called, reason is a descriptive error message, comparison tells whether the NaP was detected during a comparison (in which case the return value of the function should be the comparison result),
 // points is a number of relevant points that were involved.
-type NaPErrorHandler func(reason string, comparison bool, points ...CurvePointPtrInterfaceRead) bool
+type NaPErrorHandler func(reason string, comparison bool, points ...CurvePointPtrInterfaceBaseRead) bool
 
 // empty error handler.
-func trivial_error_handler(string, bool, ...CurvePointPtrInterfaceRead) bool {
+func trivial_error_handler(string, bool, ...CurvePointPtrInterfaceBaseRead) bool {
 	return false
 }
 
 // error handler that just panics.
-func panic_error_handler(reason string, _ bool, _ ...CurvePointPtrInterfaceRead) bool {
-	// Should be also log / output the points?
+func panic_error_handler(reason string, _ bool, _ ...CurvePointPtrInterfaceBaseRead) bool {
+	// Should we also log / output the points?
 	panic(reason)
 }
 
-// currently installed NaP error handler. Being a mutable global object, this is protected by mutex.
-// Note that the mutex is not held when the error handler is *called* -- Thread-safety of the error handlers themselves is the duty of the user-provided handlers.
-// The mutex only protects the variable itself.
+// currently installed NaP error handler.
 var current_error_handler NaPErrorHandler = trivial_error_handler
+
+// Being a mutable global object, the current_error_handler is protected by a mutex.
+// Note that the mutex is not held when the error handler is *called*.
+// Thread-safety of the error handlers themselves is the duty of the user-provided handlers.
+// The mutex only protects the variable itself.
 var error_handler_mutex sync.Mutex
 
-// SetNaPErrorHandler exchanges the currently installed handler that is called when a NaP is encountered with the one provided and returns the previously installed one.
+// SetNaPErrorHandler atomically exchanges the currently installed handler that is called when a NaP is encountered with the one provided and returns the previously installed one.
 func SetNaPErrorHandler(new_handler NaPErrorHandler) (old_handler NaPErrorHandler) {
 	error_handler_mutex.Lock()
 	defer error_handler_mutex.Unlock()
@@ -56,7 +59,7 @@ func GetNaPErrorHandler() NaPErrorHandler {
 
 // This function is called whenever we hit a NaP. reason is an error string, comparison tells whether this was in an (equality or zeroness) comparison, points are relevant points that may be useful for debugging.
 // It calls the user-provided error handler with reason, comparison, points. The output is taken as the comparison result (if the error handler does not panic, false is the reasonable choice) if comparison is true.
-func napEncountered(reason string, comparison bool, points ...CurvePointPtrInterfaceRead) bool {
+func napEncountered(reason string, comparison bool, points ...CurvePointPtrInterfaceBaseRead) bool {
 	// Note that this essentially locks the mutex, gets a copy of the handler and releases the mutex before actually calling f.
 	f := GetNaPErrorHandler()
 	return f(reason, comparison, points...)
@@ -67,7 +70,7 @@ func napEncountered(reason string, comparison bool, points ...CurvePointPtrInter
 func wasInvalidPointEncountered(fun func()) bool {
 	var old_handler_ptr *NaPErrorHandler // indirection to avoid the need for manually locking and circumventing the SetNaPErrorHandler interface.
 	var error_bit bool = false
-	new_handler := func(reason string, comparison bool, points ...CurvePointPtrInterfaceRead) bool {
+	new_handler := func(reason string, comparison bool, points ...CurvePointPtrInterfaceBaseRead) bool {
 		error_bit = true
 		return (*old_handler_ptr)(reason, comparison, points...)
 	}
@@ -83,7 +86,7 @@ func wasInvalidPointEncountered(fun func()) bool {
 func guardForInvalidPoints(expected interface{}, expect_singular bool, error_message string, fun interface{}, args ...interface{}) (ok bool, err string) {
 	var old_handler_ptr *NaPErrorHandler
 	var error_bit bool = false
-	new_handler := func(reason string, comparison bool, points ...CurvePointPtrInterfaceRead) bool {
+	new_handler := func(reason string, comparison bool, points ...CurvePointPtrInterfaceBaseRead) bool {
 		error_bit = true
 		return (*old_handler_ptr)(reason, comparison, points...)
 	}

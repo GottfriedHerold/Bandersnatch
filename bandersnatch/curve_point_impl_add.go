@@ -8,7 +8,7 @@ package bandersnatch
 */
 
 // https://www.hyperelliptic.org/EFD/g1p/auto-twisted-extended.html#addition-add-2008-hwcd, due to Hisil–Wong–Carter–Dawson 2008, http://eprint.iacr.org/2008/522, Section 3.1.
-func (out *Point_xtw) add_ttt(input1, input2 *Point_xtw) {
+func (out *point_xtw_base) add_ttt(input1, input2 *point_xtw_base) {
 	var A, B, C, D, E, F, G, H FieldElement // We follow the notation of the link above
 
 	A.Mul(&input1.x, &input2.x) // A = X1 * X2
@@ -33,13 +33,14 @@ func (out *Point_xtw) add_ttt(input1, input2 *Point_xtw) {
 	out.z.Mul(&F, &G) // Z3 = F * G
 }
 
-func (out *Point_xtw) sub_ttt(input1, input2 *Point_xtw) {
-	var temp Point_xtw // needed because of potential aliasing
+func (out *point_xtw_base) sub_ttt(input1, input2 *point_xtw_base) {
+	// TODO: Optimize
+	var temp point_xtw_base // needed because of potential aliasing
 	temp.neg_tt(input2)
 	out.add_ttt(&temp, input1)
 }
 
-func (out *Point_efgh) add_stt(input1, input2 *Point_xtw) {
+func (out *point_efgh_base) add_stt(input1, input2 *point_xtw_base) {
 	var A, B, C, D FieldElement
 
 	// same as add_ttt. Note that we can directly write to out, since input1, input2 cannot alias out (due to type).
@@ -60,14 +61,14 @@ func (out *Point_efgh) add_stt(input1, input2 *Point_xtw) {
 	out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 }
 
-func (out *Point_efgh) sub_stt(input1, input2 *Point_xtw) {
-	var temp Point_xtw
+func (out *point_efgh_base) sub_stt(input1, input2 *point_xtw_base) {
+	var temp point_xtw_base
 	temp.neg_tt(input2)
 	out.add_stt(input1, &temp)
 }
 
 // same as above, but with z2==1
-func (out *Point_xtw) add_tta(input1 *Point_xtw, input2 *Point_axtw) {
+func (out *point_xtw_base) add_tta(input1 *point_xtw_base, input2 *point_axtw_base) {
 	var A, B, C, E, F, G, H FieldElement
 
 	A.Mul(&input1.x, &input2.x) // A = X1 * X2
@@ -92,19 +93,19 @@ func (out *Point_xtw) add_tta(input1 *Point_xtw, input2 *Point_axtw) {
 	out.z.Mul(&F, &G) // Z3 = F * G
 }
 
-func (out *Point_xtw) sub_tta(input1 *Point_xtw, input2 *Point_axtw) {
-	var temp2 Point_axtw
+func (out *point_xtw_base) sub_tta(input1 *point_xtw_base, input2 *point_axtw_base) {
+	var temp2 point_axtw_base
 	temp2.neg_aa(input2)
 	out.add_tta(input1, &temp2)
 }
 
-func (out *Point_xtw) sub_tat(input1 *Point_axtw, input2 *Point_xtw) {
-	var temp2 Point_xtw
+func (out *point_xtw_base) sub_tat(input1 *point_axtw_base, input2 *point_xtw_base) {
+	var temp2 point_xtw_base
 	temp2.neg_tt(input2)
 	out.add_tta(&temp2, input1)
 }
 
-func (out *Point_efgh) add_sta(input1 *Point_xtw, input2 *Point_axtw) {
+func (out *point_efgh_base) add_sta(input1 *point_xtw_base, input2 *point_axtw_base) {
 	var A, B, C FieldElement
 	A.Mul(&input1.x, &input2.x) // A = X1 * X2
 	B.Mul(&input1.y, &input2.y) // B = Y1 * Y2
@@ -123,20 +124,20 @@ func (out *Point_efgh) add_sta(input1 *Point_xtw, input2 *Point_axtw) {
 	out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 }
 
-func (out *Point_efgh) sub_sta(input1 *Point_xtw, input2 *Point_axtw) {
-	var temp2 Point_axtw
+func (out *point_efgh_base) sub_sta(input1 *point_xtw_base, input2 *point_axtw_base) {
+	var temp2 point_axtw_base
 	temp2.neg_aa(input2)
 	out.add_sta(input1, &temp2)
 }
 
-func (out *Point_efgh) sub_sat(input1 *Point_axtw, input2 *Point_xtw) {
-	var temp2 Point_xtw
+func (out *point_efgh_base) sub_sat(input1 *point_axtw_base, input2 *point_xtw_base) {
+	var temp2 point_xtw_base
 	temp2.neg_tt(input2)
 	out.add_sta(&temp2, input1)
 }
 
 // same as above, but with z1==z2==1
-func (out *Point_xtw) add_taa(input1 *Point_axtw, input2 *Point_axtw) {
+func (out *point_xtw_base) add_taa(input1 *point_axtw_base, input2 *point_axtw_base) {
 	var A, B, C, E, F, G, H FieldElement
 
 	A.Mul(&input1.x, &input2.x) // A = X1 * X2
@@ -162,13 +163,13 @@ func (out *Point_xtw) add_taa(input1 *Point_axtw, input2 *Point_axtw) {
 	out.z.Sub(&FieldElementOne, &H) // Z3 = F * G == 1 - C^2
 }
 
-func (out *Point_xtw) sub_taa(input1 *Point_axtw, input2 *Point_axtw) {
-	var temp2 Point_axtw
+func (out *point_xtw_base) sub_taa(input1 *point_axtw_base, input2 *point_axtw_base) {
+	var temp2 point_axtw_base
 	temp2.neg_aa(input2)
 	out.add_taa(input1, &temp2)
 }
 
-func (out *Point_efgh) add_saa(input1 *Point_axtw, input2 *Point_axtw) {
+func (out *point_efgh_base) add_saa(input1 *point_axtw_base, input2 *point_axtw_base) {
 	var A, B, C FieldElement
 
 	A.Mul(&input1.x, &input2.x) // A = X1 * X2
@@ -188,8 +189,8 @@ func (out *Point_efgh) add_saa(input1 *Point_axtw, input2 *Point_axtw) {
 	out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 }
 
-func (out *Point_efgh) sub_saa(input1 *Point_axtw, input2 *Point_axtw) {
-	var temp2 Point_axtw
+func (out *point_efgh_base) sub_saa(input1 *point_axtw_base, input2 *point_axtw_base) {
+	var temp2 point_axtw_base
 	temp2.neg_aa(input2)
 	out.add_saa(input1, &temp2)
 }

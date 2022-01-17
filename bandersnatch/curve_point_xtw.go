@@ -2,18 +2,28 @@ package bandersnatch
 
 import (
 	"math/big"
+	"math/rand"
 )
 
-// Point_xtw describes points on the p253-subgroup of the Bandersnatch curve in extended twisted Edwards coordinates.
-// Extended means that we additionally store T with T = X*Y/Z. Note that Z is never 0 for points in the subgroup, but see code comment about desingularisation.)
-// cf. https://iacr.org/archive/asiacrypt2008/53500329/53500329.pdf
-type Point_xtw struct {
-	thisCurvePointCanOnlyRepresentSubgroup
+type point_xtw_base struct {
+	thisCurvePointCanRepresentFullCurve
 	thisCurvePointCanRepresentInfinity
 	x FieldElement
 	y FieldElement
 	z FieldElement
 	t FieldElement
+}
+
+// Point_xtw describes points on the p253-subgroup of the Bandersnatch curve in extended twisted Edwards coordinates.
+// Extended means that we additionally store T with T = X*Y/Z. Note that Z is never 0 for points in the subgroup, but see code comment about desingularisation.)
+// cf. https://iacr.org/archive/asiacrypt2008/53500329/53500329.pdf
+type Point_xtw_subgroup struct {
+	thisCurvePointCanOnlyRepresentSubgroup
+	point_xtw_base
+}
+
+type Point_xtw_full struct {
+	point_xtw_base
 }
 
 /*
@@ -59,7 +69,7 @@ type Point_xtw struct {
 var example_generator_x *big.Int = initIntFromString("0x29c132cc2c0b34c5743711777bbe42f32b79c022ad998465e1e71866a252ae18")
 var example_generator_y *big.Int = initIntFromString("0x2a6c669eda123e0f157d8b50badcd586358cad81eee464605e3167b6cc974166")
 var example_generator_t *big.Int = new(big.Int).Mul(example_generator_x, example_generator_y)
-var example_generator_xtw Point_xtw = func() (ret Point_xtw) {
+var example_generator_xtw point_xtw_base = func() (ret point_xtw_base) {
 	ret.x.SetInt(example_generator_x)
 	ret.y.SetInt(example_generator_y)
 	ret.t.SetInt(example_generator_t)
@@ -73,24 +83,24 @@ var example_generator_xtw Point_xtw = func() (ret Point_xtw) {
 
 // NeutralElement_<foo> denotes the Neutral Element of the Bandersnatch curve in <foo> coordinates.
 var (
-	NeutralElement_xtw Point_xtw = Point_xtw{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero, z: FieldElementOne}
+	NeutralElement_xtw point_xtw_base = point_xtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero, z: FieldElementOne}
 )
 
 // These are the three points of order 2 that we can represent with extended twisted coordinates. None of these is in the p253-subgroup, of course.
 // Although we do not need or use this, note that SqrtDDivA_fe := sqrt(d/a) == sqrt(2) - 1 due to the way the bandersnatch curve was constructed.
 var (
-	orderTwoPoint_xtw      Point_xtw = Point_xtw{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero, z: FieldElementOne}
-	exceptionalPoint_1_xtw Point_xtw = Point_xtw{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementOne, z: FieldElementZero}
-	exceptionalPoint_2_xtw Point_xtw = Point_xtw{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementMinusOne, z: FieldElementZero}
+	orderTwoPoint_xtw      point_xtw_base = point_xtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero, z: FieldElementOne}
+	exceptionalPoint_1_xtw point_xtw_base = point_xtw_base{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementOne, z: FieldElementZero}
+	exceptionalPoint_2_xtw point_xtw_base = point_xtw_base{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementMinusOne, z: FieldElementZero}
 )
 
 // normalizeAffineZ replaces the internal representation with an equivalent one with Z==1, unless the point is at infinity (in which case we panic).
 // This is used to convert to or output affine coordinates.
-func (p *Point_xtw) normalizeAffineZ() {
+func (p *point_xtw_base) normalizeAffineZ() {
 	if p.IsNaP() {
 		napEncountered("Try to converting invalid point xtw to coos with z==1", false, p)
-		// If the above did not panic, we replace the NaP p by an default NaP with x==y==t==z==0.
-		*p = Point_xtw{z: FieldElementOne} // invalid point
+		// If the above did not panic, we replace the NaP p by an default NaP with x==y==t==0, z==1.
+		*p = point_xtw_base{z: FieldElementOne} // invalid point
 		return
 	}
 
@@ -98,80 +108,211 @@ func (p *Point_xtw) normalizeAffineZ() {
 	if p.z.IsOne() {
 		return
 	}
-
-	var temp FieldElement
 	if p.z.IsZero() {
-		if p.IsNaP() {
-			napEncountered("Try to converting invalid point xtw to coos with z==1", false, p)
-			// If the above did not panic, we replace the NaP p by an default NaP with x==y==t==z==0.
-			*p = Point_xtw{z: FieldElementOne} // invalid point
-			return
-		}
+		// division by zero error
 		panic("Trying to make point at infinity affine")
 	}
-	temp.Inv(&p.z)
-	p.x.MulEq(&temp)
-	p.y.MulEq(&temp)
-	p.t.MulEq(&temp)
+	var zInverse FieldElement
+	zInverse.Inv(&p.z)
+	p.x.MulEq(&zInverse)
+	p.y.MulEq(&zInverse)
+	p.t.MulEq(&zInverse)
 	p.z.SetOne()
 }
 
-func (p *Point_xtw) normalizeSubgroup() {
-	panic(0)
-	// TODO !
+func (p *Point_xtw_subgroup) normalizeSubgroup() {
+	if !legendreCheckE1_projectiveYZ(p.y, p.z) {
+		p.flipDecaf()
+	}
+}
+
+func (p *point_xtw_base) flipDecaf() {
+	p.x.NegEq()
+	p.y.NegEq()
+}
+
+func (p *point_xtw_base) rerandomizeRepresentation(rnd *rand.Rand) {
+	var m FieldElement
+	m.setRandomUnsafeNonZero(rnd)
+	p.x.MulEq(&m)
+	p.y.MulEq(&m)
+	p.t.MulEq(&m)
+	p.z.MulEq(&m)
+}
+
+func (p *point_xtw_base) IsE1() bool {
+	var tmp FieldElement
+	tmp.Mul(&p.t, &squareRootDbyA_fe)
+	return tmp.IsEqual(&p.x)
+}
+
+func (p *Point_xtw_subgroup) rerandomizeRepresentation(rnd *rand.Rand) {
+	p.point_xtw_base.rerandomizeRepresentation(rnd)
+	if rnd.Intn(2) == 0 {
+		p.flipDecaf()
+	}
 }
 
 // X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates.
-func (p *Point_xtw) X_affine() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) X_affine() FieldElement {
+	p.normalizeAffineZ()
+	p.normalizeSubgroup()
+	return p.x
+}
+
+// X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates.
+func (p *Point_xtw_full) X_affine() FieldElement {
 	p.normalizeAffineZ()
 	return p.x
 }
 
 // Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates.
-func (p *Point_xtw) Y_affine() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) Y_affine() FieldElement {
+	p.normalizeAffineZ()
+	p.normalizeSubgroup()
+	return p.y
+}
+
+// Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates.
+func (p *Point_xtw_full) Y_affine() FieldElement {
 	p.normalizeAffineZ()
 	return p.y
 }
 
 // T_affine returns the T coordinate (i.e. T=XY) of the given point in affine twisted Edwards coordinates.
-func (p *Point_xtw) T_affine() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) T_affine() FieldElement {
+	p.normalizeAffineZ()
+	p.normalizeSubgroup()
+	return p.t
+}
+
+// T_affine returns the T coordinate (i.e. T=XY) of the given point in affine twisted Edwards coordinates.
+func (p *Point_xtw_full) T_affine() FieldElement {
 	p.normalizeAffineZ()
 	return p.t
 }
 
-// X_projective returns the X coordinate of the given point P in projective twisted Edwards coordinates.
-// Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
+func (p *Point_xtw_subgroup) XY_affine() (FieldElement, FieldElement) {
+	p.normalizeAffineZ()
+	p.normalizeSubgroup()
+	return p.x, p.y
+}
+
+func (p *Point_xtw_full) XY_affine() (FieldElement, FieldElement) {
+	p.normalizeAffineZ()
+	return p.x, p.y
+}
+
+func (p *Point_xtw_subgroup) XYT_affine() (FieldElement, FieldElement, FieldElement) {
+	p.normalizeAffineZ()
+	p.normalizeSubgroup()
+	return p.x, p.y, p.t
+}
+
+func (p *Point_xtw_full) XYT_affine() (FieldElement, FieldElement, FieldElement) {
+	p.normalizeAffineZ()
+	return p.x, p.y, p.t
+}
+
+// X_projective returns the X coordinate of the given point p in projective twisted Edwards coordinates.
+// Note that calling functions on P other than X_projective(), Y_projective(), T_projective() might change the representations of P at will,
 // so callers must not interleave calling other functions.
-func (p *Point_xtw) X_projective() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) X_projective() FieldElement {
+	p.normalizeSubgroup()
+	return p.x
+}
+
+func (p *Point_xtw_full) X_projective() FieldElement {
 	return p.x
 }
 
 // Y_projective returns the Y coordinate of the given point P in projective twisted Edwards coordinates.
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
-func (p *Point_xtw) Y_projective() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) Y_projective() FieldElement {
+	p.normalizeSubgroup()
+	return p.y
+}
+
+func (p *Point_xtw_full) Y_projective() FieldElement {
 	return p.y
 }
 
 // Z_projective returns the Z coordinate of the given point P in projective twisted Edwards coordinates.
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
-func (p *Point_xtw) Z_projective() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) Z_projective() FieldElement {
+	p.normalizeSubgroup()
 	return p.z
+}
+
+func (p *Point_xtw_full) Z_projective() FieldElement {
+	return p.z
+}
+
+func (p *Point_xtw_subgroup) XYZ_projective() (FieldElement, FieldElement, FieldElement) {
+	p.normalizeSubgroup()
+	return p.x, p.y, p.z
+}
+
+func (p *Point_xtw_full) XYZ_projective() (FieldElement, FieldElement, FieldElement) {
+	return p.x, p.y, p.z
 }
 
 // T_projective returns the T coordinate of the given point P in projective twisted Edwards coordinates (i.e. T = XY/Z).
 // Note that calling functions on P other than X_projective(), Y_projective(), Z() might change the representations of P at will,
 // so callers must not interleave calling other functions.
-func (p *Point_xtw) T_projective() FieldElement {
-	panic(0)
+func (p *Point_xtw_subgroup) T_projective() FieldElement {
+	p.normalizeSubgroup()
 	return p.t
+}
+
+func (p *Point_xtw_full) T_projective() FieldElement {
+	return p.t
+}
+
+func (p *Point_xtw_subgroup) XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement) {
+	p.normalizeSubgroup()
+	return p.x, p.y, p.t, p.z
+}
+
+func (p *Point_xtw_full) XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement) {
+	return p.x, p.y, p.t, p.z
+}
+
+func (p *point_xtw_base) X_decaf_projective() FieldElement {
+	return p.x
+}
+
+func (p *point_xtw_base) Y_decaf_projective() FieldElement {
+	return p.y
+}
+
+func (p *point_xtw_base) T_decaf_projective() FieldElement {
+	return p.t
+}
+
+func (p *point_xtw_base) Z_decaf_projective() FieldElement {
+	return p.z
+}
+
+func (p *point_xtw_base) X_decaf_affine() FieldElement {
+	p.normalizeAffineZ()
+	return p.x
+}
+
+func (p *point_xtw_base) Y_decaf_affine() FieldElement {
+	p.normalizeAffineZ()
+	return p.y
+}
+
+func (p *point_xtw_base) T_decaf_affine() FieldElement {
+	p.normalizeAffineZ()
+	return p.t
+}
+
+func (p *Point_xtw_full) IsInSubgroup() bool {
+	return legendreCheckA_projectiveXZ(p.x, p.z) && legendreCheckE1_projectiveYZ(p.y, p.z)
 }
 
 // TODO
@@ -217,59 +358,77 @@ func (p *Point_xtw) DeserializeAuto(input io.Reader, trusted IsPointTrusted) (by
 */
 
 // String prints the point in X:Y:T:Z - format
-func (p *Point_xtw) String() string {
+func (p *point_xtw_base) String() string {
 	// Not the most efficient way to concatenate strings, but good enough.
-	// TODO: Normalize?
-	return p.x.String() + ":" + p.y.String() + ":" + p.t.String() + ":" + p.z.String() + " modulo A"
+	return p.x.String() + ":" + p.y.String() + ":" + p.t.String() + ":" + p.z.String()
 }
 
+func (p *Point_xtw_subgroup) String() (ret string) {
+	ret = p.point_xtw_base.String()
+	if !legendreCheckE1_projectiveYZ(p.y, p.z) {
+		ret += " [+A]"
+	}
+	return
+}
+
+/*
 // AffineExtended returns a copy of the point in affine extended coordinates.
 func (p *Point_xtw) AffineExtended() Point_axtw {
+	panic("Needs to change")
 	p.normalizeAffineZ()
 	return Point_axtw{x: p.x, y: p.y, t: p.t}
 }
+*/
 
-func (p *Point_xtw) ToDecaf_xtw() Point_xtw {
+func (p *point_xtw_base) ToDecaf_xtw() point_xtw_base {
 	return *p
 }
 
-func (p *Point_xtw) ToDecaf_axtw() Point_axtw {
+func (p *point_xtw_base) ToDecaf_axtw() point_axtw_base {
 	p.normalizeAffineZ()
-	return Point_axtw{x: p.x, y: p.y, t: p.t}
+	return point_axtw_base{x: p.x, y: p.y, t: p.t}
 }
 
-// TODO !
-
-// ExtendedTwistedEdwards() returns a copy of the given point in extended twited Edwards coordinates.
+/*
+// ExtendedTwistedEdwards() returns a copy of the given point in extended twisted Edwards coordinates.
 func (p *Point_xtw) ExtendedTwistedEdwards() Point_xtw {
+	panic("Needs to change")
 	return *p // Note that Go forces the caller to make a copy.
 }
+*/
 
-// IsNeutralElement checks if the point P is the neutral element of the curve (modulo the identification of P with P+A).
-// Use IsNeutralElement_FullCurve if you do not want this identification.
-func (P *Point_xtw) IsNeutralElement() bool {
-
-	// NOTE: This asserts that P is in the correct subgroup or that we work modulo the affine order-2 point A (x=0, y=-c, t=0, z=c).
-	if P.x.IsZero() {
-		if P.y.IsZero() {
-			// Handle error: Singular point
-			return napEncountered("compared invalid xtw point to zero", true, P)
-		}
-		return true
-	}
-	return false
-}
-
-// Clone creates a copy of the point of the same type and returns it (Note that the returned value has interface type and containing a value of type *Point_xtw)
-func (p *Point_xtw) Clone() interface{} {
+func (p *point_xtw_base) Clone() interface{} {
 	p_copy := *p
 	return &p_copy
 }
 
-/*
-// IsNeutralElement_FullCurve tests for zero-ness. It does *NOT* identify P with P+A and works for points outside the subgroup.
-// We only assume that x,y,t,z satisfy the curve equations.
-func (p *Point_xtw) IsNeutralElement_FullCurve() bool {
+func (p *Point_xtw_full) Clone() interface{} {
+	p_copy := *p
+	return &p_copy
+}
+
+func (p *Point_xtw_subgroup) Clone() interface{} {
+	p_copy := *p
+	return &p_copy
+}
+
+// IsNeutralElement checks if the point P is the neutral element of the curve (modulo the identification of P with P+A).
+// Use IsNeutralElement_FullCurve if you do not want this identification.
+func (p *Point_xtw_subgroup) IsNeutralElement() bool {
+	// The only point with x==0 are the neutral element N and the affine order-two point A, which we work modulo.
+	if p.x.IsZero() {
+		if p.y.IsZero() {
+			return napEncountered("compared invalid xtw point to zero", true, p)
+		}
+		return true
+	}
+	if !p.t.IsZero() {
+		panic("Non-NaP xtw with x==0, t!=0")
+	}
+	return false
+}
+
+func (p *Point_xtw_full) IsNeutralElement() bool {
 	if !p.x.IsZero() {
 		return false
 	}
@@ -283,274 +442,300 @@ func (p *Point_xtw) IsNeutralElement_FullCurve() bool {
 	// This implies z == +/- y
 	return p.y.IsEqual(&p.z)
 }
-*/
 
 // SetNeutral sets the Point P to the neutral element of the curve.
-func (p *Point_xtw) SetNeutral() {
+func (p *point_xtw_base) SetNeutral() {
 	*p = NeutralElement_xtw
 }
 
-// IsSingular checks whether the point is singular (x==y==0, indeed most likely x==y==t==z==0). Singular points must never appear if the library is used correctly. They can appear by
+// IsNaP checks whether the point is singular (x==y==0, indeed most likely x==y==t==z==0). Singular points must never appear if the library is used correctly. They can appear by
 // a) performing operations on points that are not in the correct subgroup
 // b) zero-initialized points are singular (Go lacks constructors to fix that).
 // The reason why we check x==y==0 and do not check t,z is due to what happens if we perform mixed additions.
-func (p *Point_xtw) IsNaP() bool {
+func (p *point_xtw_base) IsNaP() bool {
 	return p.x.IsZero() && p.y.IsZero()
 }
 
 // z.Add(x,y) computes z = x+y according to the elliptic curve group law.
-func (p *Point_xtw) Add(x CurvePointPtrInterfaceRead, y CurvePointPtrInterfaceRead) {
-	switch x := x.(type) {
-	case *Point_xtw:
-		switch y := y.(type) {
-		case *Point_xtw:
-			p.add_ttt(x, y)
-		case *Point_axtw:
-			p.add_tta(x, y)
-		default:
-			var y_converted Point_xtw = convertToPoint_xtw(y)
-			p.add_ttt(x, &y_converted)
-		}
-	case *Point_axtw:
-		switch y := y.(type) {
-		case *Point_xtw:
-			p.add_tta(y, x)
-		case *Point_axtw:
-			p.add_taa(x, y)
-		default:
-			var y_converted Point_xtw = convertToPoint_xtw(y)
-			p.add_tta(&y_converted, x)
+func (p *Point_xtw_subgroup) Add(x CurvePointPtrInterfaceRead, y CurvePointPtrInterfaceRead) {
+	// TODO: Optimize. For certain edge cases, going directly to xtw is slightly more efficient.
+	var result Point_efgh_subgroup
+	result.Add(x, y)
+	p.SetFrom(&result)
 
-		}
-	default: // for x
-		var x_converted Point_xtw = convertToPoint_xtw(x)
-
-		switch y := y.(type) {
+	/*
+		panic(0)
+		switch x := x.(type) {
 		case *Point_xtw:
-			p.add_ttt(&x_converted, y)
+			switch y := y.(type) {
+			case *Point_xtw:
+				p.add_ttt(x, y)
+			case *Point_axtw:
+				p.add_tta(x, y)
+			default:
+				var y_converted Point_xtw = convertToPoint_xtw(y)
+				p.add_ttt(x, &y_converted)
+			}
 		case *Point_axtw:
-			p.add_tta(&x_converted, y)
-		default:
-			var y_converted Point_xtw = convertToPoint_xtw(y)
-			p.add_ttt(&x_converted, &y_converted)
+			switch y := y.(type) {
+			case *Point_xtw:
+				p.add_tta(y, x)
+			case *Point_axtw:
+				p.add_taa(x, y)
+			default:
+				var y_converted Point_xtw = convertToPoint_xtw(y)
+				p.add_tta(&y_converted, x)
+
+			}
+		default: // for x
+			var x_converted Point_xtw = convertToPoint_xtw(x)
+
+			switch y := y.(type) {
+			case *Point_xtw:
+				p.add_ttt(&x_converted, y)
+			case *Point_axtw:
+				p.add_tta(&x_converted, y)
+			default:
+				var y_converted Point_xtw = convertToPoint_xtw(y)
+				p.add_ttt(&x_converted, &y_converted)
+			}
 		}
-	}
+	*/
 }
 
-// z.Sub(x,y) computes z = x-y according to the elliptic curve group law.
-func (p *Point_xtw) Sub(x CurvePointPtrInterfaceRead, y CurvePointPtrInterfaceRead) {
-	switch x := x.(type) {
-	case *Point_xtw: // for x
-		switch y := y.(type) {
-		case *Point_xtw:
-			p.sub_ttt(x, y)
-		case *Point_axtw:
-			p.sub_tta(x, y)
-		default:
-			var y_converted Point_xtw = convertToPoint_xtw(y)
-			p.sub_ttt(x, &y_converted)
-		}
-	case *Point_axtw: // for x
-		switch y := y.(type) {
-		case *Point_xtw:
-			p.sub_tat(x, y)
-		case *Point_axtw:
-			p.sub_taa(x, y)
-		default:
-			var y_converted Point_xtw = convertToPoint_xtw(y)
-			p.sub_tat(x, &y_converted)
-		}
-	default: // for x
-		var x_converted Point_xtw = convertToPoint_xtw(x)
-		switch y := y.(type) {
-		case *Point_xtw:
-			p.sub_ttt(&x_converted, y)
-		case *Point_axtw:
-			p.sub_tta(&x_converted, y)
-		default:
-			var y_converted Point_xtw = convertToPoint_xtw(y)
-			p.sub_ttt(&x_converted, &y_converted)
-		}
-	}
+func (p *Point_xtw_full) Add(x, y CurvePointPtrInterfaceRead) {
+	var result_efgh Point_efgh_full
+	result_efgh.Add(x, y)
+	p.SetFrom(&result_efgh)
+}
+
+func (p *Point_xtw_subgroup) Sub(x, y CurvePointPtrInterfaceRead) {
+	var result_efgh Point_efgh_subgroup
+	result_efgh.Sub(x, y)
+	p.SetFrom(&result_efgh)
+}
+
+func (p *Point_xtw_full) Sub(x, y CurvePointPtrInterfaceRead) {
+	var result_efgh Point_efgh_full
+	result_efgh.Sub(x, y)
+	p.SetFrom(&result_efgh)
 }
 
 // z.Double(x) computes z = x+x according to the elliptic curve group law.
-func (p *Point_xtw) Double(input CurvePointPtrInterfaceRead) {
-	switch input := input.(type) {
-	case *Point_xtw:
-		p.double_tt(input)
-	case *Point_axtw:
-		p.double_ta(input)
-	default:
-		// TODO !
-		default_Double(p, input)
-	}
+func (p *point_xtw_base) Double(input CurvePointPtrInterfaceRead) {
+	var result_efgh point_efgh_base
+	result_efgh.Double(input)
+	*p = result_efgh.ToDecaf_xtw()
 }
 
-// z.Sub(x,y) computes z = x-y according to the elliptic curve group law.
-func (p *Point_xtw) Neg(input CurvePointPtrInterfaceRead) {
-	switch input := input.(type) {
-	case *Point_xtw:
-		p.neg_tt(input)
-	case *Point_axtw:
-		p.neg_ta(input)
-	default:
-		*p = convertToPoint_xtw(input)
-		p.NegEq()
-	}
+func (p *Point_xtw_subgroup) Neg(input CurvePointPtrInterfaceRead) {
+	p.SetFrom(input)
+	p.NegEq()
 }
 
-// z.Endo(x) compute z = \Psi(x) where \Psi is the non-trivial degree-2 endomorphism described in the bandersnatch paper.
-func (p *Point_xtw) Endo(input CurvePointPtrInterfaceRead) {
-	switch input := input.(type) {
-	case *Point_xtw:
-		p.computeEndomorphism_tt(input)
-	case *Point_axtw:
-		p.computeEndomorphism_ta(input)
-	case *Point_efgh:
-		p.computeEndomorphism_ts(input)
-	default:
-		p_converted := convertToPoint_xtw(p)
-		p.computeEndomorphism_tt(&p_converted)
-	}
+func (p *Point_xtw_full) Neg(input CurvePointPtrInterfaceRead) {
+	p.SetFrom(input)
+	p.NegEq()
 }
 
-/*
-// Endo_FullCurve computes the efficient order-2 endomorphism on the given input point (of any coordinate format).
-// This function works even if the input may be a point at infinity; note that the output is never at infinity anyway.
-// Be aware that the statement that the endomorpism acts by multiplication by the constant sqrt(2) mod p253 is only meaningful/true on the p253 subgroup.
-func (output *Point_xtw) Endo_FullCurve(input CurvePointPtrInterfaceRead_FullCurve) {
-	if input.IsNaP() {
-		_ = napEncountered("Computing endomorphism on invalid point", false, input)
-		*output = Point_xtw{} // NaN-like behaviour.
-	} else if input.IsAtInfinity() {
-		*output = orderTwoPoint_xtw
-	} else {
-		output.Endo(input)
-	}
+func (p *Point_xtw_subgroup) Endo(input CurvePointPtrInterfaceRead) {
+	var result_efgh Point_efgh_subgroup
+	result_efgh.Endo(input)
+	p.SetFrom(&result_efgh)
 }
-*/
 
-func (p *Point_xtw) IsAtInfinity() bool {
-	if p.IsNaP() {
-		return napEncountered("checking whether NaP point is at infinity", false, p)
-	}
-	return false
+func (p *Point_xtw_full) Endo(input CurvePointPtrInterfaceRead) {
+	var result_efgh Point_efgh_full
+	result_efgh.Endo(input)
+	p.SetFrom(&result_efgh)
+}
 
-	// TODO !
-	panic(0)
+func (p *point_xtw_base) IsAtInfinity() bool {
 	if p.IsNaP() {
 		return napEncountered("checking whether NaP point is at infinity", false, p)
 	}
 	if p.z.IsZero() {
 		// The only valid points (albeit not in subgroup) with z == 0 are the two exceptional points with z==y==0
 		// We catch x==y==0 above (which already means the user of the library screwed up).
-		// Anything else means we screwed up even worse.
+
+		// None of these can ever happen unless the library author messed up.
+		if !p.y.IsZero() {
+			panic("xtw point with z==0, but y!=0 encountered.")
+		}
+		// TODO: Remove?
 		if p.t.IsZero() {
 			panic("xtw point with z==t==0 encountered, but (x,y) != (0,0), so this was not NaP. This must never happen.")
 		}
+		// impossible, because y==0 and no NaP
 		if p.x.IsZero() {
-			panic("xtw point with z==0 and x==0 encountered, but y!=0, so this was not NaP. This must never happen.")
+			panic("Non-NaP xtw point with z==0 and, y==0 and x==0 encountered. This is impossible")
 		}
 		return true
 	}
 	return false
 }
 
-// IsEqual compares two curve points for equality, working modulo the P = P + A identification. The two points do not have the be in the same coordinate format.
-func (p *Point_xtw) IsEqual(other CurvePointPtrInterfaceRead) bool {
+func (p *Point_xtw_subgroup) IsAtInfinity() bool {
+	return false
+}
+
+func (p *Point_xtw_subgroup) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	switch other := other.(type) {
-	case *Point_xtw:
-		return p.is_equal_tt(other)
-	case *Point_axtw:
-		return p.is_equal_ta(other)
-	case *Point_efgh:
-		other_converted := convertToPoint_xtw(other)
-		return p.IsEqual(&other_converted)
+	case *Point_xtw_subgroup:
+		ret, potentialNaP := p.isEqual_moduloA_tt(&other.point_xtw_base)
+		if potentialNaP && (p.IsNaP() || other.IsNaP()) {
+			return napEncountered("NaP detected during comparison of xtw points", true, p, other)
+		}
+		return ret
+	case *Point_xtw_full:
+		p.normalizeSubgroup()
+		ret, potentialNaP := p.isEqual_exact_tt(&other.point_xtw_base)
+		if potentialNaP && (p.IsNaP() || other.IsNaP()) {
+			return napEncountered("NaP detected during comparison of xtw_subgroup and xtw points", true, p, other)
+		}
+		return ret
+	case *Point_axtw_subgroup:
+		ret, potentialNaP := p.isEqual_moduloA_ta(&other.point_axtw_base)
+		if potentialNaP && (p.IsNaP() || other.IsNaP()) {
+			return napEncountered("NaP detected during comparison of xtw_subgroup and axtw_subgroup points", true, p, other)
+		}
+		return ret
+	case *Point_axtw_full:
+		p.normalizeSubgroup()
+		if p.IsNaP() || other.IsNaP() {
+			return napEncountered("NaP detected during comparison of xtw_subgroup and axtw_full points", true, p, other)
+		}
+		return p.isEqual_exact_ta(&other.point_axtw_base)
 	default:
-		// TODO !
-		panic(0)
-		/*
-			if p.IsNaP() || other.IsNaP() {
-				return napEncountered("point was invalid when comparing points for equality", true, p, other)
-			}
-			var temp1, temp2 FieldElement
-			var temp_fe FieldElement = other_real.Y_projective()
-			temp1.Mul(&p.x, &temp_fe)
-			temp_fe = other_real.X_projective()
-			temp2.Mul(&p.y, &temp_fe)
-			return temp1.IsEqual(&temp2)
-		*/
+		if p.IsNaP() || other.IsNaP() {
+			return napEncountered("NaP detected during comparison of xtw_subgroup and other point", true, p, other)
+		}
+		if other.CanOnlyRepresentSubgroup() {
+			ret, _ := p.isEqual_moduloA_tany(other)
+			return ret
+		} else {
+			p.normalizeSubgroup()
+			return p.isEqual_exact_tany(other)
+		}
 	}
 }
 
-/*
-// IsEqual_FullCurve compares two curve points for equality WITHOUT working modulo the P = P+A identification. The two points do not have to be in the same coordinate format.
-// This also works for points outside the subgroup or even at infinity.
-func (p *Point_xtw) IsEqual_FullCurve(other CurvePointPtrInterfaceRead_FullCurve) bool {
+func (p *Point_xtw_full) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	if p.IsNaP() || other.IsNaP() {
-		return napEncountered("point was invalid when comparing points for equality", true, p, other)
+		return napEncountered("NaP detected during comparison of xtw_full and other point", true, p, other)
 	}
-	switch other_real := other.(type) {
-	case *Point_xtw:
-		return p.is_equal_exact_tt(other_real)
-	case *Point_axtw:
-		return p.is_equal_exact_ta(other_real)
+	switch other := other.(type) {
+	case *Point_xtw_full:
+		ret, _ := p.isEqual_exact_tt(&other.point_xtw_base)
+		return ret
+	case *Point_xtw_subgroup:
+		other.normalizeSubgroup()
+		ret, _ := p.isEqual_exact_tt(&other.point_xtw_base)
+		return ret
+	case *Point_axtw_full:
+		return p.isEqual_exact_ta(&other.point_axtw_base)
+	case *Point_axtw_subgroup:
+		other.normalizeSubgroup()
+		return p.isEqual_exact_ta(&other.point_axtw_base)
 	default:
-		other_temp := other.ExtendedTwistedEdwards()
-		return p.is_equal_exact_tt(&other_temp)
+		if other.CanOnlyRepresentSubgroup() {
+			ret, _ := p.isEqual_moduloA_tany(other)
+			return ret
+		} else {
+			return p.isEqual_exact_tany(other)
+		}
 	}
 }
-*/
 
 // EndoEq applies the endomorphism on the given point. p.EndoEq() is shorthand for p.Endo(&p).
-func (p *Point_xtw) EndoEq() {
-	p.computeEndomorphism_tt(p)
+func (p *Point_xtw_subgroup) EndoEq() {
+	p.Endo(p)
+}
+
+func (p *Point_xtw_full) EndoEq() {
+	p.Endo(p)
 }
 
 // AddEq adds (via the elliptic curve group addition law) the given curve point x (in any coordinate format) to the received p, overwriting p.
-func (p *Point_xtw) AddEq(x CurvePointPtrInterfaceRead) {
+func (p *Point_xtw_subgroup) AddEq(x CurvePointPtrInterfaceRead) {
+	p.Add(p, x)
+}
+
+// AddEq adds (via the elliptic curve group addition law) the given curve point x (in any coordinate format) to the received p, overwriting p.
+func (p *Point_xtw_full) AddEq(x CurvePointPtrInterfaceRead) {
 	p.Add(p, x)
 }
 
 // SubEq subtracts (via the elliptic curve group addition law) the given curve point x (in any coordinate format) from the received p, overwriting p.
-func (p *Point_xtw) SubEq(x CurvePointPtrInterfaceRead) {
+func (p *Point_xtw_subgroup) SubEq(x CurvePointPtrInterfaceRead) {
+	p.Sub(p, x)
+}
+
+// SubEq subtracts (via the elliptic curve group addition law) the given curve point x (in any coordinate format) from the received p, overwriting p.
+func (p *Point_xtw_full) SubEq(x CurvePointPtrInterfaceRead) {
 	p.Sub(p, x)
 }
 
 // DoubleEq doubles the received point p, overwriting p.
-func (p *Point_xtw) DoubleEq() {
-	p.double_tt(p)
+func (p *point_xtw_base) DoubleEq() {
+	var result_efgh point_efgh_base
+	result_efgh.double_st(p)
+	*p = result_efgh.ToDecaf_xtw()
 }
 
 // NeqEq replaces the given point by its negative (wrt the elliptic curve group addition law)
-func (p *Point_xtw) NegEq() {
+func (p *point_xtw_base) NegEq() {
 	p.x.NegEq()
 	p.t.NegEq()
 }
 
-// TODO !
+func (p *Point_xtw_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {
+	switch input := input.(type) {
+	case *Point_xtw_subgroup:
+		*p = *input
+	case *Point_axtw_subgroup:
+		p.x = input.x
+		p.y = input.y
+		p.t = input.t
+	case *Point_efgh_subgroup:
+		p.point_xtw_base = input.ToDecaf_xtw()
+	default:
+		ensureSubgroupOnly(input)
+		p.x = input.X_decaf_projective()
+		p.y = input.Y_decaf_projective()
+		p.t = input.T_decaf_projective()
+		p.z = input.Z_decaf_projective()
+	}
+}
 
 // SetFrom initializes the point from the given input point (which may have a different coordinate format)
-func (p *Point_xtw) SetFrom(input CurvePointPtrInterfaceRead) {
+func (p *Point_xtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 	switch input := input.(type) {
-	case *Point_xtw:
+	case *Point_xtw_full:
 		*p = *input
-	case *Point_axtw:
+	case *Point_xtw_subgroup:
+		input.normalizeSubgroup()
+		p.point_xtw_base = input.point_xtw_base
+	case *Point_axtw_full:
 		p.x = input.x
 		p.y = input.y
 		p.t = input.t
 		p.z.SetOne()
-	case *Point_efgh:
-		*p = input.ToDecaf_xtw()
+	case *Point_axtw_subgroup:
+		input.normalizeSubgroup()
+		p.x = input.x
+		p.y = input.y
+		p.t = input.t
+		p.z.SetOne()
+	case *Point_efgh_subgroup:
+		input.normalizeSubgroup()
+		p.point_xtw_base = input.ToDecaf_xtw()
+	case *Point_efgh_full:
+		p.point_xtw_base = input.ToDecaf_xtw()
+	case CurvePointPtrInterfaceCooReadProjectiveT:
+		p.x, p.y, p.t, p.z = input.XYTZ_projective()
 	default:
-		// TODO !
-		*p = convertToPoint_xtw(input)
-		return
-		panic(0)
-		p.x = input.X_projective()
-		p.y = input.Y_projective()
-		p.z = input.Z_projective()
+		p.x, p.y, p.z = input.XYZ_projective()
 		p.t.Mul(&p.x, &p.y)
 		p.x.MulEq(&p.z)
 		p.y.MulEq(&p.z)

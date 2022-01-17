@@ -1,5 +1,3 @@
-//go:build ignore
-
 package bandersnatch
 
 import "testing"
@@ -9,7 +7,7 @@ func do_nothing() {
 }
 
 func call_error() {
-	var p Point_xtw
+	var p point_xtw_base
 	napEncountered("dummy error for error testing", false, &p)
 }
 
@@ -22,7 +20,7 @@ func TestErrorHandling(t *testing.T) {
 		t.Fatal("Predefined error handler does not return false")
 	}
 	var x int = 2
-	new_handler := func(string, bool, ...CurvePointPtrInterfaceRead) bool {
+	new_handler := func(string, bool, ...CurvePointPtrInterfaceBaseRead) bool {
 		x += 3
 		return false
 	}
