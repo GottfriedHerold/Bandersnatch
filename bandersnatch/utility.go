@@ -27,3 +27,9 @@ func initIntFromString(input string) *big.Int {
 	}
 	return t
 }
+
+func assert(condition bool) {
+	if !condition {
+		panic("This is not supposed to be possible")
+	}
+}

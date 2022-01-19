@@ -180,6 +180,11 @@ type CurvePointPtrInterfaceCooReadDecafAffine interface {
 type CurvePointPtrInterfaceTypeQuery interface {
 	CanRepresentInfinity() bool
 	CanOnlyRepresentSubgroup() bool
+	HasDecaf() bool // if true, flipDecaf() must exist AND not change semantics.
+}
+
+type CurvePointPtrInterfaceDecaf interface {
+	flipDecaf()
 }
 
 type CurvePointPtrInterfaceCompare interface {
@@ -257,6 +262,7 @@ func (thisCurvePointCannotRepresentInfinity) CanRepresentInfinity() bool      { 
 func (thisCurvePointCanOnlyRepresentSubgroup) CanOnlyRepresentSubgroup() bool { return true }
 func (thisCurvePointCanOnlyRepresentSubgroup) IsInSubgroup() bool             { return true }
 func (thisCurvePointCanRepresentFullCurve) CanOnlyRepresentSubgroup() bool    { return false }
+func (thisCurvePointCanRepresentFullCurve) HasDecaf() bool                    { return false }
 
 func ensureSubgroupOnly(input CurvePointPtrInterfaceTypeQuery) {
 	if !input.CanOnlyRepresentSubgroup() {

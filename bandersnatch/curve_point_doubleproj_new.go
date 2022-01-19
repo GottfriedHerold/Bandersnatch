@@ -113,10 +113,14 @@ func (p *Point_efgh_subgroup) IsAtInfinity() bool {
 	return false
 }
 
-func (p *Point_efgh_subgroup) flipDecaf() {
+func (p *point_efgh_base) flipDecaf() {
 	// this preserves is_normalized
 	p.e.NegEq()
 	p.h.NegEq()
+}
+
+func (p *Point_efgh_subgroup) HasDecaf() bool {
+	return true
 }
 
 // X_projective returns the X coordinate of the given point p in projective twisted Edwards coordinates.
@@ -814,4 +818,16 @@ func (p *Point_efgh_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
 	p_axtw.sampleRandomUnsafe(rnd)
 	p.SetFrom(&p_axtw)
 	p.rerandomizeRepresentation(rnd)
+}
+
+func (p *Point_efgh_full) SetAffineTwoTorsion() {
+	p.point_efgh_base = orderTwoPoint_efgh
+}
+
+func (p *Point_efgh_full) SetE1() {
+	p.point_efgh_base = exceptionalPoint_1_efgh
+}
+
+func (p *Point_efgh_full) SetE2() {
+	p.point_efgh_base = exceptionalPoint_2_efgh
 }

@@ -41,6 +41,10 @@ func (p *point_axtw_base) flipDecaf() {
 	p.y.NegEq()
 }
 
+func (p *Point_axtw_subgroup) HasDecaf() bool {
+	return true
+}
+
 func (p *point_axtw_base) rerandomizeRepresentation(rnd *rand.Rand) {
 	// do nothing
 }
@@ -307,7 +311,6 @@ func (p *point_axtw_base) String() string {
 	// Not the most efficient way, but good enough.
 	return p.x.String() + ":" + p.y.String() + ":" + p.t.String()
 }
-
 func (p *Point_axtw_subgroup) String() (ret string) {
 	ret = p.point_axtw_base.String()
 	if !legendreCheckE1_affineY(p.y) {
@@ -497,4 +500,8 @@ func (p *Point_axtw_full) sampleRandomUnsafe(rnd *rand.Rand) {
 func (p *Point_axtw_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
 	p.point_axtw_base = makeRandomPointOnCurve_a(rnd)
 	p.point_axtw_base.DoubleEq()
+}
+
+func (p *Point_axtw_full) SetAffineTwoTorsion() {
+	p.point_axtw_base = OrderTwoPoint_axtw
 }

@@ -131,6 +131,10 @@ func (p *point_xtw_base) flipDecaf() {
 	p.y.NegEq()
 }
 
+func (p *Point_xtw_subgroup) HasDecaf() bool {
+	return true
+}
+
 func (p *point_xtw_base) rerandomizeRepresentation(rnd *rand.Rand) {
 	var m FieldElement
 	m.setRandomUnsafeNonZero(rnd)
@@ -758,4 +762,16 @@ func (p *Point_xtw_full) sampleRandomUnsafe(rnd *rand.Rand) {
 func (p *Point_xtw_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
 	p.point_xtw_base = makeRandomPointOnCurve_t(rnd)
 	p.point_xtw_base.DoubleEq()
+}
+
+func (p *Point_xtw_full) SetE1() {
+	p.point_xtw_base = exceptionalPoint_1_xtw
+}
+
+func (p *Point_xtw_full) SetE2() {
+	p.point_xtw_base = exceptionalPoint_2_xtw
+}
+
+func (p *Point_xtw_full) SetAffineTwoTorsion() {
+	p.point_xtw_base = orderTwoPoint_xtw
 }

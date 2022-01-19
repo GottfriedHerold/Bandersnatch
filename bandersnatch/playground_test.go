@@ -1,11 +1,24 @@
 package bandersnatch
 
-/*
+import (
+	"fmt"
+	"reflect"
+	"testing"
+)
+
 func TestPlayground(t *testing.T) {
-	fmt.Println(callcounters.GetCallCounterStructureReport("--"))
+	var c1 CurvePointPtrInterfaceRead = &Point_efgh_full{}
+	var c2 *Point_efgh_full
+	X1 := reflect.TypeOf(c1)
+	X2 := reflect.TypeOf(c2)
+	fmt.Println(X1.Elem().Name())
+	fmt.Println(X2.Name())
+	fmt.Println(X1 == X2)
+	// fmt.Println(callcounters.GetCallCounterStructureReport("--"))
 	// printCallCounterStructure()
 }
 
+/*
 func getCofactors(P *Point_xtw) (tN, tA, t1, t2 FieldElement) {
 	var tmp FieldElement
 	tN.Sub(&P.z, &P.y)

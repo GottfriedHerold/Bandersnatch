@@ -85,3 +85,80 @@ func makeRandomPointOnCurve_t(rnd *rand.Rand) (ret point_xtw_base) {
 	ret.z = z
 	return
 }
+
+func (p *point_xtw_base) sampleNaP(rnd *rand.Rand, index int) {
+	p.x.SetZero()
+	p.y.SetZero()
+	switch index % 3 {
+	case 0:
+		p.z.SetZero()
+	case 1:
+		p.z.SetOne()
+	case 2:
+		p.z.setRandomUnsafe(rnd)
+	}
+	switch index % 4 {
+	case 0:
+		p.t.SetZero()
+	case 1:
+		p.t.SetOne()
+	case 2:
+		p.t.setRandomUnsafe(rnd)
+	case 3:
+		p.t.Mul(&p.x, &p.y)
+		p.x.MulEq(&p.z)
+		p.y.MulEq(&p.z)
+		p.z.SquareEq()
+	}
+}
+
+func (p *point_axtw_base) sampleNaP(rnd *rand.Rand, index int) {
+	p.x.SetZero()
+	p.y.SetZero()
+	switch index % 3 {
+	case 0:
+		p.t.SetZero()
+	case 1:
+		p.t.SetOne()
+	case 2:
+		p.t.setRandomUnsafe(rnd)
+	}
+}
+
+func (p *point_efgh_base) sampleNaP(rnd *rand.Rand, index int) {
+	var other1, other2 *FieldElement
+	switch index % 3 {
+	case 0:
+		p.f.SetZero()
+		p.h.SetZero()
+		other1 = &p.e
+		other2 = &p.g
+	case 1:
+		p.e.SetZero()
+		p.g.SetZero()
+		other1 = &p.f
+		other2 = &p.h
+	case 2:
+		p.e.SetZero()
+		p.h.SetZero()
+		other1 = &p.f
+		other2 = &p.g
+	}
+	switch index % 5 {
+	case 0:
+		other1.SetZero()
+		other2.SetZero()
+	case 1:
+		other1.SetOne()
+		other2.SetOne()
+	case 2:
+		other1.setRandomUnsafe(rnd)
+		other2.setRandomUnsafe(rnd)
+	case 3:
+		other1.setRandomUnsafe(rnd)
+		other2.SetZero()
+	case 4:
+		other1.SetZero()
+		other2.setRandomUnsafe(rnd)
+	}
+}
