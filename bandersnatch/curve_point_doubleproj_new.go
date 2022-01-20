@@ -110,6 +110,9 @@ func (p *point_efgh_base) IsAtInfinity() bool {
 }
 
 func (p *Point_efgh_subgroup) IsAtInfinity() bool {
+	if p.IsNaP() {
+		return napEncountered("NaP encountered when asking where efgh-point is at infinity", true, p)
+	}
 	return false
 }
 

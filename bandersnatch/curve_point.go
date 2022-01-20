@@ -2,7 +2,6 @@ package bandersnatch
 
 import (
 	"fmt"
-	"io"
 	"math/big"
 	"math/rand"
 )
@@ -207,11 +206,13 @@ type CurvePointPtrInterfaceBaseRead interface {
 	CurvePointPtrInterfaceTypeQuery
 }
 
+/*
 type CurvePointPtrInterfaceReadSerialize interface {
 	// SerializeShort and SerializeLong serialize the given point in either short or long serialization format. err==nil iff everything worked OK.
 	SerializeShort(output io.Writer) (bytes_written int, err error)
 	SerializeLong(output io.Writer) (bytes_written int, err error)
 }
+*/
 
 type CurvePointPtrInterfaceRead interface {
 	CurvePointPtrInterfaceBaseRead

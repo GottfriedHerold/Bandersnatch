@@ -1,7 +1,5 @@
 package bandersnatch
 
-/*
-
 import "testing"
 
 // checks whether IsAtInfinity correctly recognizes points at infinity.
@@ -16,7 +14,8 @@ func checkfun_recognize_infinity(s TestSample) (bool, string) {
 
 func checkfun_IsAtInfinity_consistent(s TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	point_copy := s.Points[0].ExtendedTwistedEdwards()
+	var point_copy Point_xtw_full
+	point_copy.SetFrom(s.Points[0])
 	return point_copy.IsAtInfinity() == s.Points[0].IsAtInfinity(), "IsAtInfinity does not commute with conversion to xtw."
 }
 
@@ -32,7 +31,8 @@ func checkfun_recognize_NaP(s TestSample) (bool, string) {
 
 func checkfun_IsNaP_consistentXTW(s TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	point_copy := s.Points[0].ExtendedTwistedEdwards()
+	var point_copy Point_xtw_full
+	point_copy.SetFrom(s.Points[0])
 	return point_copy.IsNaP() == s.Points[0].IsNaP(), "IsNaP does not commute with conversion to xtw"
 }
 
@@ -41,7 +41,8 @@ func checkfun_IsNaP_consistentAXTW(s TestSample) (bool, string) {
 	if s.AnyFlags().CheckFlag(Case_infinite) {
 		panic("Do not call checkfun_IsNaP_consistentAXTW with points at infinity")
 	}
-	point_copy := s.Points[0].AffineExtended()
+	var point_copy Point_axtw_full
+	point_copy.SetFrom(s.Points[0])
 	return point_copy.IsNaP() == s.Points[0].IsNaP(), "IsNaP does not commute with conversion to axtw"
 }
 
@@ -55,15 +56,19 @@ func test_queries(t *testing.T, receiverType PointType, excludedFlags PointFlags
 }
 
 func TestQueriesForXTW(t *testing.T) {
-	test_queries(t, pointTypeXTW, 0)
+	for _, pointType := range allXTWTestPointTypes {
+		test_queries(t, pointType, 0)
+	}
 }
 
 func TestQueriesForAXTW(t *testing.T) {
-	test_queries(t, pointTypeAXTW, 0)
+	for _, pointType := range allAXTWTestPointTypes {
+		test_queries(t, pointType, 0)
+	}
 }
 
 func TestQueriesForEFGH(t *testing.T) {
-	test_queries(t, pointTypeEFGH, 0)
+	for _, pointType := range allEFGHTestPointTypes {
+		test_queries(t, pointType, 0)
+	}
 }
-
-*/

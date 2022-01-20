@@ -580,6 +580,9 @@ func (p *point_xtw_base) IsAtInfinity() bool {
 }
 
 func (p *Point_xtw_subgroup) IsAtInfinity() bool {
+	if p.IsNaP() {
+		return napEncountered("checking whether NaP point is at infinity", false, p)
+	}
 	return false
 }
 

@@ -113,7 +113,7 @@ func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 	// NOTE: We constructed (u,v) using a naive Babai rounding rather than with Babai's nearest plane algorithm. The latter would have given a better (u,v) on average, but required more cases in post-processing to find the true
 	// global optimum.
 
-	// Note we look at (u,v) +/- lBasis_1 and (u,v) +/- lBasis_2. If we find a smaller vector, we do NOT greedily replace (u,v) and then try to improve further; this might acutally lead to a non-optimal solutions.
+	// Note we look at (u,v) +/- lBasis_1 and (u,v) +/- lBasis_2. If we find a smaller vector, we do NOT greedily replace (u,v) and then try to improve further; this might acutally lead to a non-optimal solution.
 	// We know a priori that one of the 5 options (including (u,v) itself) starting from (u,v) is actually the global optimum.
 	// NOTE: We do not really need to find the global optimum, but since we know the Voronoi relevant vectors, we can easily test for optimality. This is what we do in our tests, as it gives a clear and testable criterion.
 

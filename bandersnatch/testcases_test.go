@@ -39,7 +39,7 @@ func (flags PointFlags) CheckFlag(check PointFlags) bool {
 }
 
 type curvePointPtrInterfaceTestSample interface {
-	CurvePointPtrInterfaceBaseRead
+	CurvePointPtrInterfaceRead
 	sampleable
 	Validateable
 	Rerandomizeable
@@ -730,6 +730,207 @@ func (s *TestSample) String() string {
 	return ret
 }
 
+type checkfunction func(TestSample) (bool, string)
+
+func run_tests_on_samples(f checkfunction, t *testing.T, samples []TestSample, err_string string) {
+	var num_errors int = 0
+	var failed bool = false
+	for _, samp := range samples {
+		pass, error_reason := f(samp)
+		if failed && !pass {
+			num_errors++
+		}
+		if !failed && !pass {
+			failed = true
+			t.Error(err_string + "\nAdditional info: " + error_reason + "\nFailed Sample: " + samp.String() + "\nPrinting Stack trace")
+			debug.PrintStack()
+		}
+	}
+	if failed {
+		t.Fatal(" and " + strconv.Itoa(num_errors) + " further errors")
+	}
+}
+
+func make_samples1_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, random_size int, excluded_flags PointFlags) {
+	Samples := getSamples(random_size, excluded_flags, point_type1)
+	// Samples := MakeTestSamples1(random_size, point_type1, excluded_flags)
+	run_tests_on_samples(f, t, Samples, err_string)
+}
+
+func make_samples2_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, point_type2 PointType, random_size int, excluded_flags PointFlags) {
+	Samples := getSamples(random_size, excluded_flags, point_type1, point_type2)
+	run_tests_on_samples(f, t, Samples, err_string)
+}
+
+func TestMakeSample(t *testing.T) {
+	x := getSamples(200, 0, pointTypeXTWFull, pointTypeAXTWSubgroup)
+	for _, item := range x {
+		fmt.Println(item)
+	}
+}
+
+// We create test_sample_XY of type point_xtw_base manually.
+// The reason for this is that we need to set a lot of flags by hand and there
+// is a tendency of operations to fail for those.
+
+/*
+var test_sample_N = MakeSample1(
+	&NeutralElement_xtw,
+	Case_zero_exact|Case_2torsion|Case_zero_moduloA,
+	"Neutral Element")
+
+var test_sample_E1 = MakeSample1(
+	&exceptionalPoint_1_xtw,
+	Case_infinite|Case_2torsion|Case_outside_goodgroup|Case_outside_p253,
+	"Infinite 2-torsion point 1")
+
+var test_sample_E2 = MakeSample1(
+	&exceptionalPoint_2_xtw,
+	Case_infinite|Case_2torsion|Case_outside_goodgroup|Case_outside_p253,
+	"Infinite 2-torsion point 2")
+
+var test_sample_A = MakeSample1(
+	&orderTwoPoint_xtw,
+	Case_2torsion|Case_outside_p253|Case_zero_exact,
+	"Affine 2-torsion point")
+*/
+
+/*
+var test_sample_NN = ZipSample(test_sample_N, test_sample_N, Case_equal_moduloA|Case_equal_exact)
+var test_sample_NA = ZipSample(test_sample_N, test_sample_A, Case_equal_moduloA)
+var test_sample_NE1 = ZipSample(test_sample_N, test_sample_E1, Case_differenceInfinite)
+var test_sample_NE2 = ZipSample(test_sample_N, test_sample_E2, Case_differenceInfinite)
+var test_sample_NG = ZipSample(test_sample_N, test_sample_gen, 0)
+
+var test_sample_AN = ZipSample(test_sample_A, test_sample_N, Case_equal_moduloA)
+var test_sample_AA = ZipSample(test_sample_A, test_sample_A, Case_equal_moduloA|Case_equal_exact)
+var test_sample_AE1 = ZipSample(test_sample_A, test_sample_E1, Case_differenceInfinite)
+var test_sample_AE2 = ZipSample(test_sample_A, test_sample_E1, Case_differenceInfinite)
+var test_sample_AG = ZipSample(test_sample_A, test_sample_gen, 0)
+
+var test_sample_E1N = ZipSample(test_sample_E1, test_sample_N, Case_differenceInfinite)
+var test_sample_E1A = ZipSample(test_sample_E1, test_sample_A, Case_differenceInfinite)
+var test_sample_E1E1 = ZipSample(test_sample_E1, test_sample_E1, Case_equal_moduloA|Case_equal_exact)
+var test_sample_E1E2 = ZipSample(test_sample_E1, test_sample_E2, Case_equal_moduloA)
+var test_sample_E1G = ZipSample(test_sample_E1, test_sample_gen, 0)
+
+var test_sample_E2N = ZipSample(test_sample_E2, test_sample_N, Case_differenceInfinite)
+var test_sample_E2A = ZipSample(test_sample_E2, test_sample_A, Case_differenceInfinite)
+var test_sample_E2E1 = ZipSample(test_sample_E2, test_sample_E1, Case_equal_moduloA)
+var test_sample_E2E2 = ZipSample(test_sample_E2, test_sample_E2, Case_equal_moduloA|Case_equal_exact)
+var test_sample_E2G = ZipSample(test_sample_E2, test_sample_gen, 0)
+
+var test_sample_GN = ZipSample(test_sample_gen, test_sample_N, 0)
+var test_sample_GA = ZipSample(test_sample_gen, test_sample_A, 0)
+var test_sample_GE1 = ZipSample(test_sample_gen, test_sample_E1, 0)
+var test_sample_GE2 = ZipSample(test_sample_gen, test_sample_E2, 0)
+var test_sample_GG = ZipSample(test_sample_gen, test_sample_gen, Case_equal_moduloA|Case_equal_exact)
+
+var test_sample_gen = MakeSample1(
+	&example_generator_xtw,
+	0,
+	"Example generator")
+
+var test_sample_unintialized_xtw = MakeSample1(
+	&Point_xtw{},
+	PointFlags(Case_singular),
+	"Uninitialized xtw")
+
+var test_sample_uninitialized_axtw = MakeSample1(
+	&Point_axtw{},
+	PointFlags(Case_singular),
+	"Uninitialized axtw")
+
+var test_sample_uninitialized_efgh = MakeSample1(
+	&Point_efgh{},
+	PointFlags(Case_singular),
+	"Uninitialized efgh")
+*/
+
+/*
+// appends added_samples to sample_list, filtering out samples via exclude_mask
+func AppendTestSamples(sample_list *[]TestSample, exclude_mask PointFlags, point_types []PointType, added_samples ...TestSample) {
+	if len(added_samples) == 0 {
+		return
+	}
+	// ensure all samples in the list have the same number of points.
+	var individual_sizes uint = 0
+	if len(*sample_list) > 0 {
+		individual_sizes = (*sample_list)[0].Len
+	} else {
+		individual_sizes = added_samples[0].Len
+	}
+	for _, item := range added_samples {
+		if item.Len != individual_sizes {
+			panic("Creating test samples failed. Samples mix up number of points per sample")
+		}
+		if item.AnyFlags()&exclude_mask != 0 {
+			continue
+		}
+		good := true
+		for i := 0; i < int(individual_sizes); i++ {
+			if (!canRepresentInfinity(point_types[i])) && item.Flags[i].CheckFlag(Case_infinite) {
+				good = false
+			}
+		}
+		if !good {
+			continue
+		}
+		*sample_list = append(*sample_list, item.CopyXTWToType(point_types))
+	}
+}
+*/
+
+/*
+func (in *TestSample) CopyXTWToType(new_type []PointType) (ret TestSample, ok bool) {
+	ret.Comment = in.Comment
+	ret.Len = in.Len
+	ok = true
+	if len(new_type) != int(in.Len) {
+		panic("Invalid argument to CopyXTWToType: length mismatch for new_type")
+	}
+	for i := 0; i < int(in.Len); i++ {
+		if GetPointType(in.Points[i]) == new_type[i] {
+			ret.Points = append(ret.Points, in.Points[i].Clone().(CurvePointPtrInterfaceTestSample))
+			ret.Flags = append(ret.Flags, in.Flags[i])
+		} else if GetPointType(in.Points[i]) != pointTypeXTWBase {
+			panic("Can only convert from xtw base")
+		} else {
+
+		}
+
+		if GetPointType(in.Points[i]) != pointTypeXTWBase {
+			if GetPointType(in.Points[i]) != new_type[i] {
+				panic("Cannot convert sample")
+			}
+			ret.Points = append(ret.Points, in.Points[i].Clone().(CurvePointPtrInterfaceRead_FullCurve))
+			ret.Flags = append(ret.Flags, in.Flags[i])
+			continue
+		}
+		switch new_type[i] {
+		case pointTypeXTW:
+			ret.Points = append(ret.Points, in.Points[i].Clone().(CurvePointPtrInterfaceRead_FullCurve))
+			ret.Flags = append(ret.Flags, in.Flags[i])
+		case pointTypeAXTW:
+			if in.Flags[i]&Case_infinite != 0 || in.Flags[i]&Case_singular != 0 {
+				panic("Cannot transform infinite or singular test point into axtw coordinates")
+			}
+			var point_copy Point_axtw = in.Points[i].AffineExtended()
+			ret.Points = append(ret.Points, &point_copy)
+			ret.Flags = append(ret.Flags, in.Flags[i])
+		case pointTypeEFGH:
+			var point_copy Point_efgh
+			point_copy.SetFrom(in.Points[i])
+			ret.Points = append(ret.Points, &point_copy)
+			ret.Flags = append(ret.Flags, in.Flags[i])
+		default:
+			panic("Not supported yet")
+		}
+	}
+	return
+}
+*/
+
 /*
 func make_random_test_sample_xtw(rnd *rand.Rand, subgroup bool) TestSample {
 	r := makeRandomPointOnCurve_t(rnd)
@@ -1014,209 +1215,6 @@ func MakeTestSamples2(random_size int, point_type1 PointType, point_type2 PointT
 		AppendTestSamples(&ret, exclude_flags, point_types, ZipSample(s1, s2, 0))
 	}
 
-	return
-}
-*/
-
-type checkfunction func(TestSample) (bool, string)
-
-func run_tests_on_samples(f checkfunction, t *testing.T, samples []TestSample, err_string string) {
-	var num_errors int = 0
-	var failed bool = false
-	for _, samp := range samples {
-		pass, error_reason := f(samp)
-		if failed && !pass {
-			num_errors++
-		}
-		if !failed && !pass {
-			failed = true
-			t.Error(err_string + "\nAdditional info: " + error_reason + "\nFailed Sample: " + samp.String() + "\nPrinting Stack trace")
-			debug.PrintStack()
-		}
-	}
-	if failed {
-		t.Fatal(" and " + strconv.Itoa(num_errors) + " further errors")
-	}
-}
-
-func make_samples1_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, random_size int, excluded_flags PointFlags) {
-	Samples := getSamples(random_size, excluded_flags, point_type1)
-	// Samples := MakeTestSamples1(random_size, point_type1, excluded_flags)
-	run_tests_on_samples(f, t, Samples, err_string)
-}
-
-/*
-func make_samples2_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, point_type2 PointType, random_size int, excluded_flags PointFlags) {
-	Samples := MakeTestSamples2(random_size, point_type1, point_type2, excluded_flags)
-	run_tests_on_samples(f, t, Samples, err_string)
-}
-*/
-
-func TestMakeSample(t *testing.T) {
-	x := getSamples(200, 0, pointTypeXTWFull, pointTypeAXTWSubgroup)
-	for _, item := range x {
-		fmt.Println(item)
-	}
-}
-
-// We create test_sample_XY of type point_xtw_base manually.
-// The reason for this is that we need to set a lot of flags by hand and there
-// is a tendency of operations to fail for those.
-
-/*
-var test_sample_N = MakeSample1(
-	&NeutralElement_xtw,
-	Case_zero_exact|Case_2torsion|Case_zero_moduloA,
-	"Neutral Element")
-
-var test_sample_E1 = MakeSample1(
-	&exceptionalPoint_1_xtw,
-	Case_infinite|Case_2torsion|Case_outside_goodgroup|Case_outside_p253,
-	"Infinite 2-torsion point 1")
-
-var test_sample_E2 = MakeSample1(
-	&exceptionalPoint_2_xtw,
-	Case_infinite|Case_2torsion|Case_outside_goodgroup|Case_outside_p253,
-	"Infinite 2-torsion point 2")
-
-var test_sample_A = MakeSample1(
-	&orderTwoPoint_xtw,
-	Case_2torsion|Case_outside_p253|Case_zero_exact,
-	"Affine 2-torsion point")
-*/
-
-/*
-var test_sample_NN = ZipSample(test_sample_N, test_sample_N, Case_equal_moduloA|Case_equal_exact)
-var test_sample_NA = ZipSample(test_sample_N, test_sample_A, Case_equal_moduloA)
-var test_sample_NE1 = ZipSample(test_sample_N, test_sample_E1, Case_differenceInfinite)
-var test_sample_NE2 = ZipSample(test_sample_N, test_sample_E2, Case_differenceInfinite)
-var test_sample_NG = ZipSample(test_sample_N, test_sample_gen, 0)
-
-var test_sample_AN = ZipSample(test_sample_A, test_sample_N, Case_equal_moduloA)
-var test_sample_AA = ZipSample(test_sample_A, test_sample_A, Case_equal_moduloA|Case_equal_exact)
-var test_sample_AE1 = ZipSample(test_sample_A, test_sample_E1, Case_differenceInfinite)
-var test_sample_AE2 = ZipSample(test_sample_A, test_sample_E1, Case_differenceInfinite)
-var test_sample_AG = ZipSample(test_sample_A, test_sample_gen, 0)
-
-var test_sample_E1N = ZipSample(test_sample_E1, test_sample_N, Case_differenceInfinite)
-var test_sample_E1A = ZipSample(test_sample_E1, test_sample_A, Case_differenceInfinite)
-var test_sample_E1E1 = ZipSample(test_sample_E1, test_sample_E1, Case_equal_moduloA|Case_equal_exact)
-var test_sample_E1E2 = ZipSample(test_sample_E1, test_sample_E2, Case_equal_moduloA)
-var test_sample_E1G = ZipSample(test_sample_E1, test_sample_gen, 0)
-
-var test_sample_E2N = ZipSample(test_sample_E2, test_sample_N, Case_differenceInfinite)
-var test_sample_E2A = ZipSample(test_sample_E2, test_sample_A, Case_differenceInfinite)
-var test_sample_E2E1 = ZipSample(test_sample_E2, test_sample_E1, Case_equal_moduloA)
-var test_sample_E2E2 = ZipSample(test_sample_E2, test_sample_E2, Case_equal_moduloA|Case_equal_exact)
-var test_sample_E2G = ZipSample(test_sample_E2, test_sample_gen, 0)
-
-var test_sample_GN = ZipSample(test_sample_gen, test_sample_N, 0)
-var test_sample_GA = ZipSample(test_sample_gen, test_sample_A, 0)
-var test_sample_GE1 = ZipSample(test_sample_gen, test_sample_E1, 0)
-var test_sample_GE2 = ZipSample(test_sample_gen, test_sample_E2, 0)
-var test_sample_GG = ZipSample(test_sample_gen, test_sample_gen, Case_equal_moduloA|Case_equal_exact)
-
-var test_sample_gen = MakeSample1(
-	&example_generator_xtw,
-	0,
-	"Example generator")
-
-var test_sample_unintialized_xtw = MakeSample1(
-	&Point_xtw{},
-	PointFlags(Case_singular),
-	"Uninitialized xtw")
-
-var test_sample_uninitialized_axtw = MakeSample1(
-	&Point_axtw{},
-	PointFlags(Case_singular),
-	"Uninitialized axtw")
-
-var test_sample_uninitialized_efgh = MakeSample1(
-	&Point_efgh{},
-	PointFlags(Case_singular),
-	"Uninitialized efgh")
-*/
-
-/*
-// appends added_samples to sample_list, filtering out samples via exclude_mask
-func AppendTestSamples(sample_list *[]TestSample, exclude_mask PointFlags, point_types []PointType, added_samples ...TestSample) {
-	if len(added_samples) == 0 {
-		return
-	}
-	// ensure all samples in the list have the same number of points.
-	var individual_sizes uint = 0
-	if len(*sample_list) > 0 {
-		individual_sizes = (*sample_list)[0].Len
-	} else {
-		individual_sizes = added_samples[0].Len
-	}
-	for _, item := range added_samples {
-		if item.Len != individual_sizes {
-			panic("Creating test samples failed. Samples mix up number of points per sample")
-		}
-		if item.AnyFlags()&exclude_mask != 0 {
-			continue
-		}
-		good := true
-		for i := 0; i < int(individual_sizes); i++ {
-			if (!canRepresentInfinity(point_types[i])) && item.Flags[i].CheckFlag(Case_infinite) {
-				good = false
-			}
-		}
-		if !good {
-			continue
-		}
-		*sample_list = append(*sample_list, item.CopyXTWToType(point_types))
-	}
-}
-*/
-
-/*
-func (in *TestSample) CopyXTWToType(new_type []PointType) (ret TestSample, ok bool) {
-	ret.Comment = in.Comment
-	ret.Len = in.Len
-	ok = true
-	if len(new_type) != int(in.Len) {
-		panic("Invalid argument to CopyXTWToType: length mismatch for new_type")
-	}
-	for i := 0; i < int(in.Len); i++ {
-		if GetPointType(in.Points[i]) == new_type[i] {
-			ret.Points = append(ret.Points, in.Points[i].Clone().(CurvePointPtrInterfaceTestSample))
-			ret.Flags = append(ret.Flags, in.Flags[i])
-		} else if GetPointType(in.Points[i]) != pointTypeXTWBase {
-			panic("Can only convert from xtw base")
-		} else {
-
-		}
-
-		if GetPointType(in.Points[i]) != pointTypeXTWBase {
-			if GetPointType(in.Points[i]) != new_type[i] {
-				panic("Cannot convert sample")
-			}
-			ret.Points = append(ret.Points, in.Points[i].Clone().(CurvePointPtrInterfaceRead_FullCurve))
-			ret.Flags = append(ret.Flags, in.Flags[i])
-			continue
-		}
-		switch new_type[i] {
-		case pointTypeXTW:
-			ret.Points = append(ret.Points, in.Points[i].Clone().(CurvePointPtrInterfaceRead_FullCurve))
-			ret.Flags = append(ret.Flags, in.Flags[i])
-		case pointTypeAXTW:
-			if in.Flags[i]&Case_infinite != 0 || in.Flags[i]&Case_singular != 0 {
-				panic("Cannot transform infinite or singular test point into axtw coordinates")
-			}
-			var point_copy Point_axtw = in.Points[i].AffineExtended()
-			ret.Points = append(ret.Points, &point_copy)
-			ret.Flags = append(ret.Flags, in.Flags[i])
-		case pointTypeEFGH:
-			var point_copy Point_efgh
-			point_copy.SetFrom(in.Points[i])
-			ret.Points = append(ret.Points, &point_copy)
-			ret.Flags = append(ret.Flags, in.Flags[i])
-		default:
-			panic("Not supported yet")
-		}
-	}
 	return
 }
 */
