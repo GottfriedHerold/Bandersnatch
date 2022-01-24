@@ -77,16 +77,17 @@ func (p1 *point_axtw_base) isEqual_moduloA_at(p2 *point_xtw_base) (ret bool, zer
 // exceptional cases: NaPs compare equal only to NaP
 func (p1 *point_axtw_base) isEqual_moduloA_aa(p2 *point_axtw_base) (ret bool) {
 	// We check (x1,y1) = +/-(x2,y2)
-	absEqual, exact := p1.x.CmpAbs(&p2.x)
+	// We need to check y first, because this uniquely determines the sign (y!=0 unless NaP)
+	absEqual, exact := p1.y.CmpAbs(&p2.y)
 	if !absEqual {
 		return false
 	}
 	if exact {
-		return p1.y.IsEqual(&p2.y)
+		return p1.x.IsEqual(&p2.x)
 	} else {
 		var tmp FieldElement
-		tmp.Neg(&p1.y)
-		return tmp.IsEqual(&p2.y)
+		tmp.Neg(&p1.x)
+		return tmp.IsEqual(&p2.x)
 	}
 }
 

@@ -175,6 +175,10 @@ func typeCanRepresentInfinity(pointType PointType) bool {
 	return MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTypeQuery).CanRepresentInfinity()
 }
 
+func typeCanOnlyRepresentSubgroup(pointType PointType) bool {
+	return MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTypeQuery).CanOnlyRepresentSubgroup()
+}
+
 func GetPointType(p curvePointPtrInterfaceTestSample) PointType {
 	// TODO: Check it's from recognized list?
 	return reflect.TypeOf(p)

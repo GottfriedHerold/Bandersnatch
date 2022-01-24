@@ -50,16 +50,16 @@ func (p *point_efgh_base) normalize_affine() {
 	if p.is_normalized() {
 		return
 	}
+	if p.IsNaP() {
+		napEncountered("Trying to normalize singular point", false, p)
+		// If the error handler did not panic, we intentionally set the NaP p to a "full" NaP with all coos 0 (rather than at least 2).
+		// This has the effect that all conversion routines that start by calling normalize_affine will only need to worry about NaPs with e==f==g==h==0
+		*p = point_efgh_base{}
+		return
+	}
 	var temp FieldElement
 	temp.Mul(&p.f, &p.g)
 	if temp.IsZero() {
-		if p.IsNaP() {
-			napEncountered("Trying to normalize singular point", false, p)
-			// If the error handler did not panic, we intentionally set the NaP p to a "full" NaP with all coos 0 (rather than at least 2).
-			// This has the effect that all conversion routines that start by calling normalize_affine will only need to worry about NaPs with e==f==g==h==0
-			*p = point_efgh_base{}
-			return
-		}
 		panic("Trying to normalize point at infinity")
 	}
 	temp.Inv(&temp)
@@ -315,7 +315,7 @@ func (p *Point_efgh_subgroup) XYT_affine() (X FieldElement, Y FieldElement, T Fi
 	p.normalizeSubgroup()
 	p.normalize_affine()
 	X = p.e
-	Y = p.f
+	Y = p.h
 	T.Mul(&X, &Y)
 	return
 }
@@ -323,7 +323,7 @@ func (p *Point_efgh_subgroup) XYT_affine() (X FieldElement, Y FieldElement, T Fi
 func (p *Point_efgh_full) XYT_affine() (X FieldElement, Y FieldElement, T FieldElement) {
 	p.normalize_affine()
 	X = p.e
-	Y = p.f
+	Y = p.h
 	T.Mul(&X, &Y)
 	return
 }
