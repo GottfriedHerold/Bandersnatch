@@ -5,7 +5,6 @@ package bandersnatch
 */
 
 /*
-
 func checkfun_AddEq(s TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
 	singular := s.AnyFlags().CheckFlag(Case_singular)

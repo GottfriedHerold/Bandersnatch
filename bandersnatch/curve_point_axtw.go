@@ -1,6 +1,8 @@
 package bandersnatch
 
-import "math/rand"
+import (
+	"math/rand"
+)
 
 type point_axtw_base struct {
 	thisCurvePointCannotRepresentInfinity
@@ -24,7 +26,7 @@ type Point_axtw_full struct {
 
 // NeutralElement_axtw denotes the Neutral Element of the Bandersnatch curve in affine extended twisted Edwards coordinates.
 var NeutralElement_axtw point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero}
-var OrderTwoPoint_axtw point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementMinusOne}
+var OrderTwoPoint_axtw point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero}
 
 func (p *point_axtw_base) normalizeSubgroup() {
 	if !legendreCheckE1_affineY(p.y) {

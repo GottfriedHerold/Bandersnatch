@@ -57,7 +57,7 @@ func test_queries(t *testing.T, receiverType PointType, excludedFlags PointFlags
 
 func TestQueriesForXTW(t *testing.T) {
 	for _, pointType := range allXTWTestPointTypes {
-		test_queries(t, pointType, 0)
+		test_queries(t, pointType, excludeNoPoints)
 	}
 }
 

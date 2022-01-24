@@ -75,9 +75,9 @@ func (p *point_efgh_base) rerandomizeRepresentation(rnd *rand.Rand) {
 	var m FieldElement
 	m.setRandomUnsafeNonZero(rnd)
 	p.e.MulEq(&m)
-	p.f.MulEq(&m)
-	m.setRandomUnsafeNonZero(rnd)
 	p.g.MulEq(&m)
+	m.setRandomUnsafeNonZero(rnd)
+	p.f.MulEq(&m)
 	p.h.MulEq(&m)
 }
 
@@ -94,7 +94,7 @@ func (p *point_efgh_base) is_normalized() bool {
 }
 
 func (p *Point_efgh_subgroup) normalizeSubgroup() {
-	if !legendreCheckE1_FH(p.e, p.g) {
+	if !legendreCheckE1_FH(p.f, p.h) {
 		p.flipDecaf()
 	}
 }
@@ -516,7 +516,10 @@ func (p *Point_efgh_subgroup) Add(x, y CurvePointPtrInterfaceRead) {
 }
 
 func (p *Point_efgh_full) Add(x, y CurvePointPtrInterfaceRead) {
-	panic(0)
+	var x_conv, y_conv Point_xtw_full
+	x_conv.SetFrom(x)
+	y_conv.SetFrom(y)
+	p.add_safe_stt(&x_conv.point_xtw_base, &y_conv.point_xtw_base)
 }
 
 func (p *Point_efgh_subgroup) Sub(x, y CurvePointPtrInterfaceRead) {
@@ -563,7 +566,10 @@ func (p *Point_efgh_subgroup) Sub(x, y CurvePointPtrInterfaceRead) {
 }
 
 func (p *Point_efgh_full) Sub(x, y CurvePointPtrInterfaceRead) {
-	panic(0)
+	var x_conv, y_conv Point_xtw_full
+	x_conv.SetFrom(x)
+	y_conv.SetFrom(y)
+	p.sub_safe_stt(&x_conv.point_xtw_base, &y_conv.point_xtw_base)
 }
 
 func (p *point_efgh_base) Double(x CurvePointPtrInterfaceRead) {

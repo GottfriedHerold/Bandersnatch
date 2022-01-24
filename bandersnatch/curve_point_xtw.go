@@ -426,8 +426,8 @@ func (p *Point_xtw_subgroup) IsNeutralElement() bool {
 		}
 		return true
 	}
-	if !p.t.IsZero() {
-		panic("Non-NaP xtw with x==0, t!=0")
+	if p.t.IsZero() {
+		panic("Non-NaP xtw with x!=0, t==0")
 	}
 	return false
 }
@@ -645,12 +645,7 @@ func (p *Point_xtw_full) IsEqual(other CurvePointPtrInterfaceRead) bool {
 		other.normalizeSubgroup()
 		return p.isEqual_exact_ta(&other.point_axtw_base)
 	default:
-		if other.CanOnlyRepresentSubgroup() {
-			ret, _ := p.isEqual_moduloA_tany(other)
-			return ret
-		} else {
-			return p.isEqual_exact_tany(other)
-		}
+		return p.isEqual_exact_tany(other)
 	}
 }
 

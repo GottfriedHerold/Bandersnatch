@@ -34,6 +34,11 @@ var _ Rerandomizeable = &point_axtw_base{}
 var _ Rerandomizeable = &Point_axtw_subgroup{}
 var _ Rerandomizeable = &Point_axtw_full{}
 
+var _ CurvePointPtrInterfaceCooReadExtended = &Point_xtw_full{}
+var _ CurvePointPtrInterfaceCooReadExtended = &Point_xtw_subgroup{}
+var _ CurvePointPtrInterfaceCooReadExtended = &Point_efgh_full{}
+var _ CurvePointPtrInterfaceCooReadExtended = &Point_efgh_subgroup{}
+
 var _ CurvePointPtrInterfaceReadCanDistinguishInfinity = &point_efgh_base{}
 var _ CurvePointPtrInterfaceReadCanDistinguishInfinity = &point_xtw_base{}
 
@@ -93,19 +98,3 @@ func TestGlobalParameter(t *testing.T) {
 	In order to do that, we define functions with names
 	make_checkfun_<foo>(extra arguments) that return checkfunctions with the extra arguments bound.
 */
-
-var allTestPointTypes = []PointType{pointTypeXTWFull, pointTypeXTWSubgroup, pointTypeAXTWFull, pointTypeAXTWSubgroup, pointTypeEFGHFull, pointTypeEFGHSubgroup}
-var allXTWTestPointTypes = []PointType{pointTypeXTWFull, pointTypeXTWSubgroup}
-var allAXTWTestPointTypes = []PointType{pointTypeAXTWFull, pointTypeAXTWSubgroup}
-var allEFGHTestPointTypes = []PointType{pointTypeEFGHFull, pointTypeEFGHSubgroup}
-var allFullCurveTestPointTypes = []PointType{pointTypeXTWFull, pointTypeAXTWFull, pointTypeEFGHFull}
-var allSubgroupCurveTestPointTypes = []PointType{pointTypeXTWSubgroup, pointTypeAXTWSubgroup, pointTypeEFGHSubgroup}
-
-func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
-	for _, pointType := range allTestPointTypes {
-		_, ok := MakeCurvePointPtrInterfaceFromType(pointType).(curvePointPtrInterfaceTestSample)
-		if !ok {
-			t.Fatal("Point type not compatible with curvePointPtrInterfaceTestSample " + PointTypeToString(pointType))
-		}
-	}
-}

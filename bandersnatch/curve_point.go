@@ -163,6 +163,11 @@ type CurvePointPtrInterfaceCooReadAffineT interface {
 	XYT_affine() (FieldElement, FieldElement, FieldElement)
 }
 
+type CurvePointPtrInterfaceCooReadExtended interface {
+	CurvePointPtrInterfaceCooReadAffineT
+	CurvePointPtrInterfaceCooReadProjectiveT
+}
+
 type CurvePointPtrInterfaceCooReadDecafProjective interface {
 	X_decaf_projective() FieldElement
 	Y_decaf_projective() FieldElement

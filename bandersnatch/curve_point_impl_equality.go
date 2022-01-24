@@ -92,17 +92,24 @@ func (p1 *point_axtw_base) isEqual_moduloA_aa(p2 *point_axtw_base) (ret bool) {
 
 // exceptional cases: NaP compares equal only to p2.X_decaf == p2.Y_decaf == 0
 func (p1 *point_axtw_base) isEqual_moduloA_aany(p2 CurvePointPtrInterfaceBaseRead) (ret bool) {
-	p2_x := p2.X_decaf_projective()
-	absEqual, exact := p1.x.CmpAbs(&p2_x)
+	// We check whether y1 == y1/z1 equals +/- y2/z2.
+	// If that is true, we check whether x1 == x1/z1 equals +/-x2/z2 (with the same sign)\
+	// Note: It is important to check y first, because we need the correct sign even for x==0.
+	p2_y := p2.Y_decaf_projective()
+	p2_z := p2.Z_decaf_projective()
+	var temp FieldElement
+	temp.Mul(&p1.y, &p2_z)
+	absEqual, exact := temp.CmpAbs(&p2_y)
 	if !absEqual {
 		return false
 	}
-	p2_y := p2.Y_decaf_projective()
+	p2_x := p2.X_decaf_projective()
+	temp.Mul(&p1.x, &p2_z)
 	if exact {
-		return p1.y.IsEqual(&p2_y)
+		return temp.IsEqual(&p2_x)
 	} else {
-		p2_y.NegEq()
-		return p1.y.IsEqual(&p2_y)
+		p2_x.NegEq()
+		return temp.IsEqual(&p2_x)
 	}
 }
 
@@ -183,11 +190,11 @@ func (p1 *point_xtw_base) isEqual_exact_tany(p2 CurvePointPtrInterfaceRead) bool
 	}
 	if !zero || p2_x.IsZero() {
 		// need to check y/z
-		p2_y = p2.Y_projective()
+		p2_yp := p2.Y_projective()
 		p2_z := p2.Z_projective()
 		p2_z.MulEq(&p1.y)
-		p2_y.MulEq(&p1.z)
-		return p2_y.IsEqual(&p2_z)
+		p2_yp.MulEq(&p1.z)
+		return p2_yp.IsEqual(&p2_z)
 	}
 	// If we get here, both points are at infinity
 	if !p2.CanRepresentInfinity() {
