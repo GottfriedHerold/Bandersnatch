@@ -1,7 +1,6 @@
 package bandersnatch
 
 import (
-	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
@@ -23,13 +22,10 @@ const (
 	Case_zero_exact
 	Case_random
 	Case_differenceInfinite
+	Case_sumInfinite
 	Case_E1
 	Case_E2
 	Case_A
-	// TODO: Add by MakeSample1
-	Case_fullCurve
-	Case_base
-	Case_subgroupType
 )
 
 const excludeNoPoints = PointFlags(0)
@@ -151,6 +147,15 @@ var pointTypeToTagMap map[PointType]string = map[PointType]string{
 	pointTypeEFGHSubgroup: "ss",
 }
 
+func PointTypeToTag(c PointType) string {
+	ret, ok := pointTypeToTagMap[c]
+	if ok {
+		return ret
+	} else {
+		return "unrecognized tag [" + getReflectName(c) + "]"
+	}
+}
+
 // getReflectName obtain a string representation of the given type using the reflection package
 func getReflectName(c PointType) string {
 	// reflect.Type's  Name() only works for defined types, which
@@ -159,15 +164,6 @@ func getReflectName(c PointType) string {
 		return "*" + c.Elem().Name()
 	} else {
 		return c.Name()
-	}
-}
-
-func PointTypeToTag(c PointType) string {
-	ret, ok := pointTypeToTagMap[c]
-	if ok {
-		return ret
-	} else {
-		return "unrecognized tag [" + getReflectName(c) + "]"
 	}
 }
 
@@ -227,7 +223,7 @@ func MakeSample1(p curvePointPtrInterfaceTestSample, flags PointFlags, comment s
 	return
 }
 
-// Takes samples a, b (consisting of n_a, n_b points) and combines them into
+// Takes 2 samples a, b (consisting of n_a, n_b points) and combines them into
 // a sample with n_a + n_b points. extra_flags get OR-ed to each.
 func ZipSample(a, b TestSample, extra_flags PointFlags) (ret TestSample) {
 	ret.Flags = append([]PointFlags{}, a.Flags...)
@@ -373,6 +369,7 @@ func (s *precomputedSampleSlice) prepareFixedSamples2() {
 					newFlags |= Case_equal_moduloA
 				} else {
 					newFlags |= Case_differenceInfinite
+					newFlags |= Case_sumInfinite // sum and difference are the same for 2-torsion
 				}
 			}
 			if flags1.CheckFlag(Case_random) || flags2.CheckFlag(Case_random) {
@@ -766,12 +763,14 @@ func make_samples2_and_run_tests(t *testing.T, f checkfunction, err_string strin
 	run_tests_on_samples(f, t, Samples, err_string)
 }
 
+/*
 func TestMakeSample(t *testing.T) {
 	x := getSamples(200, 0, pointTypeXTWFull, pointTypeAXTWSubgroup)
 	for _, item := range x {
 		fmt.Println(item)
 	}
 }
+*/
 
 // We create test_sample_XY of type point_xtw_base manually.
 // The reason for this is that we need to set a lot of flags by hand and there

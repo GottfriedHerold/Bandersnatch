@@ -1,7 +1,6 @@
 package bandersnatch
 
 /*
-
 import "testing"
 
 // This function checks whether the endomorphism factors through P=P+A and Endo and Endo_FullCurve agree
