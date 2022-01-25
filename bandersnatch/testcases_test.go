@@ -42,6 +42,7 @@ type curvePointPtrInterfaceTestSample interface {
 	SetNeutral()
 }
 
+// maybeFlipDecaf will run flipDecaf if that is meaningful for the given point type; do nothing otherwise
 func maybeFlipDecaf(p curvePointPtrInterfaceTestSample) (ok bool) {
 	if p.HasDecaf() {
 		p_conv, ok := p.(CurvePointPtrInterfaceDecaf)
@@ -68,13 +69,12 @@ type sampleableNaP interface {
 }
 
 var (
-	// _ curvePointPtrInterfaceTestSample = &point_efgh_base{}
 	_ curvePointPtrInterfaceTestSample = &Point_efgh_subgroup{}
 	_ curvePointPtrInterfaceTestSample = &Point_efgh_full{}
-	// _ curvePointPtrInterfaceTestSample = &point_xtw_base{}
+
 	_ curvePointPtrInterfaceTestSample = &Point_xtw_full{}
 	_ curvePointPtrInterfaceTestSample = &Point_xtw_subgroup{}
-	// _ curvePointPtrInterfaceTestSample = &point_axtw_base{}
+
 	_ curvePointPtrInterfaceTestSample = &Point_axtw_subgroup{}
 	_ curvePointPtrInterfaceTestSample = &Point_axtw_full{}
 )
@@ -110,10 +110,13 @@ var (
 	pointTypeEFGHSubgroup = reflect.TypeOf((*Point_efgh_subgroup)(nil))
 )
 
+// MakeCurvePointPtrInterfaceFromType creates a pointer to a valid zero-initialized curve point of the given type.
+// The return value is of type interface{} and needs to be type-asserted by the caller.
 func MakeCurvePointPtrInterfaceFromType(pointType PointType) interface{} {
 	return reflect.New(pointType.Elem()).Interface()
 }
 
+// pointTypeToStringMap is just used to implement PointTypeToString
 var pointTypeToStringMap map[PointType]string = map[PointType]string{
 	pointTypeXTWBase:      "xtw_base",
 	pointTypeXTWFull:      "xtw_full",
@@ -126,6 +129,7 @@ var pointTypeToStringMap map[PointType]string = map[PointType]string{
 	pointTypeEFGHSubgroup: "efgh_subgroup",
 }
 
+// PointTypeToString returns a string description of the given point type.
 func PointTypeToString(c PointType) string {
 	ret, ok := pointTypeToStringMap[c]
 	if ok {
@@ -135,6 +139,7 @@ func PointTypeToString(c PointType) string {
 	}
 }
 
+// pointTypeToTagMap is just used to implement PointTypeToTag
 var pointTypeToTagMap map[PointType]string = map[PointType]string{
 	pointTypeXTWBase:      "tb",
 	pointTypeXTWFull:      "tf",
@@ -147,6 +152,7 @@ var pointTypeToTagMap map[PointType]string = map[PointType]string{
 	pointTypeEFGHSubgroup: "ss",
 }
 
+// PointTypeToTag turns a pointType to a short tag; this is useful e.g. in making benchmarking tables.
 func PointTypeToTag(c PointType) string {
 	ret, ok := pointTypeToTagMap[c]
 	if ok {
@@ -167,32 +173,42 @@ func getReflectName(c PointType) string {
 	}
 }
 
+// typeCanRepresentInfinity is used to query whether a given point type can respresent and distinguish the two points at infinity.
 func typeCanRepresentInfinity(pointType PointType) bool {
 	return MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTypeQuery).CanRepresentInfinity()
 }
 
+// typeCanOnlyRepresentSubgroup is used to query whether a given point type can only represent elements from the prime-order subgroup or arbitrary curve points.
 func typeCanOnlyRepresentSubgroup(pointType PointType) bool {
 	return MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTypeQuery).CanOnlyRepresentSubgroup()
 }
 
+// GetPointType returns the type (as a PointType) of a given concrete curve point.
 func GetPointType(p curvePointPtrInterfaceTestSample) PointType {
 	// TODO: Check it's from recognized list?
 	return reflect.TypeOf(p)
 }
 
+// TestSample is a struct that is used as input to most of our test functions, encapsulating a set of points
+// together with metadata.
 type TestSample struct {
-	Points  []curvePointPtrInterfaceTestSample // TODO: CurvePointPtrInterfaceDebug interface?
-	Flags   []PointFlags
-	Comment string
-	Len     uint
+	Points  []curvePointPtrInterfaceTestSample // a slice of 1--3 points. The points can have different concrete type.
+	Flags   []PointFlags                       // flags that give additional information about the points.
+	Comment string                             // A human-readable comment that describes the sample.
+	Len     uint                               // Len == len(Points) == len(Flags). The given TestSample consists of this many points (1--3)
+	info    []string                           // uninitialized by default
 }
 
+// AssertNumberOfPoints asserts that the given TestSample consists of the given number of points.
+// This is usually used at the beginning of a testfunction to ensure we do not run tests for
+// pairs of points on triples etc.
 func (s *TestSample) AssertNumberOfPoints(expectedLen int) {
 	if int(s.Len) != expectedLen {
 		panic("Test samples with a different number of curve points per samples expected")
 	}
 }
 
+// Clone returns an independent copy of the given TestSample. The contained points are copied and do not retain any pointer-links to the original.
 func (s *TestSample) Clone() (ret TestSample) {
 	ret.Len = s.Len
 	ret.Comment = s.Comment
@@ -202,9 +218,18 @@ func (s *TestSample) Clone() (ret TestSample) {
 		ret.Flags[i] = s.Flags[i]
 		ret.Points[i] = s.Points[i].Clone().(curvePointPtrInterfaceTestSample)
 	}
+	if s.info != nil {
+		l := len(s.info)
+		ret.info = make([]string, l)
+		for i, s := range s.info {
+			ret.info[i] = s
+		}
+	}
 	return
 }
 
+// AnyFlags returns the OR of all the flags of the TestSample.
+// This is usually used as s.AnyFlags().CheckFlag(some_flag)
 func (s TestSample) AnyFlags() (ret PointFlags) {
 	for _, v := range s.Flags {
 		ret |= v
@@ -220,6 +245,7 @@ func MakeSample1(p curvePointPtrInterfaceTestSample, flags PointFlags, comment s
 	ret.Flags = []PointFlags{flags}
 	ret.Len = 1
 	ret.Comment = comment
+	ret.info = nil
 	return
 }
 
@@ -240,27 +266,46 @@ func ZipSample(a, b TestSample, extra_flags PointFlags) (ret TestSample) {
 	for i := range ret.Flags {
 		ret.Flags[i] |= extra_flags
 	}
+	if a.info != nil || b.info != nil {
+		ret.info = make([]string, 0)
+		if a.info != nil {
+			ret.info = append(ret.info, a.info...)
+		}
+		if b.info != nil {
+			ret.info = append(ret.info, b.info...)
+		}
+	}
 	return
 }
 
+// precomputedSampleSlice holds several TestSamples that are reused across multiple tests.
+// This is because creating these TestSamples is too slow otherwise.
 type precomputedSampleSlice struct {
+	// Samples come in three flavours: fixed samples are always present and contain
+	// "special" samples such as the neutral element that are likely chances of failure of our algorithm.
+	// random samples are randomly generated/appended. Their number can increase upon request
+	// NaPSamples contain (random) invalid points. Their number can increase upon request.
 	fixedSamples  []TestSample
 	randomSamples []TestSample
 	NaPSamples    []TestSample
-	rnd           *rand.Rand
-	sampleLen     int
-	initialized   bool
-	pointTypes    []PointType
+	rnd           *rand.Rand  // we keep the random seed to create/append new samples and create the samples in a deterministic order. This way, everything is reproducible
+	sampleLen     int         // Each sample in fixedSamples, randomSamples, NaPSamples needs to have the same number of points given by sampleLen
+	initialized   bool        // bool to denote whether this was already initialzed (done on first request)
+	pointTypes    []PointType // all samples have these point Types. len(pointTypes) == sampleLen
 }
 
+// pointTypePair denotes a pair of PointType's. This type is needed because it's used a key of a map.
 type pointTypePair struct {
 	a, b PointType
 }
 
+// pointTypeTriple denotes a triple of PointType's. This type is just used a key of a map.
 type pointTypeTriple struct {
 	a, b, c PointType
 }
 
+// precomputedSamples<N> is a map of pointType(s) -> (pointer to)precomputedSampleSlice.
+// The values are generated upon first access.
 var (
 	precomputedSamples1 map[PointType]*precomputedSampleSlice       = make(map[PointType]*precomputedSampleSlice)
 	precomputedSamples2 map[pointTypePair]*precomputedSampleSlice   = make(map[pointTypePair]*precomputedSampleSlice)
@@ -274,6 +319,8 @@ const (
 	initialNaP2    = 12
 )
 
+// initialize is called to create a valid precomputedSampleSlice with actual TestSamples.
+// for the given point types and (determinstic) random source.
 func (s *precomputedSampleSlice) initialize(rnd *rand.Rand, types []PointType) {
 	s.initialized = true
 	len := len(types)
@@ -299,6 +346,7 @@ func (s *precomputedSampleSlice) initialize(rnd *rand.Rand, types []PointType) {
 	}
 }
 
+// prepareFixedSamples1 is called at the end of initialize() for sampleLen==1. Its job is to create TestSamples with 1 curve Point.
 func (s *precomputedSampleSlice) prepareFixedSamples1() {
 	if s.sampleLen != 1 {
 		panic("Cannot happen")
@@ -330,6 +378,7 @@ func (s *precomputedSampleSlice) prepareFixedSamples1() {
 	s.fixedSamples = append(s.fixedSamples, newSample1.Clone())
 }
 
+// prepareFixedSamples2 is called at the end of initialize() for sampleLen==2. Its job is to create TestSamples with pairs of curve points.
 func (s *precomputedSampleSlice) prepareFixedSamples2() {
 	if s.sampleLen != 2 {
 		panic("Cannot happen")
