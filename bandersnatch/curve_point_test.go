@@ -52,6 +52,10 @@ var _ Validateable = &point_efgh_base{}
 var _ Validateable = &Point_efgh_full{}
 var _ Validateable = &Point_efgh_subgroup{}
 
+var _ torsionAdder = &point_xtw_base{}
+var _ torsionAdder = &point_axtw_base{}
+var _ torsionAdder = &point_efgh_base{}
+
 /*
 	This file contains tests on curve points that can be expressed as properties on the exported interface of CurvePointPtrInterface.
 	Using our testing framework and a little bit of reflection (hidden in helper functions) and interfaces, these tests are then run on all concrete curve point types.
