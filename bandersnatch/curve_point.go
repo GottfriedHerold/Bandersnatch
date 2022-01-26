@@ -34,6 +34,8 @@ const (
 	EndomorphismEigenvalue_string = "0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05"
 )
 
+const endomorphismEigenvalueIsOdd = true // we chose an odd representative above. This info is needed to get some test right.
+
 var EndomorphismEigenvalue_Int *big.Int = initIntFromString(EndomorphismEigenvalue_string)
 
 // parameters a, d in twisted Edwards form ax^2 + y^2 = 1 + dx^2y^2

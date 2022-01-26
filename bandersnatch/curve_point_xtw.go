@@ -89,9 +89,12 @@ var (
 // These are the three points of order 2 that we can represent with extended twisted coordinates. None of these is in the p253-subgroup, of course.
 // Although we do not need or use this, note that SqrtDDivA_fe := sqrt(d/a) == sqrt(2) - 1 due to the way the bandersnatch curve was constructed.
 var (
-	orderTwoPoint_xtw      point_xtw_base = point_xtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero, z: FieldElementOne}
-	exceptionalPoint_1_xtw point_xtw_base = point_xtw_base{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementOne, z: FieldElementZero}
-	exceptionalPoint_2_xtw point_xtw_base = point_xtw_base{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementMinusOne, z: FieldElementZero}
+	orderTwoPoint_xtw          point_xtw_base = point_xtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero, z: FieldElementOne}
+	orderTwoPoint_xtwfull      Point_xtw_full = Point_xtw_full{point_xtw_base: orderTwoPoint_xtw}
+	exceptionalPoint_1_xtw     point_xtw_base = point_xtw_base{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementOne, z: FieldElementZero}
+	exceptionalPoint_1_xtwfull Point_xtw_full = Point_xtw_full{point_xtw_base: exceptionalPoint_1_xtw}
+	exceptionalPoint_2_xtw     point_xtw_base = point_xtw_base{x: squareRootDbyA_fe, y: FieldElementZero, t: FieldElementMinusOne, z: FieldElementZero}
+	exceptionalPoint_2_xtwfull Point_xtw_full = Point_xtw_full{point_xtw_base: exceptionalPoint_2_xtw}
 )
 
 // normalizeAffineZ replaces the internal representation with an equivalent one with Z==1, unless the point is at infinity (in which case we panic).
