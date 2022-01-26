@@ -6,7 +6,7 @@ import (
 )
 
 // checks whether IsNeutralElement correctly recognized neutral elements
-func checkfun_recognize_neutral(s TestSample) (bool, string) {
+func checkfun_recognize_neutral(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	var singular = s.AnyFlags().CheckFlag(Case_singular)
 	var expected bool = s.Flags[0].CheckFlag(Case_zero_exact) && !singular
@@ -14,7 +14,7 @@ func checkfun_recognize_neutral(s TestSample) (bool, string) {
 }
 
 // checks whether IsEqual correctly recognizes pairs of equal points
-func checkfun_recognize_equality(s TestSample) (bool, string) {
+func checkfun_recognize_equality(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
 	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 	var expected bool = s.AnyFlags().CheckFlag(Case_equal_exact) && !singular

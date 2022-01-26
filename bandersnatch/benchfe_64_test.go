@@ -3,7 +3,7 @@
 package bandersnatch
 
 import (
-	"testing"4
+	"testing"
 )
 
 func BenchmarkEnsureBuildFlags(b *testing.B) {

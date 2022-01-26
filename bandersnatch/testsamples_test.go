@@ -1,6 +1,7 @@
 package bandersnatch
 
 import (
+	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
@@ -8,30 +9,58 @@ import (
 	"testing"
 )
 
+/*
+	This file contains code for the testing framework used to test the elliptic curve operations (not the field operations).
+	It does not contain any tests itself.
+
+	Our simple testing framework works mostly as follows: A lot of tests call a
+	checkfunction taking a TestSample and returning a (success bool, errormsg string) pair
+	TestSample contains a k-tuple of points (We only support and need k=1, k=2, k=3) and the checkfunction is supposed to verify some property for this particular k-tuple.
+	(e.g. a hypothetical checkfunction_addition_commutative could run on a 2-tuple P,Q and check whether P+Q == Q+P holds)
+	In addition to the the k-tuple, TestSamples also contain some metadata for each point such as "This point is the neutral element".
+	This is used to derive the actual expected behaviour in a test.
+	(e.g. a checkfunction_IsNeutralElement could run on 1-tuples P and could check whether P.IsNeutralElement() matches the metadata)
+
+	We note that the testing framework heavily makes use of interfaces and reflection to avoid writing separate tests for all Point Types.
+	Also, note that checkfunction might need additional parameters. This is usually achieved using closures.
+	(e.g. checkfunction_addition_commutative actually is a make_checkfun_addcommutes(receiverType) that returns a checkfunction
+	that with a given receiverType that determines which type P+Q and Q+P actually has (P, Q and P+Q do not need to have the same type))
+*/
+
+// checkfunction is the type of function that we run on test samples.
+// Note that checkfunctions are supposed to be run on fresh (copies of) samples, so inadvertent modifications to the provided samples are not visible in other tests.
+// (The only reason we have a pointer receiver is to use TestSample.Log)
+type checkfunction func(*TestSample) (bool, string)
+
+// PointFlags are used to mark TestSamples with meta-information about them. This is used to derive the expected behaviour
+// we test against.
 type PointFlags uint64
 
 const (
-	Case_singular PointFlags = 1 << iota
-	Case_infinite
-	Case_2torsion
-	Case_outside_p253
-	Case_outside_goodgroup
-	Case_equal_exact
-	Case_equal_moduloA
-	Case_zero_moduloA
-	Case_zero_exact
-	Case_random
-	Case_differenceInfinite
-	Case_sumInfinite
-	Case_E1
-	Case_E2
-	Case_A
+	// TODO: Rename
+	Case_singular           PointFlags = 1 << iota // Point is a NaP
+	Case_infinite                                  // Point is at infinity
+	Case_2torsion                                  // Point is 2-torsion
+	Case_outside_p253                              // Point is outside the prime-order subgroup. Note: Subgroup-points in Decaf-style representation must *NOT* have this flag.
+	Case_outside_goodgroup                         // Point is outside the subgroup spanned by the prime-order subgroup and the affine two-torsion point.
+	Case_equal_exact                               // For TestSamples with 2 points: Both points have this if they are equal. Points with this flag must have Case_equal_moduloA as well
+	Case_equal_moduloA                             // For TestSamples with 2 points: Both points have this if they are equal modulo A.
+	Case_zero_moduloA                              // Point is either the neutral element or the affine 2-torsion point
+	Case_zero_exact                                // Point is the neutral element
+	Case_random                                    // Points was sampled randomly
+	Case_differenceInfinite                        // For TestSamples with 2 points: The difference of the points is at infinity
+	Case_sumInfinite                               // For TestSamples with 2 points: The sum of the points is at infinity
+	Case_E1                                        // Point is the E1 point at infinity
+	Case_E2                                        // Point is the E2 point at infinity
+	Case_A                                         // Point is the affine 2-torsion point
 )
 
+// excludeNoPoints is used as an argument to functions taking a bitmask to exclude certain samples if we want to exclude no samples
 const excludeNoPoints = PointFlags(0)
 
-func (flags PointFlags) CheckFlag(check PointFlags) bool {
-	return flags&check != 0
+// CheckFlag returns true if any of the checked_flag is present in flags. checked_flag should be an bit-wise or of flags.
+func (flags PointFlags) CheckFlag(checked_flags PointFlags) bool {
+	return flags&checked_flags != 0
 }
 
 type curvePointPtrInterfaceTestSample interface {
@@ -116,7 +145,7 @@ func MakeCurvePointPtrInterfaceFromType(pointType PointType) interface{} {
 	return reflect.New(pointType.Elem()).Interface()
 }
 
-// pointTypeToStringMap is just used to implement PointTypeToString
+// pointTypeToStringMap is just used to implement PointTypeToString as a look-up-table
 var pointTypeToStringMap map[PointType]string = map[PointType]string{
 	pointTypeXTWBase:      "xtw_base",
 	pointTypeXTWFull:      "xtw_full",
@@ -139,7 +168,7 @@ func PointTypeToString(c PointType) string {
 	}
 }
 
-// pointTypeToTagMap is just used to implement PointTypeToTag
+// pointTypeToTagMap is just used to implement PointTypeToTag as a look-up-table.
 var pointTypeToTagMap map[PointType]string = map[PointType]string{
 	pointTypeXTWBase:      "tb",
 	pointTypeXTWFull:      "tf",
@@ -196,7 +225,16 @@ type TestSample struct {
 	Flags   []PointFlags                       // flags that give additional information about the points.
 	Comment string                             // A human-readable comment that describes the sample.
 	Len     uint                               // Len == len(Points) == len(Flags). The given TestSample consists of this many points (1--3)
-	info    []string                           // uninitialized by default
+	info    []string                           // uninitialized by default. This can be used to record information that is output as diagnostic on errors.
+}
+
+// Log records a string representation of the given args in the sample. These are output in s.String() and can provide useful information when there is an error.
+func (s *TestSample) Log(args ...interface{}) {
+	if s.info == nil {
+		s.info = make([]string, 0)
+	}
+	var str string = fmt.Sprint(args...)
+	s.info = append(s.info, str)
 }
 
 // AssertNumberOfPoints asserts that the given TestSample consists of the given number of points.
@@ -239,7 +277,7 @@ func (s TestSample) AnyFlags() (ret PointFlags) {
 
 // TODO: Automatically add flags based on type of p?
 
-// Turn point p into a 1-point sample, taking ownership of p.
+// MakeSample1 turns point p into a 1-point sample with given flags and comment, taking ownership of p.
 func MakeSample1(p curvePointPtrInterfaceTestSample, flags PointFlags, comment string) (ret TestSample) {
 	ret.Points = []curvePointPtrInterfaceTestSample{p}
 	ret.Flags = []PointFlags{flags}
@@ -249,7 +287,7 @@ func MakeSample1(p curvePointPtrInterfaceTestSample, flags PointFlags, comment s
 	return
 }
 
-// Takes 2 samples a, b (consisting of n_a, n_b points) and combines them into
+// ZipSample takes 2 samples a, b (consisting of n_a, n_b points) and combines them into
 // a sample with n_a + n_b points. extra_flags get OR-ed to each.
 func ZipSample(a, b TestSample, extra_flags PointFlags) (ret TestSample) {
 	ret.Flags = append([]PointFlags{}, a.Flags...)
@@ -278,7 +316,7 @@ func ZipSample(a, b TestSample, extra_flags PointFlags) (ret TestSample) {
 	return
 }
 
-// precomputedSampleSlice holds several TestSamples that are reused across multiple tests.
+// precomputedSampleSlice holds several TestSamples that are reused (after being copied) across multiple tests.
 // This is because creating these TestSamples is too slow otherwise.
 type precomputedSampleSlice struct {
 	// Samples come in three flavours: fixed samples are always present and contain
@@ -380,9 +418,7 @@ func (s *precomputedSampleSlice) prepareFixedSamples1() {
 
 // prepareFixedSamples2 is called at the end of initialize() for sampleLen==2. Its job is to create TestSamples with pairs of curve points.
 func (s *precomputedSampleSlice) prepareFixedSamples2() {
-	if s.sampleLen != 2 {
-		panic("Cannot happen")
-	}
+	assert(s.sampleLen == 2)
 	var rnd *rand.Rand = s.rnd
 	var sampleType1 PointType = s.pointTypes[0]
 	var sampleType2 PointType = s.pointTypes[1]
@@ -479,7 +515,20 @@ func (s *precomputedSampleSlice) prepareFixedSamples2() {
 }
 
 func (s *precomputedSampleSlice) prepareFixedSamples3() {
-	panic("Not implemented yet")
+	assert(s.sampleLen == 3)
+	// var rnd *rand.Rand = s.rnd
+	var sampleType1 PointType = s.pointTypes[0]
+	var sampleType2 PointType = s.pointTypes[1]
+	var sampleType3 PointType = s.pointTypes[2]
+	samples12 := getSamples(5, excludeNoPoints, sampleType1, sampleType2)
+	samples3 := getSamples(5, excludeNoPoints, sampleType3)
+	for _, sample12 := range samples12 {
+		for _, sample3 := range samples3 {
+			newSample := ZipSample(sample12, sample3, PointFlags(0))
+			newSample = newSample.Clone() // Be sure to avoid any pointers pointing to the same things. Probably not needed as ZipSample should do it.
+			s.fixedSamples = append(s.fixedSamples, newSample)
+		}
+	}
 }
 
 func (s *precomputedSampleSlice) elongate(newSize int) {
@@ -517,9 +566,8 @@ func (s *precomputedSampleSlice) elongate(newSize int) {
 }
 
 func (s *precomputedSampleSlice) elongate1() {
-	if s.sampleLen != 1 || len(s.pointTypes) != 1 {
-		panic("Cannot happen")
-	}
+	assert(s.sampleLen == 1)
+	assert(len(s.pointTypes) == 1)
 	pointType1 := s.pointTypes[0]
 	var rnd *rand.Rand = s.rnd
 	randomSample, _ := makeSample_random(pointType1, rnd)
@@ -531,9 +579,8 @@ func (s *precomputedSampleSlice) elongate1() {
 }
 
 func (s *precomputedSampleSlice) elongate2() {
-	if s.sampleLen != 2 || len(s.pointTypes) != 2 {
-		panic("Cannot happen")
-	}
+	assert(s.sampleLen == 2)
+	assert(len(s.pointTypes) == 2)
 	pointType1 := s.pointTypes[0]
 	pointType2 := s.pointTypes[1]
 	var rnd *rand.Rand = s.rnd
@@ -561,7 +608,43 @@ func (s *precomputedSampleSlice) elongate2() {
 }
 
 func (s *precomputedSampleSlice) elongate3() {
-	panic("Not implemented yet")
+	assert(s.sampleLen == 3)
+	assert(len(s.pointTypes) == 3)
+	pointType1 := s.pointTypes[0]
+	pointType2 := s.pointTypes[1]
+	pointType3 := s.pointTypes[2]
+	var rnd *rand.Rand = s.rnd
+	var ok bool
+	randomSample1, ok := makeSample_random(pointType1, rnd)
+	if !ok {
+		panic("Could not create random sample")
+	}
+	randomSample2, ok := makeSample_random(pointType2, rnd)
+	if !ok {
+		panic("Could not create random sample")
+	}
+	randomSample3, ok := makeSample_random(pointType3, rnd)
+	if !ok {
+		panic("Could not create random sample")
+	}
+	newSample12 := ZipSample(randomSample1, randomSample2, PointFlags(0))
+	newSample := ZipSample(newSample12, randomSample3, PointFlags(0))
+	s.randomSamples = append(s.randomSamples, newSample)
+	NaPSample1, ok := makeSample_NaP(pointType1, rnd, len(s.NaPSamples))
+	if !ok {
+		panic("Could not create NaP sample")
+	}
+	NaPSample2, ok := makeSample_NaP(pointType2, rnd, rnd.Intn(256))
+	if !ok {
+		panic("Could not create NaP sample")
+	}
+	NaPSample3, ok := makeSample_NaP(pointType3, rnd, rnd.Intn(256))
+	if !ok {
+		panic("Could not create NaP sample")
+	}
+	newSample12 = ZipSample(NaPSample1, NaPSample2, PointFlags(0))
+	newSample = ZipSample(newSample12, NaPSample3, PointFlags(0))
+	s.NaPSamples = append(s.NaPSamples, newSample)
 }
 
 func makePointTypeTuple(pointTypes ...PointType) interface{} {
@@ -777,16 +860,31 @@ func (s *TestSample) String() string {
 			ret += "\n"
 		}
 	}
+	if s.info != nil {
+		ret += "\nAdditional info:\n"
+		for i, str := range s.info {
+			ret += str
+			if i+1 < len(s.info) {
+				ret += "\n"
+			}
+		}
+	}
 	return ret
 }
-
-type checkfunction func(TestSample) (bool, string)
 
 func run_tests_on_samples(f checkfunction, t *testing.T, samples []TestSample, err_string string) {
 	var num_errors int = 0
 	var failed bool = false
-	for _, samp := range samples {
-		pass, error_reason := f(samp)
+	panicked := true // set to false before return
+	var samp TestSample
+	defer func() {
+		if panicked {
+			t.Error("Panic detected. Context info: " + err_string + "\n")
+			t.Error("Failed Sample: " + samp.String())
+		}
+	}()
+	for _, samp = range samples {
+		pass, error_reason := f(&samp)
 		if failed && !pass {
 			num_errors++
 		}
@@ -796,6 +894,7 @@ func run_tests_on_samples(f checkfunction, t *testing.T, samples []TestSample, e
 			debug.PrintStack()
 		}
 	}
+	panicked = false
 	if failed {
 		t.Fatal(" and " + strconv.Itoa(num_errors) + " further errors")
 	}
@@ -809,6 +908,11 @@ func make_samples1_and_run_tests(t *testing.T, f checkfunction, err_string strin
 
 func make_samples2_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, point_type2 PointType, random_size int, excluded_flags PointFlags) {
 	Samples := getSamples(random_size, excluded_flags, point_type1, point_type2)
+	run_tests_on_samples(f, t, Samples, err_string)
+}
+
+func make_samples3_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, point_type2 PointType, point_type3 PointType, random_size int, excluded_flags PointFlags) {
+	Samples := getSamples(random_size, excluded_flags, point_type1, point_type2, point_type3)
 	run_tests_on_samples(f, t, Samples, err_string)
 }
 

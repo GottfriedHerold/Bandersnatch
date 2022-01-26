@@ -8,7 +8,7 @@ import (
 	Tests whether p.AddEq(x) and p.Add(x,x) are the same (and similar for SubEq, DoubleEq, NegEq, EndoEq)
 */
 
-func checkfun_AddEq(s TestSample) (bool, string) {
+func checkfun_AddEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 
@@ -42,7 +42,7 @@ func checkfun_AddEq(s TestSample) (bool, string) {
 	return guardForInvalidPoints(expected, expected_error, "AddEq did not match result of Add", result1.IsEqual, result2)
 }
 
-func checkfun_SubEq(s TestSample) (bool, string) {
+func checkfun_SubEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	differenceInfinite := s.AnyFlags().CheckFlag(Case_differenceInfinite)
@@ -82,7 +82,7 @@ func checkfun_SubEq(s TestSample) (bool, string) {
 	return guardForInvalidPoints(expected, expected_error, "SubEq did not match result of Sub", result1.IsEqual, result2)
 }
 
-func checkfun_DoubleEq(s TestSample) (bool, string) {
+func checkfun_DoubleEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	receiverType := GetPointType(s.Points[0])
@@ -105,7 +105,7 @@ func checkfun_DoubleEq(s TestSample) (bool, string) {
 	return guardForInvalidPoints(expected, singular, "Double and DoubleEq do not match", result1.IsEqual, result2)
 }
 
-func checkfun_NegEq(s TestSample) (bool, string) {
+func checkfun_NegEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	receiverType := GetPointType(s.Points[0])
@@ -128,7 +128,7 @@ func checkfun_NegEq(s TestSample) (bool, string) {
 	return guardForInvalidPoints(expected, singular, "Neg and NegEq do not match", result1.IsEqual, result2)
 }
 
-func checkfun_EndoEq(s TestSample) (bool, string) {
+func checkfun_EndoEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	receiverType := GetPointType(s.Points[0])

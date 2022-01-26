@@ -1,19 +1,13 @@
 package bandersnatch
 
 import (
-	"fmt"
-	"reflect"
 	"testing"
 )
 
 func TestPlayground(t *testing.T) {
-	var c1 CurvePointPtrInterfaceRead = &Point_efgh_full{}
-	var c2 *Point_efgh_full
-	X1 := reflect.TypeOf(c1)
-	X2 := reflect.TypeOf(c2)
-	fmt.Println(X1.Elem().Name())
-	fmt.Println(X2.Name())
-	fmt.Println(X1 == X2)
+	// var T Point_axtw_subgroup
+	// T.SetNeutral()
+	// fmt.Printf("%v", T)
 	// fmt.Println(callcounters.GetCallCounterStructureReport("--"))
 	// printCallCounterStructure()
 }

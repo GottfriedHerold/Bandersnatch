@@ -309,11 +309,12 @@ func (p *Point_axtw_full) Clone() interface{} {
 // Point_axtw::SerializeShort, Point_axtw::SerializeLong and Point_axtw::SerializeAuto are defined directly in curve_point_impl_serialize.go
 
 // String prints the point in X:Y:T - format
-func (p *point_axtw_base) String() string {
+func (p point_axtw_base) String() string {
 	// Not the most efficient way, but good enough.
 	return p.x.String() + ":" + p.y.String() + ":" + p.t.String()
 }
-func (p *Point_axtw_subgroup) String() (ret string) {
+
+func (p Point_axtw_subgroup) String() (ret string) {
 	ret = p.point_axtw_base.String()
 	if !legendreCheckE1_affineY(p.y) {
 		ret += " [+A]"

@@ -823,7 +823,7 @@ func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder binary.ByteOrd
 	return
 }
 
-func (z *bsFieldElement_64) String() string {
+func (z bsFieldElement_64) String() string {
 	z.Normalize()
 	return z.ToInt().String()
 }

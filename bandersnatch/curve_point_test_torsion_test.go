@@ -2,7 +2,7 @@ package bandersnatch
 
 import "testing"
 
-func checkfun_torsionA(s TestSample) (bool, string) {
+func checkfun_torsionA(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
@@ -30,7 +30,7 @@ func checkfun_torsionA(s TestSample) (bool, string) {
 	return t2.IsEqual(t), "torsionAddA does not matching Addition of point"
 }
 
-func checkfun_torsionE1(s TestSample) (bool, string) {
+func checkfun_torsionE1(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
@@ -61,7 +61,7 @@ func checkfun_torsionE1(s TestSample) (bool, string) {
 	return t2.IsEqual(t), "torsionAddE1 does not matching Addition of point"
 }
 
-func checkfun_torsionE2(s TestSample) (bool, string) {
+func checkfun_torsionE2(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
@@ -92,7 +92,7 @@ func checkfun_torsionE2(s TestSample) (bool, string) {
 	return t2.IsEqual(t), "torsionAddE1 does not matching Addition of point"
 }
 
-func checkfun_torsion_group(s TestSample) (bool, string) {
+func checkfun_torsion_group(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")

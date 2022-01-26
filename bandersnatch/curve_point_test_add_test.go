@@ -7,7 +7,7 @@ import (
 
 // check whether P+Q == Q+P
 func make_checkfun_addition_commutes(receiverType PointType) (returned_function checkfunction) {
-	returned_function = func(s TestSample) (bool, string) {
+	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(2)
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		var sumInfinite = s.AnyFlags().CheckFlag(Case_sumInfinite)
@@ -40,7 +40,7 @@ func make_checkfun_addition_commutes(receiverType PointType) (returned_function 
 func make_checkfun_addition_of_zero(receiverType PointType, zeroType PointType) (returned_function checkfunction) {
 	var zero CurvePointPtrInterface = MakeCurvePointPtrInterfaceFromType(zeroType).(CurvePointPtrInterface)
 	zero.SetNeutral()
-	returned_function = func(s TestSample) (bool, string) {
+	returned_function = func(s *TestSample) (bool, string) {
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		infinite := s.AnyFlags().CheckFlag(Case_infinite)
 		if infinite && !typeCanRepresentInfinity(receiverType) {
@@ -65,7 +65,7 @@ func make_checkfun_addition_of_zero(receiverType PointType, zeroType PointType) 
 
 // Checks that Neg results in an additive inverse
 func make_checkfun_negative(receiverType PointType) (returned_function checkfunction) {
-	returned_function = func(s TestSample) (bool, string) {
+	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		if !typeCanRepresentInfinity(receiverType) && s.AnyFlags().CheckFlag(Case_infinite) {
@@ -90,7 +90,7 @@ func make_checkfun_negative(receiverType PointType) (returned_function checkfunc
 
 // Checks that subtraction is compatible with addition, i.e. (P-Q)+Q == P and P-Q == P + (-Q)
 func make_checkfun_subtraction(receiverType PointType) (returned_function checkfunction) {
-	returned_function = func(s TestSample) (bool, string) {
+	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(2)
 
 		// If the points in the sample are outside of the subgroup, we might hit the singular cases of addition/subtraction.
@@ -101,7 +101,6 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 				return true, ""
 			}
 		*/
-
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		var differenceInfinite bool = s.AnyFlags().CheckFlag(Case_differenceInfinite)
 		result_of_subtraction := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
@@ -156,7 +155,7 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 
 // This tests whether doubling works as intended
 func make_checkfun_doubling(receiverType PointType) checkfunction {
-	return func(s TestSample) (bool, string) {
+	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		singular := s.AnyFlags().CheckFlag(Case_singular)
 		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
@@ -185,15 +184,32 @@ func make_checkfun_doubling(receiverType PointType) checkfunction {
 	}
 }
 
-/*
-// This function checks the associative law on point addition.
-// Note that we assume that our testsamples do not contain triples where exceptional cases for the addition laws occur.
-// (This is why the generator for testsamples that contain triples only produces random output)
-func checkfun_associative_law(s TestSample) (bool, string) {
+func checkfun_associative_law(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(3)
 	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-	result1 := MakeCurvePointPtrInterfaceFromType(GetPointType(s.Points[0]))
-	result2 := MakeCurvePointPtrInterfaceFromType(GetPointType(s.Points[0]))
+	// We not do use a separate receiver type (and a make_checkfun...) due to speed.
+	receiverType := GetPointType(s.Points[0])
+	result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+	result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+
+	if !typeCanRepresentInfinity(receiverType) {
+		var result_xtw Point_xtw_full // we compute everything in Point_xtw_full - coordinates first to ensure no infinities occur
+		s0 := s.Points[0].Clone().(CurvePointPtrInterfaceRead)
+		s1 := s.Points[1].Clone().(CurvePointPtrInterfaceRead)
+		s2 := s.Points[2].Clone().(CurvePointPtrInterfaceRead)
+		result_xtw.Add(s0, s1)
+		if result_xtw.IsAtInfinity() {
+			return true, "skipped"
+		}
+		result_xtw.AddEq(s2)
+		if result_xtw.IsAtInfinity() {
+			return true, "skipped"
+		}
+		result_xtw.Add(s1, s2)
+		if result_xtw.IsAtInfinity() {
+			return true, "skipped"
+		}
+	}
 
 	result1.Add(s.Points[0], s.Points[1])
 	result1.Add(result1, s.Points[2])
@@ -201,16 +217,15 @@ func checkfun_associative_law(s TestSample) (bool, string) {
 	result2.Add(s.Points[0], result2)
 
 	var expected bool = !singular
-	return guardForInvalidPoints(expected, singular, "Test for associative law failed", result1.IsEqual_FullCurve, result2)
+	return guardForInvalidPoints(expected, singular, "Test for associative law failed", result1.IsEqual, result2)
 }
-*/
 
 func test_addition_properties(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
 	point_string := PointTypeToString(receiverType)
-	var type1, type2 PointType
+	// var type1, type2 PointType
 	make_samples2_and_run_tests(t, make_checkfun_addition_commutes(receiverType), "Addition did not commute for "+point_string, receiverType, receiverType, 10, excludedFlags)
-	for _, type1 = range allTestPointTypes {
-		for _, type2 = range allTestPointTypes {
+	for _, type1 := range allTestPointTypes {
+		for _, type2 := range allTestPointTypes {
 			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type1) || !typeCanOnlyRepresentSubgroup(type2)) {
 				continue
 			}
@@ -218,8 +233,8 @@ func test_addition_properties(t *testing.T, receiverType PointType, excludedFlag
 		}
 	}
 
-	for _, type1 = range allTestPointTypes {
-		for _, type2 = range allTestPointTypes {
+	for _, type1 := range allTestPointTypes {
+		for _, type2 := range allTestPointTypes {
 			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type1) || !typeCanOnlyRepresentSubgroup(type2)) {
 				continue
 			}
@@ -228,7 +243,7 @@ func test_addition_properties(t *testing.T, receiverType PointType, excludedFlag
 	}
 
 	make_samples1_and_run_tests(t, make_checkfun_negative(receiverType), "Negating points did not work as expected"+point_string, receiverType, 10, excludedFlags)
-	for _, type1 = range allTestPointTypes {
+	for _, type1 := range allTestPointTypes {
 		if typeCanOnlyRepresentSubgroup(receiverType) && !typeCanOnlyRepresentSubgroup(type1) {
 			continue
 		}
@@ -236,8 +251,8 @@ func test_addition_properties(t *testing.T, receiverType PointType, excludedFlag
 	}
 
 	make_samples2_and_run_tests(t, make_checkfun_subtraction(receiverType), "Subtraction did not work as expected"+point_string, receiverType, receiverType, 10, excludedFlags)
-	for _, type1 = range allTestPointTypes {
-		for _, type2 = range allTestPointTypes {
+	for _, type1 := range allTestPointTypes {
+		for _, type2 := range allTestPointTypes {
 			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type1) || !typeCanOnlyRepresentSubgroup(type2)) {
 				continue
 			}
@@ -246,18 +261,21 @@ func test_addition_properties(t *testing.T, receiverType PointType, excludedFlag
 	}
 
 	make_samples1_and_run_tests(t, make_checkfun_doubling(receiverType), "Doubling does not work as intended "+point_string, receiverType, 10, excludedFlags)
-	for _, type1 = range allTestPointTypes {
+	for _, type1 := range allTestPointTypes {
 		make_samples1_and_run_tests(t, make_checkfun_doubling(receiverType), "Doubling does not work as intended "+point_string, type1, 10, excludedFlags)
 	}
 
-	/*
-		for _, type1 = range allTestPointTypes {
-			for _, type2 = range allTestPointTypes {
-				samples := MakeTestSamples3(5, receiverType, type1, type2, excludedFlags|Case_outside_goodgroup)
-				run_tests_on_samples(checkfun_associative_law, t, samples, "Associative law does not hold "+point_string+" "+PointTypeToString(type1)+" "+PointTypeToString(type2))
+	// type1 == receiverType for checkfun_associative_law
+	for _, type2 := range allTestPointTypes {
+		for _, type3 := range allTestPointTypes {
+			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type2) || !typeCanOnlyRepresentSubgroup(type3)) {
+				continue
 			}
+			make_samples3_and_run_tests(t, checkfun_associative_law, "Associative law does not hold "+point_string+" "+PointTypeToString(type2)+" "+PointTypeToString(type3), receiverType, type2, type3, 10, excludeNoPoints)
+			// run_tests_on_samples(checkfun_associative_law, t, samples, "Associative law does not hold "+point_string+" "+PointTypeToString(type1)+" "+PointTypeToString(type2))
 		}
-	*/
+	}
+
 }
 
 func TestAdditionProperties(t *testing.T) {

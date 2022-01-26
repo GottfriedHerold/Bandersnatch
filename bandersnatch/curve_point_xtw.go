@@ -362,12 +362,12 @@ func (p *Point_xtw) DeserializeAuto(input io.Reader, trusted IsPointTrusted) (by
 */
 
 // String prints the point in X:Y:T:Z - format
-func (p *point_xtw_base) String() string {
+func (p point_xtw_base) String() string {
 	// Not the most efficient way to concatenate strings, but good enough.
 	return p.x.String() + ":" + p.y.String() + ":" + p.t.String() + ":" + p.z.String()
 }
 
-func (p *Point_xtw_subgroup) String() (ret string) {
+func (p Point_xtw_subgroup) String() (ret string) {
 	ret = p.point_xtw_base.String()
 	if !legendreCheckE1_projectiveYZ(p.y, p.z) {
 		ret += " [+A]"

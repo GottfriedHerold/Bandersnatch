@@ -458,12 +458,12 @@ func (P *point_efgh_base) ToDecaf_axtw() (ret point_axtw_base) {
 }
 
 // String() returns a (somewhat) human-readable string describing the point. Useful for debugging.
-func (p *point_efgh_base) String() (ret string) {
+func (p point_efgh_base) String() (ret string) {
 	ret = "E=" + p.e.String() + " F=" + p.f.String() + " G=" + p.g.String() + " H=" + p.h.String()
 	return
 }
 
-func (p *Point_efgh_subgroup) String() (ret string) {
+func (p Point_efgh_subgroup) String() (ret string) {
 	ret = p.point_efgh_base.String()
 	if !legendreCheckE1_FH(p.f, p.h) {
 		ret += " [modified by +A]"

@@ -3,7 +3,7 @@ package bandersnatch
 import "testing"
 
 // checks whether IsAtInfinity correctly recognizes points at infinity.
-func checkfun_recognize_infinity(s TestSample) (bool, string) {
+func checkfun_recognize_infinity(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	var singular = s.AnyFlags().CheckFlag(Case_singular)
 	var expected bool = s.Flags[0].CheckFlag(Case_infinite)
@@ -12,7 +12,7 @@ func checkfun_recognize_infinity(s TestSample) (bool, string) {
 
 // checks whether IsAtInfinity commutes with conversion to xtw
 
-func checkfun_IsAtInfinity_consistent(s TestSample) (bool, string) {
+func checkfun_IsAtInfinity_consistent(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	var point_copy Point_xtw_full
 	point_copy.SetFrom(s.Points[0])
@@ -20,7 +20,7 @@ func checkfun_IsAtInfinity_consistent(s TestSample) (bool, string) {
 }
 
 // checks whether IsNaP() correctly recognizes NaPs
-func checkfun_recognize_NaP(s TestSample) (bool, string) {
+func checkfun_recognize_NaP(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	var expected bool = s.Flags[0].CheckFlag(Case_singular)
 	var got = s.Points[0].IsNaP()
@@ -29,14 +29,14 @@ func checkfun_recognize_NaP(s TestSample) (bool, string) {
 
 // somewhat redundant with tests for conversion
 
-func checkfun_IsNaP_consistentXTW(s TestSample) (bool, string) {
+func checkfun_IsNaP_consistentXTW(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	var point_copy Point_xtw_full
 	point_copy.SetFrom(s.Points[0])
 	return point_copy.IsNaP() == s.Points[0].IsNaP(), "IsNaP does not commute with conversion to xtw"
 }
 
-func checkfun_IsNaP_consistentAXTW(s TestSample) (bool, string) {
+func checkfun_IsNaP_consistentAXTW(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.AnyFlags().CheckFlag(Case_infinite) {
 		panic("Do not call checkfun_IsNaP_consistentAXTW with points at infinity")
