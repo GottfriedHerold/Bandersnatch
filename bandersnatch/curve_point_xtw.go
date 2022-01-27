@@ -148,8 +148,21 @@ func (p *point_xtw_base) rerandomizeRepresentation(rnd *rand.Rand) {
 }
 
 func (p *point_xtw_base) IsE1() bool {
+	if !p.IsAtInfinity() {
+		return false
+	}
 	var tmp FieldElement
 	tmp.Mul(&p.t, &squareRootDbyA_fe)
+	return tmp.IsEqual(&p.x)
+}
+
+func (p *point_xtw_base) IsE2() bool {
+	if !p.IsAtInfinity() {
+		return false
+	}
+	var tmp FieldElement
+	tmp.Mul(&p.t, &squareRootDbyA_fe)
+	tmp.NegEq()
 	return tmp.IsEqual(&p.x)
 }
 
@@ -738,7 +751,7 @@ func (p *Point_xtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.point_xtw_base = input.ToDecaf_xtw()
 	case *Point_efgh_full:
 		p.point_xtw_base = input.ToDecaf_xtw()
-	case CurvePointPtrInterfaceCooReadProjectiveT:
+	case CurvePointPtrInterfaceCooReadExtended:
 		p.x, p.y, p.t, p.z = input.XYTZ_projective()
 	default:
 		p.x, p.y, p.z = input.XYZ_projective()

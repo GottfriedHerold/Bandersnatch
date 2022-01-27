@@ -19,7 +19,7 @@ func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
 	}
 
 	for _, pointType := range allTestPointTypes {
-		pointInstance, ok := MakeCurvePointPtrInterfaceFromType(pointType).(curvePointPtrInterfaceTestSample)
+		pointInstance, ok := MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTestSample)
 		if !ok {
 			t.Fatal("Point type not compatible with curvePointPtrInterfaceTestSample " + PointTypeToString(pointType))
 		}
@@ -28,14 +28,14 @@ func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
 
 		// TODO: This might go away together with CanRepresentInfinity.
 		if pointInstance.CanRepresentInfinity() {
-			_, ok = pointInstance.(CurvePointPtrInterfaceReadCanDistinguishInfinity)
+			_, ok = pointInstance.(CurvePointPtrInterfaceDistinguishInfinity)
 			if !ok {
 				t.Fatal("Curve point type can represent infinity, but does not provide interface to distinguish")
 			}
 		}
 
 		if pointInstance.HasDecaf() {
-			_, ok = pointInstance.(CurvePointPtrInterfaceDecaf)
+			_, ok = pointInstance.(curvePointPtrInterfaceDecaf)
 			if !ok {
 				t.Fatal("Curve point type has HasDecaf() true, but type type does not satisfy interface")
 			}

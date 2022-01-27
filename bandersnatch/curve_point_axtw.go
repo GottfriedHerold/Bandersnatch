@@ -362,7 +362,7 @@ func (p *Point_axtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 	case *Point_efgh_subgroup:
 		input.normalizeSubgroup()
 		p.point_axtw_base = input.ToDecaf_axtw()
-	case CurvePointPtrInterfaceCooReadAffineT:
+	case CurvePointPtrInterfaceCooReadExtended:
 		if input.(CurvePointPtrInterfaceRead).IsNaP() {
 			napEncountered("Converting NaP to axtw_full", false, input.(CurvePointPtrInterfaceRead))
 			*p = Point_axtw_full{}
@@ -370,8 +370,8 @@ func (p *Point_axtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 		}
 		p.x, p.y, p.t = input.XYT_affine()
 	default:
-		if input.(CurvePointPtrInterfaceRead).IsNaP() {
-			napEncountered("Converting NaP to axtw_full", false, input.(CurvePointPtrInterfaceRead))
+		if input.IsNaP() {
+			napEncountered("Converting NaP to axtw_full", false, input)
 			*p = Point_axtw_full{}
 			return
 		}

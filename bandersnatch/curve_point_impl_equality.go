@@ -201,7 +201,7 @@ func (p1 *point_xtw_base) isEqual_exact_tany(p2 CurvePointPtrInterfaceRead) bool
 	if !p2.CanRepresentInfinity() {
 		return false
 	}
-	return p1.IsE1() == p2.(CurvePointPtrInterfaceReadCanDistinguishInfinity).IsE1()
+	return p1.IsE1() == p2.(CurvePointPtrInterfaceDistinguishInfinity).IsE1()
 }
 
 // exceptional cases: NaPs
@@ -294,7 +294,7 @@ func (p *point_efgh_base) isEqual_exact_sany(other CurvePointPtrInterfaceRead) b
 		// We have other_y == other_z == 0, i.e. other is at infinity
 		if p.g.IsZero() {
 			// p is at infinity as well. Check whether they are the same point at infinity.
-			return p.IsE1() == other.(CurvePointPtrInterfaceReadCanDistinguishInfinity).IsE1()
+			return p.IsE1() == other.(CurvePointPtrInterfaceDistinguishInfinity).IsE1()
 		} else {
 			return false
 		}

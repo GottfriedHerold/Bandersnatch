@@ -25,7 +25,7 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 			return false, "Endo(P) resulted in NaP for non-NaP P"
 		}
 
-		if !result.(Validateable).Validate() {
+		if !result.(validateable).Validate() {
 			return false, "Endo(P) is not on curve"
 		}
 

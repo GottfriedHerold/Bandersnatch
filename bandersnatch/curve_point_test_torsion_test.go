@@ -20,7 +20,7 @@ func checkfun_torsionA(s *TestSample) (bool, string) {
 	if t.IsNaP() {
 		return false, "torsionAddA of non-NaP resulted in NaP"
 	}
-	if !t.(Validateable).Validate() {
+	if !t.(validateable).Validate() {
 		return false, "torsionAddA does not result in valid point"
 	}
 	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
@@ -51,7 +51,7 @@ func checkfun_torsionE1(s *TestSample) (bool, string) {
 	if t.IsNaP() {
 		return false, "torsionAddE1 of non-NaP resulted in NaP"
 	}
-	if !t.(Validateable).Validate() {
+	if !t.(validateable).Validate() {
 		return false, "torsionAddE1 does not result in valid point"
 	}
 	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
@@ -82,7 +82,7 @@ func checkfun_torsionE2(s *TestSample) (bool, string) {
 	if t.IsNaP() {
 		return false, "torsionAddE2 of non-NaP resulted in NaP"
 	}
-	if !t.(Validateable).Validate() {
+	if !t.(validateable).Validate() {
 		return false, "torsionAddE2 does not result in valid point"
 	}
 	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
