@@ -19,8 +19,8 @@ func make_checkfun_alias_Add(receiverType PointType) checkfunction {
 		s.AssertNumberOfPoints(1)
 		singular := s.AnyFlags().CheckFlag(Case_singular)
 		var clone1, clone2, clone3, clone4 CurvePointPtrInterface
-		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		result1 := makeCurvePointPtrInterface(receiverType)
+		result2 := makeCurvePointPtrInterface(receiverType)
 
 		clone1 = s.Points[0].Clone().(CurvePointPtrInterface)
 		clone2 = s.Points[0].Clone().(CurvePointPtrInterface)
@@ -45,8 +45,8 @@ func make_checkfun_alias_Sub(receiverType PointType) checkfunction {
 		s.AssertNumberOfPoints(1)
 		singular := s.AnyFlags().CheckFlag(Case_singular)
 		var clone1, clone2, clone3, clone4 CurvePointPtrInterface
-		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		result1 := makeCurvePointPtrInterface(receiverType)
+		result2 := makeCurvePointPtrInterface(receiverType)
 
 		clone1 = s.Points[0].Clone().(CurvePointPtrInterface)
 		clone2 = s.Points[0].Clone().(CurvePointPtrInterface)
@@ -72,7 +72,7 @@ func checkfun_alias_Double(s *TestSample) (bool, string) {
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone().(CurvePointPtrInterface)
 	clone2 := s.Points[0].Clone().(CurvePointPtrInterface)
-	result := MakeCurvePointPtrInterfaceFromType(GetPointType(s.Points[0])).(CurvePointPtrInterface)
+	result := makeCurvePointPtrInterface(getPointType(s.Points[0]))
 	result.Double(clone2)
 	clone1.Double(clone1)
 	return guardForInvalidPoints(expected, singular, "Computing Double failed when receiver aliases argument", clone1.IsEqual, result)
@@ -84,7 +84,7 @@ func checkfun_alias_Neg(s *TestSample) (bool, string) {
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone().(CurvePointPtrInterface)
 	clone2 := s.Points[0].Clone().(CurvePointPtrInterface)
-	result := MakeCurvePointPtrInterfaceFromType(GetPointType(s.Points[0])).(CurvePointPtrInterface)
+	result := makeCurvePointPtrInterface(getPointType(s.Points[0]))
 	result.Neg(clone2)
 	clone1.Neg(clone1)
 	return guardForInvalidPoints(expected, singular, "Computing negative failed when receiver aliases argument", clone1.IsEqual, result)
@@ -96,7 +96,7 @@ func checkfun_alias_Endo(s *TestSample) (bool, string) {
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone().(CurvePointPtrInterface)
 	clone2 := s.Points[0].Clone().(CurvePointPtrInterfaceRead)
-	result := MakeCurvePointPtrInterfaceFromType(GetPointType(s.Points[0])).(CurvePointPtrInterface)
+	result := makeCurvePointPtrInterface(getPointType(s.Points[0]))
 	result.Endo(clone2)
 	clone1.Endo(clone1)
 	if result.IsNaP() != clone1.IsNaP() {
@@ -135,14 +135,14 @@ func checkfun_alias_SetFrom(s *TestSample) (bool, string) {
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone().(CurvePointPtrInterface)
 	clone2 := s.Points[0].Clone().(CurvePointPtrInterfaceRead)
-	result := MakeCurvePointPtrInterfaceFromType(GetPointType(s.Points[0])).(CurvePointPtrInterface)
+	result := makeCurvePointPtrInterface(getPointType(s.Points[0]))
 	result.SetFrom(clone2)
 	clone1.SetFrom(clone1)
 	return guardForInvalidPoints(expected, singular, "SetFrom failed when receiver aliases argument", clone1.IsEqual, result)
 }
 
 func test_aliasing_CurvePointPtrInterface(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
-	point_string := PointTypeToString(receiverType)
+	point_string := pointTypeToString(receiverType)
 	make_samples1_and_run_tests(t, checkfun_alias_IsEqual, "Alias testing for IsEqual failed "+point_string, receiverType, 10, excludedFlags)
 	make_samples1_and_run_tests(t, make_checkfun_alias_Add(receiverType), "Alias testing for Add failed "+point_string, receiverType, 10, excludedFlags)
 	make_samples1_and_run_tests(t, make_checkfun_alias_Sub(receiverType), "Alias testing for Sub failed "+point_string, receiverType, 10, excludedFlags)

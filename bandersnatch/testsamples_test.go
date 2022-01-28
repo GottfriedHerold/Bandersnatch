@@ -118,15 +118,15 @@ var (
 	pointTypeEFGHSubgroup = reflect.TypeOf((*Point_efgh_subgroup)(nil))
 )
 
-// MakeCurvePointPtrInterfaceFromType creates a pointer to a new zero-initialized curve point of the given type.
+// makeCurvePointPtrInterface creates a pointer to a new zero-initialized curve point of the given type.
 // The return value is of type CurvePointPtrInterface and may need to be further type-asserted by the caller.
-func MakeCurvePointPtrInterfaceFromType(pointType PointType) CurvePointPtrInterface {
+func makeCurvePointPtrInterface(pointType PointType) CurvePointPtrInterface {
 	return reflect.New(pointType.Elem()).Interface().(CurvePointPtrInterface)
 }
 
-// MakeCurvePointPtrInterfaceBaseFromType creates a pointer to a new zero-initialized base curve point of the given type.
+// makeCurvePointPtrInterfaceBase creates a pointer to a new zero-initialized base curve point of the given type.
 // The return value is of type CurvePointPtrInterfaceBaseRead and may need to be further type-asserted by the caller.
-func MakeBaseCurvePointPtrInterfaceBaseFromType(pointType PointType) CurvePointPtrInterfaceBaseRead {
+func makeCurvePointPtrInterfaceBase(pointType PointType) CurvePointPtrInterfaceBaseRead {
 	return reflect.New(pointType.Elem()).Interface().(CurvePointPtrInterfaceBaseRead)
 }
 
@@ -143,8 +143,8 @@ var pointTypeToStringMap map[PointType]string = map[PointType]string{
 	pointTypeEFGHSubgroup: "efgh_subgroup",
 }
 
-// PointTypeToString returns a string description of the given point type.
-func PointTypeToString(c PointType) string {
+// pointTypeToString returns a string description of the given point type.
+func pointTypeToString(c PointType) string {
 	ret, ok := pointTypeToStringMap[c]
 	if ok {
 		return ret
@@ -166,8 +166,8 @@ var pointTypeToTagMap map[PointType]string = map[PointType]string{
 	pointTypeEFGHSubgroup: "ss",
 }
 
-// PointTypeToTag turns a pointType to a short tag; this is useful e.g. in making benchmarking tables.
-func PointTypeToTag(c PointType) string {
+// pointTypeToTag turns a pointType to a short tag; this is useful e.g. in making benchmarking tables.
+func pointTypeToTag(c PointType) string {
 	ret, ok := pointTypeToTagMap[c]
 	if ok {
 		return ret
@@ -189,16 +189,16 @@ func getReflectName(c PointType) string {
 
 // typeCanRepresentInfinity is used to query whether a given point type can respresent and distinguish the two points at infinity.
 func typeCanRepresentInfinity(pointType PointType) bool {
-	return MakeCurvePointPtrInterfaceFromType(pointType).CanRepresentInfinity()
+	return makeCurvePointPtrInterface(pointType).CanRepresentInfinity()
 }
 
 // typeCanOnlyRepresentSubgroup is used to query whether a given point type can only represent elements from the prime-order subgroup or arbitrary curve points.
 func typeCanOnlyRepresentSubgroup(pointType PointType) bool {
-	return MakeCurvePointPtrInterfaceFromType(pointType).CanOnlyRepresentSubgroup()
+	return makeCurvePointPtrInterface(pointType).CanOnlyRepresentSubgroup()
 }
 
-// GetPointType returns the type (as a PointType) of a given concrete curve point.
-func GetPointType(p CurvePointPtrInterfaceTestSample) PointType {
+// getPointType returns the type (as a PointType) of a given concrete curve point.
+func getPointType(p CurvePointPtrInterfaceTestSample) PointType {
 	// TODO: Check it's from recognized list?
 	return reflect.TypeOf(p)
 }
@@ -230,6 +230,8 @@ func (s *TestSample) AssertNumberOfPoints(expectedLen int) {
 		panic("Test samples with a different number of curve points per samples expected")
 	}
 }
+
+// TODO: Signature inconsistent with CurvePointPtrInterface's Clone (returns value!)
 
 // Clone returns an independent copy of the given TestSample. The contained points are copied and do not retain any pointer-links to the original.
 func (s *TestSample) Clone() (ret TestSample) {
@@ -717,7 +719,7 @@ func getSamples(random_size int, excludeFlags PointFlags, pointTypes ...PointTyp
 func makeSample_prep(pointTypes ...PointType) (ret TestSample) {
 	ret.Points = make([]CurvePointPtrInterfaceTestSample, len(pointTypes))
 	for i, pointType := range pointTypes {
-		p := MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTestSample)
+		p := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
 		ret.Points[i] = p
 	}
 	ret.Flags = make([]PointFlags, len(pointTypes))
@@ -780,13 +782,10 @@ func makeSample_E2(pointType PointType) (ret TestSample, ok bool) {
 
 func makeSample_Gen(pointType PointType) (ret TestSample, ok bool) {
 	ret = makeSample_prep(pointType)
-	p_conv, ok := ret.Points[0].(CurvePointPtrInterfaceWriteConvert)
-	if !ok {
-		return
-	}
+	ok = true
 	var p Point_xtw_subgroup
 	p.point_xtw_base = example_generator_xtw
-	p_conv.SetFrom(&p)
+	ret.Points[0].SetFrom(&p)
 	ret.Comment = "example generator"
 	return
 }
@@ -832,14 +831,14 @@ func (s *TestSample) String() string {
 		ret += "Point "
 		ret += strconv.Itoa(i + 1)
 		ret += " of type "
-		ret += PointTypeToString(GetPointType(s.Points[i]))
+		ret += pointTypeToString(getPointType(s.Points[i]))
 		ret += ", "
 	}
 	ret += "Comment stored in sample: "
 	ret += s.Comment
 	ret += "\n"
 	for i := 0; i < int(s.Len); i++ {
-		ret += "Representation of Point " + strconv.Itoa(i+1) + " (" + PointTypeToString(GetPointType(s.Points[i])) + ") is "
+		ret += "Representation of Point " + strconv.Itoa(i+1) + " (" + pointTypeToString(getPointType(s.Points[i])) + ") is "
 		ret += s.Points[i].String()
 		if i+1 < int(s.Len) {
 			ret += "\n"

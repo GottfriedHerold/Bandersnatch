@@ -14,8 +14,8 @@ func make_checkfun_addition_commutes(receiverType PointType) (returned_function 
 		if sumInfinite && !typeCanRepresentInfinity(receiverType) {
 			return true, "" // skip test in that case
 		}
-		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		result1 := makeCurvePointPtrInterface(receiverType)
+		result2 := makeCurvePointPtrInterface(receiverType)
 		result1.Add(s.Points[0], s.Points[1])
 		result2.Add(s.Points[1], s.Points[0])
 
@@ -38,7 +38,7 @@ func make_checkfun_addition_commutes(receiverType PointType) (returned_function 
 
 // ensure that P + neutral element == P
 func make_checkfun_addition_of_zero(receiverType PointType, zeroType PointType) (returned_function checkfunction) {
-	var zero CurvePointPtrInterface = MakeCurvePointPtrInterfaceFromType(zeroType).(CurvePointPtrInterface)
+	var zero CurvePointPtrInterface = makeCurvePointPtrInterface(zeroType)
 	zero.SetNeutral()
 	returned_function = func(s *TestSample) (bool, string) {
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
@@ -46,7 +46,7 @@ func make_checkfun_addition_of_zero(receiverType PointType, zeroType PointType) 
 		if infinite && !typeCanRepresentInfinity(receiverType) {
 			return true, "" // This case is skipped.
 		}
-		result := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		result := makeCurvePointPtrInterface(receiverType)
 		result.Add(s.Points[0], zero)
 
 		if infinite && !result.IsAtInfinity() {
@@ -71,8 +71,8 @@ func make_checkfun_negative(receiverType PointType) (returned_function checkfunc
 		if !typeCanRepresentInfinity(receiverType) && s.AnyFlags().CheckFlag(Case_infinite) {
 			return true, ""
 		}
-		negative_of_point := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		sum := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		negative_of_point := makeCurvePointPtrInterface(receiverType)
+		sum := makeCurvePointPtrInterface(receiverType)
 		negative_of_point.Neg(s.Points[0])
 		if singular != negative_of_point.IsNaP() {
 			return false, "Taking negative of NaP did not result in same NaP status. Was expecting " + strconv.FormatBool(singular) + " but got " + strconv.FormatBool(negative_of_point.IsNaP())
@@ -103,10 +103,10 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 		*/
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		var differenceInfinite bool = s.AnyFlags().CheckFlag(Case_differenceInfinite)
-		result_of_subtraction := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		negative_of_point := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		result_of_subtraction := makeCurvePointPtrInterface(receiverType)
+		negative_of_point := makeCurvePointPtrInterface(receiverType)
+		result1 := makeCurvePointPtrInterface(receiverType)
+		result2 := makeCurvePointPtrInterface(receiverType)
 
 		if differenceInfinite && !typeCanRepresentInfinity(receiverType) {
 			return true, ""
@@ -122,7 +122,7 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 		}
 
 		if !typeCanRepresentInfinity(receiverType) && s.Flags[0].CheckFlag(Case_infinite) {
-			result1 = MakeCurvePointPtrInterfaceFromType(pointTypeXTWFull).(CurvePointPtrInterface)
+			result1 = makeCurvePointPtrInterface(pointTypeXTWFull)
 		}
 
 		result1.Add(result_of_subtraction, s.Points[1])
@@ -158,7 +158,7 @@ func make_checkfun_doubling(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		singular := s.AnyFlags().CheckFlag(Case_singular)
-		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		result1 := makeCurvePointPtrInterface(receiverType)
 		result1.Double(s.Points[0])
 		if result1.IsNaP() != singular {
 			return false, "Point doubling resulted in different NaP status"
@@ -171,9 +171,9 @@ func make_checkfun_doubling(receiverType PointType) checkfunction {
 		// whereas doubling does.
 		var result2 CurvePointPtrInterface
 		if typeCanOnlyRepresentSubgroup(receiverType) && !s.Points[0].CanOnlyRepresentSubgroup() {
-			result2 = MakeCurvePointPtrInterfaceFromType(pointTypeXTWFull).(CurvePointPtrInterface)
+			result2 = makeCurvePointPtrInterface(pointTypeXTWFull)
 		} else {
-			result2 = MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+			result2 = makeCurvePointPtrInterface(receiverType)
 		}
 		result2.Add(s.Points[0], s.Points[0])
 
@@ -188,9 +188,9 @@ func checkfun_associative_law(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(3)
 	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 	// We not do use a separate receiver type (and a make_checkfun...) due to speed.
-	receiverType := GetPointType(s.Points[0])
-	result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-	result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+	receiverType := getPointType(s.Points[0])
+	result1 := makeCurvePointPtrInterface(receiverType)
+	result2 := makeCurvePointPtrInterface(receiverType)
 
 	if !typeCanRepresentInfinity(receiverType) {
 		var result_xtw Point_xtw_full // we compute everything in Point_xtw_full - coordinates first to ensure no infinities occur
@@ -221,7 +221,7 @@ func checkfun_associative_law(s *TestSample) (bool, string) {
 }
 
 func test_addition_properties(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
-	point_string := PointTypeToString(receiverType)
+	point_string := pointTypeToString(receiverType)
 	// var type1, type2 PointType
 	make_samples2_and_run_tests(t, make_checkfun_addition_commutes(receiverType), "Addition did not commute for "+point_string, receiverType, receiverType, 10, excludedFlags)
 	for _, type1 := range allTestPointTypes {
@@ -271,7 +271,7 @@ func test_addition_properties(t *testing.T, receiverType PointType, excludedFlag
 			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type2) || !typeCanOnlyRepresentSubgroup(type3)) {
 				continue
 			}
-			make_samples3_and_run_tests(t, checkfun_associative_law, "Associative law does not hold "+point_string+" "+PointTypeToString(type2)+" "+PointTypeToString(type3), receiverType, type2, type3, 10, excludeNoPoints)
+			make_samples3_and_run_tests(t, checkfun_associative_law, "Associative law does not hold "+point_string+" "+pointTypeToString(type2)+" "+pointTypeToString(type3), receiverType, type2, type3, 10, excludeNoPoints)
 			// run_tests_on_samples(checkfun_associative_law, t, samples, "Associative law does not hold "+point_string+" "+PointTypeToString(type1)+" "+PointTypeToString(type2))
 		}
 	}

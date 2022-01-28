@@ -134,7 +134,7 @@ func checkfun_torsion_group(s *TestSample) (bool, string) {
 
 func TestTorsionAddProperties(t *testing.T) {
 	for _, pointType := range allFullCurveTestPointTypes {
-		pointstring := PointTypeToString(pointType)
+		pointstring := pointTypeToString(pointType)
 		make_samples1_and_run_tests(t, checkfun_torsionA, "torsionAddA did not work as expected "+pointstring, pointType, 50, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_torsionE1, "torsionAddE1 did not work as expected "+pointstring, pointType, 50, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_torsionE2, "torsionAddE2 did not work as expected "+pointstring, pointType, 50, excludeNoPoints)

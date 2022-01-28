@@ -47,7 +47,7 @@ func checkfun_IsNaP_consistentAXTW(s *TestSample) (bool, string) {
 }
 
 func test_queries(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
-	point_string := PointTypeToString(receiverType)
+	point_string := pointTypeToString(receiverType)
 	make_samples1_and_run_tests(t, checkfun_recognize_infinity, "Did not recognize infinite points "+point_string, receiverType, 10, excludedFlags)
 	make_samples1_and_run_tests(t, checkfun_recognize_NaP, "Did not recognize invalid points arising from singularities "+point_string, receiverType, 10, excludedFlags)
 	make_samples1_and_run_tests(t, checkfun_IsAtInfinity_consistent, "IsAtInfinity inconsistent "+point_string, receiverType, 10, excludedFlags)

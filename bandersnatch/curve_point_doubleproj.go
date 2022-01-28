@@ -764,6 +764,56 @@ func (p *Point_efgh_full) EndoEq() {
 	}
 }
 
+func (p *Point_efgh_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+	if input.IsNaP() {
+		napEncountered("Converting NaP point to efgh_subgroup", false, input)
+		*p = Point_efgh_subgroup{}
+		return false
+	}
+	if input.CanOnlyRepresentSubgroup() {
+		p.SetFrom(input)
+		return true
+	}
+	if !trusted.V() {
+		if !input.IsInSubgroup() {
+			return false
+		}
+	}
+	switch input := input.(type) {
+	case *Point_efgh_full:
+		p.point_efgh_base = input.point_efgh_base
+	case *Point_xtw_full:
+		p.e = input.x
+		p.f = input.z // Note: Cannot be 0 for points in subgroup
+		p.g = input.z // Note: Cannot be 0 for points in subgroup
+		p.h = input.y
+	case *Point_axtw_full:
+		p.e = input.x
+		p.f.SetOne()
+		p.g.SetOne()
+		p.h = input.y
+	default:
+		p.e, p.f, p.h = input.XYZ_projective()
+		p.g = p.f
+	}
+	return true
+}
+
+func (p *Point_efgh_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+	if input.IsNaP() {
+		napEncountered("Converting NaP to efgh", false, input)
+		*p = Point_efgh_full{}
+		return false
+	}
+	if !trusted.V() {
+		if !input.IsInSubgroup() {
+			return false
+		}
+	}
+	p.SetFrom(input)
+	return true
+}
+
 func (p *Point_efgh_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {
 	switch input := input.(type) {
 	case *Point_efgh_subgroup:

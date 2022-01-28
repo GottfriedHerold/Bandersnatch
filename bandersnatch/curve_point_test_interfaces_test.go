@@ -12,16 +12,14 @@ var allBasePointTypes = []PointType{pointTypeXTWBase, pointTypeAXTWBase, pointTy
 
 func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
 	for _, pointType := range allBasePointTypes {
-		_, ok := MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceBaseRead)
-		if !ok {
-			t.Fatal("Base Point type not compatible with curvePointPtrInterfaceBaseRead")
-		}
+		// This will panic on failure
+		_ = makeCurvePointPtrInterfaceBase(pointType)
 	}
 
 	for _, pointType := range allTestPointTypes {
-		pointInstance, ok := MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterfaceTestSample)
+		pointInstance, ok := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
 		if !ok {
-			t.Fatal("Point type not compatible with curvePointPtrInterfaceTestSample " + PointTypeToString(pointType))
+			t.Fatal("Point type not compatible with curvePointPtrInterfaceTestSample " + pointTypeToString(pointType))
 		}
 		// Note that pointInstance is nil (of the appropriate type).
 		// So this also tests that certain functions can be called with nil receivers.

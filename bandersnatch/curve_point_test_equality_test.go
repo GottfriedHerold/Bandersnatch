@@ -26,7 +26,7 @@ func checkfun_recognize_equality(s *TestSample) (bool, string) {
 }
 
 func test_equality_properties(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
-	point_string := PointTypeToString(receiverType)
+	point_string := pointTypeToString(receiverType)
 	make_samples1_and_run_tests(t, checkfun_recognize_neutral, "Did not recognize neutral element for "+point_string, receiverType, 10, excludedFlags)
 	// make_samples1_and_run_tests(t, checkfun_recognize_neutral_exact, "Did not recognize exact neutral element for "+point_string, receiverType, 10, excludedFlags)
 	make_samples2_and_run_tests(t, checkfun_recognize_equality, "Did not recognize equality "+point_string, receiverType, receiverType, 10, excludedFlags)
@@ -35,7 +35,7 @@ func test_equality_properties(t *testing.T, receiverType PointType, excludedFlag
 		if type1 == receiverType {
 			continue // already checked
 		}
-		other_string := PointTypeToString(type1)
+		other_string := pointTypeToString(type1)
 		make_samples2_and_run_tests(t, checkfun_recognize_equality, "Did not recognize equality for "+point_string+" and "+other_string, receiverType, type1, 10, excludedFlags)
 		// make_samples2_and_run_tests(t, checkfun_recognize_equality_exact, "Did not recognize exact equality "+point_string, receiverType, type1, 10, excludedFlags)
 	}

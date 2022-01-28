@@ -19,6 +19,9 @@ type CurvePointPtrInterface interface {
 	CurvePointPtrInterfaceWrite // contains functions that do modify the receiver.
 }
 
+// TODO: Should we just copy&paste CurvePointPtrInterfaceBaseRead into CurvePointPtrInterfaceRead and
+// make CurvePointPtrInterfaceBaseRead unexported?
+
 // CurvePointPtrInterfaceRead is the read-part of the interface satisfied by all rational curve points.
 // Note that all types satisfying this must actually also (and are assumed to) satisfy CurvePointPtrInterfaceWrite -- The read/write distinction only exists to clarify data flow in function signatures.
 type CurvePointPtrInterfaceRead interface {
@@ -27,11 +30,11 @@ type CurvePointPtrInterfaceRead interface {
 	// functions to check for equality and query properties of points.
 	// NOTE: All these Is... methods returning bool MUST check for NaPs
 	IsNeutralElement() bool                  // checks whether the received point is the neutral element
-	IsNaP() bool                             // checks whether the received point is a NaP (unintialized point or result of computation with such)
+	IsNaP() bool                             // checks whether the received point is a NaP (uninitialized point or result of computation with such)
 	IsEqual(CurvePointPtrInterfaceRead) bool // checks whether the point is equal to another
 	IsInSubgroup() bool                      // checks whether the point is inside the subgroup
 	IsAtInfinity() bool                      // checks whether the point is at infinity
-	// Note: IsE1() bool and IsE2() bool are optionally also present (but really belong to CurvePointPtrInterfaceBaseRead)
+	// Note: IsE1() bool and IsE2() bool are optionally/mandatorily also present (see CurvePointPtrInterfaceDistinguishInfinity interface)
 
 	// Calls to other functions (even "read-only") are allowed to modify the internal representation to change to an equivalent point (and thereby change coordinates)
 	// Subsequent calls to <foo>_projective (with different foos) are guaranteed to be consistent only if there are no intermediate calls to functions other than those of the form <foo>_projective().
@@ -39,18 +42,18 @@ type CurvePointPtrInterfaceRead interface {
 	Y_projective() FieldElement                                 // gives the Y coordinate in projective twisted Edwards coordinates
 	Z_projective() FieldElement                                 // gives the Z coordinate in projective twisted Edwards coordinates
 	XYZ_projective() (FieldElement, FieldElement, FieldElement) // gives (X:Y:Z) coordinates in projective twisted Edwards coordinates. This is equivalent (but possibly MUCH more efficient) to calling each one of X_projective, Y_projective, Z_projective.
-	// Note: Types may optionally also provide T_projective and XYTZ_projective
+	// Note: Types may optionally also provide T_projective and XYTZ_projective (see CurvePointPtrInterfaceCooReadExtended interface)
 
 	// <foo>_affine give coordinates of the point in affine coordinates.
 	X_affine() FieldElement                  // gives the X=X/Z coordinate in affine twisted Edwards coordinates
 	Y_affine() FieldElement                  // gives the Y=Y/Z coordinate in affine twisted Edwards coordinates
 	XY_affine() (FieldElement, FieldElement) // gives both X and Y coordinates in affine twisted Edwards coordinates. This is equivalent to (but may be more efficient than) calling both X_affine and Y_affine.
-	// Note: Types may optionally also provide T_affine and XYT_affine
+	// Note: Types may optionally also provide T_affine and XYT_affine (see CurvePointPtrInterfaceCooReadExtended interface)
 }
 
 // CurvePointPtrInterfaceRead is the write-part of the interface satisfied by all rational curve points.
 // NOTE: All types satisfying this must actually also (and are assumed to) satisfy CurvePointPtrInterfaceRead -- The read/write distinction in the public interface only exists to clarify data flow in function signatures.
-// NOTE: The argument types do not have to be the same as the receiver types. However, if the receiver can only represent subgroup elements, then the arguments usually must as well (we panic otherwise).
+// NOTE: The argument types do not have to be the same as the receiver types. However, if the receiver can only represent subgroup elements, then the arguments usually must as well (we panic otherwise) unless specified otherwise.
 // NOTE: The arguments generally need to be pointers
 type CurvePointPtrInterfaceWrite interface {
 	// Note that all arguments are passed as pointers (or interface values containing pointers)
@@ -67,7 +70,8 @@ type CurvePointPtrInterfaceWrite interface {
 	Endo(CurvePointPtrInterfaceRead) // p.Endo(q) sets p to the result of applying the efficient degree-2 endomorphism of the Bandersnatch curve on q
 	EndoEq()                         // p.EndoEq() is shorthand for p.Endo(p)
 
-	SetFrom(CurvePointPtrInterfaceRead) // p.SetFrom(q) sets p to (a copy of) the value of q. This is also used to convert between types. Note that it cannot be used to convert from types that store arbitrary curve points to types that only store points on the prime-order subgroup.
+	SetFrom(CurvePointPtrInterfaceRead)                                        // p.SetFrom(q) sets p to (a copy of) the value of q. This is also used to convert between types. Note that it cannot be used to convert from types that store arbitrary curve points to types that only store points on the prime-order subgroup. Use SetFromSubgroupPoint for that.
+	SetFromSubgroupPoint(CurvePointPtrInterfaceRead, IsPointTrusted) (ok bool) // p.SetFromSubgroupPoint(q) ensures/assumes (depends on second argment) that q is inside the prime-order subgroup and sets p to a copy of q. If q is not in the subgroup and we check it, does not change p. This method works even if the types of p and q differ in whether they can represent curve points outside the prime-order subgroup.
 }
 
 // Point_xtw_Full and Point_xtw_subgroup actually embed a joint Point_xtw_base type (dito with the other coordinate types).
@@ -80,7 +84,7 @@ type CurvePointPtrInterfaceWrite interface {
 // even if we do not know whether the internal representation works modulo A or not.
 // This interface is used internally to avoid some code duplication.
 type CurvePointPtrInterfaceBaseRead interface {
-	fmt.Stringer // aka String() string. Used for debugging, mostly. Note that String() is defined on the VALUE receiver, actually.
+	fmt.Stringer // aka String() string. Used for debugging, mostly. Note that we define String() on the VALUE receiver for our types, actually.
 	Cloneable    // aka Clone() interface{}. Used to make copies of points via pointers.
 
 	// These functions do not depend on the actual receiver argument and work with nil receivers.

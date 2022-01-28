@@ -6,10 +6,10 @@ import "testing"
 func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		sampleType := GetPointType(s.Points[0])
+		sampleType := getPointType(s.Points[0])
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		var infinite bool = s.AnyFlags().CheckFlag(Case_infinite)
-		var result = MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		var result = makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
 		// var result2 = MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
 		result.Endo(s.Points[0])
 
@@ -85,11 +85,11 @@ func make_checkfun_endo_homomorphic(receiverType PointType) (returned_function c
 			}
 		}
 
-		endo1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		endo2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		sum := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result1 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
-		result2 := MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
+		endo1 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
+		endo2 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
+		sum := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
+		result1 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
+		result2 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
 		endo1.Endo(s.Points[0])
 		endo2.Endo(s.Points[1])
 		sum.Add(s.Points[0], s.Points[1])
@@ -117,8 +117,8 @@ func checkfun_endo_action(s *TestSample) (bool, string) {
 	var good_subgroup = !(s.AnyFlags().CheckFlag(Case_outside_goodgroup | Case_random))
 	var random = s.AnyFlags().CheckFlag(Case_random)
 	// var good_subgroup = !(s.AnyFlags().CheckFlag(Case_outside_goodgroup) || s.AnyFlags().CheckFlag(Case_infinite))
-	pointType := GetPointType(s.Points[0])
-	result1 := MakeCurvePointPtrInterfaceFromType(pointType).(CurvePointPtrInterface)
+	pointType := getPointType(s.Points[0])
+	result1 := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterface)
 	result1.Endo(s.Points[0])
 	if result1.IsNaP() != singular {
 		return false, "Running Endo_FullCurve resulted in different NaP-status than the argument"
@@ -176,7 +176,7 @@ func checkfun_endo_action(s *TestSample) (bool, string) {
 }
 
 func test_endomorphism_properties(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
-	point_string := PointTypeToString(receiverType)
+	point_string := pointTypeToString(receiverType)
 	// var type1, type2 PointType
 
 	make_samples1_and_run_tests(t, make_checkfun_endo_sane(receiverType), "Endomorphism did not pass sanity checks"+point_string, receiverType, 10, excludedFlags)

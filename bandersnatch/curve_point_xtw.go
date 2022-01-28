@@ -83,7 +83,8 @@ var example_generator_xtw point_xtw_base = func() (ret point_xtw_base) {
 
 // NeutralElement_<foo> denotes the Neutral Element of the Bandersnatch curve in <foo> coordinates.
 var (
-	NeutralElement_xtw point_xtw_base = point_xtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero, z: FieldElementOne}
+	neutralElement_xtwbase point_xtw_base     = point_xtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero, z: FieldElementOne}
+	NeutralElement_xtw     Point_xtw_subgroup = Point_xtw_subgroup{point_xtw_base: neutralElement_xtwbase}
 )
 
 // These are the three points of order 2 that we can represent with extended twisted coordinates. None of these is in the p253-subgroup, of course.
@@ -465,7 +466,7 @@ func (p *Point_xtw_full) IsNeutralElement() bool {
 
 // SetNeutral sets the Point P to the neutral element of the curve.
 func (p *point_xtw_base) SetNeutral() {
-	*p = NeutralElement_xtw
+	*p = neutralElement_xtwbase
 }
 
 // IsNaP checks whether the point is singular (x==y==0, indeed most likely x==y==t==z==0). Singular points must never appear if the library is used correctly. They can appear by
@@ -705,6 +706,55 @@ func (p *point_xtw_base) DoubleEq() {
 func (p *point_xtw_base) NegEq() {
 	p.x.NegEq()
 	p.t.NegEq()
+}
+
+func (p *Point_xtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+	if input.IsNaP() {
+		napEncountered("Converting NaP to xtw via SetFromSubgroupPoint", false, input)
+		*p = Point_xtw_subgroup{}
+		return false
+	}
+	if input.CanOnlyRepresentSubgroup() {
+		p.SetFrom(input)
+		return true
+	}
+	if !trusted.V() {
+		if !input.IsInSubgroup() {
+			return false
+		}
+	}
+	switch input := input.(type) {
+	case *Point_xtw_full:
+		p.point_xtw_base = input.point_xtw_base
+	case *Point_axtw_full:
+		p.x = input.x
+		p.y = input.y
+		p.t = input.t
+		p.z.SetOne()
+	case *Point_efgh_full:
+		p.point_xtw_base = input.ToDecaf_xtw()
+	default:
+		p.x = input.X_decaf_projective()
+		p.y = input.Y_decaf_projective()
+		p.t = input.T_decaf_projective()
+		p.z = input.Z_decaf_projective()
+	}
+	return true
+}
+
+func (p *Point_xtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+	if input.IsNaP() {
+		napEncountered("Converting NaP point to xtw subgroup point", false, input)
+		*p = Point_xtw_full{}
+		return false
+	}
+	if !trusted.V() {
+		if !input.IsInSubgroup() {
+			return false
+		}
+	}
+	p.SetFrom(input)
+	return true
 }
 
 func (p *Point_xtw_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {

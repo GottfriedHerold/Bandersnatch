@@ -62,7 +62,7 @@ func (out *point_xtw_base) exp_naive_xx(p *point_xtw_base, exponent *big.Int) {
 
 	// actual square-and-multiply algorithm. We process bits from msb to lsb.
 	bitlen := absexponent.BitLen()
-	var accumulator point_xtw_base = NeutralElement_xtw
+	var accumulator point_xtw_base = neutralElement_xtwbase
 	for i := bitlen - 1; i >= 0; i-- {
 		accumulator.DoubleEq()
 		if absexponent.Bit(i) == 1 {

@@ -322,6 +322,56 @@ func (p Point_axtw_subgroup) String() (ret string) {
 	return
 }
 
+func (p *Point_axtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+	if input.IsNaP() {
+		napEncountered("Converting NaP point to affine subgroup point", false, input)
+		*p = Point_axtw_subgroup{}
+		return false
+	}
+	if input.CanOnlyRepresentSubgroup() {
+		p.SetFrom(input)
+		return true
+	}
+
+	if !trusted.V() {
+		if !input.IsInSubgroup() {
+			return false
+		}
+	}
+	switch input := input.(type) {
+	case *Point_efgh_full:
+		p.point_axtw_base = input.ToDecaf_axtw()
+	case *Point_xtw_full:
+		input.normalizeAffineZ()
+		p.x = input.x
+		p.y = input.y
+		p.t = input.t
+	case *Point_axtw_full:
+		p.point_axtw_base = input.point_axtw_base
+	case CurvePointPtrInterfaceCooReadExtended:
+		p.x, p.y, p.t = input.XYT_affine()
+	default:
+		p.x, p.y = input.XY_affine()
+		p.t.Mul(&p.x, &p.y)
+	}
+	return true
+}
+
+func (p *Point_axtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+	if input.IsNaP() {
+		napEncountered("Converting NaP point to affine subgroup point", false, input)
+		*p = Point_axtw_full{}
+		return false
+	}
+	if !trusted.V() {
+		if !input.IsInSubgroup() {
+			return false
+		}
+	}
+	p.SetFrom(input)
+	return true
+}
+
 // SetFrom initializes the point from the given input point (which may have a different coordinate format)
 func (p *Point_axtw_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {
 	switch input := input.(type) {
