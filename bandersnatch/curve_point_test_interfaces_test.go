@@ -21,7 +21,7 @@ func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
 		if !ok {
 			t.Fatal("Point type not compatible with curvePointPtrInterfaceTestSample " + pointTypeToString(pointType))
 		}
-		// Note that pointInstance is nil (of the appropriate type).
+		// Note that pointInstance is a nil pointer (of the appropriate type).
 		// So this also tests that certain functions can be called with nil receivers.
 
 		// TODO: This might go away together with CanRepresentInfinity.
@@ -31,14 +31,6 @@ func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
 				t.Fatal("Curve point type can represent infinity, but does not provide interface to distinguish")
 			}
 		}
-
-		if pointInstance.HasDecaf() {
-			_, ok = pointInstance.(curvePointPtrInterfaceDecaf)
-			if !ok {
-				t.Fatal("Curve point type has HasDecaf() true, but type type does not satisfy interface")
-			}
-		}
-
 	}
 
 }

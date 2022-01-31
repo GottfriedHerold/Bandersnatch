@@ -24,22 +24,14 @@ var _ CurvePointPtrInterfaceRead = &Point_xtw_full{}
 var _ CurvePointPtrInterfaceWrite = &Point_xtw_subgroup{}
 var _ CurvePointPtrInterfaceWrite = &Point_xtw_full{}
 
-/*
-var _ rerandomizeable = &point_efgh_base{}
-var _ rerandomizeable = &Point_efgh_subgroup{}
-var _ rerandomizeable = &Point_efgh_full{}
-var _ rerandomizeable = &point_xtw_base{}
-var _ rerandomizeable = &Point_xtw_full{}
-var _ rerandomizeable = &Point_xtw_subgroup{}
-var _ rerandomizeable = &point_axtw_base{}
-var _ rerandomizeable = &Point_axtw_subgroup{}
-var _ rerandomizeable = &Point_axtw_full{}
-*/
-
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_xtw_full{}
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_xtw_subgroup{}
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_efgh_full{}
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_efgh_subgroup{}
+
+// TODO: Satisfy this
+// var _ CurvePointPtrInterfaceCooReadExtended = &Point_axtw_full{}
+// var _ CurvePointPtrInterfaceCooReadExtended = &Point_axtw_subgroup{}
 
 var _ CurvePointPtrInterfaceDistinguishInfinity = &Point_efgh_full{}
 var _ CurvePointPtrInterfaceDistinguishInfinity = &Point_xtw_full{}

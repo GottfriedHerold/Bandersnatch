@@ -72,6 +72,7 @@ var (
 
 // squareRootDByA is a square root of d/a. Due to the way the bandersnatch curve was constructed, we have (sqrt(d/a) + 1)^2 == 2.
 // This number appears in coordinates of the order-2 points at inifinity and in the formulae for the endomorphism.
+// Note that there are two square roots of d/a; be sure to make consistent choices.
 const (
 	squareRootDByA        = 37446463827641770816307242315180085052603635617490163568005256780843403514038
 	squareRootDByA_string = "37446463827641770816307242315180085052603635617490163568005256780843403514038"
@@ -117,7 +118,8 @@ var (
 // in order to have better understandable semantics
 // Golang does not have enum types, sadly, so we need to use structs: declaring a "type InPointTrusted bool" would cause Deserialze(..., true, ...)  to actually work due to implicit conversion.
 
-// IsPointTrusted is a struct encapsulating a bool. This is used to enforce better readable semantics in arguments.
+// IsPointTrusted is a struct encapsulating a bool controlling whether some input is trusted or not.
+// This is used to enforce better readable semantics in arguments.
 // Users should use the predefined values TrustedInput and UntrustedInput of this type.
 type IsPointTrusted struct {
 	v bool

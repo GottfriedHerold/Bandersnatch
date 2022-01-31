@@ -1,11 +1,98 @@
 package bandersnatch
 
+import (
+	"reflect"
+	"testing"
+)
+
 /*
 	This file contains tests that ensure that different implementations of the CurvePointPtrInterface interface agree with each other.
-	For this we check that everything commutes with conversion to ExtendedTwistedEdwards.
-
-	Note that these checks are quite redundant with other tests, actually. Still, we keep them to be sure.
 */
+
+func TestConsistency(t *testing.T) {
+	for _, referenceType := range allTestPointTypes {
+		refTypeString := pointTypeToString(referenceType)
+		for _, sampleType1 := range allTestPointTypes {
+			make_samples1_and_run_tests(t, make_checkfun_consistency_queries(referenceType), "consistency checks for type "+refTypeString, sampleType1, 30, excludeNoPoints)
+		}
+	}
+}
+
+// check whether IsNaP, IsAtInfinity, IsInSubgroup, IsE1, IsE2 and affine coordinates
+// remain consistent when converting to reference type. Note that depending on the sample,
+// not all checks are done, since converting points at infinity / not in the subgroup might not be possible.
+func make_checkfun_consistency_queries(referenceType PointType) (returned_function checkfunction) {
+	returned_function = func(s *TestSample) (bool, string) {
+		s.AssertNumberOfPoints(1)
+		singular := s.AnyFlags().CheckFlag(Case_singular)
+		subgroup := !singular && s.Points[0].IsInSubgroup()
+		infinite := !singular && s.AnyFlags().CheckFlag(Case_infinite)
+		sampleType := getPointType(s.Points[0])
+		if infinite && !typeCanRepresentInfinity(referenceType) {
+			return true, "skipped"
+		}
+		if typeCanOnlyRepresentSubgroup(referenceType) && !subgroup {
+			return true, "skipped"
+		}
+		conv := makeCurvePointPtrInterface(referenceType)
+		if singular {
+			conv.SetFrom(s.Points[0])
+			return conv.IsNaP(), "NaP-ness not preserved under conversion"
+		}
+		if typeCanOnlyRepresentSubgroup(referenceType) && !typeCanOnlyRepresentSubgroup(sampleType) {
+			ok := conv.SetFromSubgroupPoint(s.Points[0].Clone().(CurvePointPtrInterfaceRead), UntrustedInput)
+			if !ok {
+				panic("Conversion to subgroup failed unexpectedly")
+			}
+		} else {
+			conv.SetFrom(s.Points[0].Clone().(CurvePointPtrInterfaceRead))
+		}
+
+		var ans1, ans2 interface{}
+		funsByName := []string{"IsAtInfinity", "IsNeutralElement", "IsInSubgroup"}
+		if !infinite {
+			funsByName = append(funsByName, "X_affine", "Y_affine")
+			_, ok1 := s.Points[0].(CurvePointPtrInterfaceCooReadExtended)
+			_, ok2 := conv.(CurvePointPtrInterfaceCooReadExtended)
+			if ok1 && ok2 {
+				funsByName = append(funsByName, "T_affine")
+			}
+		}
+		_, ok1 := s.Points[0].(CurvePointPtrInterfaceDistinguishInfinity)
+		_, ok2 := conv.(CurvePointPtrInterfaceDistinguishInfinity)
+		if ok1 && ok2 && typeCanRepresentInfinity(sampleType) && typeCanRepresentInfinity(referenceType) {
+			funsByName = append(funsByName, "IsE1", "IsE2")
+		}
+		for _, funname := range funsByName {
+			clone := s.Points[0].Clone() // no type assertion needed here.
+			convClone := conv.Clone()    // no type assertion needed here.
+			cloneReflected := reflect.ValueOf(clone)
+			convReflected := reflect.ValueOf(convClone)
+			method1 := cloneReflected.MethodByName(funname)
+			method2 := convReflected.MethodByName(funname)
+			if !method1.IsValid() || !method2.IsValid() {
+				panic("Invalid function name " + funname + ". This test uses reflect.MethodByName, so refactoring of method names needs to be adjusted here.")
+			}
+			var emptyargs []reflect.Value = make([]reflect.Value, 0)
+			ans1 = method1.Call(emptyargs)[0].Interface()
+			ans2 = method2.Call(emptyargs)[0].Interface()
+			var good bool
+			switch ans1 := ans1.(type) {
+			case FieldElement:
+				ans2conv := ans2.(FieldElement)
+				good = ans1.IsEqual(&ans2conv)
+			default:
+				good = (ans1 == ans2)
+			}
+			if !good {
+				s.Log(ans1, ans2)
+				return false, "Method inconstinent for method " + funname
+			}
+		}
+		return true, ""
+	}
+	return returned_function
+}
 
 /*
 

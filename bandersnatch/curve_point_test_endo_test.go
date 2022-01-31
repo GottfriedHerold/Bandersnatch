@@ -2,14 +2,50 @@ package bandersnatch
 
 import "testing"
 
+func TestAllEndomorphismProperties(t *testing.T) {
+	for _, receiverType := range allTestPointTypes {
+		test_endomorphism_properties(t, receiverType, excludeNoPoints)
+	}
+}
+
+func test_endomorphism_properties(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
+	point_string := pointTypeToString(receiverType)
+	// var type1, type2 PointType
+
+	make_samples1_and_run_tests(t, make_checkfun_endo_sane(receiverType), "Endomorphism did not pass sanity checks"+point_string, receiverType, 50, excludedFlags)
+	for _, type1 := range allTestPointTypes {
+		if type1 == receiverType {
+			continue
+		}
+		if typeCanOnlyRepresentSubgroup(receiverType) && !typeCanOnlyRepresentSubgroup(type1) {
+			continue
+		}
+		make_samples1_and_run_tests(t, make_checkfun_endo_sane(receiverType), "Endomorphism did not pass sanity checks"+point_string, type1, 50, excludedFlags)
+		make_samples1_and_run_tests(t, make_checkfun_endo_nontrivial(receiverType), "Nontriviality of Endomorphism failed for "+point_string, type1, 50, excludeNoPoints)
+	}
+
+	make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, receiverType, receiverType, 50, excludedFlags|Case_singular)
+	for _, type1 := range allTestPointTypes {
+		for _, type2 := range allTestPointTypes {
+			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type1) || !typeCanOnlyRepresentSubgroup(type2)) {
+				continue
+			}
+			make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, type1, type2, 50, excludedFlags|Case_singular)
+		}
+	}
+	make_samples1_and_run_tests(t, checkfun_endo_action, "Endomorphism does not act as intended "+point_string, receiverType, 50, excludedFlags)
+
+}
+
 // This function checks whether the endomorphism factors through P vs P+A.
+// Also checks that the result of the endomorphism is in the correct subgroup (p253+{N,A}) and that it acts correctly on 2-torsion.
 func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		sampleType := getPointType(s.Points[0])
 		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
 		var infinite bool = s.AnyFlags().CheckFlag(Case_infinite)
-		var result = makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
+		var result = makeCurvePointPtrInterface(receiverType)
 		// var result2 = MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
 		result.Endo(s.Points[0])
 
@@ -25,8 +61,11 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 			return false, "Endo(P) resulted in NaP for non-NaP P"
 		}
 
-		if !result.(validateable).Validate() {
-			return false, "Endo(P) is not on curve"
+		resultValidateable, ok := result.(validateable)
+		if ok {
+			if !resultValidateable.Validate() {
+				return false, "Endo(P) is not on curve"
+			}
 		}
 
 		resultClone := result.Clone().(CurvePointPtrInterface)
@@ -64,6 +103,27 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 	}
 }
 
+// checks that Endo is non-trivial
+func make_checkfun_endo_nontrivial(receiverType PointType) (returned_function checkfunction) {
+	returned_function = func(s *TestSample) (bool, string) {
+		s.AssertNumberOfPoints(1)
+		if s.AnyFlags().CheckFlag(Case_singular) {
+			return true, "skipped"
+		}
+		neutralResultExpected := s.AnyFlags().CheckFlag(Case_zero_moduloA)
+		receiver := makeCurvePointPtrInterface(receiverType)
+		receiver.Endo(s.Points[0])
+		if !neutralResultExpected && receiver.IsNeutralElement() {
+			return false, "Endo unexpectedly resulted in neutral element"
+		}
+		if neutralResultExpected && !receiver.IsNeutralElement() {
+			return false, "Endo unexpectedly did not result in neutral element"
+		}
+		return true, ""
+	}
+	return returned_function
+}
+
 // checks whether Endo(P) + Endo(Q) == Endo(P+Q)
 func make_checkfun_endo_homomorphic(receiverType PointType) (returned_function checkfunction) {
 	returned_function = func(s *TestSample) (bool, string) {
@@ -85,11 +145,11 @@ func make_checkfun_endo_homomorphic(receiverType PointType) (returned_function c
 			}
 		}
 
-		endo1 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
-		endo2 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
-		sum := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
-		result1 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
-		result2 := makeCurvePointPtrInterface(receiverType).(CurvePointPtrInterface)
+		endo1 := makeCurvePointPtrInterface(receiverType)
+		endo2 := makeCurvePointPtrInterface(receiverType)
+		sum := makeCurvePointPtrInterface(receiverType)
+		result1 := makeCurvePointPtrInterface(receiverType)
+		result2 := makeCurvePointPtrInterface(receiverType)
 		endo1.Endo(s.Points[0])
 		endo2.Endo(s.Points[1])
 		sum.Add(s.Points[0], s.Points[1])
@@ -118,7 +178,7 @@ func checkfun_endo_action(s *TestSample) (bool, string) {
 	var random = s.AnyFlags().CheckFlag(Case_random)
 	// var good_subgroup = !(s.AnyFlags().CheckFlag(Case_outside_goodgroup) || s.AnyFlags().CheckFlag(Case_infinite))
 	pointType := getPointType(s.Points[0])
-	result1 := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterface)
+	result1 := makeCurvePointPtrInterface(pointType)
 	result1.Endo(s.Points[0])
 	if result1.IsNaP() != singular {
 		return false, "Running Endo_FullCurve resulted in different NaP-status than the argument"
@@ -173,47 +233,4 @@ func checkfun_endo_action(s *TestSample) (bool, string) {
 		}
 	}
 	return true, ""
-}
-
-func test_endomorphism_properties(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
-	point_string := pointTypeToString(receiverType)
-	// var type1, type2 PointType
-
-	make_samples1_and_run_tests(t, make_checkfun_endo_sane(receiverType), "Endomorphism did not pass sanity checks"+point_string, receiverType, 10, excludedFlags)
-	for _, type1 := range allTestPointTypes {
-		if type1 == receiverType {
-			continue
-		}
-		if typeCanOnlyRepresentSubgroup(receiverType) && !typeCanOnlyRepresentSubgroup(type1) {
-			continue
-		}
-		make_samples1_and_run_tests(t, make_checkfun_endo_sane(receiverType), "Endomorphism did not pass sanity checks"+point_string, type1, 10, excludedFlags)
-	}
-
-	make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, receiverType, receiverType, 10, excludedFlags|Case_singular)
-	for _, type1 := range allTestPointTypes {
-		for _, type2 := range allTestPointTypes {
-			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type1) || !typeCanOnlyRepresentSubgroup(type2)) {
-				continue
-			}
-			make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, type1, type2, 10, excludedFlags|Case_singular)
-		}
-	}
-	make_samples1_and_run_tests(t, checkfun_endo_action, "Endomorphism does not act as intended "+point_string, receiverType, 10, excludedFlags)
-
-}
-
-func TestEndomorphismPropertiesForXTW(t *testing.T) {
-	test_endomorphism_properties(t, pointTypeXTWFull, excludeNoPoints)
-	test_endomorphism_properties(t, pointTypeXTWSubgroup, excludeNoPoints)
-}
-
-func TestEndomorphismPropertiesForAXTW(t *testing.T) {
-	test_endomorphism_properties(t, pointTypeAXTWFull, excludeNoPoints)
-	test_endomorphism_properties(t, pointTypeAXTWSubgroup, excludeNoPoints)
-}
-
-func TestEndomorphismPropertiesForEFGH(t *testing.T) {
-	test_endomorphism_properties(t, pointTypeEFGHFull, excludeNoPoints)
-	test_endomorphism_properties(t, pointTypeEFGHSubgroup, excludeNoPoints)
 }

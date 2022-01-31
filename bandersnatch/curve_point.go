@@ -26,6 +26,7 @@ type CurvePointPtrInterface interface {
 // Note that all types satisfying this must actually also (and are assumed to) satisfy CurvePointPtrInterfaceWrite -- The read/write distinction only exists to clarify data flow in function signatures.
 type CurvePointPtrInterfaceRead interface {
 	CurvePointPtrInterfaceBaseRead // contains functions that are Decaf-invariant and are concerned with internal storage. Having these in a separate interface is mostly to avoid code-duplication.
+	Clone() CurvePointPtrInterface
 
 	// functions to check for equality and query properties of points.
 	// NOTE: All these Is... methods returning bool MUST check for NaPs
@@ -85,7 +86,7 @@ type CurvePointPtrInterfaceWrite interface {
 // This interface is used internally to avoid some code duplication.
 type CurvePointPtrInterfaceBaseRead interface {
 	fmt.Stringer // aka String() string. Used for debugging, mostly. Note that we define String() on the VALUE receiver for our types, actually.
-	Cloneable    // aka Clone() interface{}. Used to make copies of points via pointers.
+	// Clone() CurvePointPtrInterfaceBaseRead -- this is present, but not part of the interface, because of limitations of Go.
 
 	// These functions do not depend on the actual receiver argument and work with nil receivers.
 	// TODO: replace by test for presence of IsE1?
@@ -148,7 +149,6 @@ type CurvePointPtrInterfaceCooReadExtended interface {
 // These add some requirements in addition to CurvePointPtrInterface. -- Note that all of those are only used in testing.
 type CurvePointPtrInterfaceTestSample interface {
 	CurvePointPtrInterface
-	HasDecaf() bool // if true, flipDecaf() must exist AND not change semantics.
 	testSampleable
 	validateable
 	rerandomizeable
@@ -165,10 +165,11 @@ type CurvePointPtrInterfaceTestSample interface {
 }
 
 // curvePointPtrInterfaceDecaf checks for the presence of a flipDecaf method. This method changes the representation P -> P+A.
-// Note that flipDecaf is an internal function and might actually change semantics for a given type due to begin define on *_base types.
-// Only if the HasDecaf() method returns true for the given type, then flipDecaf must exist and NOT change semantics.
+// Note that flipDecaf is an internal function; the need to query this interface only arises in (generic) testing.
+// Note that due to struct embedding, we might potentially be forced to have a flipDecaf() method where it is not meaningful. In this case HasDecaf() should return false and flipDecaf should do nothing.
 type curvePointPtrInterfaceDecaf interface {
-	flipDecaf()
+	HasDecaf() bool // if true, flipDecaf is meaningful and actually does not change semantics.
+	flipDecaf()     // changes the internal representation to an equivalent one (when the internal workings of a type are modulo A, change P-> P+A)
 }
 
 // sampleableNaP is the interface satisfied by curve point types that allow sampling random NaPs

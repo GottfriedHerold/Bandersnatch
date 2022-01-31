@@ -418,17 +418,17 @@ func (p *Point_xtw) ExtendedTwistedEdwards() Point_xtw {
 }
 */
 
-func (p *point_xtw_base) Clone() interface{} {
+func (p *point_xtw_base) Clone() CurvePointPtrInterfaceBaseRead {
 	p_copy := *p
 	return &p_copy
 }
 
-func (p *Point_xtw_full) Clone() interface{} {
+func (p *Point_xtw_full) Clone() CurvePointPtrInterface {
 	p_copy := *p
 	return &p_copy
 }
 
-func (p *Point_xtw_subgroup) Clone() interface{} {
+func (p *Point_xtw_subgroup) Clone() CurvePointPtrInterface {
 	p_copy := *p
 	return &p_copy
 }

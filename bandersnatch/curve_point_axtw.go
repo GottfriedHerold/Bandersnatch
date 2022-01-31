@@ -4,6 +4,11 @@ import (
 	"math/rand"
 )
 
+// point_axtw_base is a struct holding x,y,t values that can be used to represent an elliptic curve point on the Bandersnatch curve.
+// Note that this is just a container for coordinates. It (or pointers to it) does not satisfy the CurvePointPtrInterface.
+// Indeed, there is the question how to interpret x,y,t coordinates as coos of a point and depending on context, we
+// either work modulo A or not.
+// We use struct embedding to create point_axtw_subgroup and point_axtw_full from it.
 type point_axtw_base struct {
 	thisCurvePointCannotRepresentInfinity
 	thisCurvePointCanRepresentFullCurve
@@ -12,179 +17,280 @@ type point_axtw_base struct {
 	t FieldElement
 }
 
-// Point_axtw describes points on the p253-subgroup of the Bandersnatch curve in affine extended twisted Edwards coordinates.
+// Point_axtw_subgroup describes points on the p253-subgroup of the Bandersnatch curve in affine extended twisted Edwards coordinates.
 // Extended means that we additionally store T with T = X*Y.
-// a Point_axtw with coos x:y:t corresponds to a Point_xtw with coos x:y:t:1 (i.e. with z==1). Note that on the p253 subgroup, all points have z!=0 (and also y!=0).
+// This type can only hold elements from the p253 subgroup.
 type Point_axtw_subgroup struct {
 	thisCurvePointCanOnlyRepresentSubgroup
+	// This stores x,y,t coordinate.
+	// IMPORTANT:
 	point_axtw_base
 }
 
+// Point_axtw_full describes a non-inifinite rational point of the Bandersnatch elliptic curve in affine extended twisted Edwards coordinates.
+// Extended means that we additionally store T with T = X*Y.
+// Note that, being a twisted Edwards curve, the neutral element is NOT at infinity.
+// The two rational points that cannot be represented are 2-torsion points outside the prime-order subgroup.
+// Performing operations that would store a point at infinity of this type result in a panic.
 type Point_axtw_full struct {
 	point_axtw_base
 }
 
-// NeutralElement_axtw denotes the Neutral Element of the Bandersnatch curve in affine extended twisted Edwards coordinates.
-var NeutralElement_axtw point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero}
-var OrderTwoPoint_axtw point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero}
+// neutralElement_axtwbase are coordinates of the neutral element in axtw form.
+var neutralElement_axtwbase point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero}
 
-func (p *point_axtw_base) normalizeSubgroup() {
+// affineOrderTwoPoint_axtwbase is the affine point of order two
+var affineOrderTwoPoint_axtwbase point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementMinusOne, t: FieldElementZero}
+
+// NeutralElement_axtw_full denotes the neutral element of the Bandersnatch curve (with type Point_axtw_full).
+var NeutralElement_axtw_full Point_axtw_full = Point_axtw_full{point_axtw_base: neutralElement_axtwbase}
+
+// NeutralElement_axtw_subgroup denotes the neutral element of the Bandersnatch curve (with type Point_axtw_subgroup).
+var NeutralElement_axtw_subgroup Point_axtw_subgroup = Point_axtw_subgroup{point_axtw_base: neutralElement_axtwbase}
+
+// AffineOrderTwoPoint_axtw denotes the affine point of order two of the Bandersnatch curve (with type Point_axtw_full). This point is not on the p253 prime order subgroup.
+var AffineOrderTwoPoint_axtw Point_axtw_full = Point_axtw_full{point_axtw_base: affineOrderTwoPoint_axtwbase}
+
+// normalizeSubgroup changes the internal representation of p, such that the coordinates of p
+// corresponds exactly to p (without working modulo the affine two-torsion point).
+func (p *Point_axtw_subgroup) normalizeSubgroup() {
 	if !legendreCheckE1_affineY(p.y) {
 		p.flipDecaf()
 	}
 }
 
-func (p *Point_axtw_full) normalizeSubgroup() {
-	panic("Calling normalize subgroup on Point_axtw_full (included via struct embedding). This is probably a mistake.")
-}
+// might define on point_axtw_base
 
-func (p *point_axtw_base) flipDecaf() {
+// flipDecaf changes the internal representation of P from P to P+A or vice versa (note that we work modulo A).
+// flipDecaf is needed to satisfy the (optional) curvePointPtrInterfaceDecaf interface that is recognized by the testing framework.
+func (p *Point_axtw_subgroup) flipDecaf() {
 	p.x.NegEq()
 	p.y.NegEq()
 }
 
+// TODO: Might go away from requirements completely.
+
+// NOTE: point_axtw_full and point_axtw_base get HasDecaf from struct-embedded thisCurvePointCanRepresentFullCurve
+
+// HasDecaf needs to return true for flipDecaf to be recognized by the testing framework.
 func (p *Point_axtw_subgroup) HasDecaf() bool {
 	return true
 }
 
+// rerandomizeRepresentation is needed to satisfy the CurvePointPtrInterfaceTestSample interface for testing. It changes the internal representation to an equivalent one.
 func (p *point_axtw_base) rerandomizeRepresentation(rnd *rand.Rand) {
-	// do nothing
+	// do nothing: The representation is actually unique (up to internal representation of field elements)
+	// TODO: Rerandomize field elements?
 }
 
+// rerandomizeRepresentation is needed to satisfy the CurvePointPtrInterfaceTestSample interface for testing. It changes the internal representation to an equivalent one.
 func (p *Point_axtw_subgroup) rerandomizeRepresentation(rnd *rand.Rand) {
 	if rnd.Intn(2) == 0 {
 		p.flipDecaf()
 	}
 }
 
-// Note: The general CurvePointPtrInterface ask that calls to <foo>_projective and <foo>_affine must
-// note be interleaved with other calls. This warning is omitted here, as it actually does not apply to Point_axtw.
-
-// X_projective returns the X coordinate of the given point P in projective twisted Edwards coordinates.
-// Since Point_axtw stores affine coordinates, this is the same as X_affine()
+// X_projective returns the X coordinate of the given point in projective twisted Edwards coordinates.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
 func (p *Point_axtw_subgroup) X_projective() FieldElement {
+	// Since Point_axtw stores affine coordinates, this is the same as X_affine()
 	p.normalizeSubgroup()
 	return p.x
 }
 
+// X_projective returns the X coordinate of the given point in projective twisted Edwards coordinates.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
 func (p *Point_axtw_full) X_projective() FieldElement {
 	return p.x
 }
 
+// X_decaf_projective returns the X coordinate of either P or P+A in projective twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_projective methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_projective methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_affine methods.
+// Note: If P has extended projective Edwards coordinates X:Y:T:Z, then P+A has coordinates -X:-Y:T:Z == X:Y:-T:-Z
 func (p *point_axtw_base) X_decaf_projective() FieldElement {
 	return p.x
 }
 
-// Y_projective returns the Y coordinate of the given point P in projective twisted Edwards coordinates.
-// Since Point_axtw stores affine coordinates, this is the same as Y_affine()
+// Y_projective returns the Y coordinate of the given point in projective twisted Edwards coordinates.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
 func (p *Point_axtw_subgroup) Y_projective() FieldElement {
 	p.normalizeSubgroup()
 	return p.y
 }
 
+// Y_projective returns the Y coordinate of the given point in projective twisted Edwards coordinates.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
 func (p *Point_axtw_full) Y_projective() FieldElement {
 	return p.y
 }
 
+// Y_decaf_projective returns the Y coordinate of either P or P+A in projective twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_projective methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_projective methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_affine methods.
+// Note: If P has extended projective Edwards coordinates X:Y:T:Z, then P+A has coordinates -X:-Y:T:Z == X:Y:-T:-Z
 func (p *point_axtw_base) Y_decaf_projective() FieldElement {
 	return p.y
 }
 
-// T_projective returns the T=X*Y coordinate of the given point P in projective twisted Edwards coordinates.
+// T_projective returns the T coordinate of the given point in projective twisted Edwards coordinates. This coordinate satisfies X*Y = T*Z.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
 func (p *Point_axtw_subgroup) T_projective() FieldElement {
 	p.normalizeSubgroup()
 	return p.t
 }
 
+// T_projective returns the T coordinate of the given point in projective twisted Edwards coordinates. This coordinate satisfies X*Y = T*Z.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
 func (p *Point_axtw_full) T_projective() FieldElement {
 	return p.t
 }
 
+// T_decaf_projective returns the T coordinate of either P or P+A in projective twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_projective methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_projective methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_affine methods.
+// Note: If P has extended projective Edwards coordinates X:Y:T:Z, then P+A has coordinates -X:-Y:T:Z == X:Y:-T:-Z
 func (p *point_axtw_base) T_decaf_projective() FieldElement {
 	return p.t
 }
 
-// Z_projective returns the Z coordinate of the given point P in projective twisted Edwards coordinates.
-// Since Point_axtw stores affine coordinates, this always returns 1.
+// Z_projective returns the Z coordinate of the given point in projective twisted Edwards coordinates.
+// CAVEAT: Subsequent calls to any <foo>_projective methods on the same point are only guaranteed to be consistent if nothing else is done with the point between the calls.
+// This includes that you may not be able to use the point as argument to even seemingly read-only methods, as these might touch the redundant internal representation.
+// For Point_axtw_full and Point_axtw_subgroup, this always returns 1.
 func (p *point_axtw_base) Z_projective() FieldElement {
 	return FieldElementOne
 }
 
+// Z_decaf_projective returns the Z coordinate of either P or P+A in projective twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_projective methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_projective methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_affine methods.
+// Note: If P has extended projective Edwards coordinates X:Y:T:Z, then P+A has coordinates -X:-Y:T:Z == X:Y:-T:-Z
+// For Point_axt_subgroup and Point_axtw_full, Z_decaf_projective always returns 1.
 func (p *point_axtw_base) Z_decaf_projective() FieldElement {
 	return FieldElementOne
 }
 
+// XYZ_projective returns X,Y and Z coordinates in projective twisted Edwards coordinates in a single call.
+// It is equivalent to calling X_projective(), Y_projective(), Z_projective(), but more efficient.
 func (p *Point_axtw_subgroup) XYZ_projective() (FieldElement, FieldElement, FieldElement) {
 	p.normalizeSubgroup()
 	return p.x, p.y, FieldElementOne
 }
 
+// XYZ_projective returns X,Y and Z coordinates in projective twisted Edwards coordinates in a single call.
+// It is equivalent to calling X_projective(), Y_projective(), Z_projective(), but may be more efficient.
 func (p *Point_axtw_full) XYZ_projective() (FieldElement, FieldElement, FieldElement) {
 	return p.x, p.y, FieldElementOne
 }
 
+// XYTZ_projective returns X,Y,T and Z coordinates in projective twisted Edwards coordinates in a single call.
+// It is equivalent to calling X_projective(), Y_projective(), T_projective(), Z_projective(), but considerably more efficient.
 func (p *Point_axtw_subgroup) XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement) {
 	p.normalizeSubgroup()
 	return p.x, p.y, p.t, FieldElementOne
 }
 
+// XYTZ_projective returns X,Y,T and Z coordinates in projective twisted Edwards coordinates in a single call.
+// It is equivalent to calling X_projective(), Y_projective(), T_projective(), Z_projective(), but may be more efficient.
 func (p *Point_axtw_full) XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement) {
 	return p.x, p.y, p.t, FieldElementOne
 }
 
-// X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates, i.e. X/Z
+// X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates, i.e. X/Z.
 func (p *Point_axtw_subgroup) X_affine() FieldElement {
 	p.normalizeSubgroup()
 	return p.x
 }
 
-// X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates, i.e. X/Z
+// X_affine returns the X coordinate of the given point in affine twisted Edwards coordinates, i.e. X/Z.
 func (p *Point_axtw_full) X_affine() FieldElement {
 	return p.x
 }
 
-// Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates, i.e. Y/Z
+// Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates, i.e. Y/Z.
 func (p *Point_axtw_subgroup) Y_affine() FieldElement {
 	p.normalizeSubgroup()
 	return p.y
 }
 
-// Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates, i.e. Y/Z
+// Y_affine returns the Y coordinate of the given point in affine twisted Edwards coordinates, i.e. Y/Z.
 func (p *Point_axtw_full) Y_affine() FieldElement {
 	return p.y
 }
 
+// XY_affine returns the X and Y coordinate of the given point in affine twisted Edwards coordinates. It is equivalent to calling X_affine and Y_affine, but may be more efficient.
 func (p *Point_axtw_subgroup) XY_affine() (FieldElement, FieldElement) {
 	p.normalizeSubgroup()
 	return p.x, p.y
 }
 
+// T_affine returns the T coordinate of the given point in affine twisted Edwards coordinates, i.e. X/Z * Y/Z.
+func (p *Point_axtw_full) T_affine() FieldElement {
+	return p.t
+}
+
+// T_affine returns the T coordinate of the given point in affine twisted Edwards coordinates, i.e. X/Z * Y/Z.
+func (p *Point_axtw_subgroup) T_affine() FieldElement {
+	p.normalizeSubgroup()
+	return p.t
+}
+
+// XY_affine returns the X and Y coordinate of the given point in affine twisted Edwards coordinates. It is equivalent to calling X_affine and Y_affine, but may be more efficient.
 func (p *Point_axtw_full) XY_affine() (FieldElement, FieldElement) {
 	return p.x, p.y
 }
 
+// XYT_affine returns the X, Y and T=X*Y coordinate of the given point in affine twisted Edwards coordinates. It is equivalent to calling X_affine, Y_affine and T_affine, but may be more efficient.
 func (p *Point_axtw_subgroup) XYT_affine() (FieldElement, FieldElement, FieldElement) {
 	p.normalizeSubgroup()
 	return p.x, p.y, p.t
 }
 
+// XYT_affine returns the X, Y and T=X*Y coordinate of the given point in affine twisted Edwards coordinates. It is equivalent to calling X_affine, Y_affine and T_affine, but may be more efficient.
 func (p *Point_axtw_full) XYT_affine() (FieldElement, FieldElement, FieldElement) {
 	return p.x, p.y, p.t
 }
 
+// X_decaf_affine returns the X coordinate of either P or P+A in affine twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_affine methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_affine methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_projective methods.
+// Note: If P has extended projective Edwards coordinates (with Z==1) X:Y:T:1, then P+A has coordinates -X:-Y:T:1.
 func (p *point_axtw_base) X_decaf_affine() FieldElement {
 	return p.x
 }
 
+// Y_decaf_affine returns the Y coordinate of either P or P+A in affine twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_affine methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_affine methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_projective methods.
+// Note: If P has extended projective Edwards coordinates (with Z==1) X:Y:T:1, then P+A has coordinates -X:-Y:T:1.
 func (p *point_axtw_base) Y_decaf_affine() FieldElement {
 	return p.y
 }
 
+// T_decaf_affine returns the T coordinate of either P or P+A in affine twisted Edwards coordinates, where A is the affine point of order two.
+// CAVEAT: Subsequent calls to any <foo>_decaf_affine methods are only guaranteed to be consistent if nothing else is done with the point between those calls.
+// The consistency guarantee includes that different <foo>_decaf_affine methods make the same P vs. P+A choice.
+// The requirements include not using the point as (pointer) argument to seemingly read-only methods (as these might change the internal representation) and not using <foo>_decaf_projective methods.
+// Note: If P has extended projective Edwards coordinates (with Z==1) X:Y:T:1, then P+A has coordinates -X:-Y:T:1.
+// In particular, T_decaf_affine and T_affine match (except for the requirements on not interleaving method calls).
 func (p *point_axtw_base) T_decaf_affine() FieldElement {
 	return p.t
 }
 
-// IsNeutralElement checks if the point P is the neutral element of the curve.
+// IsNeutralElement checks if the given point p is the neutral element of the curve.
 func (p *Point_axtw_subgroup) IsNeutralElement() bool {
 	// NOTE: This is only correct since we work modulo the affine order-2 point (x=0, y=-c, t=0, z=c).
 	if p.x.IsZero() {
@@ -196,7 +302,7 @@ func (p *Point_axtw_subgroup) IsNeutralElement() bool {
 	return false
 }
 
-// IsNeutralElement tests if the point is the neutral element.
+// IsNeutralElement checks if the given point p is the neutral element of the curve.
 func (p *Point_axtw_full) IsNeutralElement() bool {
 	if !p.x.IsZero() {
 		return false
@@ -211,7 +317,7 @@ func (p *Point_axtw_full) IsNeutralElement() bool {
 }
 
 // IsEqual compares two curve points for equality.
-// The two points do not have the be in the same coordinate format.
+// The two points do not have to be in the same coordinate format.
 func (p *Point_axtw_subgroup) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	if p.IsNaP() || other.IsNaP() {
 		return napEncountered("When comparing an axtw point with another point, a NaP was encountered", true, p, other)
@@ -238,6 +344,8 @@ func (p *Point_axtw_subgroup) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	}
 }
 
+// IsEqual compares two curve points for equality.
+// The two points do not have to be in the same coordinate format.
 func (p *Point_axtw_full) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	if p.IsNaP() || other.IsNaP() {
 		return napEncountered("When comparing an axtw point with another point, a NaP was encountered", true, p, other)
@@ -258,7 +366,8 @@ func (p *Point_axtw_full) IsEqual(other CurvePointPtrInterfaceRead) bool {
 	}
 }
 
-// IsAtInfinity tests whether the point is an infinite (neccessarily order-2) point. Since these points cannot be represented in affine coordinates in the first place, this always returns false.
+// IsAtInfinity tests whether the point is an infinite (neccessarily order-2) point.
+// Since these points cannot be represented in affine coordinates and we panic if we would assign them, this always returns false for Point_axtw_full and Point_axtw_subgroup.
 func (p *point_axtw_base) IsAtInfinity() bool {
 	if p.IsNaP() {
 		napEncountered("When checking whether an axtw point is infinite, a NaP was encountered", false, p)
@@ -268,52 +377,73 @@ func (p *point_axtw_base) IsAtInfinity() bool {
 }
 
 // IsNaP checks whether the point is a NaP (Not-a-point). NaPs must never appear if the library is used correctly. They can appear by
-// a) performing operations on points that are not in the correct subgroup or that are NaPs.
-// b) zero-initialized points are NaPs (Go lacks constructors to fix that).
-// For Point_axtw, NaPs have x==y==0. (Actually, we expect only x==y==t==0 to happen).
+// a) zero-initialized points are NaPs (Go lacks constructors to fix that).
+// b) performing operations on NaPs.
+// c) bugs (either in the library or as a corner case due to wrong usage of doing untrusted conversion to subgroup of points outside the subgroup)
+// For Point_axtw_full and Point_axtw_subgroup, NaPs have x==y==0. (Actually, we expect only x==y==t==0 to happen).
 func (p *point_axtw_base) IsNaP() bool {
 	return p.x.IsZero() && p.y.IsZero()
 }
 
-func (p *point_axtw_base) ToDecaf_xtw() point_xtw_base {
+/*
+func (p *point_axtw_base) toDecaf_xtw() point_xtw_base {
 	return point_xtw_base{x: p.x, y: p.y, t: p.t, z: FieldElementOne}
 }
 
-func (p *point_axtw_base) ToDecaf_axtw() (ret point_axtw_base) {
+func (p *point_axtw_base) toDecaf_axtw() (ret point_axtw_base) {
 	ret = *p
 	return
 }
+*/
 
+// IsInSubgroup checks whether the given curve point is in the p253 prime-order subgroup.
 func (p *Point_axtw_full) IsInSubgroup() bool {
+	if p.IsNaP() {
+		return napEncountered("Checking whether NaP is in subgroup", false, p)
+	}
 	return legendreCheckA_affineX(p.x) && legendreCheckE1_affineY(p.y)
 }
 
-// Clone creates a copy of the given point as an interface. (Be aware that the returned interface value stores a pointer)
-func (p *point_axtw_base) Clone() interface{} {
+// Clone returns a pointer to an independent copy of the given base point struct.
+// The returned pointer is returned in a CurvePointPtrInterfaceBaseRead interface, but the actual value is guaranteed to have the same type as the receiver.
+func (p *point_axtw_base) Clone() CurvePointPtrInterfaceBaseRead {
 	p_copy := *p
 	return &p_copy
 }
 
-// Clone creates a copy of the given point as an interface. (Be aware that the returned interface value stores a pointer)
-func (p *Point_axtw_subgroup) Clone() interface{} {
+// Clone returns a pointer to an independent copy of the given point.
+// The returned pointer is returned in a CurvePointPtrInterface interface, but the actual value is guaranteed to have the same type as the receiver.
+// Note: Point_axtw_subgroup internally stores no pointers.
+// var copy Point_axtw_subgroup = original (non-pointer) just works.
+func (p *Point_axtw_subgroup) Clone() CurvePointPtrInterface {
 	p_copy := *p
 	return &p_copy
 }
 
-// Clone creates a copy of the given point as an interface. (Be aware that the returned interface value stores a pointer)
-func (p *Point_axtw_full) Clone() interface{} {
+// Clone returns a pointer to an independent copy of the given point.
+// The returned pointer is returned in a CurvePointPtrInterface interface, but the actual value is guaranteed to have the same type as the receiver.
+// Note: Point_axtw_full internally stores no pointers.
+// var copy Point_axtw_full = original (non-pointer) just works.
+func (p *Point_axtw_full) Clone() CurvePointPtrInterface {
 	p_copy := *p
 	return &p_copy
 }
+
+// TODO: Internal debug format vs. unified printing.
 
 // Point_axtw::SerializeShort, Point_axtw::SerializeLong and Point_axtw::SerializeAuto are defined directly in curve_point_impl_serialize.go
 
-// String prints the point in X:Y:T - format
+// String is defined to satisfy the fmt.Stringer interface and allows points to be used in most fmt routines.
+// Note that String() is defined on value receivers (as opposed to everything else) for an easier interface when using fmt routines.
+// For Point_axtw_full, it prints the point in (affine) X:Y:T - format
 func (p point_axtw_base) String() string {
 	// Not the most efficient way, but good enough.
 	return p.x.String() + ":" + p.y.String() + ":" + p.t.String()
 }
 
+// String is defined to satisfy the fmt.Stringer interface and allows points to be used in most fmt routines.
+// Note that String() is defined on value receivers (as opposed to everything else) for an easier interface when using fmt routines.
+// NOTE: The output format is not stable yet.
 func (p Point_axtw_subgroup) String() (ret string) {
 	ret = p.point_axtw_base.String()
 	if !legendreCheckE1_affineY(p.y) {
@@ -493,7 +623,7 @@ func (p *Point_axtw_full) Endo(input CurvePointPtrInterfaceRead) {
 
 // SetNeutral sets the Point p to the neutral element of the curve.
 func (p *point_axtw_base) SetNeutral() {
-	*p = NeutralElement_axtw
+	*p = neutralElement_axtwbase
 }
 
 // AddEq adds (via the elliptic curve group addition law) the given curve point x (in any coordinate format) to the received p, overwriting p.
@@ -556,5 +686,5 @@ func (p *Point_axtw_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
 }
 
 func (p *Point_axtw_full) SetAffineTwoTorsion() {
-	p.point_axtw_base = OrderTwoPoint_axtw
+	p.point_axtw_base = affineOrderTwoPoint_axtwbase
 }

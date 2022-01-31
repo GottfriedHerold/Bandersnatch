@@ -167,6 +167,10 @@ func make_checkfun_doubling(receiverType PointType) checkfunction {
 			return true, ""
 		}
 
+		if !result1.IsInSubgroup() {
+			return false, "Doubled point is not in subgroup"
+		}
+
 		// The distinction is needed, because addition does NOT automatically go from full curve type -> subgroup type
 		// whereas doubling does.
 		var result2 CurvePointPtrInterface

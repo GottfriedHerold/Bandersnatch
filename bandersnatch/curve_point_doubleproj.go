@@ -5,11 +5,17 @@ import "math/rand"
 // Point_efgh describes points (usually on the p253-subgroup of) the bandersnatch curve in E:G, H:F - coordinates (called double-projective or "efgh"-coos), i.e.
 // we represent X/Z as E/G and Y/Z as H/F. From a computational view, this effectively means that we use a separate denominator for X and Y (instead of a joint one Z).
 // We can recover X:Y:Z coordinates by computing Z = F*G, X = E*F, Y = G*H. Then T = E*H. This is meaningful even if one of E,G is zero. There are no rational points with F=0 or H=0.
-// Observe that in fact all default formulae in extended twisted edwards coordinates *produce* points in such efgh coordinates and then transform them into the desired form
-// Using double-projective coordinates can be used to make this explicit and can save computation if a coordinate is unused:
-// The doubling formula and the endomorphism can be expressed in double-projective coordinates by first converting to extended twisted edwards and then computing the double/endo(rather than the other way round).
-// Since these formulae do not use the input's t coordinate, this saves a multiplication.
-// (In fact, for the endomorphism, some further optimisation is possible if the input is in efgh-coordinates)
+// Observe that in fact all default formulae in extended twisted edwards coordinates *produce* points in such efgh coordinates and then transform them into the desired form.
+// Using double-projective coordinates can be used to make this explicit.
+
+// Usually, we prefer inputs to be affine over projective over efgh. Output is always interally efgh first and then converted.
+// By making this explicit, we can, in fact, save computation if a coordinate is unused:
+// The doubling formula and the endomorphism can be computed directly from efgh-coordinates without going through X:Y:T:Z coordinates more efficiently that converting + conputing would cost.
+
+// Generally, if an output of a curve operation is only used once, it should remain in efgh-coordinates.
+// It is better to let the next operation on the point perform the conversion internally as part of the operation when and if it is needed.
+// If an output is used more than once, it should be converted.
+
 // On the p253-subgroup, the only coordinate that may be zero is actually e.
 
 // Note: Conversion from X:Y:T:Z to EFGH is available as e.g.
@@ -18,6 +24,12 @@ import "math/rand"
 // E:=X, F:=Z, G:=Z, H:=Y or
 // (The first two options have singularities at neutral and affine-order-2, the third option at the points at infinity)
 
+// point_efgh_base is a struct that holds e,f,g,h coordinates of a purported curve point.
+// It is struct-embedded in Point_efgh_full and Point_efgh_subgroup.
+// Note that it does *NOT* model a curve point; Point_efgh_full and Point_efgh_subgroup do. Notably,
+// Point_efgh_full and Point_efgh_subgroup actually interpret the coordinates in point_efgh_base in a different way:
+// Point_efgh_full does it in the canonical way, whereas Point_efgh_subgroup does it modulo A.
+// (note that the latter is not really visible through the default interface)
 type point_efgh_base struct {
 	thisCurvePointCanRepresentFullCurve
 	thisCurvePointCanRepresentInfinity
@@ -27,10 +39,18 @@ type point_efgh_base struct {
 	h FieldElement
 }
 
+// Point_efgh_full describes rational points of the Bandersnatch curve. This type can holds all rational points, including points at infinity and points outside the prime-order subgroup.
+// Note: Using this point type is the most efficient type supported for obtaining output, but not when used as input.
+// Consequently, this type should be used when obtaining a curve point in the middle of a computation and using it exactly once.
 type Point_efgh_full struct {
-	point_efgh_base
+	point_efgh_base // e,f,g,h (struct embedding)
 }
 
+// Point_efgh_full describes points on the p253 prime-order subgroup of the Bandersnatch curve.
+// This type can only hold points in that subgroup (and hence, cannot holds points at infinty).
+// Note: On a twisted Edwards curve, the neutral element is NOT at infinity.
+// Note: Using this point type is the most efficient type supported for obtaining output, but not when used as input.
+// Consequently, this type should be used when obtaining a curve point in the middle of a computation and using it exactly once.
 type Point_efgh_subgroup struct {
 	thisCurvePointCanOnlyRepresentSubgroup
 	thisCurvePointCannotRepresentInfinity
@@ -38,10 +58,26 @@ type Point_efgh_subgroup struct {
 }
 
 var (
-	NeutralElement_efgh     = point_efgh_base{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementOne}        // Note: g!=0 is actually arbitrary.
-	orderTwoPoint_efgh      = point_efgh_base{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementMinusOne}   // Note: g!=0 is actually arbitrary.
-	exceptionalPoint_1_efgh = point_efgh_base{e: FieldElementOne, f: squareRootDbyA_fe, g: FieldElementZero, h: FieldElementOne}      // Note: e!=0 is actually arbitrary.
-	exceptionalPoint_2_efgh = point_efgh_base{e: FieldElementOne, f: squareRootDbyA_fe, g: FieldElementZero, h: FieldElementMinusOne} // Note: e!=0 is actually arbitrary.
+	neutralElement_efghbase     = point_efgh_base{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementOne}        // Note: g!=0 is actually arbitrary.
+	orderTwoPoint_efghbase      = point_efgh_base{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementMinusOne}   // Note: g!=0 is actually arbitrary.
+	exceptionalPoint_1_efghbase = point_efgh_base{e: FieldElementOne, f: squareRootDbyA_fe, g: FieldElementZero, h: FieldElementOne}      // Note: e!=0 is actually arbitrary.
+	exceptionalPoint_2_efghbase = point_efgh_base{e: FieldElementOne, f: squareRootDbyA_fe, g: FieldElementZero, h: FieldElementMinusOne} // Note: e!=0 is actually arbitrary.
+)
+
+// NeutralElement_efgh_full denote the neutral element of the Bandersnatch curve (with type Point_efgh_full).
+var NeutralElement_efgh_full Point_efgh_full = Point_efgh_full{point_efgh_base: neutralElement_efghbase}
+
+// NeutralElement_efgh_subgroup denote the neutral element of the Bandersnatch curve (with type Point_efgh_subgroup).
+var NeutralElement_efgh_subgroup Point_efgh_subgroup = Point_efgh_subgroup{point_efgh_base: neutralElement_efghbase}
+
+// AffineOrderTwoPoint_efgh denotes the denotes the affine point of order two of the Bandersnatch curve (with type Point_efgh_full). These points are not on the p253 prime order subgroup.
+var AffineOrderTwoPoint_efgh Point_efgh_full = Point_efgh_full{point_efgh_base: orderTwoPoint_efghbase}
+
+// InfinitePoint1_efgh and InfinitePoint2_efgh denote the the infinite points E1 and E2 of order two on the Bandersnatch curve (of type Point_efgh_full). This point is not on the p253 prime order subgroup.
+// The distinction between these two points is essentially arbitrary, but done in a way consistent with IsE1() and IsE2() and conversion to other point types.
+var (
+	InfinitePoint1_efgh Point_efgh_full = Point_efgh_full{point_efgh_base: exceptionalPoint_1_efghbase}
+	InfinitePoint2_efgh Point_efgh_full = Point_efgh_full{point_efgh_base: exceptionalPoint_2_efghbase}
 )
 
 // normalize_affine puts the point in an equivalent "normalized" state with f==g==1.
@@ -366,17 +402,17 @@ func (p *point_efgh_base) IsE2() bool {
 	return tmp.IsEqual(&p.f)
 }
 
-func (p *point_efgh_base) Clone() interface{} {
+func (p *point_efgh_base) Clone() CurvePointPtrInterfaceBaseRead {
 	var copy point_efgh_base = *p
 	return &copy
 }
 
-func (p *Point_efgh_full) Clone() interface{} {
+func (p *Point_efgh_full) Clone() CurvePointPtrInterface {
 	var copy Point_efgh_full = *p
 	return &copy
 }
 
-func (p *Point_efgh_subgroup) Clone() interface{} {
+func (p *Point_efgh_subgroup) Clone() CurvePointPtrInterface {
 	var copy Point_efgh_subgroup = *p
 	return &copy
 }
@@ -642,7 +678,7 @@ func (p *Point_efgh_subgroup) Endo(input CurvePointPtrInterfaceRead) {
 				if !input.IsNeutralElement() {
 					panic("Internal error")
 				}
-				p.point_efgh_base = NeutralElement_efgh
+				p.point_efgh_base = neutralElement_efghbase
 			}
 		}
 	case *Point_axtw_subgroup:
@@ -654,7 +690,7 @@ func (p *Point_efgh_subgroup) Endo(input CurvePointPtrInterfaceRead) {
 		p.computeEndomorphism_sa(&input.point_axtw_base)
 		// handle exceptional cases:
 		if p.g.IsZero() {
-			p.point_efgh_base = NeutralElement_efgh
+			p.point_efgh_base = neutralElement_efghbase
 		}
 	case *Point_efgh_subgroup:
 		p.computeEndomorphism_ss(&input.point_efgh_base)
@@ -664,7 +700,7 @@ func (p *Point_efgh_subgroup) Endo(input CurvePointPtrInterfaceRead) {
 			napEncountered("Computing endomorphism of NaP", false, input)
 		}
 		if input.IsNeutralElement() {
-			p.point_efgh_base = NeutralElement_efgh
+			p.point_efgh_base = neutralElement_efghbase
 		} else {
 			var inputConverted point_xtw_base
 			inputConverted.x = input.X_decaf_projective()
@@ -685,12 +721,12 @@ func (p *Point_efgh_full) Endo(input CurvePointPtrInterfaceRead) {
 		return
 	}
 	if input.IsAtInfinity() {
-		p.point_efgh_base = orderTwoPoint_efgh
+		p.point_efgh_base = orderTwoPoint_efghbase
 		return
 	}
 	inputX := input.X_decaf_projective()
 	if inputX.IsZero() {
-		p.point_efgh_base = NeutralElement_efgh
+		p.point_efgh_base = neutralElement_efghbase
 		return
 	}
 	switch input := input.(type) {
@@ -717,7 +753,7 @@ func (p *Point_efgh_full) Endo(input CurvePointPtrInterfaceRead) {
 }
 
 func (p *point_efgh_base) SetNeutral() {
-	*p = NeutralElement_efgh
+	*p = neutralElement_efghbase
 }
 
 // AddEq adds (via the elliptic curve group addition law) the given curve point x (in any coordinate format) to the received p, overwriting p.
@@ -758,7 +794,7 @@ func (p *Point_efgh_subgroup) EndoEq() {
 // EndoEq applies the endomorphism on the given point. p.EndoEq() is shorthand for p.Endo(&p).
 func (p *Point_efgh_full) EndoEq() {
 	if p.IsAtInfinity() {
-		p.point_efgh_base = orderTwoPoint_efgh
+		p.point_efgh_base = orderTwoPoint_efghbase
 	} else {
 		p.computeEndomorphism_ss(&p.point_efgh_base)
 	}
@@ -855,9 +891,9 @@ func (p *Point_efgh_full) SetFrom(input CurvePointPtrInterfaceRead) {
 			*p = Point_efgh_full{}
 		} else if input.IsAtInfinity() {
 			if input.(CurvePointPtrInterfaceDistinguishInfinity).IsE1() {
-				p.point_efgh_base = exceptionalPoint_1_efgh
+				p.point_efgh_base = exceptionalPoint_1_efghbase
 			} else {
-				p.point_efgh_base = exceptionalPoint_2_efgh
+				p.point_efgh_base = exceptionalPoint_2_efghbase
 			}
 		} else {
 			p.e, p.h, p.f = input.XYZ_projective()
@@ -893,13 +929,13 @@ func (p *Point_efgh_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
 }
 
 func (p *Point_efgh_full) SetAffineTwoTorsion() {
-	p.point_efgh_base = orderTwoPoint_efgh
+	p.point_efgh_base = orderTwoPoint_efghbase
 }
 
 func (p *Point_efgh_full) SetE1() {
-	p.point_efgh_base = exceptionalPoint_1_efgh
+	p.point_efgh_base = exceptionalPoint_1_efghbase
 }
 
 func (p *Point_efgh_full) SetE2() {
-	p.point_efgh_base = exceptionalPoint_2_efgh
+	p.point_efgh_base = exceptionalPoint_2_efghbase
 }

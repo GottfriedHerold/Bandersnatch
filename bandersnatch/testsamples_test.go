@@ -65,12 +65,12 @@ func (flags PointFlags) CheckFlag(checked_flags PointFlags) bool {
 
 // maybeFlipDecaf will run flipDecaf if that is meaningful for the given point type; do nothing otherwise
 func maybeFlipDecaf(p CurvePointPtrInterfaceTestSample) (ok bool) {
-	if p.HasDecaf() {
-		p_conv, ok := p.(curvePointPtrInterfaceDecaf)
+	var p_conv curvePointPtrInterfaceDecaf
+	p_conv, ok = p.(curvePointPtrInterfaceDecaf)
+	if ok {
+		ok = p_conv.HasDecaf()
 		if ok {
 			p_conv.flipDecaf()
-		} else {
-			panic("Curve point has HasDecaf() == true, but does not has flipDecaf()")
 		}
 	}
 	return
