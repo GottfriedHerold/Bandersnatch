@@ -132,6 +132,6 @@ func (p *point_efgh_base) isPointOnCurve() bool {
 	if p.IsNaP() {
 		return false
 	}
-	p_xtw := p.ToDecaf_xtw()
+	p_xtw := p.toDecaf_xtw()
 	return p_xtw.isPointOnCurve()
 }

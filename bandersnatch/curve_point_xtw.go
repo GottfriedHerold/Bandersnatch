@@ -546,7 +546,7 @@ func (p *Point_xtw_full) Sub(x, y CurvePointPtrInterfaceRead) {
 func (p *point_xtw_base) Double(input CurvePointPtrInterfaceRead) {
 	var result_efgh point_efgh_base
 	result_efgh.Double(input)
-	*p = result_efgh.ToDecaf_xtw()
+	*p = result_efgh.toDecaf_xtw()
 }
 
 func (p *Point_xtw_subgroup) Neg(input CurvePointPtrInterfaceRead) {
@@ -699,7 +699,7 @@ func (p *Point_xtw_full) SubEq(x CurvePointPtrInterfaceRead) {
 func (p *point_xtw_base) DoubleEq() {
 	var result_efgh point_efgh_base
 	result_efgh.double_st(p)
-	*p = result_efgh.ToDecaf_xtw()
+	*p = result_efgh.toDecaf_xtw()
 }
 
 // NeqEq replaces the given point by its negative (wrt the elliptic curve group addition law)
@@ -718,7 +718,7 @@ func (p *Point_xtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRe
 		p.SetFrom(input)
 		return true
 	}
-	if !trusted.V() {
+	if !trusted.Bool() {
 		if !input.IsInSubgroup() {
 			return false
 		}
@@ -732,7 +732,7 @@ func (p *Point_xtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRe
 		p.t = input.t
 		p.z.SetOne()
 	case *Point_efgh_full:
-		p.point_xtw_base = input.ToDecaf_xtw()
+		p.point_xtw_base = input.toDecaf_xtw()
 	default:
 		p.x = input.X_decaf_projective()
 		p.y = input.Y_decaf_projective()
@@ -748,7 +748,7 @@ func (p *Point_xtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, 
 		*p = Point_xtw_full{}
 		return false
 	}
-	if !trusted.V() {
+	if !trusted.Bool() {
 		if !input.IsInSubgroup() {
 			return false
 		}
@@ -767,7 +767,7 @@ func (p *Point_xtw_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.t = input.t
 		p.z.SetOne()
 	case *Point_efgh_subgroup:
-		p.point_xtw_base = input.ToDecaf_xtw()
+		p.point_xtw_base = input.toDecaf_xtw()
 	default:
 		ensureSubgroupOnly(input)
 		p.x = input.X_decaf_projective()
@@ -798,9 +798,9 @@ func (p *Point_xtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.z.SetOne()
 	case *Point_efgh_subgroup:
 		input.normalizeSubgroup()
-		p.point_xtw_base = input.ToDecaf_xtw()
+		p.point_xtw_base = input.toDecaf_xtw()
 	case *Point_efgh_full:
-		p.point_xtw_base = input.ToDecaf_xtw()
+		p.point_xtw_base = input.toDecaf_xtw()
 	case CurvePointPtrInterfaceCooReadExtended:
 		p.x, p.y, p.t, p.z = input.XYTZ_projective()
 	default:

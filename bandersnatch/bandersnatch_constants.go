@@ -55,7 +55,7 @@ const (
 	CurveParameterA_string = "-5"
 )
 
-// CurveParameterD denotes the constant d in the twisted Edwards representation ax^2+y^2 = 1+dx^2y^2 of the Bandersnatch curve
+// CurveParameterD denotes the constant d in the twisted Edwards representation ax^2+y^2 = 1+dx^2y^2 of the Bandersnatch curve.
 // Note that d == -15 - 10\sqrt{2}
 const (
 	CurveParameterD        = 0x6389c12633c267cbc66e3bf86be3b6d8cb66677177e54f92b369f2f5188d58e7
@@ -125,7 +125,7 @@ type IsPointTrusted struct {
 	v bool
 }
 
-func (b IsPointTrusted) V() bool { return b.v }
+func (b IsPointTrusted) Bool() bool { return b.v }
 
 // TrustedInput and UntrustedInput are used as arguments to Deserialization routines and in ToSubgroup.
 var (

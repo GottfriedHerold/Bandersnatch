@@ -6,7 +6,7 @@ import (
 	"math/big"
 )
 
-// prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int
+// prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
 // Due to overflowing all standard types, this is only useful in constant expressions.
 // In most case, you want to use BaseFieldSize of type big.Int instead
 const BaseFieldSize_untyped = 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001

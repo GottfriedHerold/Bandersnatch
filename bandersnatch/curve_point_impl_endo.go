@@ -56,6 +56,7 @@ func (output *point_xtw_base) computeEndomorphism_tt(input *point_xtw_base) {
 // E1,E2 -> E=F=G=H=0 [NaP]
 // NaP -> G=0
 // The implementation promises not to use input.t
+// (In fact, some call sites use this and do not set t)
 func (output *point_efgh_base) computeEndomorphism_st(input *point_xtw_base) {
 	// The formula used below is valid unless for the input xy==zt is zero, which happens iff the input has order 2 or 1.
 	var bzz, yy FieldElement
@@ -98,7 +99,7 @@ func (output *point_efgh_base) computeEndomorphism_sa(input *point_axtw_base) {
 */
 
 // exceptional cases: infinity
-// E1, E2 -> E=G=0
+// E1, E2 -> NaP[E=G=0]
 // NaP -> NaP !
 func (output *point_efgh_base) computeEndomorphism_ss(input *point_efgh_base) {
 	var hh, hhByb, ff, bff, fh FieldElement
