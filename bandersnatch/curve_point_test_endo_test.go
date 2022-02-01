@@ -77,7 +77,7 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 		}
 
 		if infinite {
-			if !result.IsEqual(&orderTwoPoint_xtwfull) {
+			if !result.IsEqual(&AffineOrderTwoPoint_xtw) {
 				return false, "Endo(infinite point) != affine two-torsion"
 			}
 		} else if s.AnyFlags().CheckFlag(Case_zero_exact) {
@@ -92,7 +92,7 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 
 		if !typeCanOnlyRepresentSubgroup(sampleType) {
 			inputClone := s.Points[0].Clone().(CurvePointPtrInterface)
-			inputClone.AddEq(&orderTwoPoint_xtwfull)
+			inputClone.AddEq(&AffineOrderTwoPoint_xtw)
 			resultClone.Endo(inputClone)
 			if !result.IsEqual(resultClone) {
 				return false, "Endo(P) != Endo(P+A)"
@@ -215,7 +215,7 @@ func checkfun_endo_action(s *TestSample) (bool, string) {
 		// Endo(P) and Eigenvalue*P differ exactly by +A in that case.
 		var difference Point_xtw_full
 		difference.Sub(result1, &result2)
-		if !difference.IsEqual(&orderTwoPoint_xtwfull) {
+		if !difference.IsEqual(&AffineOrderTwoPoint_xtw) {
 			return false, "Running Endo did not match exponentiation operation up to A in 2*p253-subgroup"
 		}
 	} else if random {

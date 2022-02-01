@@ -8,7 +8,7 @@ func checkfun_torsionA(s *TestSample) (bool, string) {
 		panic("Do not call this test function on types that can only represent subgroup elements")
 	}
 	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-	t := s.Points[0].Clone().(CurvePointPtrInterface)
+	t := s.Points[0].Clone()
 	t.(torsionAdder).torsionAddA()
 	if singular {
 		if !t.IsNaP() {
@@ -23,7 +23,7 @@ func checkfun_torsionA(s *TestSample) (bool, string) {
 	if !t.(validateable).Validate() {
 		return false, "torsionAddA does not result in valid point"
 	}
-	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
+	t2 := s.Points[0].Clone()
 	var A Point_xtw_full
 	A.SetAffineTwoTorsion()
 	t2.AddEq(&A)
@@ -39,7 +39,7 @@ func checkfun_torsionE1(s *TestSample) (bool, string) {
 		return true, "skipped"
 	}
 	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-	t := s.Points[0].Clone().(CurvePointPtrInterface)
+	t := s.Points[0].Clone()
 	t.(torsionAdder).torsionAddE1()
 	if singular {
 		if !t.IsNaP() {
@@ -54,7 +54,7 @@ func checkfun_torsionE1(s *TestSample) (bool, string) {
 	if !t.(validateable).Validate() {
 		return false, "torsionAddE1 does not result in valid point"
 	}
-	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
+	t2 := s.Points[0].Clone()
 	var E1 Point_xtw_full
 	E1.SetE1()
 	t2.AddEq(&E1)
@@ -70,7 +70,7 @@ func checkfun_torsionE2(s *TestSample) (bool, string) {
 		return true, "skipped"
 	}
 	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-	t := s.Points[0].Clone().(CurvePointPtrInterface)
+	t := s.Points[0].Clone()
 	t.(torsionAdder).torsionAddE2()
 	if singular {
 		if !t.IsNaP() {
@@ -85,7 +85,7 @@ func checkfun_torsionE2(s *TestSample) (bool, string) {
 	if !t.(validateable).Validate() {
 		return false, "torsionAddE2 does not result in valid point"
 	}
-	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
+	t2 := s.Points[0].Clone()
 	var E2 Point_xtw_full
 	E2.SetE2()
 	t2.AddEq(&E2)
@@ -103,10 +103,10 @@ func checkfun_torsion_group(s *TestSample) (bool, string) {
 	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(Case_2torsion) {
 		return true, "skipped"
 	}
-	t1 := s.Points[0].Clone().(CurvePointPtrInterface)
-	t2 := s.Points[0].Clone().(CurvePointPtrInterface)
-	t3 := s.Points[0].Clone().(CurvePointPtrInterface)
-	t4 := s.Points[0].Clone().(CurvePointPtrInterface)
+	t1 := s.Points[0].Clone()
+	t2 := s.Points[0].Clone()
+	t3 := s.Points[0].Clone()
+	t4 := s.Points[0].Clone()
 	t1.(torsionAdder).torsionAddA()
 	t1.(torsionAdder).torsionAddA()
 	t2.(torsionAdder).torsionAddE1()

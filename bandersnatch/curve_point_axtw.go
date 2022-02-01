@@ -746,7 +746,7 @@ func (p *Point_axtw_full) EndoEq() {
 // Validate checks whether the point is a valid curve point.
 //
 // NOTE: Outside of NaPs, it should not be possible to create points that fail Validate when using the interface correctly.
-// Validate is used only in testin and is required by the CurvePointPtrInterfaceTestSample interface.
+// Validate is used only in testing and is required by the CurvePointPtrInterfaceTestSample interface.
 func (p *point_axtw_base) Validate() bool {
 	return p.isPointOnCurve()
 }
@@ -755,7 +755,7 @@ func (p *point_axtw_base) Validate() bool {
 // For Point_axtw_subgroup, this includes verifying membership in the prime-order subgroup.
 //
 // NOTE: Outside of NaPs, it should not be possible to create points that fail Validate when using the interface correctly.
-// Validate is used only in testin and is required by the CurvePointPtrInterfaceTestSample interface.
+// Validate is used only in testing and is required by the CurvePointPtrInterfaceTestSample interface.
 func (p *Point_axtw_subgroup) Validate() bool {
 	return p.point_axtw_base.isPointOnCurve() && legendreCheckA_affineX(p.x)
 }

@@ -1115,7 +1115,7 @@ func (p *Point_efgh_full) IsInSubgroup() bool {
 // Validate checks whether the point is a valid curve point.
 //
 // NOTE: Outside of NaPs, it should not be possible to create points that fail Validate when using the interface correctly.
-// Validate is used only in testin and is required by the CurvePointPtrInterfaceTestSample interface.
+// Validate is used only in testing and is required by the CurvePointPtrInterfaceTestSample interface.
 func (p *point_efgh_base) Validate() bool {
 	return p.isPointOnCurve()
 }
@@ -1123,7 +1123,7 @@ func (p *point_efgh_base) Validate() bool {
 // Validate checks whether the point is a valid curve point.
 //
 // NOTE: Outside of NaPs, it should not be possible to create points that fail Validate when using the interface correctly.
-// Validate is used only in testin and is required by the CurvePointPtrInterfaceTestSample interface.
+// Validate is used only in testing and is required by the CurvePointPtrInterfaceTestSample interface.
 func (p *Point_efgh_subgroup) Validate() bool {
 	return p.point_efgh_base.isPointOnCurve() && legendreCheckA_EG(p.e, p.g)
 }
@@ -1160,6 +1160,7 @@ func (p *Point_efgh_full) SetAffineTwoTorsion() {
 }
 
 // SetE1 sets the point to the E1 point at infinity.
+//
 // This function is required in order to satisfy the curvePointPtrInterfaceTestSampleE interface, which
 // our testing framework mandates that Point_efgh_full must satisfy.
 func (p *Point_efgh_full) SetE1() {
@@ -1167,6 +1168,7 @@ func (p *Point_efgh_full) SetE1() {
 }
 
 // SetE1 sets the point to the E1 point at infinity.
+//
 // This function is required in order to satisfy the curvePointPtrInterfaceTestSampleE interface, which
 // our testing framework mandates that Point_efgh_full must satisfy.
 func (p *Point_efgh_full) SetE2() {

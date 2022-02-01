@@ -183,7 +183,7 @@
 // Validate checks whether the point is a valid curve point.
 //
 // NOTE: Outside of NaPs, it should not be possible to create points that fail Validate when using the interface correctly.
-// Validate is used only in testin and is required by the CurvePointPtrInterfaceTestSample interface.
+// Validate is used only in testing and is required by the CurvePointPtrInterfaceTestSample interface.
 
 // TOADD:
 // For Point_axtw_subgroup, this includes verifying membership in the prime-order subgroup.
@@ -195,10 +195,12 @@
 // This is why we do not export this.
 
 // SetAffineTwoTorsion sets the point to the affine-order two point.
+//
 // This function is required in order to satisfy the curvePointPtrInterfaceTestSampleA interface, which
 // our testing framework mandates that Point_axtw_full must satisfy.
 
 // SetE1 sets the point to the E1 point at infinity.
+//
 // This function is required in order to satisfy the curvePointPtrInterfaceTestSampleE interface, which
 // our testing framework mandates that Point_xtw_full must satisfy.
 
