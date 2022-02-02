@@ -22,9 +22,8 @@ const benchS = 2 << 8
 // benchmark functions write to DumpXXX variables.
 // These are "exported" (in non-test builds this file is ignored) to prevent the compiler from optimizations
 // based on the fact that they are never read from within the bandersnatch module
-var DumpBools [benchS]bool
-var DumpFe_64 [benchS]bsFieldElement_64
-var DumpFe_8 [benchS]bsFieldElement_8
+
+// var DumpBools [benchS]bool
 var DumpXTW [benchS]Point_xtw
 var DumpAXTW [benchS]Point_axtw
 var DumpEFGH [benchS]Point_efgh
@@ -35,13 +34,6 @@ var DumpEFGH [benchS]Point_efgh
 // These are initialized in init().
 // plain DumpCPI is (intentionally) uninitialized and needs to be set to a concrete type *after* prepare_<foo>
 var DumpCPI_XTW, DumpCPI_AXTW, DumpCPI_EFGH, DumpCPI [benchS]CurvePointPtrInterfaceWrite_FullCurve
-
-var bench_x_64 [benchS]bsFieldElement_64
-var bench_y_64 [benchS]bsFieldElement_64
-var bench_z_64 [benchS]bsFieldElement_64
-var bench_x_8 [benchS]bsFieldElement_8
-var bench_y_8 [benchS]bsFieldElement_8
-var bench_z_8 [benchS]bsFieldElement_8
 
 // Need to call PrepareBenchInterfaces *after* calling prepareBenchTests_Curve
 var bench_CPI1 [benchS]CurvePointPtrInterface_FullCurve
@@ -64,46 +56,6 @@ func init() {
 	}
 }
 
-// NOTE: The various prepareBench... functions
-// contain common setup functionality for benchmarking. They are all supposed to be run before any actual benchmarking starts.
-// (In fact, they automatically reset all benchmark timers)
-// They set up the global variables that benchmarks consume and reset the benchmarking timers and call counters.
-// If using sub-benchmarks with b.Run(...), the prepareBench... functions can generally be run in the outer benchmark.
-// However, the inner sub-benchmarks might still need to reset call counters; also rerunning prepareBench... is
-// generally safer as it ensures that global variables are restored. (Note that functions might inadvertedly change those)
-
-// For the teardown code (which atm only makes sure that call counters are added to the benchmarking output if those are active in the current build),
-// this needs to be called *inside the sub-test*.
-
-// For benchmarking curve point functionalities,
-// it is suggested to use setupBenchmarkCurvePoints(b) INSIDE each innermost sub-test.
-// Be aware that go's testing/benchmarking framework runs the benchmark several times with
-// varying values of b.N until the statistics stabilize -- In particular, call counters need to reset upon retrying with a different b.N.
-// setupBenchmarkCurvePoints(b) takes care of that
-
-// prepareBenchTests_8 runs common setup code for benchmarks for the naive 8-bit field element operations
-func prepareBenchTests_8(b *testing.B) {
-	var drng *rand.Rand = rand.New(rand.NewSource(666))
-	for i := 0; i < benchS; i++ {
-		bench_x_8[i].setRandomUnsafe(drng)
-		bench_y_8[i].setRandomUnsafe(drng)
-		bench_z_8[i].setRandomUnsafe(drng)
-	}
-	callcounters.ResetAllCounters()
-	b.ResetTimer()
-}
-
-// prepareBenchTests_64 runs common setup code for benchmarks of the field element implementation.
-func prepareBenchTests_64(b *testing.B) {
-	var drng *rand.Rand = rand.New(rand.NewSource(666)) // same number as in prepareBenchTests_8 by design
-	for i := 0; i < benchS; i++ {
-		bench_x_64[i].setRandomUnsafe(drng)
-		bench_y_64[i].setRandomUnsafe(drng)
-		bench_z_64[i].setRandomUnsafe(drng)
-	}
-	callcounters.ResetAllCounters()
-	b.ResetTimer()
-}
 
 // sampling (a large number of) random curve points for benchmarking is
 // quite slow. So we create those once and for all. Then our

@@ -28,10 +28,8 @@ var _ CurvePointPtrInterfaceCooReadExtended = &Point_xtw_full{}
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_xtw_subgroup{}
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_efgh_full{}
 var _ CurvePointPtrInterfaceCooReadExtended = &Point_efgh_subgroup{}
-
-// TODO: Satisfy this
-// var _ CurvePointPtrInterfaceCooReadExtended = &Point_axtw_full{}
-// var _ CurvePointPtrInterfaceCooReadExtended = &Point_axtw_subgroup{}
+var _ CurvePointPtrInterfaceCooReadExtended = &Point_axtw_full{}
+var _ CurvePointPtrInterfaceCooReadExtended = &Point_axtw_subgroup{}
 
 var _ CurvePointPtrInterfaceDistinguishInfinity = &Point_efgh_full{}
 var _ CurvePointPtrInterfaceDistinguishInfinity = &Point_xtw_full{}
@@ -72,17 +70,3 @@ func TestGlobalParameter(t *testing.T) {
 		t.Fatal("EndomorphismEigentvalue_Int is not a square root of -2 modulo p253")
 	}
 }
-
-/*
-	checkfun_<foo> are functions of type checkfun (i.e. func(TestSample)(bool, string))
-	They are to be run on TestSamples containing a Tuple of CurvePointPtrInterfaces and Flags and return true, <ignored> on success
-	and false, optional_error_reason on failure.
-
-	Be aware that our checkfunction also verify the intended behaviour at NaP's (even though we might not guarantee it)
-
-	In some cases, the checkfunction needs an extra argument.
-	E.g. when testing addition z.Add(x,y), the arguments x,y are given by the TestSample, but we need to specify the type of the receiver z intended to store the argument
-	(this is important, as it selects the actuall method used), so we need an extra argument of type PointType (which is based on reflect.Type).
-	In order to do that, we define functions with names
-	make_checkfun_<foo>(extra arguments) that return checkfunctions with the extra arguments bound.
-*/

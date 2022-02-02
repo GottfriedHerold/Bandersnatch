@@ -17,6 +17,8 @@ Coordinate consistency:
 	reconstruction from XYZ_projective or XY_affine
 	consistency of affine and projective coos
 	consistency of extended coordinates
+	consistency of affine and affine Decaf
+	consistency of projective and projective decaf
 
 Endo:
 	Endo maps to correct subgroup
@@ -41,6 +43,10 @@ Serialize:
 	TODO!
 Queries:
 	Check consistency of sample flags with Validate, IsAtInfinity, NaP
+
+TODOs: Consistency
+Add vs Add_naive
+Validate for wrong points?
 
 /*
 	Caveat: Bandersnatch is typically represented as a twisted Edwards curve, which means there are singularities
