@@ -8,6 +8,8 @@ func TestCoordinateFunctions(t *testing.T) {
 		make_samples1_and_run_tests(t, checkfun_consistency_affine_projective, "constistency of affine and projective coordinated failed for "+type1String, type1, 50, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_consistency_extended_coordinates, "extended coordinate interface is giving wrong results for "+type1String, type1, 50, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_consistency_coordinates, "coordinates do not allow to reconstruct point for "+type1String, type1, 50, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_consistency_decaf_affine, "affine coordinates do not match with decaf_affine coordinates for "+type1String, type1, 50, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_consistency_decaf_projective, "projective coordinates do not match with decaf_projective coordinates for "+type1String, type1, 50, excludeNoPoints)
 	}
 }
 
@@ -19,7 +21,7 @@ func checkfun_consistency_coordinates(s *TestSample) (bool, string) {
 	if singular {
 		return true, "skipped" // for now
 	}
-	clone := s.Points[0].Clone().(CurvePointPtrInterface)
+	clone := s.Points[0].Clone()
 
 	if !infinite {
 		var Pp Point_xtw_full
@@ -35,7 +37,7 @@ func checkfun_consistency_coordinates(s *TestSample) (bool, string) {
 			return false, "projective coordinates do not give back point"
 		}
 		var Pa Point_axtw_full
-		clone = s.Points[0].Clone().(CurvePointPtrInterface)
+		clone = s.Points[0].Clone()
 		Pa.x, Pa.y = clone.XY_affine()
 		Pa.t.Mul(&Pa.x, &Pa.y)
 		if !Pa.Validate() {
@@ -64,10 +66,10 @@ func checkfun_consistency_affine_projective(s *TestSample) (bool, string) {
 	if s.AnyFlags().CheckFlag(Case_singular | Case_infinite) {
 		return true, "skipped"
 	}
-	clone1 := s.Points[0].Clone().(CurvePointPtrInterface)
-	clone2 := s.Points[0].Clone().(CurvePointPtrInterface)
-	clone3 := s.Points[0].Clone().(CurvePointPtrInterface)
-	clone4 := s.Points[0].Clone().(CurvePointPtrInterface)
+	clone1 := s.Points[0].Clone()
+	clone2 := s.Points[0].Clone()
+	clone3 := s.Points[0].Clone()
+	clone4 := s.Points[0].Clone()
 	x_proj := clone1.X_projective()
 	y_proj := clone1.Y_projective()
 	z_proj := clone1.Z_projective()
@@ -167,6 +169,127 @@ func checkfun_consistency_extended_coordinates(s *TestSample) (bool, string) {
 	}
 	if !y_proj.IsEqual(&y_proj2) {
 		return false, "Y_projecitve and XYTZ_projective do not match"
+	}
+	return true, ""
+}
+
+// check consistency of _decaf_affine with _affine
+func checkfun_consistency_decaf_affine(s *TestSample) (bool, string) {
+	s.AssertNumberOfPoints(1)
+	if s.AnyFlags().CheckFlag(Case_singular | Case_infinite) {
+		return true, "Skipped"
+	}
+	clone1 := s.Points[0].Clone()
+	clone2 := s.Points[0].Clone()
+	Xd := clone1.X_decaf_affine()
+	Yd := clone1.Y_decaf_affine()
+	Td := clone1.T_decaf_affine()
+	X, Y := clone2.XY_affine()
+	var T FieldElement
+	T.Mul(&X, &Y)
+	// check Y first to get sign, because it cannot be zero.
+	var correctsign, ok bool
+	ok, correctsign = Y.CmpAbs(&Yd)
+	if !ok {
+		return false, "Y_affine and Y_decaf_affine do not match up to sign"
+	}
+	// We cannot use CmpAbs on X directly due to the 0 case.
+	// So we flip the sign and expect an exact match (we use CmpAbs for better errors)
+	if !correctsign {
+		X.NegEq()
+	}
+	ok, correctsign = X.CmpAbs(&Xd)
+	if !ok {
+		return false, "X_affine and X_decaf_affine do not match"
+	}
+	if !correctsign {
+		return false, "Both X_affine and X_decaf_affine and Y_affine and Y_decaf_affine match individually, but they differ in relative sign."
+	}
+	// T needs to match exactly in any case.
+	if !T.IsEqual(&Td) {
+		return false, "T_affine and T_decaf_affine do not match"
+	}
+	return true, ""
+}
+
+// check consistency of _decaf_projective and _projective
+func checkfun_consistency_decaf_projective(s *TestSample) (bool, string) {
+	s.AssertNumberOfPoints(1)
+	if s.AnyFlags().CheckFlag(Case_singular) {
+		return true, "skipped"
+	}
+	infinite := s.AnyFlags().CheckFlag(Case_infinite)
+	// We treat the case of points at infinity completely separately
+	if infinite {
+		Xd := s.Points[0].X_decaf_projective()
+		Yd := s.Points[0].Y_decaf_projective()
+		Td := s.Points[0].T_decaf_projective()
+		Zd := s.Points[0].Z_decaf_projective()
+		if !Zd.IsZero() {
+			return false, "Z_decaf_projective != 0 for point at infinity"
+		}
+		if !Yd.IsZero() {
+			return false, "Y_decaf_projective != 0 for point at infinity"
+		}
+		if Xd.IsZero() {
+			return false, "X_decaf_projective == 0 for point at infinity"
+		}
+		if Td.IsZero() {
+			return false, "T_decaf_projective == 0 for point at infinity"
+		}
+		Td.MulEq(&squareRootDbyA_fe)
+		ok, _ := Td.CmpAbs(&Xd)
+		if !ok {
+			return false, "X_decaf_projective / T_decaf_projective != sqrt(d/a) for point at infinity"
+		}
+		return true, ""
+	}
+	assert(!infinite) // We treated the infinite case above
+	clone1 := s.Points[0].Clone()
+	clone2 := s.Points[0].Clone()
+	X, Y, Z := clone1.XYZ_projective()
+	var T FieldElement
+	T.Mul(&X, &Y)
+	X.MulEq(&Z)
+	Y.MulEq(&Z)
+	Z.SquareEq()
+	Xd := clone2.X_decaf_projective()
+	Yd := clone2.Y_decaf_projective()
+	Td := clone2.T_decaf_projective()
+	Zd := clone2.Z_decaf_projective()
+	if Z.IsZero() {
+		return false, "Z_projective returned 0 for non-infinite point"
+	}
+	if Zd.IsZero() {
+		return false, "Z_decaf_projective returned 0 for non-infinite point"
+	}
+	// We check X/Z = +/- Xd/Zd etc. Clearing denominators (which are non-zero)
+	Xd.MulEq(&Z)
+	Yd.MulEq(&Z)
+	Td.MulEq(&Z)
+	X.MulEq(&Zd)
+	Y.MulEq(&Zd)
+	T.MulEq(&Zd)
+	// check Y first to get sign (Y cannot be zero):
+	if Yd.IsZero() {
+		return false, "Y_decaf_projective returned 0 for non-infinite point"
+	}
+	ok, correctsign := Yd.CmpAbs(&Y)
+	if !ok {
+		return false, "Y_decaf_projective and Y_projective do not match"
+	}
+	if !correctsign {
+		Xd.NegEq()
+	}
+	ok, correctsign = Xd.CmpAbs(&X)
+	if !ok {
+		return false, "X_decaf_projective and X_projective do not match"
+	}
+	if !correctsign {
+		return false, "<foo>_decaf_projective and <foo>_projecive for <foo> in X,Y,Z make inconsistent choices wrt P vs. P+A"
+	}
+	if !T.IsEqual(&Td) {
+		return false, "T_decaf_projective and T_projective do not match"
 	}
 	return true, ""
 }

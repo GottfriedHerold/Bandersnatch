@@ -17,10 +17,13 @@ import (
 
 // The Voronoi cell wrt infinity-norm looks like in voronoi.svg. The 6 Voronoi-relevant vectors (colored lattice points in the figure) are given by +/- lBasis_1, +/- lBasis 2 and +/-(lBasis_1 + lBasis_2).
 const (
-	lBasis_11 = 113482231691339203864511368254957623327
-	lBasis_12 = 10741319382058138887739339959866629956
-	lBasis_21 = -21482638764116277775478679919733259912
-	lBasis_22 = 113482231691339203864511368254957623327
+	// Unused:
+	/*
+		lBasis_11 = 113482231691339203864511368254957623327
+		lBasis_12 = 10741319382058138887739339959866629956
+		lBasis_21 = -21482638764116277775478679919733259912
+		lBasis_22 = 113482231691339203864511368254957623327
+	*/
 
 	// Note: lBasis_11 == lBasis_22 and lBasis_21 = -2*lBasis_12. This special structure is due to EndoEigenvalue^2 == -2 mod p253:
 	// For any (u,v) is in L, we have (-2v, u) in L, which is short (and a candidate for a vector of a reduced basis) if (u,v) is short.

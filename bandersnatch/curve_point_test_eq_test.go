@@ -14,7 +14,7 @@ func checkfun_AddEq(s *TestSample) (bool, string) {
 
 	receiverType := getPointType(s.Points[0])
 
-	result1 := s.Points[0].Clone().(CurvePointPtrInterface)
+	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
 
 	if !typeCanRepresentInfinity(receiverType) && !singular {
@@ -49,7 +49,7 @@ func checkfun_SubEq(s *TestSample) (bool, string) {
 
 	receiverType := getPointType(s.Points[0])
 
-	result1 := s.Points[0].Clone().(CurvePointPtrInterface)
+	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
 
 	if !typeCanRepresentInfinity(receiverType) && !singular {
@@ -86,7 +86,7 @@ func checkfun_DoubleEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	receiverType := getPointType(s.Points[0])
-	result1 := s.Points[0].Clone().(CurvePointPtrInterface)
+	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
 
 	result1.DoubleEq()
@@ -109,7 +109,7 @@ func checkfun_NegEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	receiverType := getPointType(s.Points[0])
-	result1 := s.Points[0].Clone().(CurvePointPtrInterface)
+	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
 
 	result1.NegEq()
@@ -132,7 +132,7 @@ func checkfun_EndoEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	singular := s.AnyFlags().CheckFlag(Case_singular)
 	receiverType := getPointType(s.Points[0])
-	result1 := s.Points[0].Clone().(CurvePointPtrInterface)
+	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
 
 	result1.EndoEq()

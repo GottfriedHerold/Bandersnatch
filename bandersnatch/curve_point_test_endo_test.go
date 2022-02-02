@@ -68,7 +68,7 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 			}
 		}
 
-		resultClone := result.Clone().(CurvePointPtrInterface)
+		resultClone := result.Clone()
 		var X, Z FieldElement
 		X = resultClone.X_projective()
 		Z = resultClone.Z_projective()
@@ -91,7 +91,7 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 		}
 
 		if !typeCanOnlyRepresentSubgroup(sampleType) {
-			inputClone := s.Points[0].Clone().(CurvePointPtrInterface)
+			inputClone := s.Points[0].Clone()
 			inputClone.AddEq(&AffineOrderTwoPoint_xtw)
 			resultClone.Endo(inputClone)
 			if !result.IsEqual(resultClone) {
