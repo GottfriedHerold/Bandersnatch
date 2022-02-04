@@ -167,7 +167,7 @@ func BenchmarkIsEqual_8(b *testing.B) {
 	var bench_y_8 []bsFieldElement_8 = getPrecomputedFieldElementSlice_8(2, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpBools_Fe[n%benchS] = bench_x_8[n%benchS].IsEqual(&bench_y_8[n%benchS])
+		DumpBools_fe[n%benchS] = bench_x_8[n%benchS].IsEqual(&bench_y_8[n%benchS])
 	}
 }
 
@@ -193,7 +193,7 @@ func BenchmarkNegEq_8(b *testing.B) {
 }
 
 func BenchmarkSign_8(b *testing.B) {
-	var dumpInt [benchSizeFe]int
+	var dumpInt [dumpSizeBench_fe]int
 	var bench_x_8 []bsFieldElement_8 = getPrecomputedFieldElementSlice_8(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
@@ -202,12 +202,12 @@ func BenchmarkSign_8(b *testing.B) {
 	b.StopTimer()
 	// This is just to really ensure the compiler does not optimize things away.
 	for n := 0; n < b.N; n++ {
-		DumpBools_Fe[n%benchS] = (dumpInt[n%benchS] == 1)
+		DumpBools_fe[n%benchS] = (dumpInt[n%benchS] == 1)
 	}
 }
 
 func BenchmarkJacobi_8(b *testing.B) {
-	var dumpInt [benchSizeFe]int
+	var dumpInt [dumpSizeBench_fe]int
 	var bench_x_8 []bsFieldElement_8 = getPrecomputedFieldElementSlice_8(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
@@ -216,7 +216,7 @@ func BenchmarkJacobi_8(b *testing.B) {
 	b.StopTimer()
 	// This is just to really ensure the compiler does not optimize things away.
 	for n := 0; n < b.N; n++ {
-		DumpBools_Fe[n%benchS] = (dumpInt[n%benchS] == 1)
+		DumpBools_fe[n%benchS] = (dumpInt[n%benchS] == 1)
 	}
 }
 

@@ -28,8 +28,15 @@ func initIntFromString(input string) *big.Int {
 	return t
 }
 
-func assert(condition bool) {
+func assert(condition bool, err ...interface{}) {
+	if len(err) > 1 {
+		panic("assert can only handle 1 extra error argument")
+	}
 	if !condition {
-		panic("This is not supposed to be possible")
+		if len(err) == 0 {
+			panic("This is not supposed to be possible")
+		} else {
+			panic(err[0])
+		}
 	}
 }

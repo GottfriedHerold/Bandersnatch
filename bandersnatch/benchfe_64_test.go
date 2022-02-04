@@ -7,7 +7,7 @@ import (
 const benchS = 1 << 8
 
 func init() {
-	assert(benchS <= benchSizeFe)
+	assert(benchS <= dumpSizeBench_fe)
 }
 
 // BenchmarkEnsureBuildFlags is not really a benchmark.
@@ -32,7 +32,7 @@ func BenchmarkDummyReadStore_64(b *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpFe_64[n&benchS] = bench_x_64[n%benchS]
+		DumpFe_64[n%benchS] = bench_x_64[n%benchS]
 	}
 }
 
@@ -204,7 +204,7 @@ func BenchmarkIsEqual_64(b *testing.B) {
 	var bench_y_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(2, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpBools_Fe[n%benchS] = bench_x_64[n%benchS].IsEqual(&bench_y_64[n%benchS])
+		DumpBools_fe[n%benchS] = bench_x_64[n%benchS].IsEqual(&bench_y_64[n%benchS])
 	}
 }
 
@@ -230,7 +230,7 @@ func BenchmarkNegEq_64(b *testing.B) {
 }
 
 func BenchmarkSign_64(b *testing.B) {
-	var dumpInt [benchSizeFe]int
+	var dumpInt [dumpSizeBench_fe]int
 	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
@@ -239,12 +239,12 @@ func BenchmarkSign_64(b *testing.B) {
 	b.StopTimer()
 	// This is just to really ensure the compiler does not optimize things away.
 	for n := 0; n < b.N; n++ {
-		DumpBools_Fe[n%benchS] = (dumpInt[n%benchS] == 1)
+		DumpBools_fe[n%benchS] = (dumpInt[n%benchS] == 1)
 	}
 }
 
 func BenchmarkJacobi_64(b *testing.B) {
-	var dumpInt [benchSizeFe]int
+	var dumpInt [dumpSizeBench_fe]int
 	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
@@ -253,7 +253,7 @@ func BenchmarkJacobi_64(b *testing.B) {
 	b.StopTimer()
 	// This is just to really ensure the compiler does not optimize things away.
 	for n := 0; n < b.N; n++ {
-		DumpBools_Fe[n%benchS] = (dumpInt[n%benchS] == 1)
+		DumpBools_fe[n%benchS] = (dumpInt[n%benchS] == 1)
 	}
 }
 
