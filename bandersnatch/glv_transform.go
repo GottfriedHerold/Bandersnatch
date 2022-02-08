@@ -5,7 +5,7 @@ import (
 )
 
 // Data used to speed up exponentiation with the endomorphism:
-// Consider the lattice L consisting of vectors (u,v), s.t. u*P + v*psi(P) = neutral element for any elliptic curve point P in the subgroup and phi the endomorphism.
+// Consider the lattice L consisting of vectors (u,v), s.t. u*P + v*psi(P) = neutral element for any elliptic curve point P in the subgroup and psi the endomorphism.
 // Because psi acts by multiplication by EndoEigenvalue==sqrt(-2) on the p253-subgroup, this is equivalent to u + v* EndoEigenvalue = 0 mod p253.
 // Clearly, a basis for L is given by (p253,0) and (EndoEigenvalue, -1)
 // We use psi to speed up arbitrary exponentiations by exponent t by noting that for P in the subgroup, t*P = a*P + b*psi(P), where (a,b) - (t,0) is in L.
@@ -63,7 +63,7 @@ func infty_norm(x, y *big.Int) (result *big.Int) {
 
 // TODO: Usage of big.Int may not be the best here.
 
-// GLV_representation(t) outputs a pair u,v of big.Ints such that t*P = u*P + v*\Psi(P) for the endomorphism Psi for any P in the subgroup.
+// GLV_representation(t) outputs a pair u,v of big.Ints such that t*P = u*P + v*Psi(P) for the endomorphism Psi for any P in the subgroup.
 // We choose the pair u,v such that max{|u|, |v|} is minimized.
 func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 	// By the remark above, we essentially need to solve a closest vector problem here with target (t,0).
@@ -73,7 +73,7 @@ func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 	// The latter is equal to (alpha-round(alpha)) * lBasis_1 + (beta-round(beta)) * lBasis_2
 
 	// Now, note that (alpha, beta) = 1/det(B) * tilde(B) * (t,0) by definition, where the cofactor matrix tilde(B) = det(B)*B^{-1} is actually an integral matrix and B is the Basis matrix for lBasis_1,lBasis_2
-	// By multipying everything with det(B) == p253, we can replace rounding floats to the nearest integer and taking the difference by rounding an integer to the next multiple of p253, i.e. working modulo p253.
+	// By multipying everything with det(B) == p253, we can replace rounding floats to the nearest integer and taking the difference by rounding an integer to the next multiple of p253 and taking the difference, i.e. working modulo p253.
 
 	var delta_alpha *big.Int = big.NewInt(0) // p253 * (alpha - round(alpha))
 	var delta_beta *big.Int = big.NewInt(0)  // p253 * (alpha - round())
@@ -112,13 +112,16 @@ func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 
 	// (u,v) already is a good solution. We can try to make (u,v) smaller by trying to add/subtract one of lBasis_1 or lBasis_2.
 	// Due to the fact that the elementary cell associated to the basis B is contained in the union of the Voronoi cells around 0 and +/- lBasis_1 and +/- lBasis_2, this actually gives the global optimum.
-	// Looking a voronoi.svg, we can actually use some sign information to limit the options we need to consider further.
-	// NOTE: We constructed (u,v) using a naive Babai rounding rather than with Babai's nearest plane algorithm. The latter would have given a better (u,v) on average, but required more cases in post-processing to find the true
-	// global optimum.
+	// Looking at voronoi.svg, we can actually use some sign information to limit the options we need to consider further.
+	// NOTE: We constructed (u,v) using a naive Babai rounding rather than with Babai's nearest plane algorithm.
+	// The latter would have given a better (u,v) on average, but required more cases in post-processing to find the true
+	// global optimum. Also Babai rounding is (slightly) more complicated.
 
 	// Note we look at (u,v) +/- lBasis_1 and (u,v) +/- lBasis_2. If we find a smaller vector, we do NOT greedily replace (u,v) and then try to improve further; this might acutally lead to a non-optimal solution.
 	// We know a priori that one of the 5 options (including (u,v) itself) starting from (u,v) is actually the global optimum.
-	// NOTE: We do not really need to find the global optimum, but since we know the Voronoi relevant vectors, we can easily test for optimality. This is what we do in our tests, as it gives a clear and testable criterion.
+	//
+	// NOTE: We do not really need to find the global optimum, but it is not very expensive and simplifies testing:
+	// Since we know the Voronoi relevant vectors, we can easily test for (global) optimality.
 
 	u_final.Set(u)
 	v_final.Set(v)

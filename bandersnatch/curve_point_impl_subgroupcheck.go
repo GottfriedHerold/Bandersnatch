@@ -1,5 +1,14 @@
 package bandersnatch
 
+// These functions perform subgroup checks.
+// They are defined not on curvepoints, but rather on coordinates, because
+// they are involved in actually constructing curve points
+// (The alternative is initializing a curve point with these coordinates and running a function on those, but this at least temporarily breaks invariants and we wish to avoid that.)
+//
+// We have variants optimizes for the coordinate system used
+
+// legendreCheckA_affineX returns true for points of the form P or P+A and false for P+E1 or P+E2 where P is in the prime-order subgroup.
+// The input is the affine x coordinate. Only x^2 matters, so calling with -x instead of x is fine.
 func legendreCheckA_affineX(x FieldElement) bool {
 	// x is passed by value. We use it as a temporary.
 	x.SquareEq()
@@ -8,6 +17,8 @@ func legendreCheckA_affineX(x FieldElement) bool {
 	return x.Jacobi() >= 0    // cannot be ==0, since a is a non-square
 }
 
+// legendreCheckA_projectiveXZ returns true for points of the form P or P+A and false for P+E1 or P+E2 where P is in the prime-order subgroup.
+// The inputs are projective x and z coordinates. Note that the result only depends on x, z through x^2 and z^2.
 func legendreCheckA_projectiveXZ(x FieldElement, z FieldElement) bool {
 	// x, z are passed by value. We use them as temporaries.
 	x.SquareEq()
@@ -17,6 +28,8 @@ func legendreCheckA_projectiveXZ(x FieldElement, z FieldElement) bool {
 	return x.Jacobi() >= 0
 }
 
+// legendreCheckA_EG returns true for points of the form P or P+A and false for P+E1 or P+E2 where P is in the prime-order subgroup.
+// The inputs are E and G coordinates. The result only depends on E^2 and G^2, so signs of the inputs do not matter.
 func legendreCheckA_EG(e FieldElement, g FieldElement) bool {
 	e.SquareEq()
 	g.SquareEq()
@@ -25,6 +38,12 @@ func legendreCheckA_EG(e FieldElement, g FieldElement) bool {
 	return g.Jacobi() >= 0
 }
 
+// legendreCheckE1 returns true for N, E1, E2 and points of the form P, P+E1 with P!=N in the prime-order subgroup.
+// It returns false for A or points of the form P+A or P+E2 with P!=N.
+// (i.e. it returns true for the p253+{N,E1} subgroup with an exception at E2 )
+//
+// legendreCheckE1_affineY takes the affine y coordinate.
+// Since affine coordinates rule out E1, E2, the exception at E2 cannot occur
 func legendreCheckE1_affineY(y FieldElement) bool {
 	// TODO: formula not optimized
 
@@ -42,6 +61,11 @@ func legendreCheckE1_affineY(y FieldElement) bool {
 	return acc.Jacobi() <= 0
 }
 
+// legendreCheckE1 returns true for N, E1, E2 and points of the form P, P+E1 with P!=N in the prime-order subgroup.
+// It returns false for A or points of the form P+A or P+E2 with P!=N.
+// (i.e. it returns true for the p253+{N,E1} subgroup with an exception at E2 )
+//
+// legendreCheckE1_projectiveYZ takes projective Y and Z coordinates.
 func legendreCheckE1_projectiveYZ(y FieldElement, z FieldElement) bool {
 	var acc, temp, rAndOne FieldElement
 	rAndOne.Add(&FieldElementOne, &squareRootDbyA_fe)
@@ -56,6 +80,9 @@ func legendreCheckE1_projectiveYZ(y FieldElement, z FieldElement) bool {
 	return acc.Jacobi() <= 0
 }
 
+// legendreCheckE1_FH returns true for points from p253+{N,E1} and false for points from p253+{A,E2}
+//
+// Note that the _FH variant gives the "correct" result for E2 (as opposed to the others)
 func legendreCheckE1_FH(f FieldElement, h FieldElement) bool {
 	// identical to YZ, actually. But special cases resulting in 0 differ.
 	var acc, temp, rAndOne FieldElement

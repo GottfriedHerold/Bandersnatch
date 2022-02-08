@@ -34,6 +34,20 @@ func TestGLVParameters(t *testing.T) {
 	}
 
 }
+
+func BenchmarkGLVDecomposition(b *testing.B) {
+	var drng *rand.Rand = rand.New(rand.NewSource(int64(1000 + b.N)))
+	var exponents []*big.Int = make([]*big.Int, b.N)
+	for i := 0; i < b.N; i++ {
+		exponents[i] = big.NewInt(0)
+		exponents[i].Rand(drng, GroupOrder_Int)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = GLV_representation(exponents[i])
+	}
+}
+
 func TestGLV(t *testing.T) {
 	const iterations = 10000
 	var bigrange1 *big.Int = big.NewInt(0)

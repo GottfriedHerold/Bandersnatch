@@ -207,46 +207,6 @@ func affineFromXSignY(xSignY *FieldElement, trusted bool) (ret Point_axtw, err e
 	and on the long format path, the checks share subexpressions, which are only computed once.
 */
 
-// affineFromXYSignY is used during deserialization. It constructs an affine Point_axtw from xTemp=x Sign(Y) and yTemp = y Sign(Y).
-// This function is just an internal helper function; note that it actually modifies xTemp and yTemp, which are no longer needed by the caller anyway.
-func affineFromXYSignY(xTemp *FieldElement, yTemp *FieldElement, trusted bool) (ret Point_axtw, err error) {
-	// If Sign(Y) == 1, then this is obviously correct (provided the input is good); However, if Sign(Y) == -1, this just differs by + A, which we do not care about.
-	ret.x = *xTemp
-	ret.y = *yTemp
-	ret.t.Mul(xTemp, yTemp)
-	if !trusted {
-		// y * Sign(Y) must have Sign > 0.
-		if yTemp.Sign() <= 0 {
-			err = ErrWrongSignY
-			return
-		}
-
-		// We compute 1-ax^2 - y^2 + dt^2, which is 0 iff the point is on the curve (and finite).
-		// Observe that the subexpression 1-ax^2 is also used in the subgroup check, so we do that along the way.
-		// We reuse xTemp and yTemp as temporaries, using yTemp as accumulator.
-		yTemp.Square(xTemp) // x^2
-
-		yTemp.multiply_by_five()      // 5x^2 == -ax^2
-		yTemp.AddEq(&FieldElementOne) // 1+5x^2 == 1-ax^2
-
-		if yTemp.Jacobi() < 0 {
-			err = ErrNotInSubgroup
-			// no return. This way, if we have both "not on curve" and "not in subgroup", we get "not on curve", which is more informative.
-		}
-
-		xTemp.Square(&ret.y) // y^2
-		yTemp.SubEq(xTemp)   // 1-ax^2 - y^2
-
-		xTemp.Square(&ret.t)             // t^2 == x^2y^2
-		xTemp.MulEq(&CurveParameterD_fe) // dt^2
-		yTemp.AddEq(xTemp)               // 1 - ax^2 - y^2 + dt^2
-		if !yTemp.IsZero() {
-			err = ErrNotOnCurve
-		}
-	}
-	return
-}
-
 /*
 	NOTE: The current behaviour is that p.DeserializeShort/Long/Auto will not overwrite p on error. We could make an exception (some old version did this) to this rule for ErrNonNormalizedDeserialization,
 	i.e. if the field element that was read was not in 0 <= . < BaseFieldSize. However, that seems to complicate things needlessly and makes DeserializeAuto behave differently from DeserializeShort/Long, becaue
