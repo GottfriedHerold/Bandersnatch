@@ -177,19 +177,79 @@ func TestMapToFieldElement(t *testing.T) {
 	}
 }
 
-func TestFullCurvePointFromXYAffine(t *testing.T) {
-	checkfun_FullCurvePointFromXYAffine := make_checkfun_recoverPoint(FullCurvePointFromXYAffine, "FullCurveFromXYAffine", false,
-		func(arg CurvePointPtrInterfaceRead) (x, y *FieldElement) {
-			x = new(FieldElement)
-			y = new(FieldElement)
-			*x, *y = arg.XY_affine()
-			return
-		})
+func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
+	getArgsXYAffine := func(arg CurvePointPtrInterfaceRead) (x, y *FieldElement) {
+		x = new(FieldElement)
+		y = new(FieldElement)
+		*x, *y = arg.XY_affine()
+		return
+	}
+
+	getArgsXAndSignY := func(arg CurvePointPtrInterfaceRead) (x *FieldElement, signY int) {
+		x_val, y_val := arg.XY_affine()
+		x = new(FieldElement)
+		*x = x_val
+		signY = y_val.Sign()
+		return
+	}
+
+	getArgsYAndSignX := func(arg CurvePointPtrInterfaceRead) (y *FieldElement, signX int) {
+		x_val, y_val := arg.XY_affine()
+		y = new(FieldElement)
+		*y = y_val
+		signX = x_val.Sign()
+		return
+	}
+
+	getArgsXTimesSignY := func(arg CurvePointPtrInterfaceRead) (xSignY *FieldElement) {
+		x_val, y_val := arg.XY_affine()
+		xSignY = new(FieldElement)
+		*xSignY = x_val
+		signY := y_val.Sign()
+		if signY == -1 {
+			xSignY.NegEq()
+		} else {
+			assert(signY == 1)
+		}
+		return
+	}
+
+	getArgsXYTimesSignY := func(arg CurvePointPtrInterfaceRead) (xSignY, ySignY *FieldElement) {
+		x_val, y_val := arg.XY_affine()
+		xSignY = new(FieldElement)
+		ySignY = new(FieldElement)
+		signY := y_val.Sign()
+		*xSignY = x_val
+		*ySignY = y_val
+		if signY == -1 {
+			xSignY.NegEq()
+			ySignY.NegEq()
+		} else {
+			assert(signY == +1)
+		}
+		return
+	}
+
+	checkfun_FullCurvePointFromXYAffine := make_checkfun_recoverPoint(FullCurvePointFromXYAffine, "FullCurvePointFromXYAffine", false, getArgsXYAffine, false)
+	checkfun_SubgroupCurvePointFromXYAffine := make_checkfun_recoverPoint(SubgroupCurvePointFromXYAffine, "SubgroupCurvePointFromXYAffine", true, getArgsXYAffine, false)
+	checkfun_FullCurvePointFromXAndSignY := make_checkfun_recoverPoint(FullCurvePointFromXAndSignY, "FullCurvePointFromXAndSignY", false, getArgsXAndSignY, false)
+	checkfun_SubgroupCurvePointFromXAndSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXAndSignY, "SubgroupCurvePointFromXAndSignY", true, getArgsXAndSignY, false)
+	checkfun_FullCurvePointFromYAndSignX := make_checkfun_recoverPoint(FullCurvePointFromYAndSignX, "FullCurvePointFromYAndSignX", false, getArgsYAndSignX, false)
+	checkfun_SubgroupCurvePointFromYAndSignX := make_checkfun_recoverPoint(SubgroupCurvePointFromYAndSignX, "SubgroupCurvePointFromYAndSignX", true, getArgsYAndSignX, false)
+	checkfun_SubgroupCurvePointFromXTimesSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXTimesSignY, "SubgroupCurvePointFromXTimesSignY", true, getArgsXTimesSignY, true)
+	checkfun_SubgroupCurvePointFromXYTimesSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXYTimesSignY, "SubgroupCurvePointFromXYTimesSignY", true, getArgsXYTimesSignY, true)
 
 	for _, pointType := range allTestPointTypes {
 		pointString := pointTypeToString(pointType)
 		make_samples1_and_run_tests(t, checkfun_recoverFromXYAffine, "Failure to recover point from XYAffine for "+pointString, pointType, 200, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_FullCurvePointFromXYAffine, "Failure to recover point from FullCurveFromXYAffine for "+pointString, pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_SubgroupCurvePointFromXYAffine, "Failure to recover point from SubgroupCurveFromXYAffine for "+pointString, pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_FullCurvePointFromXAndSignY, "Failure to recover point from FullCurvePointFromXAndSignY for "+pointString, pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_SubgroupCurvePointFromXAndSignY, "Failure to recover point from SubgroupCurvePointFromXAndSignY for "+pointString, pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_FullCurvePointFromYAndSignX, "Failure to recover point from FullCurvePointFromYAndSignX", pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_SubgroupCurvePointFromYAndSignX, "Failure to recover point from SubgroupCurvePointFromYAndSignX", pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_SubgroupCurvePointFromXTimesSignY, "Failure to recover point from SubgroupCurvePointFromXTimesSignY", pointType, 200, excludeNoPoints)
+		make_samples1_and_run_tests(t, checkfun_SubgroupCurvePointFromXYTimesSignY, "Failure to recover point from SubgroupCurvePointFromXYTimesSignY", pointType, 200, excludeNoPoints)
 	}
 }
 
@@ -244,7 +304,7 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 	return true, ""
 }
 
-func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOnly bool, argGetter interface{}) (returned_function checkfunction) {
+func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOnly bool, argGetter interface{}, roundTripModuloA bool) (returned_function checkfunction) {
 	recoveryFun_r := reflect.ValueOf(recoveryFun)
 	argGetter_r := reflect.ValueOf(argGetter)
 	assert(recoveryFun_r.Kind() == reflect.Func)
@@ -254,6 +314,13 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 		singular := s.AnyFlags().CheckFlag(Case_singular)
 		infinite := s.AnyFlags().CheckFlag(Case_infinite)
 		subgroup := s.Points[0].IsInSubgroup()
+		var pointPlusA Point_xtw_full // only used if roundTripModuloA is true
+		if roundTripModuloA {
+			assert(subgroupOnly)
+			pointPlusA.SetFrom(s.Points[0])
+			pointPlusA.AddEq(&AffineOrderTwoPoint_axtw)
+			subgroup = subgroup || pointPlusA.IsInSubgroup()
+		}
 		if infinite {
 			return true, "skipped" // affine X,Y coos make no sense.
 		}
@@ -267,7 +334,7 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 		Untrusted_r := reflect.ValueOf(UntrustedInput)
 		args_r = append(args_r, Untrusted_r)
 		res_r := recoveryFun_r.Call(args_r)
-		// Voodoo to take the adress of the return value of a reflect.Call
+		// Voodoo to take the adress of the return value of a reflect.Call. We need a new variable of pointer type, allocate memory and copy.
 		pointPtr_r := reflect.New(res_r[0].Type())
 		pointPtr_r.Elem().Set(res_r[0])
 		point := pointPtr_r.Interface().(CurvePointPtrInterfaceRead)
@@ -289,8 +356,13 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 			return false, "Unexpected error reported when recovering point with " + name + " (UntrustedInput)"
 		}
 
-		if err != nil && !point.IsEqual(s.Points[0]) {
+		if !roundTripModuloA && err == nil && !point.IsEqual(s.Points[0]) {
 			return false, "Untrusted deserialization did not reproduce the original for " + name
+		}
+		if roundTripModuloA && err == nil {
+			if !point.IsEqual(s.Points[0]) && !point.IsEqual(&pointPlusA) {
+				return false, "Untrusted deserialization did not reproduce the original modulo A for " + name
+			}
 		}
 		if subgroupOnly && !subgroup {
 			return true, ""
@@ -309,8 +381,11 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 		if err != nil {
 			return false, "Unexpected error reported when recovering point with " + name + " (TrustedInput)"
 		}
-		if !point.IsEqual(s.Points[0]) {
+		if !roundTripModuloA && !point.IsEqual(s.Points[0]) {
 			return false, "TrustedInput deserialization did not reproduce the original for " + name
+		}
+		if roundTripModuloA && !point.IsEqual(s.Points[0]) && !point.IsEqual(&pointPlusA) {
+			return false, "TrustedInput deserialization did not reproduce the original modulo A for " + name
 		}
 		return true, ""
 
