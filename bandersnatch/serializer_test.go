@@ -230,9 +230,9 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 		return
 	}
 
-	checkfun_FullCurvePointFromXYAffine := make_checkfun_recoverPoint(FullCurvePointFromXYAffine, "FullCurvePointFromXYAffine", false, getArgsXYAffine, false)
-	checkfun_SubgroupCurvePointFromXYAffine := make_checkfun_recoverPoint(SubgroupCurvePointFromXYAffine, "SubgroupCurvePointFromXYAffine", true, getArgsXYAffine, false)
-	checkfun_FullCurvePointFromXAndSignY := make_checkfun_recoverPoint(FullCurvePointFromXAndSignY, "FullCurvePointFromXAndSignY", false, getArgsXAndSignY, false)
+	checkfun_FullCurvePointFromXYAffine := make_checkfun_recoverPoint(CurvePointFromXYAffine_full, "FullCurvePointFromXYAffine", false, getArgsXYAffine, false)
+	checkfun_SubgroupCurvePointFromXYAffine := make_checkfun_recoverPoint(CurvePointFromXYAffine_subgroup, "SubgroupCurvePointFromXYAffine", true, getArgsXYAffine, false)
+	checkfun_FullCurvePointFromXAndSignY := make_checkfun_recoverPoint(CurvePointFromXAndSignY_full, "FullCurvePointFromXAndSignY", false, getArgsXAndSignY, false)
 	checkfun_SubgroupCurvePointFromXAndSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXAndSignY, "SubgroupCurvePointFromXAndSignY", true, getArgsXAndSignY, false)
 	checkfun_FullCurvePointFromYAndSignX := make_checkfun_recoverPoint(FullCurvePointFromYAndSignX, "FullCurvePointFromYAndSignX", false, getArgsYAndSignX, false)
 	checkfun_SubgroupCurvePointFromYAndSignX := make_checkfun_recoverPoint(SubgroupCurvePointFromYAndSignX, "SubgroupCurvePointFromYAndSignX", true, getArgsYAndSignX, false)
@@ -265,21 +265,21 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 		return true, "skipped" // We can't reliably get coos from the point
 	}
 	x, y := s.Points[0].XY_affine()
-	point, err := FullCurvePointFromXYAffine(&x, &y, TrustedInput)
+	point, err := CurvePointFromXYAffine_full(&x, &y, TrustedInput)
 	if err != nil {
 		return false, "FullCurvePointFromXYAffine reported unexpected error (TrustedInput)"
 	}
 	if !point.IsEqual(s.Points[0]) {
 		return false, "FullCurvePointFromXYAffine did not recover point (TrustedInput)"
 	}
-	point, err = FullCurvePointFromXYAffine(&x, &y, UntrustedInput)
+	point, err = CurvePointFromXYAffine_full(&x, &y, UntrustedInput)
 	if err != nil {
 		return false, "FullCurvePointFromXYAffine reported unexpected error (UntrustedInput)"
 	}
 	if !point.IsEqual(s.Points[0]) {
 		return false, "FullCurvePointFromXYAffine did not recover point (UntrustedInput)"
 	}
-	point_subgroup, err := SubgroupCurvePointFromXYAffine(&x, &y, UntrustedInput)
+	point_subgroup, err := CurvePointFromXYAffine_subgroup(&x, &y, UntrustedInput)
 	if !subgroup {
 		if err == nil {
 			return false, "SubgroupCurvePointFromXYAffine did not report subgroup error"
@@ -293,7 +293,7 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 		}
 	}
 	if subgroup {
-		point_subgroup, err = SubgroupCurvePointFromXYAffine(&x, &y, TrustedInput)
+		point_subgroup, err = CurvePointFromXYAffine_subgroup(&x, &y, TrustedInput)
 		if err != nil {
 			return false, "SubgroupCurvePointFromXYAffine reported unexpected error (TrustedInput)"
 		}

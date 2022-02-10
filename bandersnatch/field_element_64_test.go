@@ -220,7 +220,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test mul_four_one_64 by comparing to big.Int computation on random inputs x, y
 	for i := 1; i < iterations; i++ {
 		xInt := new(big.Int).Rand(drng, bound)
-		var x [4]uint64 = intTouintarray(xInt)
+		var x [4]uint64 = intToUintarray(xInt)
 
 		var y uint64 = drng.Uint64()
 		yInt := new(big.Int).SetUint64(y)
@@ -245,7 +245,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test montgomery_step_64
 	for i := 1; i < iterations; i++ {
 		tInt := new(big.Int).Rand(drng, bound)
-		var t [4]uint64 = intTouintarray(tInt)
+		var t [4]uint64 = intToUintarray(tInt)
 
 		var q uint64 = drng.Uint64()
 		qInt := new(big.Int).SetUint64(q)
@@ -270,10 +270,10 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test add_mul_shift_64
 	for i := 1; i < iterations; i++ {
 		targetInt := new(big.Int).Rand(drng, bound)
-		var target [4]uint64 = intTouintarray(targetInt)
+		var target [4]uint64 = intToUintarray(targetInt)
 
 		xInt := new(big.Int).Rand(drng, bound)
-		var x [4]uint64 = intTouintarray(xInt)
+		var x [4]uint64 = intToUintarray(xInt)
 
 		var y uint64 = drng.Uint64()
 		yInt := new(big.Int).SetUint64(y)
@@ -285,7 +285,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 		resultlowInt := new(big.Int).Mod(resultInt, R)
 		var result_low1 uint64 = resultlowInt.Uint64()
 		resultInt.Rsh(resultInt, 64)
-		result_target1 := intTouintarray(resultInt)
+		result_target1 := intToUintarray(resultInt)
 
 		result_low2 := add_mul_shift_64(&target, &x, y)
 		if target != result_target1 {
