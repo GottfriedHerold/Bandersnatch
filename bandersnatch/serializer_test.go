@@ -7,6 +7,10 @@ import (
 	"testing"
 )
 
+var _ pointSerializerInterface = &pointSerializerXY{}
+var _ pointSerializerInterface = &pointSerializerXAndSignY{}
+var _ pointSerializerInterface = &pointSerializerYAndSignX{}
+
 func TestRecoverYFromXAffine(t *testing.T) {
 	var checkfun_recover_y checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
@@ -233,11 +237,11 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 	checkfun_FullCurvePointFromXYAffine := make_checkfun_recoverPoint(CurvePointFromXYAffine_full, "FullCurvePointFromXYAffine", false, getArgsXYAffine, false)
 	checkfun_SubgroupCurvePointFromXYAffine := make_checkfun_recoverPoint(CurvePointFromXYAffine_subgroup, "SubgroupCurvePointFromXYAffine", true, getArgsXYAffine, false)
 	checkfun_FullCurvePointFromXAndSignY := make_checkfun_recoverPoint(CurvePointFromXAndSignY_full, "FullCurvePointFromXAndSignY", false, getArgsXAndSignY, false)
-	checkfun_SubgroupCurvePointFromXAndSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXAndSignY, "SubgroupCurvePointFromXAndSignY", true, getArgsXAndSignY, false)
-	checkfun_FullCurvePointFromYAndSignX := make_checkfun_recoverPoint(FullCurvePointFromYAndSignX, "FullCurvePointFromYAndSignX", false, getArgsYAndSignX, false)
-	checkfun_SubgroupCurvePointFromYAndSignX := make_checkfun_recoverPoint(SubgroupCurvePointFromYAndSignX, "SubgroupCurvePointFromYAndSignX", true, getArgsYAndSignX, false)
-	checkfun_SubgroupCurvePointFromXTimesSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXTimesSignY, "SubgroupCurvePointFromXTimesSignY", true, getArgsXTimesSignY, true)
-	checkfun_SubgroupCurvePointFromXYTimesSignY := make_checkfun_recoverPoint(SubgroupCurvePointFromXYTimesSignY, "SubgroupCurvePointFromXYTimesSignY", true, getArgsXYTimesSignY, true)
+	checkfun_SubgroupCurvePointFromXAndSignY := make_checkfun_recoverPoint(CurvePointFromXAndSignY_subgroup, "SubgroupCurvePointFromXAndSignY", true, getArgsXAndSignY, false)
+	checkfun_FullCurvePointFromYAndSignX := make_checkfun_recoverPoint(CurvePointFromYAndSignX_full, "FullCurvePointFromYAndSignX", false, getArgsYAndSignX, false)
+	checkfun_SubgroupCurvePointFromYAndSignX := make_checkfun_recoverPoint(CurvePointFromYAndSignX_subgroup, "SubgroupCurvePointFromYAndSignX", true, getArgsYAndSignX, false)
+	checkfun_SubgroupCurvePointFromXTimesSignY := make_checkfun_recoverPoint(CurvePointFromXTimesSignY_subgroup, "SubgroupCurvePointFromXTimesSignY", true, getArgsXTimesSignY, true)
+	checkfun_SubgroupCurvePointFromXYTimesSignY := make_checkfun_recoverPoint(CurvePointFromXYTimesSignY_subgroup, "SubgroupCurvePointFromXYTimesSignY", true, getArgsXYTimesSignY, true)
 
 	for _, pointType := range allTestPointTypes {
 		pointString := pointTypeToString(pointType)

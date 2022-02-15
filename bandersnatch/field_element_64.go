@@ -937,6 +937,7 @@ func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder binary.ByteOrd
 	return
 }
 
+// String is provided to satisfy the fmt.Stringer interface. Note that this is defined on a *value* receiver.
 func (z bsFieldElement_64) String() string {
 	z.Normalize()
 	return z.ToInt().String()
