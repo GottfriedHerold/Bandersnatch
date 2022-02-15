@@ -48,6 +48,22 @@ func BenchmarkGLVDecomposition(b *testing.B) {
 	}
 }
 
+func BenchmarkBitDecomposition(b *testing.B) {
+	var drng *rand.Rand = rand.New(rand.NewSource(int64(1000 + b.N)))
+	var exponents []*big.Int = make([]*big.Int, b.N)
+	for i := 0; i < b.N; i++ {
+		exponents[i] = big.NewInt(0)
+		exponents[i].Rand(drng, glvDecompositionMax_Int)
+		if drng.Intn(2) == 0 {
+			exponents[i].Neg(exponents[i])
+		}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = decomposeUnalignedSignedAdic_Int(exponents[i], 4)
+	}
+}
+
 func TestGLV(t *testing.T) {
 	const iterations = 10000
 	var bigrange1 *big.Int = big.NewInt(0)

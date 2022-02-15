@@ -16,13 +16,19 @@ import (
 // LLL-reduced basis for lattice L (computed with SAGE) used in GLV reduction. The basis consists of the two vectors (lBasis_11, lBasis_12) and (lBasis_21, lBasis_22).
 
 // The Voronoi cell wrt infinity-norm looks like in voronoi.svg. The 6 Voronoi-relevant vectors (colored lattice points in the figure) are given by +/- lBasis_1, +/- lBasis 2 and +/-(lBasis_1 + lBasis_2).
+
+// Note that our notion of Voronoi cells and Voronoi-relevant vectors are wrt to the infinity-norm throughout, which means they look at bit more complicated (in particular, the Voronoi cells are not convex).
 const (
 	// Unused:
+
 	/*
 		lBasis_11 = 113482231691339203864511368254957623327
 		lBasis_12 = 10741319382058138887739339959866629956
 		lBasis_21 = -21482638764116277775478679919733259912
 		lBasis_22 = 113482231691339203864511368254957623327
+
+		GVL_ResultMax = (lBasis_12 + lBasis_22) / 2 // Note: value in bracket is odd, rounding down is correct
+
 	*/
 
 	// Note: lBasis_11 == lBasis_22 and lBasis_21 = -2*lBasis_12. This special structure is due to EndoEigenvalue^2 == -2 mod p253:
@@ -33,6 +39,9 @@ const (
 	lBasis_12_string = "10741319382058138887739339959866629956"
 	lBasis_21_string = "-21482638764116277775478679919733259912"
 	lBasis_22_string = "113482231691339203864511368254957623327"
+
+	glvDecompositionMax_string = "62111775536698671376125354107412126641" // maximum absolute value for u or v that we return
+	// Note: The above number equals 0x2EBA4AF7_98A290F6_21F2A932_5DAF9BB1, having exactly 126 bit
 )
 
 var (
@@ -40,6 +49,8 @@ var (
 	lBasis_12_Int = initIntFromString(lBasis_12_string)
 	lBasis_21_Int = initIntFromString(lBasis_21_string)
 	lBasis_22_Int = initIntFromString(lBasis_22_string)
+
+	glvDecompositionMax_Int = initIntFromString(glvDecompositionMax_string)
 )
 
 // (p253-1)/2. We can represent Z/p253 by numbers from -halfGroupOrder, ... , + halfGroupOrder.
@@ -62,10 +73,14 @@ func infty_norm(x, y *big.Int) (result *big.Int) {
 }
 
 // TODO: Usage of big.Int may not be the best here.
+// The issue is not so much efficiency, since this is not a bottleneck anyway, but rather the fact that further processing of the output
+// is done by lots of bit-fiddling.
+
+// Note: The current implementation actually chooses the pair u,v such that max{|u|, |v|} is minimized rather than just guaranteeing 126 bits.
 
 // GLV_representation(t) outputs a pair u,v of big.Ints such that t*P = u*P + v*Psi(P) for the endomorphism Psi for any P in the subgroup.
-// We choose the pair u,v such that max{|u|, |v|} is minimized.
-func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
+// We guarantee that |u|, |v| both have at most 126 bit.
+func GLV_representation(t *big.Int) (u *big.Int, v *big.Int) {
 	// By the remark above, we essentially need to solve a closest vector problem here with target (t,0).
 	// For this, we write (t,0) as alpha*lBasis_1 + beta*lBasis_2 with real-valued alpha, beta.
 	// A close lattice point to (t,0) is then given by round(alpha)*lBasis_1 + round(beta)*lBasis_2 where round(.) rounds to the nearest integer.
@@ -78,10 +93,10 @@ func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 	var delta_alpha *big.Int = big.NewInt(0) // p253 * (alpha - round(alpha))
 	var delta_beta *big.Int = big.NewInt(0)  // p253 * (alpha - round())
 
-	var u *big.Int = big.NewInt(0)
-	var v *big.Int = big.NewInt(0)
-	u_final = big.NewInt(0)
-	v_final = big.NewInt(0)
+	var u_approx *big.Int = big.NewInt(0)
+	var v_approx *big.Int = big.NewInt(0)
+	u = big.NewInt(0)
+	v = big.NewInt(0)
 
 	delta_alpha.Mul(t, lBasis_22_Int)                // First component of (t,0) * tilde(B)
 	delta_alpha.Add(delta_alpha, halfGroupOrder_Int) // temporarily add (p253-1)/2. This is to transform rounding to truncating towards -infty (which is what big.Int's mod does).
@@ -99,18 +114,18 @@ func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 
 	// Multiply by 1/det B * B:
 	var temp *big.Int = big.NewInt(0)
-	u.Mul(lBasis_11_Int, delta_alpha)
+	u_approx.Mul(lBasis_11_Int, delta_alpha)
 	temp.Mul(lBasis_21_Int, delta_beta)
-	u.Add(u, temp)
+	u_approx.Add(u_approx, temp)
 
-	v.Mul(lBasis_12_Int, delta_alpha)
+	v_approx.Mul(lBasis_12_Int, delta_alpha)
 	temp.Mul(lBasis_22_Int, delta_beta)
-	v.Add(v, temp)
+	v_approx.Add(v_approx, temp)
 
-	u.Div(u, GroupOrder_Int) // Note: Division is exact.
-	v.Div(v, GroupOrder_Int) // Note: Division is exact.
+	u_approx.Div(u_approx, GroupOrder_Int) // Note: Division is exact.
+	v_approx.Div(v_approx, GroupOrder_Int) // Note: Division is exact.
 
-	// (u,v) already is a good solution. We can try to make (u,v) smaller by trying to add/subtract one of lBasis_1 or lBasis_2.
+	// (u_approx,v_approx) already is a good solution. We can try to make (u,v) smaller by trying to add/subtract one of lBasis_1 or lBasis_2.
 	// Due to the fact that the elementary cell associated to the basis B is contained in the union of the Voronoi cells around 0 and +/- lBasis_1 and +/- lBasis_2, this actually gives the global optimum.
 	// Looking at voronoi.svg, we can actually use some sign information to limit the options we need to consider further.
 	// NOTE: We constructed (u,v) using a naive Babai rounding rather than with Babai's nearest plane algorithm.
@@ -123,46 +138,46 @@ func GLV_representation(t *big.Int) (u_final *big.Int, v_final *big.Int) {
 	// NOTE: We do not really need to find the global optimum, but it is not very expensive and simplifies testing:
 	// Since we know the Voronoi relevant vectors, we can easily test for (global) optimality.
 
-	u_final.Set(u)
-	v_final.Set(v)
-	norm := infty_norm(u, v)
+	u.Set(u_approx)
+	v.Set(v_approx)
+	norm := infty_norm(u_approx, v_approx)
 	var norm2 *big.Int
-	if u.Sign() > 0 {
-		delta_alpha.Sub(u, lBasis_11_Int)
-		delta_beta.Sub(v, lBasis_12_Int)
+	if u_approx.Sign() > 0 {
+		delta_alpha.Sub(u_approx, lBasis_11_Int)
+		delta_beta.Sub(v_approx, lBasis_12_Int)
 		norm2 = infty_norm(delta_alpha, delta_beta)
 		if norm2.CmpAbs(norm) < 0 {
-			u_final.Set(delta_alpha)
-			v_final.Set(delta_beta)
+			u.Set(delta_alpha)
+			v.Set(delta_beta)
 			norm.Set(norm2)
 		}
 	} else {
-		delta_alpha.Add(u, lBasis_11_Int)
-		delta_beta.Add(v, lBasis_12_Int)
+		delta_alpha.Add(u_approx, lBasis_11_Int)
+		delta_beta.Add(v_approx, lBasis_12_Int)
 		norm2 = infty_norm(delta_alpha, delta_beta)
 		if norm2.CmpAbs(norm) < 0 {
-			u_final.Set(delta_alpha)
-			v_final.Set(delta_beta)
+			u.Set(delta_alpha)
+			v.Set(delta_beta)
 			norm.Set(norm2)
 		}
 	}
 
-	if v.Sign() > 0 {
-		delta_alpha.Sub(u, lBasis_21_Int)
-		delta_beta.Sub(v, lBasis_22_Int)
+	if v_approx.Sign() > 0 {
+		delta_alpha.Sub(u_approx, lBasis_21_Int)
+		delta_beta.Sub(v_approx, lBasis_22_Int)
 		norm2 = infty_norm(delta_alpha, delta_beta)
 		if norm2.CmpAbs(norm) < 0 {
-			u_final.Set(delta_alpha)
-			v_final.Set(delta_beta)
+			u.Set(delta_alpha)
+			v.Set(delta_beta)
 			norm.Set(norm2)
 		}
 	} else {
-		delta_alpha.Add(u, lBasis_21_Int)
-		delta_beta.Add(v, lBasis_22_Int)
+		delta_alpha.Add(u_approx, lBasis_21_Int)
+		delta_beta.Add(v_approx, lBasis_22_Int)
 		norm2 = infty_norm(delta_alpha, delta_beta)
 		if norm2.CmpAbs(norm) < 0 {
-			u_final.Set(delta_alpha)
-			v_final.Set(delta_beta)
+			u.Set(delta_alpha)
+			v.Set(delta_beta)
 			norm.Set(norm2)
 		}
 	}

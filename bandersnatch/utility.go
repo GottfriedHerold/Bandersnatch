@@ -11,7 +11,7 @@ func initFieldElementFromString(input string) (output bsFieldElement_64) {
 	if !success {
 		panic("String used to initialize field element not recognized as a valid number")
 	}
-	output.SetInt(t)
+	output.SetBigInt(t)
 	return
 }
 

@@ -72,13 +72,13 @@ func TestOps_8_vs_64(t *testing.T) {
 		var result_8, result_64 *big.Int
 		x_8.SetInt(x)
 		y_8.SetInt(y)
-		x_64.SetInt(x)
-		y_64.SetInt(y)
+		x_64.SetBigInt(x)
+		y_64.SetBigInt(y)
 
 		z_8.Mul(&x_8, &y_8)
 		z_64.Mul(&x_64, &y_64)
 		result_8 = z_8.ToInt()
-		result_64 = z_64.ToInt()
+		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
 			t.Fatal("Multiplication differs between bsFieldElement_8 and bsFieldElement64")
@@ -87,7 +87,7 @@ func TestOps_8_vs_64(t *testing.T) {
 		z_8.Add(&x_8, &y_8)
 		z_64.Add(&x_64, &y_64)
 		result_8 = z_8.ToInt()
-		result_64 = z_64.ToInt()
+		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
 			t.Fatal("Addition differs between bsFieldElement_8 and bsFieldElement64")
@@ -96,7 +96,7 @@ func TestOps_8_vs_64(t *testing.T) {
 		z_8.Sub(&x_8, &y_8)
 		z_64.Sub(&x_64, &y_64)
 		result_8 = z_8.ToInt()
-		result_64 = z_64.ToInt()
+		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
 			t.Fatal("Subtraction differs between bsFieldElement_8 and bsFieldElement64")
@@ -109,7 +109,7 @@ func TestOps_8_vs_64(t *testing.T) {
 		z_8.Inv(&x_8)
 		z_64.Inv(&x_64)
 		result_8 = z_8.ToInt()
-		result_64 = z_64.ToInt()
+		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
 			t.Fatal("Inversion differs between bsFieldElement_8 and bsFieldElement64", *result_8, *result_64)
@@ -220,7 +220,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test mul_four_one_64 by comparing to big.Int computation on random inputs x, y
 	for i := 1; i < iterations; i++ {
 		xInt := new(big.Int).Rand(drng, bound)
-		var x [4]uint64 = intToUintarray(xInt)
+		var x [4]uint64 = bigIntToUIntArray(xInt)
 
 		var y uint64 = drng.Uint64()
 		yInt := new(big.Int).SetUint64(y)
@@ -245,7 +245,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test montgomery_step_64
 	for i := 1; i < iterations; i++ {
 		tInt := new(big.Int).Rand(drng, bound)
-		var t [4]uint64 = intToUintarray(tInt)
+		var t [4]uint64 = bigIntToUIntArray(tInt)
 
 		var q uint64 = drng.Uint64()
 		qInt := new(big.Int).SetUint64(q)
@@ -270,10 +270,10 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test add_mul_shift_64
 	for i := 1; i < iterations; i++ {
 		targetInt := new(big.Int).Rand(drng, bound)
-		var target [4]uint64 = intToUintarray(targetInt)
+		var target [4]uint64 = bigIntToUIntArray(targetInt)
 
 		xInt := new(big.Int).Rand(drng, bound)
-		var x [4]uint64 = intToUintarray(xInt)
+		var x [4]uint64 = bigIntToUIntArray(xInt)
 
 		var y uint64 = drng.Uint64()
 		yInt := new(big.Int).SetUint64(y)
@@ -285,7 +285,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 		resultlowInt := new(big.Int).Mod(resultInt, R)
 		var result_low1 uint64 = resultlowInt.Uint64()
 		resultInt.Rsh(resultInt, 64)
-		result_target1 := intToUintarray(resultInt)
+		result_target1 := bigIntToUIntArray(resultInt)
 
 		result_low2 := add_mul_shift_64(&target, &x, y)
 		if target != result_target1 {
@@ -310,10 +310,10 @@ func TestSerializeInt_64(t *testing.T) {
 			x.setRandomUnsafe(drng)
 		}
 		var y bsFieldElement_64 = x
-		var xInt *big.Int = x.ToInt()
-		x.SetInt(xInt)
+		var xInt *big.Int = x.ToBigInt()
+		x.SetBigInt(xInt)
 		if !y.IsEqual(&x) {
-			t.Fatal("Serialization roundtrip fails", i, *(x.ToInt()), *(y.ToInt()))
+			t.Fatal("Serialization roundtrip fails", i, *(x.ToBigInt()), *(y.ToBigInt()))
 		}
 	}
 }
@@ -326,11 +326,11 @@ func TestSetUIunt(t *testing.T) {
 		xInt := big.NewInt(0)
 		xInt.SetUint64(x)
 		var a, b bsFieldElement_64
-		a.SetInt(xInt)
+		a.SetBigInt(xInt)
 		b.SetUInt64(x)
 
-		y, err := b.ToUint64()
-		if err {
+		y, err := b.ToUInt64()
+		if err != nil {
 			t.Fatal("Conversion back to Uint reports too big number")
 		}
 		if x != y {

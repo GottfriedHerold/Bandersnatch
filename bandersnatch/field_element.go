@@ -70,6 +70,8 @@ var BaseFieldSize *big.Int = big.NewInt(0).SetBytes(BaseFieldSize_BigEndianBytes
 	In particular, neither assigment nor comparison operators are guaranteed to work as expected.
 */
 
+// NOTE: The _8 comparison implementation does not have everything implemented.
+
 /*
 	This is the intended interface of Field Elements.
 	Of course, this cannot be made an actual interface without possibly sacrificing efficiency
@@ -85,11 +87,23 @@ type BSFieldElement_Interface interface {
 	Mul(x, y *BSFieldElement_Interface)
 	Add(x, y *BSFieldElement_Interface)
 	Sub(x, y *BSFieldElement_Interface)
+	Square(x *BSFieldElement_Interface)
+	Neg(x *BSFieldElement_Interface)
 	Inv(x *BSFieldElement_Interface)
-	SetInt(x *big.Int)
-	ToInt() *big.Int
+	Divide(x, y *BSFieldElement_Interface)
+	ToBigInt() *big.Int
+	ToUInt64() (uint64, err )
+	SetBigInt(x *big.Int)
 	Normalize()
 	IsEqual(other *BSFieldElement_Interface) bool
+	Sign() int
+	Jacobi() int
+	AddEq(y *BSFieldElement_Interface)
+	SubEq(y *BSFieldElement_Interface)
+	SquareEq()
+	DivideEq(y *BSFieldElement_Interface)
+	NegEq()
+	
 }
 */
 

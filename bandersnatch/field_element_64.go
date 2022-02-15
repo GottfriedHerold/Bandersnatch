@@ -126,9 +126,11 @@ var _ = callcounters.CreateHierarchicalCallCounter("InvFe", "Inversions", "Divis
 var _ = callcounters.CreateHierarchicalCallCounter("DivideFe", "generic Divisions", "Divisions")
 
 // maybe_reduce_once changes the representation of z to restore the invariant that z.words + BaseFieldSize must not overflow.
+// This is done by subtracting BaseFieldSize if the number is too large.
 func (z *bsFieldElement_64) maybe_reduce_once() {
 	var borrow uint64
-	// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words. At any rate, we do not really need to.
+	// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words.
+	// At any rate, we do not really need to, so we don't check.
 	if z.words[3] > m_64_3 {
 		z.words[0], borrow = bits.Sub64(z.words[0], m_64_0, 0)
 		z.words[1], borrow = bits.Sub64(z.words[1], m_64_1, borrow)
@@ -154,6 +156,9 @@ func (z *bsFieldElement_64) isNormalized() bool {
 }
 
 // Normalize() changes the internal representation of z to a unique number in 0 <= . < BaseFieldSize
+//
+// After a call to Normalize on both operands, the default == operator does the right thing.
+// This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say).
 func (z *bsFieldElement_64) Normalize() {
 	if z.isNormalized() {
 		return
@@ -172,13 +177,13 @@ func (z *bsFieldElement_64) Normalize() {
 // More precisely, consider the integer representation z of minimal absolute value (i.e between -BaseField/2 < . < BaseField/2) and take its sign.
 // The return value is in {-1,0,+1}.
 // This is not compatible with addition or multiplication. It has the property that Sign(z) == -Sign(-z), which is the main thing we need.
-// We also might use the fact that positive-sign field elements start with 00 in their serializiation.
+// We also might use the fact that positive-sign field elements start with 00 in their high-endian serializiation.
 func (z *bsFieldElement_64) Sign() int {
 	if z.IsZero() {
 		return 0
 	}
 	// we take the sign of the non-Montgomery form.
-	// Of course, the property that Sign(z) == =Sign(-z) would hold either way (and not switching would actually be more efficient).
+	// Of course, the property that Sign(z) == -Sign(-z) would hold either way (and not switching would actually be more efficient).
 	// However, Sign() enters into (De)Serialization routines for curve points. This choice is probably more portable.
 	var low_endian_words [4]uint64 = z.undoMontgomery()
 
@@ -196,11 +201,14 @@ func (z *bsFieldElement_64) Sign() int {
 	return 1
 }
 
+// TODO: Make MUCH more efficient. The standard library's implementation's performance appears to be quite bad.
+// (For a start, it allocates like crazy, for which there is absolutely no reason)
+
 // Jacobi computes the Legendre symbol of the received elements z.
 // This means that z.Jacobi() is +1 if z is a non-zero square and -1 if z is a non-square. z.Jacobi() == 0 iff z.IsZero()
 func (z *bsFieldElement_64) Jacobi() int {
 	IncrementCallCounter("Jacobi")
-	tempInt := z.ToInt()
+	tempInt := z.ToBigInt()
 	return big.Jacobi(tempInt, BaseFieldSize)
 }
 
@@ -337,6 +345,7 @@ func montgomery_step_64(t *[4]uint64, q uint64) {
 	t[2], carry2 = bits.Add64(t[2], low, carry2) // After this, carry2 needs to go in t[3]
 	t[3], carry1 = bits.Add64(t[3], high+carry1, carry2)
 
+	// Cannot happen:
 	if carry1 != 0 {
 		panic("Overflow in montgomery step")
 	}
@@ -442,9 +451,9 @@ func uintarrayToInt(z *[4]uint64) *big.Int {
 	return new(big.Int).SetBytes(big_endian_byte_slice[:])
 }
 
-// intToUintarray converts a big.Int to a low-endian [4]uint64 array without Montgomery conversions.
+// bigIntToUIntArray converts a big.Int to a low-endian [4]uint64 array without Montgomery conversions.
 // We assume 0 <= x < 2^256
-func intToUintarray(x *big.Int) (result [4]uint64) {
+func bigIntToUIntArray(x *big.Int) (result [4]uint64) {
 	// As this is an internal function, panic is OK for error handling.
 	if x.Sign() < 0 {
 		panic("Trying to convert negative big Int")
@@ -518,14 +527,14 @@ func (z *bsFieldElement_64) restoreMontgomery() {
 	z.MulEq(&bsFieldElement_64_r)
 }
 
-// ToInt returns a *big.Int that stores a representation of (a copy of) the given field element.
-func (z *bsFieldElement_64) ToInt() *big.Int {
+// ToBigInt returns a *big.Int that stores a representation of (a copy of) the given field element.
+func (z *bsFieldElement_64) ToBigInt() *big.Int {
 	temp := z.undoMontgomery()
 	return uintarrayToInt(&temp)
 }
 
-// SetInt converts from *big.Int to a field element. The input need not be reduced modulo the field size.
-func (z *bsFieldElement_64) SetInt(v *big.Int) {
+// SetBigInt converts from *big.Int to a field element. The input need not be reduced modulo the field size.
+func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 	sign := v.Sign()
 	w := new(big.Int).Set(v)
 	w.Abs(w)
@@ -536,19 +545,24 @@ func (z *bsFieldElement_64) SetInt(v *big.Int) {
 	if sign < 0 {
 		w.Sub(BaseFieldSize, w)
 	}
-	z.words = intToUintarray(w)
+	z.words = bigIntToUIntArray(w)
 }
 
 /*
 	TODO: Return an error or ok bool instead (consistency?)
 */
 
-// ToUint64 returns z, false if z can be represented by a uint64.
-// If z cannot be represented in Montgomery form, returns <something>, true
-func (z *bsFieldElement_64) ToUint64() (result uint64, err bool) {
+var ErrCannotRepresentAsUInt64 = errors.New("bandersnatch / field element: cannot represent field element as a uint64")
+
+// ToUInt64 returns z with err==nil if z can be represented by a uint64.
+//
+// If z cannot be represented by a uint64, returns <something, should not be used>, ErrCannotRepresentAsUInt64
+func (z *bsFieldElement_64) ToUInt64() (result uint64, err error) {
 	temp := z.undoMontgomery()
 	result = temp[0]
-	err = (temp[1] | temp[2] | temp[3]) != 0
+	if (temp[1] | temp[2] | temp[3]) != 0 {
+		err = ErrCannotRepresentAsUInt64
+	}
 	return
 }
 
@@ -569,7 +583,7 @@ func (z *bsFieldElement_64) SetUInt64(value uint64) {
 func (z *bsFieldElement_64) setRandomUnsafe(rnd *rand.Rand) {
 	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
 	var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize)
-	z.SetInt(xInt)
+	z.SetBigInt(xInt)
 }
 
 // setRandomUnsafeNonZero generates uniformly random non-zero field elements.
@@ -579,7 +593,7 @@ func (z *bsFieldElement_64) setRandomUnsafeNonZero(rnd *rand.Rand) {
 	for {
 		var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize)
 		if xInt.Sign() != 0 {
-			z.SetInt(xInt)
+			z.SetBigInt(xInt)
 			return
 		}
 		// We only get here with negligible probability, but we prefer to be precise if we can.
@@ -641,11 +655,11 @@ func (z *bsFieldElement_64) multiply_by_five() {
 func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
 	IncrementCallCounter("InvFe")
 	// Slow, but rarely used anyway (due to working in projective coordinates)
-	t := x.ToInt()
+	t := x.ToBigInt()
 	if t.ModInverse(t, BaseFieldSize) == nil {
 		panic("field_element_64: division by 0")
 	}
-	z.SetInt(t)
+	z.SetBigInt(t)
 }
 
 var _ = callcounters.CreateAttachedCallCounter("InvFromDivide", "Inversion in Divide", "InvFe").
@@ -705,19 +719,20 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 // SquareRoot computes a SquareRoot in the field.
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
-	xInt := x.ToInt()
+	xInt := x.ToBigInt()
 	// yInt := big.NewInt(0)
 	if xInt.ModSqrt(xInt, BaseFieldSize) == nil {
 		return false
 	}
-	z.SetInt(xInt)
+	z.SetBigInt(xInt)
 	return true
 }
 
-// Format is provided to satisfy the fmt.Formatter interface. We internally convert to big.Int and hence support the same formats as big.Int.
+// Format is provided to satisfy the fmt.Formatter interface.
+// We internally convert to big.Int and hence support the same formats as big.Int.
 func (z *bsFieldElement_64) Format(s fmt.State, ch rune) {
 	z.Normalize()
-	z.ToInt().Format(s, ch)
+	z.ToBigInt().Format(s, ch)
 }
 
 // Serialization-related functionalities start here:
@@ -940,7 +955,7 @@ func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder binary.ByteOrd
 // String is provided to satisfy the fmt.Stringer interface. Note that this is defined on a *value* receiver.
 func (z bsFieldElement_64) String() string {
 	z.Normalize()
-	return z.ToInt().String()
+	return z.ToBigInt().String()
 }
 
 var _ = callcounters.CreateAttachedCallCounter("AddEqFe", "", "AddFe")
@@ -1100,4 +1115,89 @@ func (z *bsFieldElement_64) CmpAbs(x *bsFieldElement_64) (absEqual bool, exactly
 		return true, false
 	}
 	return false, false
+}
+
+// MultiplySlice sets the receiver to the product of all the given elements.
+//
+// An empty product results in a result of 1. Note: Use MultiplyMany for a variadic version.
+func (z *bsFieldElement_64) MultiplySlice(factors []bsFieldElement_64) {
+	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
+	L := len(factors)
+	if L == 0 {
+		result.SetOne()
+		return
+	}
+	result = factors[0]
+	for i := 1; i < L; i++ {
+		result.MulEq(&factors[i])
+	}
+	*z = result
+}
+
+// MultiplyMany sets the receiver to the product of the factors.
+//
+// An empty product gives a result of 1. Note: Use MultiplySlice if you have the non-pointer factors stored in a slice.
+func (z *bsFieldElement_64) MultiplyMany(factors ...*bsFieldElement_64) {
+	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
+	L := len(factors)
+	if L == 0 {
+		z.SetOne()
+		return
+	}
+	result = *factors[0]
+	for i := 1; i < len(factors); i++ {
+		result.MulEq(factors[i])
+	}
+	*z = result
+}
+
+// SummationSlice sets the receiver to the sum the values contained in summands.
+//
+// An empty sum gives a result of 0. Note: Use SummationMany for a variadic version.
+func (z *bsFieldElement_64) SummationSlice(summands []bsFieldElement_64) {
+	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
+	L := len(summands)
+	if L == 0 {
+		result.SetZero()
+		return
+	}
+	result = summands[0]
+	for i := 1; i < L; i++ {
+		result.AddEq(&summands[i])
+	}
+	*z = result
+}
+
+// SummationMany sets the receiver to the sum of the given summands.
+//
+// An empty sum gives a result of 0. Note: UseSummationSlice if you have the non-pointer summands stored in a slice.
+func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
+	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
+	L := len(summands)
+	if L == 0 {
+		result.SetZero()
+		return
+	}
+	result = *summands[0]
+	for i := 1; i < L; i++ {
+		result.AddEq(summands[i])
+	}
+	*z = result
+}
+
+// MultiInvertEq replaces every element in args by its multiplicative inverse.
+func MultiInvertEqSlice(args []bsFieldElement_64) {
+	// dummy implementation for now:
+	for i := 0; i < len(args); i++ {
+		args[i].InvEq()
+	}
+}
+
+// MultiInvertEq replaces every argument by its multiplicative inverse.
+//
+// NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
+func MultiInvertEq(args ...*bsFieldElement_64) {
+	for i := 0; i < len(args); i++ {
+		args[i].InvEq()
+	}
 }

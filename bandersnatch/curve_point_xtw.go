@@ -90,9 +90,9 @@ var example_generator_x *big.Int = initIntFromString("0x29c132cc2c0b34c574371177
 var example_generator_y *big.Int = initIntFromString("0x2a6c669eda123e0f157d8b50badcd586358cad81eee464605e3167b6cc974166")
 var example_generator_t *big.Int = new(big.Int).Mul(example_generator_x, example_generator_y)
 var example_generator_xtw point_xtw_base = func() (ret point_xtw_base) {
-	ret.x.SetInt(example_generator_x)
-	ret.y.SetInt(example_generator_y)
-	ret.t.SetInt(example_generator_t)
+	ret.x.SetBigInt(example_generator_x)
+	ret.y.SetBigInt(example_generator_y)
+	ret.t.SetBigInt(example_generator_t)
 	ret.z.SetOne()
 	return
 }()
