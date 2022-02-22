@@ -77,6 +77,7 @@ func TestSlidingWindowExponentiation(t *testing.T) {
 		P2.SetFrom(s.Points[0])
 		for i := 0; i < iterations; i++ {
 			exponent.Rand(drng, CurveOrder_Int)
+			// exponent.SetInt64(10000)
 			var resultNaive Point_xtw_subgroup
 			var resultSlidingWindow Point_efgh_subgroup
 			resultNaive.exp_naive_xx(&P1.point_xtw_base, exponent)

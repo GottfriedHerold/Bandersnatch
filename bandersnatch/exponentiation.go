@@ -49,12 +49,8 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.In
 	// uLeft resp. vLeft are equivalent to lastU >= 0 resp. lastV >= 0.
 	// If uLeft resp. vLeft are false, we set nextVExponent resp. nextUExponent to -1
 
-	if nextUExponent >= nextVExponent {
+	if nextUExponent > nextVExponent {
 		doublingsRemaining = nextUExponent
-		if doublingsRemaining == -1 {
-			ret = NeutralElement_efgh_subgroup
-			return
-		}
 		tableIndex := (u_decomp[nextU].coeff - 1) / 2
 		ret.SetFrom(&table[tableIndex])
 		if u_decomp[nextU].sign < 0 {
@@ -67,12 +63,8 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.In
 		} else {
 			nextUExponent = -1
 		}
-	} else {
+	} else if nextUExponent < nextVExponent {
 		doublingsRemaining = nextVExponent
-		if doublingsRemaining == -1 {
-			ret = NeutralElement_efgh_subgroup
-			return
-		}
 		tableIndex := (v_decomp[nextV].coeff - 1) / 2
 		ret.Endo(&table[tableIndex])
 		if v_decomp[nextV].sign < 0 {
@@ -85,9 +77,43 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.In
 		} else {
 			nextVExponent = -1
 		}
+	} else { // nextUExponent == nextVExponent
+		if nextUExponent == -1 {
+			ret.SetNeutral()
+			return
+		}
+		doublingsRemaining = nextUExponent
+		tableIndexV := (v_decomp[nextV].coeff - 1) / 2
+		ret.Endo(&table[tableIndexV])
+		if v_decomp[nextV].sign < 0 {
+			ret.NegEq()
+		}
+		tableIndexU := (u_decomp[nextU].coeff - 1) / 2
+		if u_decomp[nextU].sign < 0 {
+			ret.SubEq(&table[tableIndexU])
+		} else {
+			ret.AddEq(&table[tableIndexU])
+		}
+		nextU--
+		nextV--
+		uLeft = (nextU >= 0)
+		vLeft = (nextV >= 0)
+		if uLeft {
+			nextUExponent = int(u_decomp[nextU].position)
+		} else {
+			nextUExponent = -1
+		}
+		if vLeft {
+			nextVExponent = int(v_decomp[nextV].position)
+		} else {
+			nextVExponent = -1
+		}
 	}
+	assert(doublingsRemaining >= 0)
 
-	for ; doublingsRemaining >= 0; doublingsRemaining-- {
+	for doublingsRemaining > 0 {
+		ret.DoubleEq()
+		doublingsRemaining--
 		if doublingsRemaining == nextUExponent {
 			tableIndex := (u_decomp[nextU].coeff - 1) / 2
 			if u_decomp[nextU].sign > 0 {
@@ -95,13 +121,13 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.In
 			} else {
 				ret.SubEq(&table[tableIndex])
 			}
-		}
-		nextU--
-		uLeft = (nextU >= 0)
-		if uLeft {
-			nextUExponent = int(u_decomp[nextU].position)
-		} else {
-			nextUExponent = -1
+			nextU--
+			uLeft = (nextU >= 0)
+			if uLeft {
+				nextUExponent = int(u_decomp[nextU].position)
+			} else {
+				nextUExponent = -1
+			}
 		}
 
 		if doublingsRemaining == nextVExponent {
@@ -121,10 +147,6 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.In
 				nextVExponent = -1
 			}
 		}
-		// if doublingsRemaining > 0 {
-		// 	ret.DoubleEq()
-		// }
-
 	}
 	return
 }
