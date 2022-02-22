@@ -198,7 +198,9 @@ type decompositionCoefficient struct {
 func decomposeUnalignedSignedAdic_Int(input *big.Int, maxbits int) (decomposition []decompositionCoefficient) {
 	var globalSign int = input.Sign() // big.Int internally stores sign bit + Abs(input). We only read the latter, so we need to correct the sign. globalSign is in {-1,0,+1}
 	inputBitLen := input.BitLen()     // bitlength of Abs(input)
-	// 1 + inputBitLen / maxbits is a reasonable estimate for the capacity (it is in fact a upper bound, but just need an estimate)
+	var absInput *big.Int = big.NewInt(0)
+	absInput.Abs(input)
+	// 1 + inputBitLen / maxbits is a reasonable estimate for the capacity (it is in fact a upper bound, but we just need an estimate)
 	decomposition = make([]decompositionCoefficient, 0, 1+inputBitLen/maxbits)
 	// exponents = make([]uint, 0, 1+inputBitLen/maxbits)
 	// coeffs = make([]int, 0, 1+inputBitLen/maxbits)
@@ -206,16 +208,16 @@ func decomposeUnalignedSignedAdic_Int(input *big.Int, maxbits int) (decompositio
 	// Scan input bits from lsb to msb
 	var i int
 	for i = 0; i < inputBitLen; { // increment of i done inside loop, as the stride is variable
-		if input.Bit(i) == carry {
+		if absInput.Bit(i) == carry {
 			i++
 			continue
 		}
-		v := getBitRange(input, i, i+maxbits)
+		v := getBitRange(absInput, i, i+maxbits)
 		v += carry
 		if v%2 == 0 {
 			panic("Cannot happen")
 		}
-		carry = input.Bit(i + maxbits)
+		carry = absInput.Bit(i + maxbits)
 		if carry == 1 {
 			// change v to v - (2 << maxbits).
 			decomposition = append(decomposition, decompositionCoefficient{position: uint(i), coeff: (1 << maxbits) - v, sign: -globalSign})

@@ -121,8 +121,10 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.In
 				nextVExponent = -1
 			}
 		}
+		// if doublingsRemaining > 0 {
+		// 	ret.DoubleEq()
+		// }
 
-		ret.DoubleEq()
 	}
 	return
 }

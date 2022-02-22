@@ -166,13 +166,19 @@ func TestDecomposition(t *testing.T) {
 	_ = bigrange
 	for i := 0; i < iterations; i++ {
 		var x *big.Int = big.NewInt(0)
-		x.Rand(drng, bigrange)
+		switch {
+		case i < 32:
+			x.SetInt64(int64(i - 16))
+		default:
+			x.Rand(drng, bigrange)
+		}
+
 		decomp := decomposeUnalignedSignedAdic_Int(x, 5)
 		// fmt.Println(i)
 		// fmt.Println(decomp)
 		// fmt.Printf("%b\n", x)
 		if !test_decomposition_correctness(x, decomp) {
-			t.Fatal("Signed Decomposition algorithm for sliding window does not work")
+			t.Fatalf("Signed Decomposition algorithm for sliding window does not work with x==%v\n. Decomposition was %v", x, decomp)
 		}
 	}
 
