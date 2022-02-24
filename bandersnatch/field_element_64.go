@@ -98,7 +98,7 @@ type bsFieldElement_64 struct {
 var bsFieldElement_64_zero bsFieldElement_64
 
 // alternative representation of zero. Note that we must never call Normalize() on it, which e.g. IsEqual may do.
-var bsFieldElement_64_zero_alt bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{m_64_0, m_64_1, m_64_2, m_64_3}}
+var bsFieldElement_64_zero_alt bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}}
 
 // The field element 1.
 var bsFieldElement_64_one bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{rModBaseField_64_0, rModBaseField_64_1, rModBaseField_64_2, rModBaseField_64_3}}
@@ -131,11 +131,11 @@ func (z *bsFieldElement_64) maybe_reduce_once() {
 	var borrow uint64
 	// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words.
 	// At any rate, we do not really need to, so we don't check.
-	if z.words[3] > m_64_3 {
-		z.words[0], borrow = bits.Sub64(z.words[0], m_64_0, 0)
-		z.words[1], borrow = bits.Sub64(z.words[1], m_64_1, borrow)
-		z.words[2], borrow = bits.Sub64(z.words[2], m_64_2, borrow)
-		z.words[3], _ = bits.Sub64(z.words[3], m_64_3, borrow) // _ is guaranteed to be 0
+	if z.words[3] > baseFieldSize_3 {
+		z.words[0], borrow = bits.Sub64(z.words[0], baseFieldSize_0, 0)
+		z.words[1], borrow = bits.Sub64(z.words[1], baseFieldSize_1, borrow)
+		z.words[2], borrow = bits.Sub64(z.words[2], baseFieldSize_2, borrow)
+		z.words[3], _ = bits.Sub64(z.words[3], baseFieldSize_3, borrow) // _ is guaranteed to be 0
 	}
 }
 
@@ -143,7 +143,7 @@ func (z *bsFieldElement_64) maybe_reduce_once() {
 // This function is only used internally.
 func (z *bsFieldElement_64) isNormalized() bool {
 	// Workaround for Go's lack of constexpr. Hoping for smart-ish compiler.
-	var baseFieldSize_copy [4]uint64 = [4]uint64{m_64_0, m_64_1, m_64_2, m_64_3}
+	var baseFieldSize_copy [4]uint64 = [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}
 	for i := int(3); i >= 0; i-- {
 		if z.words[i] < baseFieldSize_copy[i] {
 			return true
@@ -164,10 +164,10 @@ func (z *bsFieldElement_64) Normalize() {
 		return
 	}
 	var borrow uint64
-	z.words[0], borrow = bits.Sub64(z.words[0], m_64_0, 0)
-	z.words[1], borrow = bits.Sub64(z.words[1], m_64_1, borrow)
-	z.words[2], borrow = bits.Sub64(z.words[2], m_64_2, borrow)
-	z.words[3], borrow = bits.Sub64(z.words[3], m_64_3, borrow)
+	z.words[0], borrow = bits.Sub64(z.words[0], baseFieldSize_0, 0)
+	z.words[1], borrow = bits.Sub64(z.words[1], baseFieldSize_1, borrow)
+	z.words[2], borrow = bits.Sub64(z.words[2], baseFieldSize_2, borrow)
+	z.words[3], borrow = bits.Sub64(z.words[3], baseFieldSize_3, borrow)
 	if borrow != 0 {
 		panic("bsFieldElement_64: Underflow in normalization. This was supposed to be impossible to happen.")
 	}
@@ -209,7 +209,7 @@ func (z *bsFieldElement_64) Sign() int {
 func (z *bsFieldElement_64) Jacobi() int {
 	IncrementCallCounter("Jacobi")
 	tempInt := z.ToBigInt()
-	return big.Jacobi(tempInt, BaseFieldSize)
+	return big.Jacobi(tempInt, BaseFieldSize_Int)
 }
 
 // Add is used to perform addition.
@@ -249,11 +249,11 @@ func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
 	z.words[3], borrow = bits.Sub64(x.words[3], y.words[3], borrow)
 	if borrow != 0 {
 		// mentally rename borrow -> carry
-		if z.words[3] > 0xFFFFFFFF_FFFFFFFF-m_64_3 {
-			z.words[0], borrow = bits.Add64(z.words[0], m_64_0, 0)
-			z.words[1], borrow = bits.Add64(z.words[1], m_64_1, borrow)
-			z.words[2], borrow = bits.Add64(z.words[2], m_64_2, borrow)
-			z.words[3], _ = bits.Add64(z.words[3], m_64_3, borrow) // _ is one
+		if z.words[3] > 0xFFFFFFFF_FFFFFFFF-baseFieldSize_3 {
+			z.words[0], borrow = bits.Add64(z.words[0], baseFieldSize_0, 0)
+			z.words[1], borrow = bits.Add64(z.words[1], baseFieldSize_1, borrow)
+			z.words[2], borrow = bits.Add64(z.words[2], baseFieldSize_2, borrow)
+			z.words[3], _ = bits.Add64(z.words[3], baseFieldSize_3, borrow) // _ is one
 		} else {
 			z.words[0], borrow = bits.Add64(z.words[0], mdoubled_64_0, 0)
 			z.words[1], borrow = bits.Add64(z.words[1], mdoubled_64_1, borrow)
@@ -330,18 +330,18 @@ func add_mul_shift_64(target *[4]uint64, x *[4]uint64, y uint64) (low uint64) {
 func montgomery_step_64(t *[4]uint64, q uint64) {
 	var low, high, carry1, carry2 uint64
 
-	high, _ = bits.Mul64(q, m_64_0)
+	high, _ = bits.Mul64(q, baseFieldSize_0)
 	t[0], carry1 = bits.Add64(t[0], high, 1) // After this, carry1 needs to go in t[1]
 
-	high, low = bits.Mul64(q, m_64_1)
+	high, low = bits.Mul64(q, baseFieldSize_1)
 	t[0], carry2 = bits.Add64(t[0], low, 0)       // After this, carry2 needs to go in t[1]
 	t[1], carry2 = bits.Add64(t[1], high, carry2) // After this, carry2 needs to go in t[2]
 
-	high, low = bits.Mul64(q, m_64_2)
+	high, low = bits.Mul64(q, baseFieldSize_2)
 	t[1], carry1 = bits.Add64(t[1], low, carry1)  // After this, carry1 needs to go in t[2]
 	t[2], carry1 = bits.Add64(t[2], high, carry1) // After this, carry1 needs to go in t[3]
 
-	high, low = bits.Mul64(q, m_64_3)
+	high, low = bits.Mul64(q, baseFieldSize_3)
 	t[2], carry2 = bits.Add64(t[2], low, carry2) // After this, carry2 needs to go in t[3]
 	t[3], carry1 = bits.Add64(t[3], high+carry1, carry2)
 
@@ -541,9 +541,9 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 
 	// Can be done much more efficiently if desired, but we do not convert often.
 	w.Lsh(w, 256) // To account for Montgomery form
-	w.Mod(w, BaseFieldSize)
+	w.Mod(w, BaseFieldSize_Int)
 	if sign < 0 {
-		w.Sub(BaseFieldSize, w)
+		w.Sub(BaseFieldSize_Int, w)
 	}
 	z.words = bigIntToUIntArray(w)
 }
@@ -582,7 +582,7 @@ func (z *bsFieldElement_64) SetUInt64(value uint64) {
 // We do NOT guarantee that the distribution is even close to uniform.
 func (z *bsFieldElement_64) setRandomUnsafe(rnd *rand.Rand) {
 	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
-	var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize)
+	var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize_Int)
 	z.SetBigInt(xInt)
 }
 
@@ -591,7 +591,7 @@ func (z *bsFieldElement_64) setRandomUnsafe(rnd *rand.Rand) {
 // We do NOT guarantee that the distribution is even close to uniform.
 func (z *bsFieldElement_64) setRandomUnsafeNonZero(rnd *rand.Rand) {
 	for {
-		var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize)
+		var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize_Int)
 		if xInt.Sign() != 0 {
 			z.SetBigInt(xInt)
 			return
@@ -656,7 +656,7 @@ func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
 	IncrementCallCounter("InvFe")
 	// Slow, but rarely used anyway (due to working in projective coordinates)
 	t := x.ToBigInt()
-	if t.ModInverse(t, BaseFieldSize) == nil {
+	if t.ModInverse(t, BaseFieldSize_Int) == nil {
 		panic("field_element_64: division by 0")
 	}
 	z.SetBigInt(t)
@@ -694,7 +694,7 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 		return *z == *x
 	case z.words[3] > x.words[3]:
 		// Note that RHS cannot overflow due to invariant
-		if z.words[3] > x.words[3]+(m_64_3-1) {
+		if z.words[3] > x.words[3]+(baseFieldSize_3-1) {
 			z.Normalize()
 			return *z == *x
 		} else {
@@ -702,7 +702,7 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 		}
 	case z.words[3] < x.words[3]:
 		// Note that RHS cannot overflow due to invariant
-		if x.words[3] > z.words[3]+(m_64_3-1) {
+		if x.words[3] > z.words[3]+(baseFieldSize_3-1) {
 			x.Normalize()
 			return *z == *x
 		} else {
@@ -721,17 +721,16 @@ func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToBigInt()
 	// yInt := big.NewInt(0)
-	if xInt.ModSqrt(xInt, BaseFieldSize) == nil {
+	if xInt.ModSqrt(xInt, BaseFieldSize_Int) == nil {
 		return false
 	}
 	z.SetBigInt(xInt)
 	return true
 }
 
-// Format is provided to satisfy the fmt.Formatter interface.
+// Format is provided to satisfy the fmt.Formatter interface. Note that this is defined on value receivers.
 // We internally convert to big.Int and hence support the same formats as big.Int.
-func (z *bsFieldElement_64) Format(s fmt.State, ch rune) {
-	z.Normalize()
+func (z bsFieldElement_64) Format(s fmt.State, ch rune) {
 	z.ToBigInt().Format(s, ch)
 }
 

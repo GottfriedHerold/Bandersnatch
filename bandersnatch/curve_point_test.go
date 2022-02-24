@@ -45,10 +45,10 @@ var _ torsionAdder = &point_efgh_base{}
 
 // Tests properties of some global parameters
 func TestGlobalParameter(t *testing.T) {
-	if big.Jacobi(big.NewInt(CurveParameterA), BaseFieldSize) == 1 {
+	if big.Jacobi(big.NewInt(CurveParameterA), BaseFieldSize_Int) == 1 {
 		t.Fatal("Parameter a of curve is a square")
 	}
-	if big.Jacobi(CurveParameterD_Int, BaseFieldSize) == 1 {
+	if big.Jacobi(CurveParameterD_Int, BaseFieldSize_Int) == 1 {
 		t.Fatal("Parameter d of curve is a square")
 	}
 	var temp FieldElement

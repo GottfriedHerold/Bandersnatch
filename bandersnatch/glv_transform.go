@@ -53,14 +53,6 @@ var (
 	glvDecompositionMax_Int = initIntFromString(glvDecompositionMax_string)
 )
 
-// (p253-1)/2. We can represent Z/p253 by numbers from -halfGroupOrder, ... , + halfGroupOrder.
-const (
-	halfGroupOrder        = (GroupOrder - 1) / 2
-	halfGroupOrder_string = "6554484396890773809930967563523245729654577946720285125893201653364843836400"
-)
-
-var halfGroupOrder_Int = initIntFromString(halfGroupOrder_string)
-
 // infty_norm computes the max of the absolute values of x and y.
 func infty_norm(x, y *big.Int) (result *big.Int) {
 	result = big.NewInt(0)
@@ -80,7 +72,9 @@ func infty_norm(x, y *big.Int) (result *big.Int) {
 
 // GLV_representation(t) outputs a pair u,v of big.Ints such that t*P = u*P + v*Psi(P) for the endomorphism Psi for any P in the subgroup.
 // We guarantee that |u|, |v| both have at most 126 bit.
-func GLV_representation(t *big.Int) (u *big.Int, v *big.Int) {
+func GLV_representation(exponent *Exponent) (ret glvExponents) {
+	t := exponent.ToBigInt_Full() // Note: Bit-length of t does not matter at this point. The algorithm treats t as an integer, not as an element of Z/n for some n.
+
 	// By the remark above, we essentially need to solve a closest vector problem here with target (t,0).
 	// For this, we write (t,0) as alpha*lBasis_1 + beta*lBasis_2 with real-valued alpha, beta.
 	// A close lattice point to (t,0) is then given by round(alpha)*lBasis_1 + round(beta)*lBasis_2 where round(.) rounds to the nearest integer.
@@ -95,8 +89,8 @@ func GLV_representation(t *big.Int) (u *big.Int, v *big.Int) {
 
 	var u_approx *big.Int = big.NewInt(0)
 	var v_approx *big.Int = big.NewInt(0)
-	u = big.NewInt(0)
-	v = big.NewInt(0)
+	u := big.NewInt(0)
+	v := big.NewInt(0)
 
 	delta_alpha.Mul(t, lBasis_22_Int)                // First component of (t,0) * tilde(B)
 	delta_alpha.Add(delta_alpha, halfGroupOrder_Int) // temporarily add (p253-1)/2. This is to transform rounding to truncating towards -infty (which is what big.Int's mod does).
@@ -109,8 +103,8 @@ func GLV_representation(t *big.Int) (u *big.Int, v *big.Int) {
 	delta_beta.Mod(delta_beta, GroupOrder_Int)
 
 	// subtract (p253-1)/2 to undo the addition above. delta_alpha and delta_beta are now in the range -halfGroupOrder .. +halfGroupOrder
-	delta_alpha.Sub(delta_alpha, halfGroupOrder_Int)
-	delta_beta.Sub(delta_beta, halfGroupOrder_Int)
+	delta_alpha.Sub(delta_alpha, halfGroupOrder_Int) // t * lBasis_22 mod_centered p253
+	delta_beta.Sub(delta_beta, halfGroupOrder_Int)   // t * (-lBasis_12) mod_centered p253
 
 	// Multiply by 1/det B * B:
 	var temp *big.Int = big.NewInt(0)
@@ -181,6 +175,12 @@ func GLV_representation(t *big.Int) (u *big.Int, v *big.Int) {
 			norm.Set(norm2)
 		}
 	}
+	ret.U.sign = u.Sign()
+	ret.V.sign = v.Sign()
+	u.Abs(u)
+	v.Abs(v)
+	ret.U.value.SetBigInt(u)
+	ret.V.value.SetBigInt(v)
 	return
 }
 
@@ -195,29 +195,27 @@ type decompositionCoefficient struct {
 // b) the e_i are ascending (this might change)
 // c) All c_i are odd with |c_i| having at most maxbits bits. Note that both input and the c_i carry signs.
 // The function is allowed to write to input. If the caller needs to re-use input, make a copy first.
-func decomposeUnalignedSignedAdic_Int(input *big.Int, maxbits int) (decomposition []decompositionCoefficient) {
+func decomposeUnalignedSignedAdic_Int(input glvExponent, maxbits uint) (decomposition []decompositionCoefficient) {
 	var globalSign int = input.Sign() // big.Int internally stores sign bit + Abs(input). We only read the latter, so we need to correct the sign. globalSign is in {-1,0,+1}
-	inputBitLen := input.BitLen()     // bitlength of Abs(input)
-	var absInput *big.Int = big.NewInt(0)
-	absInput.Abs(input)
+	const inputBitLen = 128
 	// 1 + inputBitLen / maxbits is a reasonable estimate for the capacity (it is in fact a upper bound, but we just need an estimate)
-	decomposition = make([]decompositionCoefficient, 0, 1+inputBitLen/maxbits)
+	decomposition = make([]decompositionCoefficient, 0, int(1+inputBitLen/maxbits))
 	// exponents = make([]uint, 0, 1+inputBitLen/maxbits)
 	// coeffs = make([]int, 0, 1+inputBitLen/maxbits)
 	var carry uint // bool? uint?
 	// Scan input bits from lsb to msb
-	var i int
+	var i uint
 	for i = 0; i < inputBitLen; { // increment of i done inside loop, as the stride is variable
-		if absInput.Bit(i) == carry {
+		if input.Bit(i) == carry {
 			i++
 			continue
 		}
-		v := getBitRange(absInput, i, i+maxbits)
+		v := getBitRange(input.value, i, i+maxbits)
 		v += carry
 		if v%2 == 0 {
 			panic("Cannot happen")
 		}
-		carry = absInput.Bit(i + maxbits)
+		carry = input.Bit(i + maxbits)
 		if carry == 1 {
 			// change v to v - (2 << maxbits).
 			decomposition = append(decomposition, decompositionCoefficient{position: uint(i), coeff: (1 << maxbits) - v, sign: -globalSign})
@@ -234,10 +232,11 @@ func decomposeUnalignedSignedAdic_Int(input *big.Int, maxbits int) (decompositio
 
 // getBitRange(x, low, high) interprets Abs(x) as a slice of bits in low-endian order and retuns the value of x[low:high], interpreted as a (usual) int.
 // We only require this to be correct if low <= high and high - low <= 8, say (not sure what bound we need)
-func getBitRange(input *big.Int, lowend int, highend int) uint {
+func getBitRange(input uint128, lowend uint, highend uint) uint {
 	// naive implementation:
 	var result uint = 0
-	for shift := 0; shift < highend-lowend; shift++ {
+	var shift uint
+	for shift = 0; shift < highend-lowend; shift++ {
 		result += input.Bit(shift+lowend) << shift
 	}
 	return result

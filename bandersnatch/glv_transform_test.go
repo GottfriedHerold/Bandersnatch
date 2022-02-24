@@ -1,6 +1,7 @@
 package bandersnatch
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -37,25 +38,30 @@ func TestGLVParameters(t *testing.T) {
 
 func BenchmarkGLVDecomposition(b *testing.B) {
 	var drng *rand.Rand = rand.New(rand.NewSource(int64(1000 + b.N)))
-	var exponents []*big.Int = make([]*big.Int, b.N)
+	var exponents []Exponent = make([]Exponent, b.N)
+	var temp *big.Int = big.NewInt(0)
 	for i := 0; i < b.N; i++ {
-		exponents[i] = big.NewInt(0)
-		exponents[i].Rand(drng, GroupOrder_Int)
+		// exponents[i] = big.NewInt(0)
+		temp.Rand(drng, GroupOrder_Int)
+		exponents[i].SetBigInt(temp)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = GLV_representation(exponents[i])
+		_ = GLV_representation(&exponents[i])
 	}
 }
 
 func BenchmarkBitDecomposition(b *testing.B) {
 	var drng *rand.Rand = rand.New(rand.NewSource(int64(1000 + b.N)))
-	var exponents []*big.Int = make([]*big.Int, b.N)
+	var exponents []glvExponent = make([]glvExponent, b.N)
+	var temp *big.Int = new(big.Int)
 	for i := 0; i < b.N; i++ {
-		exponents[i] = big.NewInt(0)
-		exponents[i].Rand(drng, glvDecompositionMax_Int)
+		temp.Rand(drng, glvDecompositionMax_Int)
+		exponents[i].value.SetBigInt(temp)
 		if drng.Intn(2) == 0 {
-			exponents[i].Neg(exponents[i])
+			exponents[i].sign = -1
+		} else {
+			exponents[i].sign = +1
 		}
 	}
 	b.ResetTimer()
@@ -69,6 +75,7 @@ func TestGLV(t *testing.T) {
 	var bigrange1 *big.Int = big.NewInt(0)
 	var bigrange2 *big.Int = big.NewInt(0)
 	var exponent *big.Int = big.NewInt(0)
+	var exponent_ScalarField Exponent
 	var temp *big.Int = big.NewInt(0)
 	var temp2 *big.Int = big.NewInt(0)
 	bigrange1.Add(CurveOrder_Int, CurveOrder_Int) // 8 * p253
@@ -79,12 +86,19 @@ func TestGLV(t *testing.T) {
 		// Make number from -8*p253 to 8*p253
 		exponent.Rand(drng, bigrange2)
 		exponent.Sub(exponent, bigrange1)
-		u, v := GLV_representation(exponent)
+		exponent_ScalarField.SetBigInt(exponent)
+		glv := GLV_representation(&exponent_ScalarField)
+		var u *big.Int = glv.U.ToBigInt()
+		var v *big.Int = glv.V.ToBigInt()
+
 		temp.Sub(u, exponent)
 		temp2.Mul(v, EndomorphismEigenvalue_Int)
 		temp.Add(temp, temp2)
 		temp.Mod(temp, GroupOrder_Int)
 		if temp.Sign() != 0 {
+			fmt.Println(exponent)
+			fmt.Println(glv.U)
+			fmt.Println(glv.V)
 			t.Fatal("GLV_representation does not output pair of exponents that gives correct result")
 		}
 		norm1 := infty_norm(u, v)
@@ -138,7 +152,8 @@ func TestGLV(t *testing.T) {
 	}
 }
 
-func test_decomposition_correctness(x *big.Int, decomposition []decompositionCoefficient) bool {
+func test_decomposition_correctness(x *glvExponent, decomposition []decompositionCoefficient) bool {
+	var xBigInt *big.Int = x.ToBigInt()
 	var accumulator *big.Int = big.NewInt(0)
 	var toAdd *big.Int = big.NewInt(0)
 	for _, comp := range decomposition {
@@ -152,32 +167,33 @@ func test_decomposition_correctness(x *big.Int, decomposition []decompositionCoe
 			panic("decompositionCoefficient::sign not +/- 1")
 		}
 	}
-	return accumulator.Cmp(x) == 0 // This is true iff x and accumulator hold the same value
-
+	return accumulator.Cmp(xBigInt) == 0 // This is true iff x and accumulator hold the same value
 }
 
 func TestDecomposition(t *testing.T) {
 	const iterations = 10000
 	var drng *rand.Rand = rand.New(rand.NewSource(141152))
 	var bigrange *big.Int = big.NewInt(0)
-	bigrange.Set(CurveOrder_Int)
+	bigrange.Set(twoTo128_Int)
 	var smallrange *big.Int = big.NewInt(1024)
 	_ = smallrange
-	_ = bigrange
 	for i := 0; i < iterations; i++ {
-		var x *big.Int = big.NewInt(0)
+		var x_Int *big.Int = big.NewInt(0)
 		switch {
 		case i < 32:
-			x.SetInt64(int64(i - 16))
+			x_Int.SetInt64(int64(i - 16))
 		default:
-			x.Rand(drng, bigrange)
+			x_Int.Rand(drng, bigrange)
 		}
+
+		var x glvExponent
+		x.SetBigInt(x_Int)
 
 		decomp := decomposeUnalignedSignedAdic_Int(x, 5)
 		// fmt.Println(i)
 		// fmt.Println(decomp)
 		// fmt.Printf("%b\n", x)
-		if !test_decomposition_correctness(x, decomp) {
+		if !test_decomposition_correctness(&x, decomp) {
 			t.Fatalf("Signed Decomposition algorithm for sliding window does not work with x==%v\n. Decomposition was %v", x, decomp)
 		}
 	}

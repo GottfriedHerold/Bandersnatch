@@ -1,19 +1,17 @@
 package bandersnatch
 
-import "math/big"
-
 // Note: all exponentiation implementations here assume that the points are in the subgroup.
 // The individual Exponentiate - functions defined on point types need to take care of non-subgroup cases:
 // Basically, we can just remove the lsb of the exponent and square the base to reduce to the subgroup case.
 
 const simpleSlidingWindowSize = 3
 
-func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *big.Int) (ret Point_efgh_subgroup) {
+func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *Exponent) (ret Point_efgh_subgroup) {
 	const k = simpleSlidingWindowSize
 	assert(arg.CanOnlyRepresentSubgroup())
-	u, v := GLV_representation(exponent)
-	u_decomp := decomposeUnalignedSignedAdic_Int(u, simpleSlidingWindowSize)
-	v_decomp := decomposeUnalignedSignedAdic_Int(v, simpleSlidingWindowSize)
+	glv := GLV_representation(exponent)
+	u_decomp := decomposeUnalignedSignedAdic_Int(glv.U, simpleSlidingWindowSize)
+	v_decomp := decomposeUnalignedSignedAdic_Int(glv.V, simpleSlidingWindowSize)
 	const precomputedTableSize = 1 << (k - 1)
 	// precompute all odd k-bit powers of arg
 	var table [precomputedTableSize]Point_xtw_subgroup

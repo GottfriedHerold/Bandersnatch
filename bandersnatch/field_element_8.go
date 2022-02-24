@@ -21,7 +21,7 @@ var bsFieldElement_8_one bsFieldElement_8 = bsFieldElement_8{v: [32]byte{31: 1}}
 var bsFieldElement_8_oneHalf bsFieldElement_8 = func() (ret bsFieldElement_8) {
 	var xInt *big.Int = big.NewInt(1)
 	var twoInt *big.Int = big.NewInt(2)
-	xInt.Add(xInt, BaseFieldSize)
+	xInt.Add(xInt, BaseFieldSize_Int)
 	xInt.Div(xInt, twoInt)
 	xInt.FillBytes(ret.v[:])
 	return
@@ -30,7 +30,7 @@ var bsFieldElement_8_oneHalf bsFieldElement_8 = func() (ret bsFieldElement_8) {
 var oneHalfModBaseField_Int *big.Int = func() (ret *big.Int) {
 	ret = big.NewInt(1)
 	var twoInt *big.Int = big.NewInt(2)
-	ret.Add(ret, BaseFieldSize)
+	ret.Add(ret, BaseFieldSize_Int)
 	ret.Div(ret, twoInt)
 	return
 }()
@@ -39,7 +39,7 @@ func (z *bsFieldElement_8) Add(x, y *bsFieldElement_8) {
 	var xInt *big.Int = big.NewInt(0).SetBytes(x.v[:])
 	var yInt *big.Int = big.NewInt(0).SetBytes(y.v[:])
 	xInt.Add(xInt, yInt)
-	xInt.Mod(xInt, BaseFieldSize)
+	xInt.Mod(xInt, BaseFieldSize_Int)
 	xInt.FillBytes(z.v[:])
 }
 
@@ -47,7 +47,7 @@ func (z *bsFieldElement_8) Sub(x, y *bsFieldElement_8) {
 	var xInt *big.Int = big.NewInt(0).SetBytes(x.v[:])
 	var yInt *big.Int = big.NewInt(0).SetBytes(y.v[:])
 	xInt.Sub(xInt, yInt)
-	xInt.Mod(xInt, BaseFieldSize) // Note that Int.Mod returns elements in [0, BaseFieldSize), even if xInt is negative.
+	xInt.Mod(xInt, BaseFieldSize_Int) // Note that Int.Mod returns elements in [0, BaseFieldSize), even if xInt is negative.
 	xInt.FillBytes(z.v[:])
 }
 
@@ -71,18 +71,18 @@ func (z *bsFieldElement_8) Mul(x, y *bsFieldElement_8) {
 	var xInt *big.Int = big.NewInt(0).SetBytes(x.v[:])
 	var yInt *big.Int = big.NewInt(0).SetBytes(y.v[:])
 	xInt.Mul(xInt, yInt)
-	xInt.Mod(xInt, BaseFieldSize)
+	xInt.Mod(xInt, BaseFieldSize_Int)
 	xInt.FillBytes(z.v[:])
 }
 
-func (z *bsFieldElement_8) ToInt() *big.Int {
+func (z *bsFieldElement_8) ToBigInt() *big.Int {
 	var xInt *big.Int = big.NewInt(0).SetBytes(z.v[:])
 	return xInt
 }
 
-func (z *bsFieldElement_8) SetInt(v *big.Int) {
+func (z *bsFieldElement_8) SetBigInt(v *big.Int) {
 	var xInt *big.Int = big.NewInt(0)
-	xInt.Mod(v, BaseFieldSize)
+	xInt.Mod(v, BaseFieldSize_Int)
 	xInt.FillBytes(z.v[:])
 }
 
@@ -94,7 +94,7 @@ func (z *bsFieldElement_8) SetUInt64(value uint64) {
 
 func (z *bsFieldElement_8) ToUint64() (result uint64, err bool) {
 	var zInt *big.Int = big.NewInt(0).SetBytes(z.v[:])
-	err = !z.ToInt().IsUint64()
+	err = !z.ToBigInt().IsUint64()
 	if !err {
 		result = zInt.Uint64()
 	}
@@ -105,7 +105,7 @@ func (z *bsFieldElement_8) ToUint64() (result uint64, err bool) {
 
 // generates a random field element. Non crypto-grade randomness. Used for testing/benchmarking only.
 func (z *bsFieldElement_8) setRandomUnsafe(rnd *rand.Rand) {
-	var xInt *big.Int = big.NewInt(0).Rand(rnd, BaseFieldSize)
+	var xInt *big.Int = big.NewInt(0).Rand(rnd, BaseFieldSize_Int)
 	xInt.FillBytes(z.v[:])
 }
 
@@ -118,7 +118,7 @@ func (z *bsFieldElement_8) Format(s fmt.State, ch rune) {
 // multiplicative inverse
 func (z *bsFieldElement_8) Inv(x *bsFieldElement_8) {
 	var xInt *big.Int = new(big.Int).SetBytes(x.v[:])
-	xInt.ModInverse(xInt, BaseFieldSize)
+	xInt.ModInverse(xInt, BaseFieldSize_Int)
 	xInt.FillBytes(z.v[:])
 }
 
@@ -137,7 +137,7 @@ func (z *bsFieldElement_8) Neg(x *bsFieldElement_8) {
 		return
 	}
 	var xInt *big.Int = big.NewInt(0).SetBytes(x.v[:])
-	xInt.Sub(BaseFieldSize, xInt)
+	xInt.Sub(BaseFieldSize_Int, xInt)
 	xInt.FillBytes(z.v[:])
 }
 
@@ -194,12 +194,12 @@ func (z *bsFieldElement_8) Sign() int {
 
 func (z *bsFieldElement_8) Jacobi() int {
 	var zInt *big.Int = new(big.Int).SetBytes(z.v[:])
-	return big.Jacobi(zInt, BaseFieldSize)
+	return big.Jacobi(zInt, BaseFieldSize_Int)
 }
 
 func (z *bsFieldElement_8) SquareRoot(x *bsFieldElement_8) (ok bool) {
 	var xInt *big.Int = new(big.Int).SetBytes(x.v[:])
-	if xInt.ModSqrt(xInt, BaseFieldSize) == nil {
+	if xInt.ModSqrt(xInt, BaseFieldSize_Int) == nil {
 		return false
 	}
 	xInt.FillBytes(z.v[:])

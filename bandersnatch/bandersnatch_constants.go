@@ -2,6 +2,63 @@ package bandersnatch
 
 import "math/big"
 
+// This file collects the various constants that we use throughout the Bandersnatch implementations.
+//
+// Note: We might want to move FieldElement (field of definition) and/or Exponents (scalar fields) into
+// separate packages at some point. For that reason, the file is separated into "sections" according to that split.
+//
+
+// BaseFieldSize_untyped is the prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
+// Due to overflowing all standard types, this is only useful in constant expressions.
+// In most case, you want to use BaseFieldSize of type big.Int instead
+const (
+	BaseFieldSize_untyped = 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
+	BaseFieldSize_string  = "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
+)
+
+var BaseFieldSize_Int = initIntFromString(BaseFieldSize_string)
+
+/*
+	These are used as constants in the multiplication algorithm.
+	Since there are no compile-time const-arrays in go, we need to define individual constants and manually
+	unroll loops to make the compiler aware these are constants.
+	(Or initialize a local array with these)
+*/
+
+// 64-bit sized words of the modulus
+const (
+	baseFieldSize_0 = (BaseFieldSize_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	baseFieldSize_1
+	baseFieldSize_2
+	baseFieldSize_3
+)
+
+// BaseFieldSize_64 is the size of the field of definition of the Bandersnatch curve as little-endian uint64 array
+var BaseFieldSize_64 [4]uint64 = [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}
+
+// 32-bit sized words of the modulus
+const (
+	m_32_0 = (BaseFieldSize_untyped >> (iota * 32)) & 0xFFFFFFFF
+	m_32_1
+	m_32_2
+	m_32_3
+	m_32_4
+	m_32_5
+	m_32_6
+	m_32_7
+)
+
+// BaseFieldSize_32 is the size of the field of definition of the Bandersnatch curve as little-endian uint32 array
+var BaseFieldSize_32 [8]uint32 = [8]uint32{m_32_0, m_32_1, m_32_2, m_32_3, m_32_4, m_32_5, m_32_6, m_32_7}
+
+// BaseFieldBitLength is the bitlength of BaseFieldSize
+const BaseFieldBitLength = 255
+
+// An implementation of the base field might actually use more bytes; we don't.
+
+// BaseFieldByteLength is the number of bytes of BaseFieldSize == (mimimum) number of bytes needed to store individual field elements.
+const BaseFieldByteLength = (BaseFieldBitLength + 7) / 8 // == 32
+
 // Curve parameters
 
 // GroupOrder is the order of the p253-subgroup of the Bandersnatch curve.
@@ -24,6 +81,14 @@ const (
 	CurveOrder_string = "52435875175126190479447740508185965837236623573762281007145613226918750691204"
 )
 
+// CurveExponent is the exponent of the group of rational points of the Bandersnatch curve, i.e. we have CurveExponent*P = Neutral Element for all rational P.
+// This is 2*GroupOrder rather than 4*GroupOrder, because the cofactor group has structure Z/2 x Z/2.
+// When computing with (general) exponents, we work modulo this number.
+const (
+	CurveExponent        = 2 * GroupOrder
+	CurveExponent_string = "26217937587563095239723870254092982918618311786881140503572806613459375345602"
+)
+
 // GroupOrder_Int is the order of the relevant prime order subgroup of the Bandersnatch curve as a *big.Int
 var GroupOrder_Int *big.Int = initIntFromString(GroupOrder_string)
 
@@ -32,6 +97,9 @@ var Cofactor_Int *big.Int = big.NewInt(Cofactor)
 
 // CurveOrder_Int is the (non-prime) order of the group of rational points of the Bandersnatch curve as a *big.Int
 var CurveOrder_Int *big.Int = new(big.Int).Mul(GroupOrder_Int, Cofactor_Int)
+
+// CurveExponent_Int is the exponent of the group of rational points of the Bandersnatch curve as a *big.Int. This is 2*p253, where p253 is the size of the prime-order subgroup.
+var CurveExponent_Int *big.Int = initIntFromString(CurveExponent_string)
 
 // EndomorphismEigenvalue is a number, such that the efficient degree-2 endomorphism acts as multiplication by this constant on the p253-subgroup.
 // This is a square root of -2 modulo GroupOrder
@@ -44,6 +112,14 @@ const endomorphismEigenvalueIsOdd = true // we chose an odd representative above
 
 // EndomorphismEigenvalue_Int is a *big.Int, such that the the efficient degree-2 endomorphism of the Bandersnatch curve acts as multiplication by this constant on the p253-subgroup.
 var EndomorphismEigenvalue_Int *big.Int = initIntFromString(EndomorphismEigenvalue_string)
+
+// (p253-1)/2. We can represent Z/p253 by numbers from -halfGroupOrder, ... , + halfGroupOrder. This is used in the GLV decomposition algorithm.
+const (
+	halfGroupOrder        = (GroupOrder - 1) / 2
+	halfGroupOrder_string = "6554484396890773809930967563523245729654577946720285125893201653364843836400"
+)
+
+var halfGroupOrder_Int = initIntFromString(halfGroupOrder_string)
 
 // parameters a, d in twisted Edwards form ax^2 + y^2 = 1 + dx^2y^2
 
@@ -110,9 +186,17 @@ var (
 	endo_bcd_fe      FieldElement = initFieldElementFromString(endo_bcd_string)
 )
 
-/*
+// utility constants
 
- */
+var (
+	one_Int      = initIntFromString("1")
+	two_Int      = initIntFromString("2")
+	twoTo32_Int  = initIntFromString("0x1_00000000")
+	twoTo64_Int  = initIntFromString("0x1_00000000_00000000")
+	twoTo128_Int = initIntFromString("0x1_00000000_00000000_00000000_00000000")
+	twoTo256_Int = initIntFromString("0x1_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000")
+	minusOne_Int = initIntFromString("-1")
+)
 
 // The point here is to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
 // in order to have better understandable semantics

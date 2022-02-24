@@ -132,8 +132,8 @@ func TestSerializeInt(t *testing.T) {
 			x.setRandomUnsafe(drng)
 		}
 		var y bsFieldElement_8 = x
-		var xInt *big.Int = x.ToInt()
-		x.SetInt(xInt)
+		var xInt *big.Int = x.ToBigInt()
+		x.SetBigInt(xInt)
 		if !y.IsEqual(&x) {
 			t.Fatal("Serialization roundtrip fails")
 		}

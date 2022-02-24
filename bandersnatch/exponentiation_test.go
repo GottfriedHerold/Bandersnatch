@@ -68,20 +68,35 @@ func TestSlidingWindowExponentiation(t *testing.T) {
 		}
 		assert(s.Points[0].CanOnlyRepresentSubgroup())
 
-		const iterations = 100
+		const iterations = 500
 		var drng *rand.Rand = rand.New(rand.NewSource(1024))
 		var exponent *big.Int = big.NewInt(0)
+		var EVPlusOne *big.Int = big.NewInt(1)
+		EVPlusOne.Add(EVPlusOne, EndomorphismEigenvalue_Int)
 
 		var P1, P2 Point_xtw_subgroup
 		P1.SetFrom(s.Points[0])
 		P2.SetFrom(s.Points[0])
 		for i := 0; i < iterations; i++ {
-			exponent.Rand(drng, CurveOrder_Int)
-			// exponent.SetInt64(10000)
+			// These numbers are "special" in the GLV - decomposition only has one component
+			switch {
+			case i < 128:
+				exponent.SetInt64(int64(i - 64))
+			case i < 256:
+				exponent.SetInt64(int64(i - 64 - 128))
+				exponent.Mul(exponent, EndomorphismEigenvalue_Int)
+			case i < 384:
+				exponent.SetInt64(int64(i - 64 - 256))
+				exponent.Mul(exponent, EVPlusOne)
+			default:
+				exponent.Rand(drng, CurveOrder_Int)
+			}
 			var resultNaive Point_xtw_subgroup
 			var resultSlidingWindow Point_efgh_subgroup
 			resultNaive.exp_naive_xx(&P1.point_xtw_base, exponent)
-			resultSlidingWindow = exponentiate_slidingWindow(&P2, exponent)
+			var exponent_ScalarField Exponent
+			exponent_ScalarField.SetBigInt(exponent)
+			resultSlidingWindow = exponentiate_slidingWindow(&P2, &exponent_ScalarField)
 			if !resultNaive.IsEqual(&resultSlidingWindow) {
 				return false, "expnaive and sliding window results differ"
 			}

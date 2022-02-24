@@ -64,20 +64,20 @@ func TestOps_8_vs_64(t *testing.T) {
 	const iterations = 100
 
 	for i := 0; i < iterations; i++ {
-		var x *big.Int = new(big.Int).Rand(drng, BaseFieldSize)
-		var y *big.Int = new(big.Int).Rand(drng, BaseFieldSize)
+		var x *big.Int = new(big.Int).Rand(drng, BaseFieldSize_Int)
+		var y *big.Int = new(big.Int).Rand(drng, BaseFieldSize_Int)
 
 		var x_8, y_8, z_8 bsFieldElement_8
 		var x_64, y_64, z_64 bsFieldElement_64
 		var result_8, result_64 *big.Int
-		x_8.SetInt(x)
-		y_8.SetInt(y)
+		x_8.SetBigInt(x)
+		y_8.SetBigInt(y)
 		x_64.SetBigInt(x)
 		y_64.SetBigInt(y)
 
 		z_8.Mul(&x_8, &y_8)
 		z_64.Mul(&x_64, &y_64)
-		result_8 = z_8.ToInt()
+		result_8 = z_8.ToBigInt()
 		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
@@ -86,7 +86,7 @@ func TestOps_8_vs_64(t *testing.T) {
 
 		z_8.Add(&x_8, &y_8)
 		z_64.Add(&x_64, &y_64)
-		result_8 = z_8.ToInt()
+		result_8 = z_8.ToBigInt()
 		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
@@ -95,7 +95,7 @@ func TestOps_8_vs_64(t *testing.T) {
 
 		z_8.Sub(&x_8, &y_8)
 		z_64.Sub(&x_64, &y_64)
-		result_8 = z_8.ToInt()
+		result_8 = z_8.ToBigInt()
 		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
@@ -108,7 +108,7 @@ func TestOps_8_vs_64(t *testing.T) {
 
 		z_8.Inv(&x_8)
 		z_64.Inv(&x_64)
-		result_8 = z_8.ToInt()
+		result_8 = z_8.ToBigInt()
 		result_64 = z_64.ToBigInt()
 
 		if result_8.Cmp(result_64) != 0 {
@@ -250,7 +250,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 		var q uint64 = drng.Uint64()
 		qInt := new(big.Int).SetUint64(q)
 
-		qInt.Mul(qInt, BaseFieldSize)
+		qInt.Mul(qInt, BaseFieldSize_Int)
 		qInt.Div(qInt, R)
 		tInt.Add(tInt, qInt)
 		tInt.Add(tInt, oneInt)
