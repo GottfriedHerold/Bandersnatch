@@ -59,7 +59,7 @@ const (
 
 // 2^256 - 2*BaseFieldSize == 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1.
 // Note: Value is 0x1824b159acc5056f_998c4fefecbc4ff5_5884b7fa00034802_00000001fffffffe
-// The weird computation is to avoid 1 << 256, which is not portable according to the go spec (too large even for untyped computations)
+// The weird computation is to avoid 1 << 256, which is not portable according to the go spec (intermediate results are too large even for untyped computations)
 
 const rModBaseField_untyped = 2 * ((1 << 255) - BaseFieldSize_untyped)
 
@@ -548,10 +548,6 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 	z.words = bigIntToUIntArray(w)
 }
 
-/*
-	TODO: Return an error or ok bool instead (consistency?)
-*/
-
 var ErrCannotRepresentAsUInt64 = errors.New("bandersnatch / field element: cannot represent field element as a uint64")
 
 // ToUInt64 returns z with err==nil if z can be represented by a uint64.
@@ -647,7 +643,7 @@ func (z *bsFieldElement_64) multiply_by_five() {
 	z.maybe_reduce_once()
 }
 
-// TODO: Custom error for panic
+var ErrDivisionByZero = errors.New("bandersnatch / field element: division by zero")
 
 // Inv computes the multiplicative Inverse:
 //
@@ -657,7 +653,7 @@ func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
 	// Slow, but rarely used anyway (due to working in projective coordinates)
 	t := x.ToBigInt()
 	if t.ModInverse(t, BaseFieldSize_Int) == nil {
-		panic("field_element_64: division by 0")
+		panic(ErrDivisionByZero)
 	}
 	z.SetBigInt(t)
 }
@@ -717,6 +713,10 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 // TODO: error or bool? Specify what happens with z on error?
 
 // SquareRoot computes a SquareRoot in the field.
+//
+// Use ok := z.SquareRoot(&x).
+//  The return value tells whether the operation was successful.
+// If x is not a square, the return value is false and z is untouched.
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToBigInt()

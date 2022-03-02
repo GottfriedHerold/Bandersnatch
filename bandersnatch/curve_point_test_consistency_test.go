@@ -7,6 +7,11 @@ import (
 
 /*
 	This file contains tests that ensure that different implementations of the CurvePointPtrInterface interface agree with each other.
+
+	For now, this is only checked for IsNaP, IsAtInfinity, IsInSubgroup, IsE1, IsE2 and affine coos (which are unique)
+	Note: We check consistency of affine coos with projective etc. in other tests.
+
+	TODO: Check consistency also for binary operations?
 */
 
 func TestConsistency(t *testing.T) {
@@ -24,9 +29,9 @@ func TestConsistency(t *testing.T) {
 func make_checkfun_consistency_queries(referenceType PointType) (returned_function checkfunction) {
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(Case_singular)
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 		subgroup := !singular && s.Points[0].IsInSubgroup()
-		infinite := !singular && s.AnyFlags().CheckFlag(Case_infinite)
+		infinite := !singular && s.AnyFlags().CheckFlag(PointFlag_infinite)
 		sampleType := getPointType(s.Points[0])
 		if infinite && !typeCanRepresentInfinity(referenceType) {
 			return true, "skipped"
@@ -40,12 +45,12 @@ func make_checkfun_consistency_queries(referenceType PointType) (returned_functi
 			return conv.IsNaP(), "NaP-ness not preserved under conversion"
 		}
 		if typeCanOnlyRepresentSubgroup(referenceType) && !typeCanOnlyRepresentSubgroup(sampleType) {
-			ok := conv.SetFromSubgroupPoint(s.Points[0].Clone().(CurvePointPtrInterfaceRead), UntrustedInput)
+			ok := conv.SetFromSubgroupPoint(s.Points[0].Clone(), UntrustedInput)
 			if !ok {
 				panic("Conversion to subgroup failed unexpectedly")
 			}
 		} else {
-			conv.SetFrom(s.Points[0].Clone().(CurvePointPtrInterfaceRead))
+			conv.SetFrom(s.Points[0].Clone())
 		}
 
 		var ans1, ans2 interface{}
@@ -64,8 +69,8 @@ func make_checkfun_consistency_queries(referenceType PointType) (returned_functi
 			funsByName = append(funsByName, "IsE1", "IsE2")
 		}
 		for _, funname := range funsByName {
-			clone := s.Points[0].Clone() // no type assertion needed here.
-			convClone := conv.Clone()    // no type assertion needed here.
+			clone := s.Points[0].Clone()
+			convClone := conv.Clone()
 			cloneReflected := reflect.ValueOf(clone)
 			convReflected := reflect.ValueOf(convClone)
 			method1 := cloneReflected.MethodByName(funname)

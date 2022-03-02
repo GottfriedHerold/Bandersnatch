@@ -2,12 +2,16 @@ package bandersnatch
 
 import "testing"
 
+// This file contains test for the torsionAddA, torstionAddE1, torsionAddE2 methods of curve points.
+// (i.e. for points satisfying the torsionAdder interface)
+
+// checkfun_torsionA ensures compatibility of torsionAddA with Add(., A)
 func checkfun_torsionA(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
 	}
-	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
+	var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
 	t := s.Points[0].Clone()
 	t.(torsionAdder).torsionAddA()
 	if singular {
@@ -30,15 +34,16 @@ func checkfun_torsionA(s *TestSample) (bool, string) {
 	return t2.IsEqual(t), "torsionAddA does not matching Addition of point"
 }
 
+// checkfun_torsionE1 ensures compatibility of torsionAddE1 with Add(., E1)
 func checkfun_torsionE1(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
 	}
-	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(Case_zero_moduloA) {
+	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(PointFlag_zeroModuloA) {
 		return true, "skipped"
 	}
-	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
+	var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
 	t := s.Points[0].Clone()
 	t.(torsionAdder).torsionAddE1()
 	if singular {
@@ -61,15 +66,16 @@ func checkfun_torsionE1(s *TestSample) (bool, string) {
 	return t2.IsEqual(t), "torsionAddE1 does not matching Addition of point"
 }
 
+// checkfun_torsionE2 ensures compatibility of torsionAddE2 with Add(., E2)
 func checkfun_torsionE2(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
 	}
-	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(Case_zero_moduloA) {
+	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(PointFlag_zeroModuloA) {
 		return true, "skipped"
 	}
-	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
+	var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
 	t := s.Points[0].Clone()
 	t.(torsionAdder).torsionAddE2()
 	if singular {
@@ -92,15 +98,16 @@ func checkfun_torsionE2(s *TestSample) (bool, string) {
 	return t2.IsEqual(t), "torsionAddE1 does not matching Addition of point"
 }
 
+// checkfun_torsion_group ensures that the action of torsionAddA, torsionAddE1, torsionAddE2 acts like the action of elements from Z/2 x Z/2
 func checkfun_torsion_group(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
 	if s.Points[0].CanOnlyRepresentSubgroup() {
 		panic("Do not call this test function on types that can only represent subgroup elements")
 	}
-	if s.AnyFlags().CheckFlag(Case_singular) {
+	if s.AnyFlags().CheckFlag(PointFlagNAP) {
 		return true, "skipped"
 	}
-	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(Case_2torsion) {
+	if !s.Points[0].CanRepresentInfinity() && s.AnyFlags().CheckFlag(PointFlag_2torsion) {
 		return true, "skipped"
 	}
 	t1 := s.Points[0].Clone()
@@ -132,6 +139,8 @@ func checkfun_torsion_group(s *TestSample) (bool, string) {
 	return true, "Ok"
 }
 
+// TestTorsionAddProperties verifies properties of the torsionAdder interface for all curve point types from allFullCurveTestPointTypes.
+// This assumes that all such point types satisfy the torsionAdder interface (this is checked in curve_point_test.go).
 func TestTorsionAddProperties(t *testing.T) {
 	for _, pointType := range allFullCurveTestPointTypes {
 		pointstring := pointTypeToString(pointType)

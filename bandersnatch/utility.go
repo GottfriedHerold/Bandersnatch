@@ -28,6 +28,7 @@ func initIntFromString(input string) *big.Int {
 	return t
 }
 
+// assert(condition) panics if condition is false; assert(condition, error) panics if condition is false with panic(error).
 func assert(condition bool, err ...interface{}) {
 	if len(err) > 1 {
 		panic("assert can only handle 1 extra error argument")

@@ -30,6 +30,7 @@ import (
 // checkfunction is the type of function that we run on test samples.
 // Note that checkfunctions are supposed to be run on fresh (copies of) samples, so inadvertent modifications to the provided samples are not visible in other tests.
 // (The only reason we have a pointer receiver is to use TestSample.Log)
+// At any rate, the framework always (re)generates fresh samples.
 type checkfunction func(*TestSample) (bool, string)
 
 // PointFlags are used to mark TestSamples with meta-information about them. This is used to derive the expected behaviour
@@ -38,27 +39,27 @@ type PointFlags uint64
 
 const (
 	// TODO: Rename
-	Case_singular           PointFlags = 1 << iota // Point is a NaP
-	Case_infinite                                  // Point is at infinity
-	Case_2torsion                                  // Point is 2-torsion
-	Case_outside_p253                              // Point is outside the prime-order subgroup. Note: Subgroup-points in Decaf-style representation must *NOT* have this flag.
-	Case_outside_goodgroup                         // Point is outside the subgroup spanned by the prime-order subgroup and the affine two-torsion point.
-	Case_equal_exact                               // For TestSamples with 2 points: Both points have this if they are equal. Points with this flag must have Case_equal_moduloA as well
-	Case_equal_moduloA                             // For TestSamples with 2 points: Both points have this if they are equal modulo A.
-	Case_zero_moduloA                              // Point is either the neutral element or the affine 2-torsion point
-	Case_zero_exact                                // Point is the neutral element
-	Case_random                                    // Points was sampled randomly
-	Case_differenceInfinite                        // For TestSamples with 2 points: The difference of the points is at infinity
-	Case_sumInfinite                               // For TestSamples with 2 points: The sum of the points is at infinity
-	Case_E1                                        // Point is the E1 point at infinity
-	Case_E2                                        // Point is the E2 point at infinity
-	Case_A                                         // Point is the affine 2-torsion point
+	PointFlagNAP                 PointFlags = 1 << iota // Point is a NaP
+	PointFlag_infinite                                  // Point is at infinity
+	PointFlag_2torsion                                  // Point is 2-torsion
+	PointFlag_outsideP253                               // Point is outside the prime-order subgroup. Note: Subgroup-points in Decaf-style representation must *NOT* have this flag.
+	PointFlag_outsideGoodgroup                          // Point is outside the subgroup spanned by the prime-order subgroup and the affine two-torsion point.
+	PointFlag_equalExact                                // For TestSamples with 2 points: Both points have this if they are equal. Points with this flag must have Case_equal_moduloA as well
+	PointFlag_equalModuloA                              // For TestSamples with 2 points: Both points have this if they are equal modulo A.
+	PointFlag_zeroModuloA                               // Point is either the neutral element or the affine 2-torsion point
+	PointFlag_zeroExact                                 // Point is the neutral element
+	PointFlag_random                                    // Points was sampled randomly
+	PointFlag_differenceInfinite                        // For TestSamples with 2 points: The difference of the points is at infinity
+	PointFlag_sumInfinite                               // For TestSamples with 2 points: The sum of the points is at infinity
+	PointFlag_E1                                        // Point is the E1 point at infinity
+	PointFlag_E2                                        // Point is the E2 point at infinity
+	PointFlag_A                                         // Point is the affine 2-torsion point
 )
 
-// excludeNoPoints is used as an argument to functions taking a bitmask to exclude certain samples if we want to exclude no samples
+// excludeNoPoints is used as an argument to functions taking a bitmask to exclude certain samples. Use this to exclude no samples.
 const excludeNoPoints = PointFlags(0)
 
-// CheckFlag returns true if any of the checked_flag is present in flags. checked_flag should be an bit-wise or of flags.
+// CheckFlag returns true if any of the checked_flag is present in flags. checked_flag should be a bit-wise or of flags.
 func (flags PointFlags) CheckFlag(checked_flags PointFlags) bool {
 	return flags&checked_flags != 0
 }
@@ -104,15 +105,24 @@ var (
 	_ curvePointPtrInterfaceTestSampleE = &Point_efgh_full{}
 )
 
+// PointType can hold the type of a curve Point.
+// Note that this is based on reflect.Type and is intended to store the type of a pointer (i.e.
+// something satisfying the CurvePointPtrInterface or even CurvePointPtrInterfaceTestSample)
+//
+// Note that using PointType for a type not satisfying this will likely lead to a panic.
 type PointType reflect.Type
 
+// Do we need this for the base types?
+
 var (
-	pointTypeXTWBase      = reflect.TypeOf((*point_xtw_base)(nil))
-	pointTypeXTWFull      = reflect.TypeOf((*Point_xtw_full)(nil))
-	pointTypeXTWSubgroup  = reflect.TypeOf((*Point_xtw_subgroup)(nil))
+	pointTypeXTWBase     = reflect.TypeOf((*point_xtw_base)(nil))
+	pointTypeXTWFull     = reflect.TypeOf((*Point_xtw_full)(nil))
+	pointTypeXTWSubgroup = reflect.TypeOf((*Point_xtw_subgroup)(nil))
+
 	pointTypeAXTWBase     = reflect.TypeOf((*point_axtw_base)(nil))
 	pointTypeAXTWFull     = reflect.TypeOf((*Point_axtw_full)(nil))
 	pointTypeAXTWSubgroup = reflect.TypeOf((*Point_axtw_subgroup)(nil))
+
 	pointTypeEFGHBase     = reflect.TypeOf((*point_efgh_base)(nil))
 	pointTypeEFGHFull     = reflect.TypeOf((*Point_efgh_full)(nil))
 	pointTypeEFGHSubgroup = reflect.TypeOf((*Point_efgh_subgroup)(nil))
@@ -120,12 +130,18 @@ var (
 
 // makeCurvePointPtrInterface creates a pointer to a new zero-initialized curve point of the given type.
 // The return value is of type CurvePointPtrInterface and may need to be further type-asserted by the caller.
+// Note that the return value likely is a NaP.
+//
+// It panics if pointType is invalid.
 func makeCurvePointPtrInterface(pointType PointType) CurvePointPtrInterface {
 	return reflect.New(pointType.Elem()).Interface().(CurvePointPtrInterface)
 }
 
 // makeCurvePointPtrInterfaceBase creates a pointer to a new zero-initialized base curve point of the given type.
 // The return value is of type CurvePointPtrInterfaceBaseRead and may need to be further type-asserted by the caller.
+// Note that the return value likely is a NaP.
+//
+// It panics if pointType is invalid.
 func makeCurvePointPtrInterfaceBase(pointType PointType) CurvePointPtrInterfaceBaseRead {
 	return reflect.New(pointType.Elem()).Interface().(CurvePointPtrInterfaceBaseRead)
 }
@@ -166,7 +182,7 @@ var pointTypeToTagMap map[PointType]string = map[PointType]string{
 	pointTypeEFGHSubgroup: "ss",
 }
 
-// pointTypeToTag turns a pointType to a short tag; this is useful e.g. in making benchmarking tables.
+// pointTypeToTag turns a pointType to a short tag string; this is useful e.g. in making benchmarking tables.
 func pointTypeToTag(c PointType) string {
 	ret, ok := pointTypeToTagMap[c]
 	if ok {
@@ -199,21 +215,20 @@ func typeCanOnlyRepresentSubgroup(pointType PointType) bool {
 
 // getPointType returns the type (as a PointType) of a given concrete curve point.
 func getPointType(p CurvePointPtrInterfaceTestSample) PointType {
-	// TODO: Check it's from recognized list?
 	return reflect.TypeOf(p)
 }
 
 // TestSample is a struct that is used as input to most of our test functions, encapsulating a set of points
 // together with metadata.
 type TestSample struct {
-	Points  []CurvePointPtrInterfaceTestSample // a slice of 1--3 points. The points can have different concrete type.
-	Flags   []PointFlags                       // flags that give additional information about the points.
-	Comment string                             // A human-readable comment that describes the sample.
+	Points  []CurvePointPtrInterfaceTestSample // a slice of 1--3 points. The individual points can have different concrete type.
+	Flags   []PointFlags                       // flags that give additional information about the points. This determines intended behaviour to test against.
+	Comment string                             // A human-readable comment that describes the sample. Useful for
 	Len     uint                               // Len == len(Points) == len(Flags). The given TestSample consists of this many points (1--3)
-	info    []string                           // uninitialized by default. This can be used to record information that is output as diagnostic on errors.
+	info    []string                           // uninitialized by default. This can be used to record information via Log(...) that is output as diagnostic on errors.
 }
 
-// Log records a string representation of the given args in the sample. These are output in s.String() and can provide useful information when there is an error.
+// Log records a string representation (via fmt.Sprint) of the given args in the sample. These are output in s.String() and can provide useful information when there is an error.
 func (s *TestSample) Log(args ...interface{}) {
 	if s.info == nil {
 		s.info = make([]string, 0)
@@ -234,6 +249,7 @@ func (s *TestSample) AssertNumberOfPoints(expectedLen int) {
 // TODO: Signature inconsistent with CurvePointPtrInterface's Clone (returns value!)
 
 // Clone returns an independent copy of the given TestSample. The contained points are copied and do not retain any pointer-links to the original.
+// Note that this Clone() function returns a value, not a pointer.
 func (s *TestSample) Clone() (ret TestSample) {
 	ret.Len = s.Len
 	ret.Comment = s.Comment
@@ -264,7 +280,8 @@ func (s TestSample) AnyFlags() (ret PointFlags) {
 
 // TODO: Automatically add flags based on type of p?
 
-// MakeSample1 turns point p into a 1-point sample with given flags and comment, taking ownership of p.
+// MakeSample1 turns point p into a 1-point sample with given flags and comment.
+// This takes ownership of p in the sense that the pointer gives a argument must no longer be used by the caller.
 func MakeSample1(p CurvePointPtrInterfaceTestSample, flags PointFlags, comment string) (ret TestSample) {
 	ret.Points = []CurvePointPtrInterfaceTestSample{p}
 	ret.Flags = []PointFlags{flags}
@@ -307,7 +324,7 @@ func ZipSample(a, b TestSample, extra_flags PointFlags) (ret TestSample) {
 // This is because creating these TestSamples is too slow otherwise.
 type precomputedSampleSlice struct {
 	// Samples come in three flavours: fixed samples are always present and contain
-	// "special" samples such as the neutral element that are likely chances of failure of our algorithm.
+	// "special" samples such as the neutral element that are likely candidates to exhibit failures of our algorithms.
 	// random samples are randomly generated/appended. Their number can increase upon request
 	// NaPSamples contain (random) invalid points. Their number can increase upon request.
 	fixedSamples  []TestSample
@@ -418,33 +435,33 @@ func (s *precomputedSampleSlice) prepareFixedSamples2() {
 			var newFlags PointFlags
 			newSample := ZipSample(sample1, sample2, PointFlags(0))
 			newSample = newSample.Clone() // avoid any pointers pointing to the same things.
-			if flags1.CheckFlag(Case_zero_exact) && flags2.CheckFlag(Case_zero_exact) {
-				newFlags |= Case_equal_exact
+			if flags1.CheckFlag(PointFlag_zeroExact) && flags2.CheckFlag(PointFlag_zeroExact) {
+				newFlags |= PointFlag_equalExact
 			}
-			if flags1.CheckFlag(Case_A) && flags2.CheckFlag(Case_A) {
-				newFlags |= Case_equal_exact
+			if flags1.CheckFlag(PointFlag_A) && flags2.CheckFlag(PointFlag_A) {
+				newFlags |= PointFlag_equalExact
 			}
-			if flags1.CheckFlag(Case_E1) && flags2.CheckFlag(Case_E1) {
-				newFlags |= Case_equal_exact
+			if flags1.CheckFlag(PointFlag_E1) && flags2.CheckFlag(PointFlag_E1) {
+				newFlags |= PointFlag_equalExact
 			}
-			if flags1.CheckFlag(Case_E2) && flags2.CheckFlag(Case_E2) {
-				newFlags |= Case_equal_exact
+			if flags1.CheckFlag(PointFlag_E2) && flags2.CheckFlag(PointFlag_E2) {
+				newFlags |= PointFlag_equalExact
 			}
 			// This is only true due to the specific samples that are in samples1/2:
 			// We have the example generator in both cases.
-			if !flags1.CheckFlag(Case_2torsion|Case_singular) && !flags2.CheckFlag(Case_2torsion|Case_singular) {
-				newFlags |= Case_equal_exact
-				newFlags |= Case_equal_moduloA
+			if !flags1.CheckFlag(PointFlag_2torsion|PointFlagNAP) && !flags2.CheckFlag(PointFlag_2torsion|PointFlagNAP) {
+				newFlags |= PointFlag_equalExact
+				newFlags |= PointFlag_equalModuloA
 			}
-			if flags1.CheckFlag(Case_2torsion) && flags2.CheckFlag(Case_2torsion) {
-				if flags1.CheckFlag(Case_infinite) == flags2.CheckFlag(Case_infinite) {
-					newFlags |= Case_equal_moduloA
+			if flags1.CheckFlag(PointFlag_2torsion) && flags2.CheckFlag(PointFlag_2torsion) {
+				if flags1.CheckFlag(PointFlag_infinite) == flags2.CheckFlag(PointFlag_infinite) {
+					newFlags |= PointFlag_equalModuloA
 				} else {
-					newFlags |= Case_differenceInfinite
-					newFlags |= Case_sumInfinite // sum and difference are the same for 2-torsion
+					newFlags |= PointFlag_differenceInfinite
+					newFlags |= PointFlag_sumInfinite // sum and difference are the same for 2-torsion
 				}
 			}
-			if flags1.CheckFlag(Case_random) || flags2.CheckFlag(Case_random) {
+			if flags1.CheckFlag(PointFlag_random) || flags2.CheckFlag(PointFlag_random) {
 				panic("Unexpected random point in fixedSamples of length 1")
 			}
 			// they don't really apply individually; we give them to both.
@@ -634,6 +651,7 @@ func (s *precomputedSampleSlice) elongate3() {
 	s.NaPSamples = append(s.NaPSamples, newSample)
 }
 
+// makePointTypeTuple turns a single/pair/triple of pointTypes into a variable of type PointType / PointTypePair / PointTypeTriple.
 func makePointTypeTuple(pointTypes ...PointType) interface{} {
 	length := len(pointTypes)
 	switch length {
@@ -732,7 +750,7 @@ func makeSample_N(pointType PointType) (ret TestSample, ok bool) {
 	ok = true
 	ret = makeSample_prep(pointType)
 	ret.Points[0].SetNeutral()
-	ret.Flags[0] = Case_zero_exact | Case_2torsion | Case_zero_moduloA
+	ret.Flags[0] = PointFlag_zeroExact | PointFlag_2torsion | PointFlag_zeroModuloA
 	ret.Comment = "Neutral Elements"
 	return
 }
@@ -745,7 +763,7 @@ func makeSample_A(pointType PointType) (ret TestSample, ok bool) {
 	}
 	// p_conv is a pointer, so will affect ret.Points[0]
 	p_conv.SetAffineTwoTorsion()
-	ret.Flags[0] = Case_zero_moduloA | Case_2torsion | Case_outside_p253 | Case_A
+	ret.Flags[0] = PointFlag_zeroModuloA | PointFlag_2torsion | PointFlag_outsideP253 | PointFlag_A
 	ret.Comment = "Affine two-torsion"
 	return
 }
@@ -760,7 +778,7 @@ func makeSample_E1(pointType PointType) (ret TestSample, ok bool) {
 		panic("Point type has SetE1() defined, but CanRepresentInfinity is false")
 	}
 	p_conv.SetE1()
-	ret.Flags[0] = Case_2torsion | Case_infinite | Case_outside_goodgroup | Case_outside_p253 | Case_E1
+	ret.Flags[0] = PointFlag_2torsion | PointFlag_infinite | PointFlag_outsideGoodgroup | PointFlag_outsideP253 | PointFlag_E1
 	ret.Comment = "infinite point E1"
 	return
 }
@@ -775,7 +793,7 @@ func makeSample_E2(pointType PointType) (ret TestSample, ok bool) {
 		panic("Point type has SetE2() defined, but CanRepresentInfinity is false")
 	}
 	p_conv.SetE2()
-	ret.Flags[0] = Case_2torsion | Case_infinite | Case_outside_goodgroup | Case_outside_p253 | Case_E2
+	ret.Flags[0] = PointFlag_2torsion | PointFlag_infinite | PointFlag_outsideGoodgroup | PointFlag_outsideP253 | PointFlag_E2
 	ret.Comment = "infinite point E2"
 	return
 }
@@ -793,7 +811,7 @@ func makeSample_Gen(pointType PointType) (ret TestSample, ok bool) {
 func makeSample_Uninit(pointType PointType) (ret TestSample, ok bool) {
 	ret = makeSample_prep(pointType)
 	ok = true
-	ret.Flags[0] = Case_singular
+	ret.Flags[0] = PointFlagNAP
 	ret.Comment = "Uninitialized point"
 	return
 }
@@ -802,9 +820,9 @@ func makeSample_random(pointType PointType, rnd *rand.Rand) (ret TestSample, ok 
 	ok = true
 	ret = makeSample_prep(pointType)
 	ret.Points[0].sampleRandomUnsafe(rnd)
-	ret.Flags[0] = Case_random
+	ret.Flags[0] = PointFlag_random
 	if !ret.Points[0].CanOnlyRepresentSubgroup() {
-		ret.Flags[0] |= Case_outside_goodgroup | Case_outside_p253
+		ret.Flags[0] |= PointFlag_outsideGoodgroup | PointFlag_outsideP253
 	}
 	ret.Comment = "Random sample"
 	return
@@ -817,7 +835,7 @@ func makeSample_NaP(pointType PointType, rnd *rand.Rand, index int) (ret TestSam
 		return
 	}
 	p_conv.sampleNaP(rnd, index)
-	ret.Flags[0] = Case_random | Case_singular
+	ret.Flags[0] = PointFlag_random | PointFlagNAP
 	ret.Comment = "random NaP"
 	return
 }
@@ -857,45 +875,49 @@ func (s *TestSample) String() string {
 }
 
 func run_tests_on_samples(f checkfunction, t *testing.T, samples []TestSample, err_string string) {
-	var num_errors int = 0
+	var numErrors int = 0
 	var failed bool = false
-	panicked := true // set to false before return
 	var samp TestSample
+
+	// This function is used to detect whether an error has occured.
+	// We do NOT call recover(), because Go's internal testing framework actually recovers and we do not want interfere with it.
+	panicked := true // set to false before return
 	defer func() {
+		// panicked can only be true if execution of the for-loop below was terminated prematurely be a panic.
 		if panicked {
-			t.Error("Panic detected. Context info: " + err_string + "\n")
-			t.Error("Failed Sample: " + samp.String())
+			t.Errorf("Panic detected. Context info: %v\n", err_string)
+			t.Errorf("Failed Sample: %v", samp.String())
 		}
 	}()
 	for _, samp = range samples {
 		pass, error_reason := f(&samp)
 		if failed && !pass {
-			num_errors++
+			numErrors++
 		}
 		if !failed && !pass {
 			failed = true
-			t.Error(err_string + "\nAdditional info: " + error_reason + "\nFailed Sample: " + samp.String() + "\nPrinting Stack trace")
+			t.Errorf("%v\nAdditional info: %v\nFailed Sample: %v\nPrinting Stack trace", err_string, error_reason, samp.String())
 			debug.PrintStack()
 		}
 	}
 	panicked = false
 	if failed {
-		t.Fatal(" and " + strconv.Itoa(num_errors) + " further errors")
+		t.Fatal(" and " + strconv.Itoa(numErrors) + " further errors")
 	}
 }
 
 func make_samples1_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, random_size int, excluded_flags PointFlags) {
-	Samples := getSamples(random_size, excluded_flags, point_type1)
+	samples := getSamples(random_size, excluded_flags, point_type1)
 	// Samples := MakeTestSamples1(random_size, point_type1, excluded_flags)
-	run_tests_on_samples(f, t, Samples, err_string)
+	run_tests_on_samples(f, t, samples, err_string)
 }
 
 func make_samples2_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, point_type2 PointType, random_size int, excluded_flags PointFlags) {
-	Samples := getSamples(random_size, excluded_flags, point_type1, point_type2)
-	run_tests_on_samples(f, t, Samples, err_string)
+	samples := getSamples(random_size, excluded_flags, point_type1, point_type2)
+	run_tests_on_samples(f, t, samples, err_string)
 }
 
 func make_samples3_and_run_tests(t *testing.T, f checkfunction, err_string string, point_type1 PointType, point_type2 PointType, point_type3 PointType, random_size int, excluded_flags PointFlags) {
-	Samples := getSamples(random_size, excluded_flags, point_type1, point_type2, point_type3)
-	run_tests_on_samples(f, t, Samples, err_string)
+	samples := getSamples(random_size, excluded_flags, point_type1, point_type2, point_type3)
+	run_tests_on_samples(f, t, samples, err_string)
 }

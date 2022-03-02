@@ -6,8 +6,9 @@ import (
 	"math/rand"
 )
 
-// naive implementation. Field elements are represented as (unsigned) big-endian byte slices representing an integer in [0, BaseFieldSize)
-// (because big.Int is convertible to/from it, although big.Int's internal representation is little-endian word slices + sign bits)
+// naive implementation. Field elements are represented as (unsigned) big-endian byte slices representing an integer in [0, BaseFieldSize).
+// Different from most other code, we use a big-endian representation here, because big.Int is easily convertible to/from it,
+// although big.Int's internal representation is little-endian word slices + sign bits)
 // Note that we decide not to embed a big.Int, to avoid pointer indirection: This makes assigment, equality and zero-initialization actually work
 // at the expense of speed, but this is only really used to test other implementations against for correctness anyway.
 type bsFieldElement_8 struct {
@@ -110,9 +111,14 @@ func (z *bsFieldElement_8) setRandomUnsafe(rnd *rand.Rand) {
 }
 
 // useful for debugging
-func (z *bsFieldElement_8) Format(s fmt.State, ch rune) {
+func (z bsFieldElement_8) Format(s fmt.State, ch rune) {
 	var xInt *big.Int = big.NewInt(0).SetBytes(z.v[:])
 	xInt.Format(s, ch)
+}
+
+func (z bsFieldElement_8) String() string {
+	var zInt *big.Int = big.NewInt(0).SetBytes(z.v[:])
+	return zInt.String()
 }
 
 // multiplicative inverse

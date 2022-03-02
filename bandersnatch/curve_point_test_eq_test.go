@@ -10,7 +10,7 @@ import (
 
 func checkfun_AddEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 
 	receiverType := getPointType(s.Points[0])
 
@@ -44,8 +44,8 @@ func checkfun_AddEq(s *TestSample) (bool, string) {
 
 func checkfun_SubEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(2)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
-	differenceInfinite := s.AnyFlags().CheckFlag(Case_differenceInfinite)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
+	differenceInfinite := s.AnyFlags().CheckFlag(PointFlag_differenceInfinite)
 
 	receiverType := getPointType(s.Points[0])
 
@@ -84,7 +84,7 @@ func checkfun_SubEq(s *TestSample) (bool, string) {
 
 func checkfun_DoubleEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	receiverType := getPointType(s.Points[0])
 	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
@@ -107,7 +107,7 @@ func checkfun_DoubleEq(s *TestSample) (bool, string) {
 
 func checkfun_NegEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	receiverType := getPointType(s.Points[0])
 	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
@@ -130,7 +130,7 @@ func checkfun_NegEq(s *TestSample) (bool, string) {
 
 func checkfun_EndoEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	receiverType := getPointType(s.Points[0])
 	result1 := s.Points[0].Clone()
 	result2 := makeCurvePointPtrInterface(receiverType)
@@ -152,22 +152,23 @@ func checkfun_EndoEq(s *TestSample) (bool, string) {
 }
 
 func test_CurvePointPtrInterface_EqVariants(t *testing.T, receiverType PointType, excludedFlags PointFlags) {
+	const testSizeEq = 40
 	point_string := pointTypeToString(receiverType)
-	make_samples2_and_run_tests(t, checkfun_AddEq, "AddEq did not behave as expected "+point_string, receiverType, receiverType, 10, excludedFlags)
-	make_samples2_and_run_tests(t, checkfun_SubEq, "SubEq did not behave as expected "+point_string, receiverType, receiverType, 10, excludedFlags)
+	make_samples2_and_run_tests(t, checkfun_AddEq, "AddEq did not behave as expected "+point_string, receiverType, receiverType, testSizeEq, excludedFlags)
+	make_samples2_and_run_tests(t, checkfun_SubEq, "SubEq did not behave as expected "+point_string, receiverType, receiverType, testSizeEq, excludedFlags)
 	for _, type2 := range allTestPointTypes {
 		if type2 == receiverType {
-			continue
+			continue // covered above
 		}
 		if typeCanOnlyRepresentSubgroup(receiverType) && !typeCanOnlyRepresentSubgroup(type2) {
-			continue
+			continue // would not work
 		}
-		make_samples2_and_run_tests(t, checkfun_AddEq, "AddEq did not behave as expected "+point_string, receiverType, type2, 10, excludedFlags)
-		make_samples2_and_run_tests(t, checkfun_SubEq, "SubEq did not behave as expected "+point_string, receiverType, type2, 10, excludedFlags)
+		make_samples2_and_run_tests(t, checkfun_AddEq, "AddEq did not behave as expected "+point_string, receiverType, type2, testSizeEq, excludedFlags)
+		make_samples2_and_run_tests(t, checkfun_SubEq, "SubEq did not behave as expected "+point_string, receiverType, type2, testSizeEq, excludedFlags)
 	}
-	make_samples1_and_run_tests(t, checkfun_DoubleEq, "DoubleEq did not behave as expected "+point_string, receiverType, 10, excludedFlags)
-	make_samples1_and_run_tests(t, checkfun_NegEq, "NegEq did not behave as expected "+point_string, receiverType, 10, excludedFlags)
-	make_samples1_and_run_tests(t, checkfun_EndoEq, "EndoEq did not behave as expected "+point_string, receiverType, 10, excludedFlags)
+	make_samples1_and_run_tests(t, checkfun_DoubleEq, "DoubleEq did not behave as expected "+point_string, receiverType, testSizeEq, excludedFlags)
+	make_samples1_and_run_tests(t, checkfun_NegEq, "NegEq did not behave as expected "+point_string, receiverType, testSizeEq, excludedFlags)
+	make_samples1_and_run_tests(t, checkfun_EndoEq, "EndoEq did not behave as expected "+point_string, receiverType, testSizeEq, excludedFlags)
 }
 
 func TestEqVariantsForXTW(t *testing.T) {

@@ -1006,6 +1006,7 @@ func (p *Point_efgh_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceR
 			return false
 		}
 	}
+	// Note: p cannot alias input if we get here.
 	switch input := input.(type) {
 	case *Point_efgh_full:
 		p.point_efgh_base = input.point_efgh_base
@@ -1020,7 +1021,8 @@ func (p *Point_efgh_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceR
 		p.g.SetOne()
 		p.h = input.y
 	default:
-		p.e, p.f, p.h = input.XYZ_projective()
+
+		p.e, p.h, p.f = input.XYZ_projective()
 		p.g = p.f
 	}
 	return true
@@ -1067,6 +1069,7 @@ func (p *Point_efgh_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.g.SetOne()
 		p.h = input.y
 	default:
+		// Note: p cannot alias subgroup
 		if input.IsNaP() {
 			napEncountered("Converting NaP of unknown type to efgh_subgroup", false, input)
 			*p = Point_efgh_subgroup{}

@@ -1,9 +1,14 @@
 package bandersnatch
 
 import (
-	"math/big"
 	"testing"
 )
+
+/*
+	This file contains tests to ensure that intended struct (pointers) satisfy the CurvePointPtrInterface interface.
+	The tests that the actual implementations satisfies the required properties (such as commutativity of addition etc.)
+	are organized in the curve_point_test_*_test.go files
+*/
 
 var _ CurvePointPtrInterfaceBaseRead = &point_efgh_base{}
 var _ CurvePointPtrInterfaceBaseRead = &point_xtw_base{}
@@ -38,35 +43,83 @@ var _ torsionAdder = &point_xtw_base{}
 var _ torsionAdder = &point_axtw_base{}
 var _ torsionAdder = &point_efgh_base{}
 
-/*
-	This file contains tests on curve points that can be expressed as properties on the exported interface of CurvePointPtrInterface.
-	Using our testing framework and a little bit of reflection (hidden in helper functions) and interfaces, these tests are then run on all concrete curve point types.
-*/
+// These variables are used by various generic tests, which are then run against all of these concrete types.
+// We assume that allTestPointTypes contains the union of all others here.
+var allTestPointTypes = []PointType{pointTypeXTWFull, pointTypeXTWSubgroup, pointTypeAXTWFull, pointTypeAXTWSubgroup, pointTypeEFGHFull, pointTypeEFGHSubgroup}
+var allXTWTestPointTypes = []PointType{pointTypeXTWFull, pointTypeXTWSubgroup}
+var allAXTWTestPointTypes = []PointType{pointTypeAXTWFull, pointTypeAXTWSubgroup}
+var allEFGHTestPointTypes = []PointType{pointTypeEFGHFull, pointTypeEFGHSubgroup}
+var allFullCurveTestPointTypes = []PointType{pointTypeXTWFull, pointTypeAXTWFull, pointTypeEFGHFull}
+var allSubgroupCurveTestPointTypes = []PointType{pointTypeXTWSubgroup, pointTypeAXTWSubgroup, pointTypeEFGHSubgroup}
 
-// Tests properties of some global parameters
-func TestGlobalParameter(t *testing.T) {
-	if big.Jacobi(big.NewInt(CurveParameterA), BaseFieldSize_Int) == 1 {
-		t.Fatal("Parameter a of curve is a square")
+// We might remove this
+var allBasePointTypes = []PointType{pointTypeXTWBase, pointTypeAXTWBase, pointTypeEFGHBase}
+
+// TestAllTestPointTypesSatisfyInterface ensures that all elements from allTestPointTypes, allFullCurveTestPointTypes and allSubgroupCurveTestPointTypes satisfy
+// some required properties:
+// instances satisfy curvePointPtrInterfaceTestSample
+// depending on the values of CanRepresentInfinity / CanOnlyRepresentSubgroup, additional requirements:
+// - CurvePointPtrInterfaceDistinguishInfinity
+func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
+	for _, pointType := range allBasePointTypes {
+		// This will panic on failure
+		_ = makeCurvePointPtrInterfaceBase(pointType)
 	}
-	if big.Jacobi(CurveParameterD_Int, BaseFieldSize_Int) == 1 {
-		t.Fatal("Parameter d of curve is a square")
+
+	for _, pointType := range allTestPointTypes {
+		pointInstance, ok := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
+		pointString := pointTypeToString(pointType)
+		if !ok {
+			t.Fatalf("Point type %v not compatible with curvePointPtrInterfaceTestSample", pointString)
+		}
+		// Note that pointInstance is a nil pointer (of the appropriate type).
+		// So this also tests that certain functions can be called with nil receivers.
+
+		// TODO: This might go away together with CanRepresentInfinity.
+		if pointInstance.CanRepresentInfinity() {
+			_, ok = pointInstance.(CurvePointPtrInterfaceDistinguishInfinity)
+			if !ok {
+				t.Fatalf("Curve point type %v can represent infinity, but does not provide interface to distinguish", pointString)
+			}
+			_, ok = pointInstance.(curvePointPtrInterfaceTestSampleE)
+			if !ok {
+				t.Fatalf("Curve point type %v can represent infinity, but cannot set to points at infinity", pointString)
+			}
+		}
+		if !pointInstance.CanOnlyRepresentSubgroup() {
+			_, ok = pointInstance.(curvePointPtrInterfaceTestSampleA)
+			if !ok {
+				t.Fatalf("Curve point type %v can represent points outside prime-order subgroup, but cannot set to affine order-2 point.", pointString)
+			}
+
+			// The property checked here is not really needed, but our testing framework assumes it for simplicity.
+			_, ok = pointInstance.(torsionAdder)
+			if !ok {
+				t.Fatalf("Curve point type %v can represent points outside prime-order subgroup, but does not satisfy torsionAdder interface", pointString)
+			}
+		}
 	}
-	var temp FieldElement
-	temp.Square(&squareRootDbyA_fe)
-	temp.multiply_by_five()
-	temp.Neg(&temp)
-	if !temp.IsEqual(&CurveParameterD_fe) {
-		t.Fatal("SqrtDDivA is not a square root of d/a")
+
+	for _, pointType := range allFullCurveTestPointTypes {
+		pointString := pointTypeToString(pointType)
+		pointInstance, ok := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
+		if !ok {
+			t.Fatalf("Point type %v is not compatible with curvePointPtrInterfaceTestSampe", pointString)
+		}
+		if pointInstance.CanOnlyRepresentSubgroup() {
+			t.Fatalf("Curve point type %v in allFullCurveTestPointTypes, but reports to only support subgroup elements.", pointString)
+		}
 	}
-	if (Cofactor*GroupOrder - CurveOrder) != 0 {
-		t.Fatal("Relationship between constants violated")
+
+	for _, pointType := range allSubgroupCurveTestPointTypes {
+		pointString := pointTypeToString(pointType)
+		pointInstance, ok := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
+		if !ok {
+			t.Fatalf("Point type %v is not compatible with curvePointPtrInterfaceTestSampe", pointString)
+		}
+		if !pointInstance.CanOnlyRepresentSubgroup() {
+			t.Fatalf("Curve point type %v in allSubgroupCurveTestPointTypes, but reports to NOT only support subgroup elements.", pointString)
+		}
 	}
-	var tempInt *big.Int = big.NewInt(0)
-	var twoInt *big.Int = big.NewInt(2)
-	tempInt.Mul(EndomorphismEigenvalue_Int, EndomorphismEigenvalue_Int)
-	tempInt.Add(tempInt, twoInt)
-	tempInt.Mod(tempInt, GroupOrder_Int)
-	if tempInt.Sign() != 0 {
-		t.Fatal("EndomorphismEigentvalue_Int is not a square root of -2 modulo p253")
-	}
+
 }

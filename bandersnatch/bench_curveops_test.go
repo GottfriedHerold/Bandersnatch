@@ -6,8 +6,6 @@ import (
 
 const benchSizeCurvePoint = 1 << 8
 
-//
-
 // filterTypes_CompatibilityCond checks returns true unless receiverType can only represent subgroup elements, but some pointType among others cannot.
 // Used to filter pointType combinations.
 func filterTypes_CompatibilityCond(receiverType PointType, others ...PointType) bool {

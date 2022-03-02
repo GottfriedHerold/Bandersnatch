@@ -5,12 +5,21 @@ import (
 	"testing"
 )
 
+// This test file contains tests that verify correctness of curve point addition and related functions.
+//
+// Notably, we check that
+// Addition is commutative and associative
+// P + Neutral = P
+// Neg gives inverse
+// Sub ist corresponding subtraction
+// Doubling is the same as P+P (up to data type restrictions)
+
 // check whether P+Q == Q+P
 func make_checkfun_addition_commutes(receiverType PointType) (returned_function checkfunction) {
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(2)
-		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-		var sumInfinite = s.AnyFlags().CheckFlag(Case_sumInfinite)
+		var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
+		var sumInfinite = s.AnyFlags().CheckFlag(PointFlag_sumInfinite)
 		if sumInfinite && !typeCanRepresentInfinity(receiverType) {
 			return true, "" // skip test in that case
 		}
@@ -41,8 +50,8 @@ func make_checkfun_addition_of_zero(receiverType PointType, zeroType PointType) 
 	var zero CurvePointPtrInterface = makeCurvePointPtrInterface(zeroType)
 	zero.SetNeutral()
 	returned_function = func(s *TestSample) (bool, string) {
-		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-		infinite := s.AnyFlags().CheckFlag(Case_infinite)
+		var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
+		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 		if infinite && !typeCanRepresentInfinity(receiverType) {
 			return true, "" // This case is skipped.
 		}
@@ -67,8 +76,8 @@ func make_checkfun_addition_of_zero(receiverType PointType, zeroType PointType) 
 func make_checkfun_negative(receiverType PointType) (returned_function checkfunction) {
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-		if !typeCanRepresentInfinity(receiverType) && s.AnyFlags().CheckFlag(Case_infinite) {
+		var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
+		if !typeCanRepresentInfinity(receiverType) && s.AnyFlags().CheckFlag(PointFlag_infinite) {
 			return true, ""
 		}
 		negative_of_point := makeCurvePointPtrInterface(receiverType)
@@ -101,8 +110,8 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 				return true, ""
 			}
 		*/
-		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-		var differenceInfinite bool = s.AnyFlags().CheckFlag(Case_differenceInfinite)
+		var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
+		var differenceInfinite bool = s.AnyFlags().CheckFlag(PointFlag_differenceInfinite)
 		result_of_subtraction := makeCurvePointPtrInterface(receiverType)
 		negative_of_point := makeCurvePointPtrInterface(receiverType)
 		result1 := makeCurvePointPtrInterface(receiverType)
@@ -121,7 +130,7 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 			return false, "Subtraction resulted in unexpected infinity"
 		}
 
-		if !typeCanRepresentInfinity(receiverType) && s.Flags[0].CheckFlag(Case_infinite) {
+		if !typeCanRepresentInfinity(receiverType) && s.Flags[0].CheckFlag(PointFlag_infinite) {
 			result1 = makeCurvePointPtrInterface(pointTypeXTWFull)
 		}
 
@@ -135,7 +144,7 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 			return false, "(P-Q) + Q != P"
 		}
 
-		if !typeCanRepresentInfinity(receiverType) && s.Flags[1].CheckFlag(Case_infinite) {
+		if !typeCanRepresentInfinity(receiverType) && s.Flags[1].CheckFlag(PointFlag_infinite) {
 			return true, ""
 		}
 
@@ -157,7 +166,7 @@ func make_checkfun_subtraction(receiverType PointType) (returned_function checkf
 func make_checkfun_doubling(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(Case_singular)
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 		result1 := makeCurvePointPtrInterface(receiverType)
 		result1.Double(s.Points[0])
 		if result1.IsNaP() != singular {
@@ -190,7 +199,7 @@ func make_checkfun_doubling(receiverType PointType) checkfunction {
 
 func checkfun_associative_law(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(3)
-	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
+	var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
 	// We not do use a separate receiver type (and a make_checkfun...) due to speed.
 	receiverType := getPointType(s.Points[0])
 	result1 := makeCurvePointPtrInterface(receiverType)

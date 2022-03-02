@@ -317,6 +317,7 @@ func (z uint128) ToBigInt() (x *big.Int) {
 	return new(big.Int).SetBytes(bigEndianSlice[:])
 }
 
+// Bit returns the value of the i'th bit of z
 func (z uint128) Bit(i uint) uint {
 	if i < 64 {
 		return uint((z[0] >> i) % 2)

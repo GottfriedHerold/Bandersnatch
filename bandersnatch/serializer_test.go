@@ -15,7 +15,7 @@ func TestRecoverYFromXAffine(t *testing.T) {
 	var checkfun_recover_y checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
-		if s.AnyFlags().CheckFlag(Case_singular) {
+		if s.AnyFlags().CheckFlag(PointFlagNAP) {
 			return true, "skipped"
 		}
 		x, y := s.Points[0].XY_affine()
@@ -45,7 +45,7 @@ func TestRecoverYFromXAffine(t *testing.T) {
 		}
 		return true, "ok"
 	}
-	make_samples1_and_run_tests(t, checkfun_recover_y, "RecoverYFromXAffine not working for good x-coos", pointTypeAXTWFull, 500, Case_singular)
+	make_samples1_and_run_tests(t, checkfun_recover_y, "RecoverYFromXAffine not working for good x-coos", pointTypeAXTWFull, 500, PointFlagNAP)
 	var rng *rand.Rand = rand.New(rand.NewSource(500))
 	var num_good, num_notOnCurve, num_notOnSubgroup int
 	const iterations = 1000
@@ -82,7 +82,7 @@ func TestRecoverXFromYAffine(t *testing.T) {
 	var checkfun_recover_x checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
-		if s.AnyFlags().CheckFlag(Case_singular) {
+		if s.AnyFlags().CheckFlag(PointFlagNAP) {
 			return true, "skipped"
 		}
 		x, y := s.Points[0].XY_affine()
@@ -96,7 +96,7 @@ func TestRecoverXFromYAffine(t *testing.T) {
 		}
 		return true, "ok"
 	}
-	make_samples1_and_run_tests(t, checkfun_recover_x, "RecoverXFromYAffine not working for good y-coos", pointTypeAXTWFull, 500, Case_singular)
+	make_samples1_and_run_tests(t, checkfun_recover_x, "RecoverXFromYAffine not working for good y-coos", pointTypeAXTWFull, 500, PointFlagNAP)
 	var yAtInfinity FieldElement = squareRootDbyA_fe
 	yAtInfinity.InvEq() // sqrt(a/d)
 
@@ -145,9 +145,9 @@ func TestRecoverXFromYAffine(t *testing.T) {
 func TestMapToFieldElement(t *testing.T) {
 	var checkfun_MapToFieldElement checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(Case_singular)
-		infinite := s.AnyFlags().CheckFlag(Case_infinite)
-		zeroModA := s.AnyFlags().CheckFlag(Case_zero_moduloA)
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
+		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
+		zeroModA := s.AnyFlags().CheckFlag(PointFlag_zeroModuloA)
 		var result FieldElement
 		didPanic := checkPanic(func(arg CurvePointPtrInterfaceRead) { result = MapToFieldElement(arg) }, s.Points[0])
 		if singular && !didPanic {
@@ -259,8 +259,8 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 
 func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
-	infinite := s.AnyFlags().CheckFlag(Case_infinite)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
+	infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 	subgroup := s.Points[0].IsInSubgroup()
 	if infinite {
 		return true, "skipped" // affine X,Y coos make no sense.
@@ -315,8 +315,8 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 	assert(argGetter_r.Kind() == reflect.Func)
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(Case_singular)
-		infinite := s.AnyFlags().CheckFlag(Case_infinite)
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
+		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 		subgroup := s.Points[0].IsInSubgroup()
 		var pointPlusA Point_xtw_full // only used if roundTripModuloA is true
 		if roundTripModuloA {

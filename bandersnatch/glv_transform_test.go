@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// Tests whether the global constants defined for the GLV decomposition algorithms satisfy relevant correctness properties.
 func TestGLVParameters(t *testing.T) {
 	// L is defined as the lattice consisting of (u,v) s.t. u*P + v*psi(P) = neutral for points P in subgroup, which is equivalent to
 	// u * 1 + v * GLSEigenvalue == 0 mod p253.
@@ -33,9 +34,9 @@ func TestGLVParameters(t *testing.T) {
 	if v.Sign() != 0 {
 		t.Fatal("Determinant of LLL basis for L is wrong")
 	}
-
 }
 
+// BenchmarkGLVDecomposition benchmarks GLV_representation
 func BenchmarkGLVDecomposition(b *testing.B) {
 	var drng *rand.Rand = rand.New(rand.NewSource(int64(1000 + b.N)))
 	var exponents []Exponent = make([]Exponent, b.N)
@@ -51,6 +52,7 @@ func BenchmarkGLVDecomposition(b *testing.B) {
 	}
 }
 
+// BenchmarkBitDecomposition benchmarks decomposeUnalignedSignedAdic
 func BenchmarkBitDecomposition(b *testing.B) {
 	var drng *rand.Rand = rand.New(rand.NewSource(int64(1000 + b.N)))
 	var exponents []glvExponent = make([]glvExponent, b.N)
@@ -66,10 +68,14 @@ func BenchmarkBitDecomposition(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = decomposeUnalignedSignedAdic_Int(exponents[i], 4)
+		_ = decomposeUnalignedSignedAdic(exponents[i], 4)
 	}
 }
 
+// TestGLV tests whether GLV_representation(n) actually outputs values u,v satisfying the desired relation n = u+EndoEV * v
+//
+// We also test whether the GLV representation actually has minimal absolute value in infty-norm.
+// Note: The latter is not a mandatory requirement and we might drop it.
 func TestGLV(t *testing.T) {
 	const iterations = 10000
 	var bigrange1 *big.Int = big.NewInt(0)
@@ -170,13 +176,12 @@ func test_decomposition_correctness(x *glvExponent, decomposition []decompositio
 	return accumulator.Cmp(xBigInt) == 0 // This is true iff x and accumulator hold the same value
 }
 
+// TestDecomposition checks correctness of decomposeUnalignedSignedAdic
 func TestDecomposition(t *testing.T) {
 	const iterations = 10000
 	var drng *rand.Rand = rand.New(rand.NewSource(141152))
 	var bigrange *big.Int = big.NewInt(0)
 	bigrange.Set(twoTo128_Int)
-	var smallrange *big.Int = big.NewInt(1024)
-	_ = smallrange
 	for i := 0; i < iterations; i++ {
 		var x_Int *big.Int = big.NewInt(0)
 		switch {
@@ -189,7 +194,7 @@ func TestDecomposition(t *testing.T) {
 		var x glvExponent
 		x.SetBigInt(x_Int)
 
-		decomp := decomposeUnalignedSignedAdic_Int(x, 5)
+		decomp := decomposeUnalignedSignedAdic(x, 5)
 		// fmt.Println(i)
 		// fmt.Println(decomp)
 		// fmt.Printf("%b\n", x)

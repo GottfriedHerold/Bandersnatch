@@ -190,12 +190,12 @@ type decompositionCoefficient struct {
 	sign     int
 }
 
-// decomposeUnalignedSignedAdic_Int(input, maxbits) outputs a list of exponents e_i and coeffs c_i of the same length s.t.
+// decomposeUnalignedSignedAdic(input, maxbits) outputs a list of exponents e_i and coeffs c_i of the same length s.t.
 // a) input = \sum_i c_i * 2^{e_i} for the original value of input
 // b) the e_i are ascending (this might change)
 // c) All c_i are odd with |c_i| having at most maxbits bits. Note that both input and the c_i carry signs.
 // The function is allowed to write to input. If the caller needs to re-use input, make a copy first.
-func decomposeUnalignedSignedAdic_Int(input glvExponent, maxbits uint) (decomposition []decompositionCoefficient) {
+func decomposeUnalignedSignedAdic(input glvExponent, maxbits uint) (decomposition []decompositionCoefficient) {
 	var globalSign int = input.Sign() // big.Int internally stores sign bit + Abs(input). We only read the latter, so we need to correct the sign. globalSign is in {-1,0,+1}
 	const inputBitLen = 128
 	// 1 + inputBitLen / maxbits is a reasonable estimate for the capacity (it is in fact a upper bound, but we just need an estimate)

@@ -3,11 +3,15 @@ package bandersnatch
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"math/bits"
 	"math/rand"
 	"testing"
 )
+
+var _ fmt.Formatter = bsFieldElement_64{}
+var _ fmt.Stringer = bsFieldElement_64{}
 
 func TestInit_64(t *testing.T) {
 	var x, y, z bsFieldElement_64

@@ -59,7 +59,7 @@ func GetNaPErrorHandler() NaPErrorHandler {
 	return f
 }
 
-// This function is called whenever we hit a NaP. reason is an error string, comparison tells whether this was in an (equality or zeroness) comparison, points are relevant points that may be useful for debugging.
+// napEncountered is called whenever we hit a NaP. reason is an error string, comparison tells whether this was in an (equality or zeroness) comparison, points are relevant points that may be useful for debugging.
 // It calls the user-provided error handler with reason, comparison, points. The output is taken as the comparison result (if the error handler does not panic, false is the reasonable choice) if comparison is true.
 func napEncountered(reason string, comparison bool, points ...CurvePointPtrInterfaceBaseRead) bool {
 	// Note that this essentially locks the mutex, gets a copy of the handler and releases the mutex before actually calling f.
@@ -67,7 +67,12 @@ func napEncountered(reason string, comparison bool, points ...CurvePointPtrInter
 	return f(reason, comparison, points...)
 }
 
-// was InvalidPointEncountered(f) calls f() and returns whether the napEncountered - error handler was triggered during execution of f.
+// Note: wasInvalidPointEncountered takes a unary f of type func().
+// If you want to call a function with parameters, The intent is to call it with a lambda that captures the args a la
+// wasInvalidPointEncountered(func() {f(args)})
+// This is done to avoid having to use reflection here.
+
+// wasInvalidPointEncountered(f) calls f() and returns whether the napEncountered - error handler was triggered during execution of f.
 // This function is only used in testing.
 func wasInvalidPointEncountered(fun func()) bool {
 	var old_handler_ptr *NaPErrorHandler // indirection to avoid the need for manually locking and circumventing the SetNaPErrorHandler interface.
@@ -85,6 +90,8 @@ func wasInvalidPointEncountered(fun func()) bool {
 
 // checkPanic runs fun(args...), captures all panics() and returns whether a panic occurred.
 // It does not re-raise or return the actual panic argument (unless the panic argument is a string starting with "reflect")
+//
+// This function is only used in testing.
 func checkPanic(fun interface{}, args ...interface{}) (didPanic bool) {
 	didPanic = true
 	fun_reflected := reflect.ValueOf(fun)

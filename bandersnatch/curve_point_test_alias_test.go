@@ -8,7 +8,7 @@ import "testing"
 
 func checkfun_alias_IsEqual(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	clone := s.Points[0].Clone()
 	return guardForInvalidPoints(expected, singular, "Querying P == P (modulo A) failed for identical arguments", clone.IsEqual, clone)
@@ -17,7 +17,7 @@ func checkfun_alias_IsEqual(s *TestSample) (bool, string) {
 func make_checkfun_alias_Add(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(Case_singular)
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 		var clone1, clone2, clone3, clone4 CurvePointPtrInterface
 		result1 := makeCurvePointPtrInterface(receiverType)
 		result2 := makeCurvePointPtrInterface(receiverType)
@@ -43,7 +43,7 @@ func make_checkfun_alias_Add(receiverType PointType) checkfunction {
 func make_checkfun_alias_Sub(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(Case_singular)
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 		var clone1, clone2, clone3, clone4 CurvePointPtrInterface
 		result1 := makeCurvePointPtrInterface(receiverType)
 		result2 := makeCurvePointPtrInterface(receiverType)
@@ -68,7 +68,7 @@ func make_checkfun_alias_Sub(receiverType PointType) checkfunction {
 
 func checkfun_alias_Double(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone()
 	clone2 := s.Points[0].Clone()
@@ -80,7 +80,7 @@ func checkfun_alias_Double(s *TestSample) (bool, string) {
 
 func checkfun_alias_Neg(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone()
 	clone2 := s.Points[0].Clone()
@@ -92,7 +92,7 @@ func checkfun_alias_Neg(s *TestSample) (bool, string) {
 
 func checkfun_alias_Endo(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone()
 	clone2 := s.Points[0].Clone().(CurvePointPtrInterfaceRead)
@@ -107,7 +107,7 @@ func checkfun_alias_Endo(s *TestSample) (bool, string) {
 
 func checkfun_alias_AddEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone()
 	clone2 := s.Points[0].Clone()
@@ -119,7 +119,7 @@ func checkfun_alias_AddEq(s *TestSample) (bool, string) {
 
 func checkfun_alias_SubEq(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone()
 	clone2 := s.Points[0].Clone()
@@ -131,7 +131,7 @@ func checkfun_alias_SubEq(s *TestSample) (bool, string) {
 
 func checkfun_alias_SetFrom(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	expected := !singular
 	var clone1 CurvePointPtrInterface = s.Points[0].Clone()
 	clone2 := s.Points[0].Clone()

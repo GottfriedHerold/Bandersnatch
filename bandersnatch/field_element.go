@@ -1,12 +1,6 @@
-// Note: Name is bsfield_element, because there is already a field_element in bls12381
-
 package bandersnatch
 
-/*
-	Trying out various implementations here for field elements of GF(BaseFieldSize)
-	Notes: Internal representations are not guaranteed to be stable, may contain pointers or non-unique representations.
-	In particular, neither assigment nor comparison operators are guaranteed to work as expected.
-*/
+// FieldElement
 
 // NOTE: The _8 comparison implementation does not have everything implemented.
 
@@ -45,16 +39,19 @@ type BSFieldElement_Interface interface {
 }
 */
 
+// FieldElement is an element of the field of definition of the Bandersnatch curve.
+//
+// The size of this field matches (by design) the size of the prime-order subgroup of the BLS12-381 curve.
 type FieldElement = bsFieldElement_64
 
 var (
-	FieldElementOne  = bsFieldElement_64_one
-	FieldElementZero = bsFieldElement_64_zero
+	FieldElementOne                   = bsFieldElement_64_one
+	FieldElementZero                  = bsFieldElement_64_zero
+	FieldElementMinusOne              = bsFieldElement_64_minusone
+	FieldElementTwo      FieldElement = initFieldElementFromString("2")
 
 	// We do not expose FieldElementZero_alt, because users doing IsEqual(&FieldElementZero_alt, .) might call Normalize() on it, which would make
 	// IsZero() subsequently fail.
 	// FieldElementZero_alt = bsFieldElement_64_zero_alt
 
-	FieldElementMinusOne              = bsFieldElement_64_minusone
-	FieldElementTwo      FieldElement = initFieldElementFromString("2")
 )

@@ -10,8 +10,8 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *Expone
 	const k = simpleSlidingWindowSize
 	assert(arg.CanOnlyRepresentSubgroup())
 	glv := GLV_representation(exponent)
-	u_decomp := decomposeUnalignedSignedAdic_Int(glv.U, simpleSlidingWindowSize)
-	v_decomp := decomposeUnalignedSignedAdic_Int(glv.V, simpleSlidingWindowSize)
+	u_decomp := decomposeUnalignedSignedAdic(glv.U, simpleSlidingWindowSize)
+	v_decomp := decomposeUnalignedSignedAdic(glv.V, simpleSlidingWindowSize)
 	const precomputedTableSize = 1 << (k - 1)
 	// precompute all odd k-bit powers of arg
 	var table [precomputedTableSize]Point_xtw_subgroup

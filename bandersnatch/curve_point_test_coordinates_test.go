@@ -2,6 +2,17 @@ package bandersnatch
 
 import "testing"
 
+// This test file checks whether the various coordinate retrieval functions are consistent with each other and allow reconstructing the point.
+// We check:
+//
+// Reconstructing the point for projective / affine coos gives back point that is considered equal.
+// consistency of affine and projective coos (projective are multiple of affine)
+// affine coos and affine_decaf coos are consistent (i.e. either give the same point or differ by A) when applicable
+// projective coos and projective_decaf coos are consistent (i.e. either give the same point or differ by A) when applicable
+// extended coos are consistent (i.e. T=X*Y/Z)
+// Multi-coo functions like XY_affine etc. are consistent with X_affine and Y_affine
+//
+
 func TestCoordinateFunctions(t *testing.T) {
 	for _, type1 := range allTestPointTypes {
 		type1String := pointTypeToString(type1)
@@ -16,8 +27,8 @@ func TestCoordinateFunctions(t *testing.T) {
 // check whether querying for projective XYZ resp. affine XY-coordinates allows to reconstruct point that is considered equal
 func checkfun_consistency_coordinates(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	infinite := s.AnyFlags().CheckFlag(Case_infinite)
-	singular := s.AnyFlags().CheckFlag(Case_singular)
+	infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
+	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	if singular {
 		return true, "skipped" // for now
 	}
@@ -63,7 +74,7 @@ func checkfun_consistency_coordinates(s *TestSample) (bool, string) {
 // check whether X_affine, Y_affine, XY_affine, X_projective, Y_projective, Z_projective, XYZ_projective are consistent
 func checkfun_consistency_affine_projective(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	if s.AnyFlags().CheckFlag(Case_singular | Case_infinite) {
+	if s.AnyFlags().CheckFlag(PointFlagNAP | PointFlag_infinite) {
 		return true, "skipped"
 	}
 	clone1 := s.Points[0].Clone()
@@ -110,10 +121,10 @@ func checkfun_consistency_affine_projective(s *TestSample) (bool, string) {
 // Checks consistency of the extended coordinate interface (i.e. having T coordinates) with the other coos when applicable
 func checkfun_consistency_extended_coordinates(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	if s.AnyFlags().CheckFlag(Case_singular) {
+	if s.AnyFlags().CheckFlag(PointFlagNAP) {
 		return true, "skipped"
 	}
-	infinite := s.AnyFlags().CheckFlag(Case_infinite)
+	infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 	if _, ok := s.Points[0].(CurvePointPtrInterfaceCooReadExtended); !ok {
 		return true, "skipped"
 	}
@@ -176,7 +187,7 @@ func checkfun_consistency_extended_coordinates(s *TestSample) (bool, string) {
 // check consistency of _decaf_affine with _affine
 func checkfun_consistency_decaf_affine(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	if s.AnyFlags().CheckFlag(Case_singular | Case_infinite) {
+	if s.AnyFlags().CheckFlag(PointFlagNAP | PointFlag_infinite) {
 		return true, "Skipped"
 	}
 	clone1 := s.Points[0].Clone()
@@ -215,10 +226,10 @@ func checkfun_consistency_decaf_affine(s *TestSample) (bool, string) {
 // check consistency of _decaf_projective and _projective
 func checkfun_consistency_decaf_projective(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	if s.AnyFlags().CheckFlag(Case_singular) {
+	if s.AnyFlags().CheckFlag(PointFlagNAP) {
 		return true, "skipped"
 	}
-	infinite := s.AnyFlags().CheckFlag(Case_infinite)
+	infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 	// We treat the case of points at infinity completely separately
 	if infinite {
 		Xd := s.Points[0].X_decaf_projective()

@@ -7,10 +7,10 @@ import (
 
 /*
  	A CurvePointPtrInterface represents a rational point on the bandersnatch curve.
-	The interface is split into Read-only and write parts. This is mostly to clarify writing "general" functions.
+	The interface is split into read-only and write parts. This is mostly to clarify writing "general" functions.
 	The (somewhat verbose) name is to emphasize this is an interface and that this contains *pointers*.
 
-	Note: Interfaces have been consilidated into big ones in order to make godoc less messy.
+	Note: Interfaces have been consolidated into big ones in order to make godoc less messy.
 */
 
 // CurvePointPtrInterface is the interface satisfied by all types that represent rational curve points
@@ -42,7 +42,7 @@ type CurvePointPtrInterfaceRead interface {
 	X_projective() FieldElement                                 // gives the X coordinate in projective twisted Edwards coordinates
 	Y_projective() FieldElement                                 // gives the Y coordinate in projective twisted Edwards coordinates
 	Z_projective() FieldElement                                 // gives the Z coordinate in projective twisted Edwards coordinates
-	XYZ_projective() (FieldElement, FieldElement, FieldElement) // gives (X:Y:Z) coordinates in projective twisted Edwards coordinates. This is equivalent (but possibly MUCH more efficient) to calling each one of X_projective, Y_projective, Z_projective.
+	XYZ_projective() (FieldElement, FieldElement, FieldElement) // gives (X:Y:Z) coordinates in projective twisted Edwards coordinates. This is equivalent to (but possibly MUCH more efficient than) calling each one of X_projective, Y_projective, Z_projective.
 	// Note: Types may optionally also provide T_projective and XYTZ_projective (see CurvePointPtrInterfaceCooReadExtended interface)
 
 	// <foo>_affine give coordinates of the point in affine coordinates.
@@ -75,14 +75,14 @@ type CurvePointPtrInterfaceWrite interface {
 	SetFromSubgroupPoint(CurvePointPtrInterfaceRead, IsPointTrusted) (ok bool) // p.SetFromSubgroupPoint(q) ensures/assumes (depends on second argment) that q is inside the prime-order subgroup and sets p to a copy of q. If q is not in the subgroup and we check it, does not change p. This method works even if the types of p and q differ in whether they can represent curve points outside the prime-order subgroup.
 
 	// contained in both Write and Read interface
-	CanRepresentInfinity() bool     // returns true if the type can represent and distinguish the points at infinity
-	CanOnlyRepresentSubgroup() bool // returns true if the *type* can represent curve points from outside the prime-order subgroup.
+	CanRepresentInfinity() bool     // returns true if the type can represent and distinguish the points at infinity. This can be called on nil receivers of a concrete (pointer) type.
+	CanOnlyRepresentSubgroup() bool // returns true if the type can represent curve points from outside the prime-order subgroup. This can be called on nil receivers of a concrete (pointer) type.
 }
 
 // Point_xtw_Full and Point_xtw_subgroup actually embed a joint Point_xtw_base type (dito with the other coordinate types).
 // These "base" types just store coordinates; how to actually interpret this as a curve point is the job of Point_xtw_Full resp. Point_xtw_Subgroup
 // Indeed, *_Full and *_Subgroup may (and do!) interpret coordinates differently because *_Subgroup can work e.g. modulo the affine 2-torsion point Decaf-style.
-// Still, to avoid duplication (even more) code, some methods are defined on the *_base version.
+// Still, to avoid duplicating (even more) code, some methods are defined on the *_base version.
 // The CurvePointPtrInterfaceBaseRead interface contains the methods that can meaningfully be provided on the *_base types.
 
 // CurvePointPtrInterfaceBaseRead is an subinterface of CurvePointPtrInterfaceRead that contains simple read functions that make sense
@@ -93,16 +93,18 @@ type CurvePointPtrInterfaceBaseRead interface {
 	// Clone() CurvePointPtrInterfaceBaseRead -- this is present, but not part of the interface, because of limitations of Go.
 
 	// These functions do not depend on the actual receiver argument and work with nil receivers.
-	// TODO: replace by test for presence of IsE1?
-	CanRepresentInfinity() bool     // returns true if the type can represent and distinguish the points at infinity
-	CanOnlyRepresentSubgroup() bool // returns true if the *type* can represent curve points from outside the prime-order subgroup.
+	// TODO: replace CanRepresentInfinity by type-assertion to CurvePointPtrInterfaceDistinguishInfinity?
+	// At the moment, CurvePointPtrInterfaceDistinguishInfinity might be present even for CanRepresentInfinity outputting false (due to struct embedding)
+
+	CanRepresentInfinity() bool     // returns true if the type can represent and distinguish the points at infinity. This can be called on nil values.
+	CanOnlyRepresentSubgroup() bool // returns true if the type can represent curve points from outside the prime-order subgroup. This can be called on nil values.
 	// If CanRepresentInfinity returns true, the type MUST also satisfy CurvePointPtrInterfaceDistinguishInfinity (The converse is not true due to implementation details)
 
 	// <foo>_decaf_projective() give the X,Y,T,Z - coordinates of either the stored point P or of P+A where A is the affine two-torsion point.
 	// NOTE: If P = X:Y:T:Z, then P+A = -X:-Y:T:Z == X:Y:-T:-Z (the latter equality is due to projective equivalence)
 	// NOTE: Subsequent queries need only be consistent (incl. the choice of P or P+A) if no other methods are called and the point is not used as an argument to anything in between
 	// other than <foo>_decaf_projective() queries.
-	// NOTE: For point types that can only store subgroup elements, calling <foo>_decaf_projective is *MUCH* more efficient than calling <foo>_projective()
+	// NOTE: For point types that can only store subgroup elements, calling <foo>_decaf_projective is possibly *MUCH* more efficient than calling <foo>_projective()
 	X_decaf_projective() FieldElement // gives the X coordinate of P or P+A in extended projective twisted Edwards coordinates
 	Y_decaf_projective() FieldElement // gives the Y coordinate of P or P+A in extended projective twisted Edwards coordinates
 	T_decaf_projective() FieldElement // gives the T coordinate of P or P+A in extended projective twisted Edwards coordinates
@@ -129,8 +131,12 @@ type Cloneable interface {
 	Clone() interface{} // Clone() is defined on pointer receivers and returns a pointer to a newly allocated copy.
 }
 
+// NOTE: We only internally call this function (and type-assert to it) after IsAtInfinity returns true.
+// IsE1() repeat that check.
+
+// Types that satisfy the CurvePointPtrInterface with CanRepresentInfinity returning true must satisfy this:
+
 // CurvePointPtrInterfaceDistinguishInfinity contains additional query function that check whether a given point is the E1 or the E2 point at infinity.
-// NOTE: We only internally call this function (and type-assert to it) after IsAtInfinity returns true
 type CurvePointPtrInterfaceDistinguishInfinity interface {
 	IsE1() bool
 	IsE2() bool
@@ -236,6 +242,6 @@ func (thisCurvePointCanRepresentFullCurve) HasDecaf() bool                    { 
 
 func ensureSubgroupOnly(input CurvePointPtrInterfaceBaseRead) {
 	if !input.CanOnlyRepresentSubgroup() {
-		panic("curve_point: You are trying to assign (via an operation) to a point type that can only store subgroup points, but the operands are general. This is not allowed. Use explicit conversion instead.")
+		panic("bandersnatch / curve_point: trying to assign (via an operation) to a point type that can only store subgroup points, but the operands are general. This is not allowed. Use explicit conversion instead.")
 	}
 }

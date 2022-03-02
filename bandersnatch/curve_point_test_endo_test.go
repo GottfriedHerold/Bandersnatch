@@ -2,6 +2,16 @@ package bandersnatch
 
 import "testing"
 
+// This file contains the test for the efficient degree-2 endomorphism Endo.
+// We test the following properties:
+//
+// Endo(P) == Endo(P+A)
+// Endo acts as intended on 2-torsion points
+// Endo(P) or Endo(P)+A is in the subgroup.
+// Endo() is non-trivial
+// Endo is a group homomorphism
+// Endo(P) = EV*P for P in the prime-order subgroup and EV a square root of -2 mod p253
+
 func TestAllEndomorphismProperties(t *testing.T) {
 	for _, receiverType := range allTestPointTypes {
 		test_endomorphism_properties(t, receiverType, excludeNoPoints)
@@ -24,13 +34,13 @@ func test_endomorphism_properties(t *testing.T, receiverType PointType, excluded
 		make_samples1_and_run_tests(t, make_checkfun_endo_nontrivial(receiverType), "Nontriviality of Endomorphism failed for "+point_string, type1, 50, excludeNoPoints)
 	}
 
-	make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, receiverType, receiverType, 50, excludedFlags|Case_singular)
+	make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, receiverType, receiverType, 50, excludedFlags|PointFlagNAP)
 	for _, type1 := range allTestPointTypes {
 		for _, type2 := range allTestPointTypes {
 			if typeCanOnlyRepresentSubgroup(receiverType) && (!typeCanOnlyRepresentSubgroup(type1) || !typeCanOnlyRepresentSubgroup(type2)) {
 				continue
 			}
-			make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, type1, type2, 50, excludedFlags|Case_singular)
+			make_samples2_and_run_tests(t, make_checkfun_endo_homomorphic(receiverType), "Endomorphism is not homomorphic"+point_string, type1, type2, 50, excludedFlags|PointFlagNAP)
 		}
 	}
 	make_samples1_and_run_tests(t, checkfun_endo_action, "Endomorphism does not act as intended "+point_string, receiverType, 50, excludedFlags)
@@ -43,8 +53,8 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 	return func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		sampleType := getPointType(s.Points[0])
-		var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-		var infinite bool = s.AnyFlags().CheckFlag(Case_infinite)
+		var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
+		var infinite bool = s.AnyFlags().CheckFlag(PointFlag_infinite)
 		var result = makeCurvePointPtrInterface(receiverType)
 		// var result2 = MakeCurvePointPtrInterfaceFromType(receiverType).(CurvePointPtrInterface)
 		result.Endo(s.Points[0])
@@ -80,11 +90,11 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 			if !result.IsEqual(&AffineOrderTwoPoint_xtw) {
 				return false, "Endo(infinite point) != affine two-torsion"
 			}
-		} else if s.AnyFlags().CheckFlag(Case_zero_exact) {
+		} else if s.AnyFlags().CheckFlag(PointFlag_zeroExact) {
 			if !result.IsNeutralElement() {
 				return false, "Endo(N) != N"
 			}
-		} else if s.AnyFlags().CheckFlag(Case_A) {
+		} else if s.AnyFlags().CheckFlag(PointFlag_A) {
 			if !result.IsNeutralElement() {
 				return false, "Endo(A) != N"
 			}
@@ -107,10 +117,10 @@ func make_checkfun_endo_sane(receiverType PointType) checkfunction {
 func make_checkfun_endo_nontrivial(receiverType PointType) (returned_function checkfunction) {
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		if s.AnyFlags().CheckFlag(Case_singular) {
+		if s.AnyFlags().CheckFlag(PointFlagNAP) {
 			return true, "skipped"
 		}
-		neutralResultExpected := s.AnyFlags().CheckFlag(Case_zero_moduloA)
+		neutralResultExpected := s.AnyFlags().CheckFlag(PointFlag_zeroModuloA)
 		receiver := makeCurvePointPtrInterface(receiverType)
 		receiver.Endo(s.Points[0])
 		if !neutralResultExpected && receiver.IsNeutralElement() {
@@ -129,7 +139,7 @@ func make_checkfun_endo_homomorphic(receiverType PointType) (returned_function c
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(2)
 		// This should be ruled out at the call site
-		if s.AnyFlags().CheckFlag(Case_singular) {
+		if s.AnyFlags().CheckFlag(PointFlagNAP) {
 			panic("Should not call checkfun_endo_homomorphic on NaP test samples")
 		}
 
@@ -172,10 +182,10 @@ func make_checkfun_endo_homomorphic(receiverType PointType) (returned_function c
 // checks whether the Endomorphism acts as exponentiation by sqrt(2)
 func checkfun_endo_action(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
-	var singular bool = s.AnyFlags().CheckFlag(Case_singular)
-	var p253 bool = !(s.AnyFlags().CheckFlag(Case_outside_p253 | Case_random))
-	var good_subgroup = !(s.AnyFlags().CheckFlag(Case_outside_goodgroup | Case_random))
-	var random = s.AnyFlags().CheckFlag(Case_random)
+	var singular bool = s.AnyFlags().CheckFlag(PointFlagNAP)
+	var p253 bool = !(s.AnyFlags().CheckFlag(PointFlag_outsideP253 | PointFlag_random))
+	var good_subgroup = !(s.AnyFlags().CheckFlag(PointFlag_outsideGoodgroup | PointFlag_random))
+	var random = s.AnyFlags().CheckFlag(PointFlag_random)
 	// var good_subgroup = !(s.AnyFlags().CheckFlag(Case_outside_goodgroup) || s.AnyFlags().CheckFlag(Case_infinite))
 	pointType := getPointType(s.Points[0])
 	result1 := makeCurvePointPtrInterface(pointType)
@@ -187,7 +197,7 @@ func checkfun_endo_action(s *TestSample) (bool, string) {
 		// skip further tests. The relevant properties are verified by endo_sane
 		return true, ""
 	}
-	if s.AnyFlags().CheckFlag(Case_infinite) {
+	if s.AnyFlags().CheckFlag(PointFlag_infinite) {
 		// exp_naive might not work in this case.
 		// Note that endo_sane covers this case anyway.
 		return true, "skipped"

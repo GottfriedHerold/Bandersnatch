@@ -1,5 +1,7 @@
 //go:build ignore
 
+// TODO: merge into serializer_test.go
+
 package bandersnatch
 
 import (

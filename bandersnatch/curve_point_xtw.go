@@ -24,6 +24,7 @@ type point_xtw_base struct {
 // cf. https://iacr.org/archive/asiacrypt2008/53500329/53500329.pdf
 type Point_xtw_subgroup struct {
 	thisCurvePointCanOnlyRepresentSubgroup
+	thisCurvePointCannotRepresentInfinity
 	point_xtw_base
 }
 

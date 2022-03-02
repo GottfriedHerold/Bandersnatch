@@ -1,10 +1,14 @@
 package bandersnatch
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
 )
+
+var _ fmt.Formatter = bsFieldElement_8{}
+var _ fmt.Stringer = bsFieldElement_8{}
 
 func TestInit(t *testing.T) {
 	var x, y, z bsFieldElement_8
