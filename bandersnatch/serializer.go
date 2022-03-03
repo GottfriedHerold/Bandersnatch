@@ -32,13 +32,13 @@ var ErrWillNotSerializePointOutsideSubgroup = errors.New("bandersnatch / point s
 // Note: If X/Z is not on the curve, we might get either a "not on curve" or "not in subgroup" error. Should we clarify the wording to reflect that?
 
 var (
-	ErrXNotInSubgroup     = errors.New("bandersnatch / point deserialization: received affine X coordinate does not correspond to any point in the p253 subgroup of the Bandersnatch curve")
-	ErrXNotOnCurve        = errors.New("bandersnatch / point deserialization: received affine X coordinate does not correspond to any (finite, rational) point of the Bandersnatch curve")
-	ErrYNotOnCurve        = errors.New("bandersnatch / point deserialization: encountered affine Y coordinate that does not correspond to any (finite, rational) point of the Bandersnatch curve")
-	ErrNotInSubgroup      = errors.New("bandersnatch / point deserialization: received affine X and Y coordinates do not correspond to a point in the p253 subgroup of the Bandersnatch curve")
-	ErrNotOnCurve         = errors.New("bandersnatch / point deserialization: received affine X and Y coordinates do not correspond to a point on the Bandersnatch curve")
-	ErrWrongSignY         = errors.New("bandersnatch / point deserialization: encountered affine Y coordinate with unexpected Sign bit")
-	ErrUnrecognizedFormat = errors.New("bandersnatch / point deserialization: could not automatically detect serialization format")
+	ErrXNotInSubgroup = errors.New("bandersnatch / point deserialization: received affine X coordinate does not correspond to any point in the p253 subgroup of the Bandersnatch curve")
+	ErrXNotOnCurve    = errors.New("bandersnatch / point deserialization: received affine X coordinate does not correspond to any (finite, rational) point of the Bandersnatch curve")
+	ErrYNotOnCurve    = errors.New("bandersnatch / point deserialization: encountered affine Y coordinate that does not correspond to any (finite, rational) point of the Bandersnatch curve")
+	ErrNotInSubgroup  = errors.New("bandersnatch / point deserialization: received affine X and Y coordinates do not correspond to a point in the p253 subgroup of the Bandersnatch curve")
+	ErrNotOnCurve     = errors.New("bandersnatch / point deserialization: received affine X and Y coordinates do not correspond to a point on the Bandersnatch curve")
+	ErrWrongSignY     = errors.New("bandersnatch / point deserialization: encountered affine Y coordinate with unexpected Sign bit")
+	// ErrUnrecognizedFormat = errors.New("bandersnatch / point deserialization: could not automatically detect serialization format")
 )
 
 var ErrInvalidZeroSignX = errors.New("bandersnatch / point deserialization: When constructing curve point from Y and the sign of X, the sign of X was 0, but X==0 is not compatible with the given Y")
@@ -57,7 +57,7 @@ func MapToFieldElement(input CurvePointPtrInterfaceRead) (ret FieldElement) {
 		panic("Called MapToFieldElement on point at infinity")
 	}
 	// Note: IsAtInfinity should already have detected NaPs.
-	// Still, if the nap-handler ignores it, we prefer to panic right now with a more meaningul error message rather than divide by zero down the line.
+	// Still, if the nap-handler ignores it, we prefer to panic right now with a more meaningul error message rather than divide by zero later.
 	if input.IsNaP() {
 		panic("Called MapToFieldElement on a NaP")
 	}

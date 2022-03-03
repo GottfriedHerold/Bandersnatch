@@ -1,16 +1,6 @@
 package bandersnatch
 
-import (
-	"testing"
-)
-
-func TestPlayground(t *testing.T) {
-	// var T Point_axtw_subgroup
-	// T.SetNeutral()
-	// fmt.Printf("%v", T)
-	// fmt.Println(callcounters.GetCallCounterStructureReport("--"))
-	// printCallCounterStructure()
-}
+import "testing"
 
 /*
 func getCofactors(P *Point_xtw) (tN, tA, t1, t2 FieldElement) {
@@ -62,3 +52,11 @@ func TestCofactorGroup(t *testing.T) {
 }
 
 */
+
+func TestStuff(t *testing.T) {
+	f := func(x PointSliceReader) bool {
+		return true
+	}
+	var P [2]Point_axtw_subgroup
+	f(CurvePointSlice_axtw_subgroup(P[:]))
+}

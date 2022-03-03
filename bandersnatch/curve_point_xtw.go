@@ -42,6 +42,17 @@ type Point_xtw_full struct {
 	point_xtw_base
 }
 
+type CurvePointSlice_xtw_subgroup []Point_xtw_subgroup
+type CurvePointSlice_xtw_full []Point_xtw_full
+
+func (v CurvePointSlice_xtw_subgroup) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_xtw_full) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
 /*
 	NOTE: Points described by Point_xtw_<foo> should really been seen as solutions to the set of homogeneous equations
 

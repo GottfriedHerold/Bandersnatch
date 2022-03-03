@@ -55,6 +55,80 @@ var allSubgroupCurveTestPointTypes = []PointType{pointTypeXTWSubgroup, pointType
 // We might remove this
 var allBasePointTypes = []PointType{pointTypeXTWBase, pointTypeAXTWBase, pointTypeEFGHBase}
 
+func TestCurvePointSlices(t *testing.T) {
+	var A1 [2]Point_axtw_subgroup
+	var A2 []Point_axtw_subgroup = A1[:]
+	var A3 [2]*Point_axtw_subgroup
+	for i := 0; i < len(A3); i++ {
+		A3[i] = new(Point_axtw_subgroup)
+	}
+	var A4 []*Point_axtw_subgroup = A3[:]
+
+	var A5 [2]CurvePointPtrInterface
+	for i := 0; i < len(A5); i++ {
+		A5[i] = makeCurvePointPtrInterface(pointTypeAXTWSubgroup)
+	}
+	var A6 []CurvePointPtrInterface = A5[:]
+
+	P := getElementFromCurvePointSlice(A2, 1)
+	if !(P == &A2[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for []concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(&A2, 1)
+	if !(P == &A2[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for *[]concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(A4, 1)
+	if !(P == A4[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for []*concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(&A4, 1)
+	if !(P == A4[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for *[]*concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(A3, 1)
+	if !(P == A3[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for [2]*concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(&A3, 1)
+	if !(P == A3[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for *[2]*concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(&A1, 1)
+	if !(P == &A1[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for *[2]concrete type")
+	}
+
+	P = getElementFromCurvePointSlice(A5, 1)
+	if !(P == A5[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for [2]interface type")
+	}
+
+	P = getElementFromCurvePointSlice(&A5, 1)
+	if !(P == A5[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for *[2]interface type")
+	}
+
+	P = getElementFromCurvePointSlice(A6, 1)
+	if !(P == A6[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for []interface type")
+	}
+
+	P = getElementFromCurvePointSlice(&A6, 1)
+	if !(P == A6[1]) {
+		t.Fatal("getElementFromCurvePointSlice does not work for *[]interface type")
+	}
+
+
+
+}
+
 // TestAllTestPointTypesSatisfyInterface ensures that all elements from allTestPointTypes, allFullCurveTestPointTypes and allSubgroupCurveTestPointTypes satisfy
 // some required properties:
 // instances satisfy curvePointPtrInterfaceTestSample

@@ -60,6 +60,17 @@ type Point_efgh_subgroup struct {
 	point_efgh_base
 }
 
+type CurvePointSlice_efgh_subgroup []Point_efgh_subgroup
+type CurvePointSlice_efgh_full []Point_efgh_full
+
+func (v CurvePointSlice_efgh_subgroup) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_efgh_full) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
 // two-torsion elements as _efghbase
 var (
 	neutralElement_efghbase     = point_efgh_base{e: FieldElementZero, f: FieldElementOne, g: FieldElementOne, h: FieldElementOne}        // Note: g!=0 is actually arbitrary.

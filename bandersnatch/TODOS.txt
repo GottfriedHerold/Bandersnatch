@@ -49,3 +49,8 @@ Optimize field element squaring MED
 Bulk inversion algorithm MED
 Optimize and consolidate Field element conversions MED
 improve efficiency of GLV transform MED
+
+Functionality:
+Precomputation and serialization thereof
+Multi-exponentiation
+Multi-Multi-exponentiation

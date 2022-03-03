@@ -36,6 +36,17 @@ type Point_axtw_full struct {
 	point_axtw_base
 }
 
+type CurvePointSlice_axtw_full []Point_axtw_full
+type CurvePointSlice_axtw_subgroup []Point_axtw_subgroup
+
+func (v CurvePointSlice_axtw_full) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_axtw_subgroup) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
 // neutralElement_axtwbase are coordinates of the neutral element in axtw form.
 var neutralElement_axtwbase point_axtw_base = point_axtw_base{x: FieldElementZero, y: FieldElementOne, t: FieldElementZero}
 

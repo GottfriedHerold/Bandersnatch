@@ -1123,7 +1123,7 @@ func (z *bsFieldElement_64) MultiplySlice(factors []bsFieldElement_64) {
 	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
 	L := len(factors)
 	if L == 0 {
-		result.SetOne()
+		z.SetOne()
 		return
 	}
 	result = factors[0]
@@ -1157,7 +1157,7 @@ func (z *bsFieldElement_64) SummationSlice(summands []bsFieldElement_64) {
 	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
 	L := len(summands)
 	if L == 0 {
-		result.SetZero()
+		z.SetZero()
 		return
 	}
 	result = summands[0]
@@ -1174,7 +1174,7 @@ func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
 	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
 	L := len(summands)
 	if L == 0 {
-		result.SetZero()
+		z.SetZero()
 		return
 	}
 	result = *summands[0]

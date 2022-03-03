@@ -466,3 +466,185 @@ func TestSerializeFieldElements(t *testing.T) {
 		}
 	}
 }
+
+func TestMultiInvert(t *testing.T) {
+	const size = 20
+	var drng *rand.Rand = rand.New(rand.NewSource(87))
+	empty := make([]bsFieldElement_64, 0)
+	MultiInvertEq()
+	MultiInvertEqSlice(empty)
+	var numsArray, numsArrayInv [size]bsFieldElement_64
+	for i := 0; i < size; i++ {
+		numsArray[i].setRandomUnsafeNonZero(drng)
+		numsArrayInv[i].Inv(&numsArray[i])
+	}
+	numsArray2 := numsArray
+	MultiInvertEqSlice(numsArray[:])
+	for i := 0; i < size; i++ {
+		if !numsArray[i].IsEqual(&numsArrayInv[i]) {
+			t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+		}
+	}
+	Ptrs := make([]*bsFieldElement_64, size)
+	for i := 0; i < size; i++ {
+		Ptrs[i] = &numsArray2[i]
+	}
+	MultiInvertEq(Ptrs...)
+	for i := 0; i < size; i++ {
+		if !numsArray2[i].IsEqual(&numsArrayInv[i]) {
+			t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+		}
+	}
+}
+
+func TestSummationSlice(t *testing.T) {
+	const size = 20
+	var drng *rand.Rand = rand.New(rand.NewSource(100))
+	empty := make([]bsFieldElement_64, 0)
+	var result bsFieldElement_64
+	var a, b, c bsFieldElement_64
+	result.setRandomUnsafe(drng) // arbitrary value, really.
+	a.setRandomUnsafe(drng)
+	b.setRandomUnsafe(drng)
+	c.setRandomUnsafe(drng)
+	result.SummationSlice(empty)
+	if !result.IsZero() {
+		t.Fatal("SummationSlice with zero-length slice does not result in 0")
+	}
+	result.setRandomUnsafe(drng)
+	result.SummationMany()
+	if !result.IsZero() {
+		t.Fatal("SummationMany with 0 arguments does not result in 0")
+	}
+	result.SummationMany(&a)
+	if !result.IsEqual(&a) {
+		t.Fatal("SummationMany with 1 argument does not copy")
+	}
+	result.SummationMany(&a, &b, &c)
+	result.SubEq(&a)
+	result.SubEq(&b)
+	result.SubEq(&c)
+	if !result.IsZero() {
+		t.Fatal("SummationMany with 3 arguments does not match expected result")
+	}
+	var summands [size]bsFieldElement_64
+	var acc bsFieldElement_64
+	var Ptrs [size]*bsFieldElement_64
+	for i := 0; i < size; i++ {
+		summands[i].setRandomUnsafe(drng)
+		Ptrs[i] = &summands[i]
+	}
+	acc.SetZero()
+	for i := 0; i < size; i++ {
+		acc.AddEq(&summands[i])
+	}
+	result.SummationSlice(summands[:])
+	if !result.IsEqual(&acc) {
+		t.Fatal("SummationSlice does not match result of manual addition")
+	}
+	result.SummationMany(Ptrs[:]...)
+	if !result.IsEqual(&acc) {
+		t.Fatal("SummationMany does not match result of manual addition")
+	}
+	summandsCopy := summands
+	assert((size >= 2))
+	summandsCopy[1].SummationSlice(summandsCopy[:])
+	if !summandsCopy[1].IsEqual(&result) {
+		t.Fatal("SummationSlice does not work when result aliases an input")
+	}
+	summandsCopy = summands
+	for i := 0; i < size; i++ {
+		Ptrs[i] = &summandsCopy[i]
+	}
+	summandsCopy[1].SummationMany(Ptrs[:]...)
+	if !summandsCopy[1].IsEqual(&result) {
+		t.Fatal("SummationMany does not work when result aliases an input")
+	}
+	a.setRandomUnsafe(drng)
+	b.SetUInt64(size)
+	result.Mul(&b, &a)
+	for i := 0; i < size; i++ {
+		Ptrs[i] = &a
+	}
+	a.SummationMany(Ptrs[:]...)
+	if !a.IsEqual(&result) {
+		t.Fatal("SummationMany does not work when results and all inputs alias")
+	}
+}
+
+func TestMultiplySlice(t *testing.T) {
+	const size = 20
+	var drng *rand.Rand = rand.New(rand.NewSource(100))
+	empty := make([]bsFieldElement_64, 0)
+	var result bsFieldElement_64
+	var a, b, c bsFieldElement_64
+	result.setRandomUnsafe(drng) // arbitrary value, really.
+	a.setRandomUnsafe(drng)
+	b.setRandomUnsafe(drng)
+	c.setRandomUnsafe(drng)
+	result.MultiplySlice(empty)
+	if !result.IsOne() {
+		t.Fatal("MultiplySlice with zero-length slice does not result in 1")
+	}
+	result.setRandomUnsafe(drng)
+	result.MultiplyMany()
+	if !result.IsOne() {
+		t.Fatal("MultiplyMany with 0 arguments does not result in 0")
+	}
+	result.MultiplyMany(&a)
+	if !result.IsEqual(&a) {
+		t.Fatal("MultiplyMany with 1 argument does not copy")
+	}
+	result.MultiplyMany(&a, &b, &c)
+	var result2 bsFieldElement_64
+	result2.Mul(&a, &b)
+	result2.MulEq(&c)
+	if !result.IsEqual(&result2) {
+		t.Fatal("MultiplyMany with 3 arguments does not match expected result")
+	}
+	var factors [size]bsFieldElement_64
+	var acc bsFieldElement_64
+	var Ptrs [size]*bsFieldElement_64
+	for i := 0; i < size; i++ {
+		factors[i].setRandomUnsafe(drng)
+		Ptrs[i] = &factors[i]
+	}
+	acc.SetOne()
+	for i := 0; i < size; i++ {
+		acc.MulEq(&factors[i])
+	}
+	result.MultiplySlice(factors[:])
+	if !result.IsEqual(&acc) {
+		t.Fatal("MultiplySlice does not match result of manual multiplication")
+	}
+	result.MultiplyMany(Ptrs[:]...)
+	if !result.IsEqual(&acc) {
+		t.Fatal("MultiplyMany does not match result of manual multiplication")
+	}
+	factorsCopy := factors
+	assert((size >= 2))
+	factorsCopy[1].MultiplySlice(factorsCopy[:])
+	if !factorsCopy[1].IsEqual(&result) {
+		t.Fatal("MultiplySlice does not work when result aliases an input")
+	}
+	factorsCopy = factors
+	for i := 0; i < size; i++ {
+		Ptrs[i] = &factorsCopy[i]
+	}
+	factorsCopy[1].MultiplyMany(Ptrs[:]...)
+	if !factorsCopy[1].IsEqual(&result) {
+		t.Fatal("MultiplyMany does not work when result aliases an input")
+	}
+	a.setRandomUnsafe(drng)
+	result.SetOne()
+	for i := 0; i < size; i++ {
+		result.MulEq(&a)
+	}
+	for i := 0; i < size; i++ {
+		Ptrs[i] = &a
+	}
+	a.MultiplyMany(Ptrs[:]...)
+	if !a.IsEqual(&result) {
+		t.Fatal("MultiplyMany does not work when results and all inputs alias")
+	}
+}
