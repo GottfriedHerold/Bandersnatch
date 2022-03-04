@@ -12,7 +12,7 @@ import (
 const dumpSizeBench_curve = 1 << 8
 
 // benchmark functions write to DumpXXX variables.
-// These are "exported" (in non-test builds this file is ignored) to prevent the compiler from optimizations
+// These are "exported" (well, sort of: in non-test builds this file is ignored) to prevent the compiler from optimizations
 // based on the fact that they are never read from within the bandersnatch module
 
 var DumpBools_curve [dumpSizeBench_curve]bool
@@ -24,7 +24,10 @@ var DumpEFGH_full [dumpSizeBench_curve]Point_efgh_full
 var DumpEFGH_subgroup [dumpSizeBench_curve]Point_efgh_subgroup
 var DumpCurvePoint [dumpSizeBench_curve]CurvePointPtrInterfaceTestSample
 
-func makeUninitializedPointsFromPointType(amount int, whichType PointType) (ret []CurvePointPtrInterfaceTestSample) {
+// currently unused
+
+// makeZeroInitializedPointsFromPointType creates a slice of the given size of pointers to zero-initialized curve Points from a PointType.
+func makeZeroInitializedPointsFromPointType(amount int, whichType PointType) (ret []CurvePointPtrInterfaceTestSample) {
 	_, ok := makeCurvePointPtrInterface(whichType).(CurvePointPtrInterfaceTestSample)
 	if !ok {
 		panic("makePointsFromPointType only works with types T where pointers-to-T satisfy the CurvePointPtrInterfaceTestSample interface")
@@ -36,54 +39,88 @@ func makeUninitializedPointsFromPointType(amount int, whichType PointType) (ret 
 	return
 }
 
+// Creating pseudo-reandom curve points (such as for the sake of benchmarking) is extremely slow due to the need to compute a square root per point.
+// For that reason, we cache the points such that when running the full benchmark suite, at least we only have to do that once.
+// The cache is per point-type and per seed value.
+
 type (
+	// pseudoRandomCurvePointCache holds a cache of CurvePoints (via pointers stored in CurvePointPtrInterfaceTestSample's) that are computed only once.
+	pseudoRandomCurvePointCache struct {
+		rng       *rand.Rand                         // rng state. This is used to grow the cache on demand
+		elements  []CurvePointPtrInterfaceTestSample // the actual elements stored in the cache
+		pointType PointType                          // the PointType of the elements. We store it once here for simplicity. For len(elemenets) > 0, this can be recovered from any elements[i]
+	}
+
+	// pseudoRandomCurvePointCacheKey is the struct used as map key for our caches (we maintain an independent cache per seed and pointType)
 	pseudoRandomCurvePointCacheKey struct {
 		pointType PointType
 		seed      int64
 	}
-	pseudoRandomCurvePointCache struct {
-		rng       *rand.Rand
-		elements  []CurvePointPtrInterfaceTestSample
-		pointType PointType
-	}
 )
 
+// TODO: Protect with mutex
+
+// cachedPseudoRandomCurvePoints holds a cache of Curve Points per pointType and seed.
+// Note that the map is to pointers of struct. (This extra indirection actually is probably unneeded, because the elements of the pseudoRandomCurvePointCache struct that actually change have shallow copy behaviour)
+// Note that no map entry is nil.
 var cachedPseudoRandomCurvePoints map[pseudoRandomCurvePointCacheKey]*pseudoRandomCurvePointCache = make(map[pseudoRandomCurvePointCacheKey]*pseudoRandomCurvePointCache)
 
+// getElements retrieves amount many actual curve points from the cache *as a copy*, growing the cache as needed.
+//
+// When calling this with values amount1 < amount2 (in any order), the returned slice for amount1 will be a (copy of) an initial segment of the one for amount2.
 func (pc *pseudoRandomCurvePointCache) getElements(amount int) (ret []CurvePointPtrInterfaceTestSample) {
+	// prpare memory to hold the result
 	ret = make([]CurvePointPtrInterfaceTestSample, amount)
 	if amount == 0 {
 		return
 	}
+	// We assume the pseudoRandomCurvePointCache is already initialized. We only put initialized ones into the global map.
 	assert(pc.rng != nil)
 	assert(pc.elements != nil)
-	_ = makeCurvePointPtrInterface(pc.pointType).(CurvePointPtrInterfaceTestSample)
 	currentLen := len(pc.elements)
+	// grow the cache as needed:
 	if amount > currentLen {
 		for i := 0; i < amount-currentLen; i++ {
+			// Type assertion is guaranteed to be ok. This is checked when creating pc with newPrecomputedCurvePointSlice.
 			temp := makeCurvePointPtrInterface(pc.pointType).(CurvePointPtrInterfaceTestSample)
 			temp.sampleRandomUnsafe(pc.rng)
 			pc.elements = append(pc.elements, temp)
 		}
 	}
 	assert(len(pc.elements) >= amount)
+	// Fill ret with clones of the stored elements.
 	for i := 0; i < amount; i++ {
+		// Again, type assertion is guaranteed to be ok. This is checked when creating pc with newPrecomputedCurvePointSlice.
 		ret[i] = pc.elements[i].Clone().(CurvePointPtrInterfaceTestSample)
 	}
 	return
 }
 
+// newPrecomputedCurvePointSlice creates a new (pointer-to-) pseudoRandomCurvePointCache.
+//
+// This function is used to initialize our caches for precomputed benchmark samples.
 func newPrecomputedCurvePointSlice(seed int64, pointType PointType) (pc *pseudoRandomCurvePointCache) {
+	// We asserts that pointType satisfied CurvePointPtrInterfaceTestSample. We panic on error.
+	_, ok := makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
+	if !ok {
+		panic("bandersnatch / benchmarking framework: Trying to construct precomputed sample cache for PointType that satisfies the CurvePointPtrInterface interface, but not CurvePointPtrInterfaceTestSample.")
+	}
 	pc = new(pseudoRandomCurvePointCache)
 	pc.rng = rand.New(rand.NewSource(seed))
-	pc.elements = make([]CurvePointPtrInterfaceTestSample, 0)
+	pc.elements = make([]CurvePointPtrInterfaceTestSample, 0, 256)
 	pc.pointType = pointType
 	return
 }
 
+// getPrecomputedCurvePointSlice samples amount many curve points of the given pointType with given seed.
+//
+// We use caching to speed up multiple calls to this function with the same seed, pointType pairs.
+// Note that while the returned elements are slices of pointers, multiple calls return pointers to independent copies.
 func getPrecomputedCurvePointSlice(seed int64, pointType PointType, amount int) []CurvePointPtrInterfaceTestSample {
 	mapKey := pseudoRandomCurvePointCacheKey{seed: seed, pointType: pointType}
 	pc := cachedPseudoRandomCurvePoints[mapKey]
+	// pc == nil means that mapKey was not present in the map yet. In that case, we add it.
+	// Note that pc is a pointer, so pc.getElements(amount) actually grows the cache as desired (and not just in a copy). This would also work if not a pointer, actually.
 	if pc == nil {
 		pc = newPrecomputedCurvePointSlice(seed, pointType)
 		cachedPseudoRandomCurvePoints[mapKey] = pc
@@ -91,18 +128,32 @@ func getPrecomputedCurvePointSlice(seed int64, pointType PointType, amount int) 
 	return pc.getElements(amount)
 }
 
+// currently unused:
+
+// initFromPrecomputedCurvePointSlice is equivalent to calling getPrecomputedCurvePointSlice and storing the result in writeTo.
+// writeTo must be a slice of a concrete point type implementing CurvePointPtrInterfaceTestSample.
+// The pointType and amount args to getPrecomputedCurvePointSlice are derived from writeTo.
 func initFromPrecomputedCurvePointSlice(writeTo interface{}, seed int64) {
 	writeToReflected := reflect.ValueOf(writeTo)
 	if writeToReflected.Kind() != reflect.Slice {
 		panic("initFromPrecomputedCurvePointSlice must be called with slice argument")
 	}
 	inputLength := writeToReflected.Len()
-	pointType := reflect.PtrTo(writeToReflected.Type().Elem())
-	targetInterface := reflect.TypeOf((*CurvePointPtrInterfaceTestSample)(nil)).Elem()
-	if !pointType.Implements(targetInterface) {
+	pointType := writeToReflected.Type().Elem()
+	// This is mostly to abort on slice of interface instead of slice of concrete type.
+	if pointType.Kind() != reflect.Struct {
+		panic("initFromPrecomputeCurvePointSlice must be called with a slice of a concrete struct")
+	}
+	pointPtrType := reflect.PtrTo(pointType)
+	// targetInterface is just a reflect.Type for CurvePointPtrInterfaceTestSample.
+	// The roundabout way is needed because a direct callt to reflect.TypeOf would try to reach into and get the concrete type contained inside a variable of interface type.
+	// TODO: Should we make this a global constant?
+	var targetInterface reflect.Type = reflect.TypeOf((*CurvePointPtrInterfaceTestSample)(nil)).Elem()
+	if !pointPtrType.Implements(targetInterface) {
 		panic("initFromPrecomputedCurvePointSlice must be called with a slice of a concrete type that implements CurvePointPtrInterfaceTestSample")
 	}
-	outputSlice := getPrecomputedCurvePointSlice(seed, pointType, inputLength)
+	// We could this more efficiently with less copying, but we don't care.
+	outputSlice := getPrecomputedCurvePointSlice(seed, pointPtrType, inputLength)
 	for i := 0; i < inputLength; i++ {
 		curvePointPtr := outputSlice[i]
 		newPointReflected := reflect.ValueOf(curvePointPtr)
@@ -112,31 +163,44 @@ func initFromPrecomputedCurvePointSlice(writeTo interface{}, seed int64) {
 	}
 }
 
+// currently unused:
+
+// initSliceWithTestPointType initializes a slice of CurvePointPtrInterfaceTestSample with (pointers to) fresh zero-initialzed actual points of the given type.
 func initSliceWithTestPointType(writeTo []CurvePointPtrInterfaceTestSample, pointType PointType) {
 	for i := 0; i < len(writeTo); i++ {
 		writeTo[i] = makeCurvePointPtrInterface(pointType).(CurvePointPtrInterfaceTestSample)
 	}
 }
 
+// Note: We have versions of prepareBenchmark, postProcessBenchmark and resetBenchmark for field elements and CurvePoints.
+// At the moment, these are identical.
+// The reason is that we might eventually move everything field element-related to a sub-module
+
 // prepareBenchmarkCurvePoints runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
 // Note that it resets all counters.
 func prepareBenchmarkCurvePoints(b *testing.B) {
 	b.Cleanup(func() { postProcessBenchmarkCurvePoints(b) })
-	callcounters.ResetAllCounters()
-	b.ResetTimer()
+	resetBenchmarkCurvePoints(b)
 }
 
 // postProcessBenchmarkCurvePoints should be called at the end of each sub-test (preferably using b.Cleanup(...) )
 // Currently, the only thing it does is make sure call counters are included in the benchmark if the current build includes them
+// Calling prepareBenchmarkCurvePoints at the beginning of the benchmark takes care of it.
 func postProcessBenchmarkCurvePoints(b *testing.B) {
 	BenchmarkWithCallCounters(b)
 }
 
+// resetBenchmarkCurvePoints resets the benchmark counters; this should be called after any expensive setup that we do not want to include in the benchmark.
 func resetBenchmarkCurvePoints(b *testing.B) {
 	callcounters.ResetAllCounters()
 	b.ResetTimer()
 }
 
+// currently unused in favor of benchmarkForPointTypes
+
+// callWithAllOptions(f, [condition, ] arg1, arg2, ...) takes a function f, an optional condition and an arbitrary number of arg_i's.
+// Each arg_i needs to be an array or slice. It then calls f(x_1, x2,...) for each tuple (x1, x2, ...) where x_i is from arg_i, provided
+// condtion(x_1, x_2, ...) returns true.
 func callWithAllOptions(fun interface{}, args ...interface{}) {
 	funReflected := reflect.ValueOf(fun)
 	assert(funReflected.Kind() == reflect.Func, "callWithAllOptions's first argument must be a function")
@@ -207,18 +271,41 @@ func TestCallWithAllOptions(t *testing.T) {
 }
 */
 
-func benchmarkForPointTypes(b *testing.B, samples int, fun interface{}, args ...interface{}) {
+// benchmarkForPointTypes(bOuter, samples, fun, [condition, ], [formatString,], pointTypeArrayOrSlices...) runs benchmark for the given function fun.
+//
+// bOuter ist the *testing.B benchmark environment from Go's testing framework
+// samples is the size of the precomputed sample table
+// fun(bInner *testing.B, slice1,slice2,...,sliceL []CurvePointPtrInterfaceTestSample) is a benchmark
+// condition is an optional function condition(pointType1, pointType2, ..., pointTypeL) bool
+// formatString is an optional format string [Note: the order of condition and formatString can be swapped, but they must come before the pointTypeArrayOrSlices]
+// pointTypeArrayOrSlices... are any number L of (optional: pointers-to) slices or arrays of PointTypes
+//
+// We then consider all L-tuples (pointType_1, ... pointType_L) with pointType_i from pointTypeArrayOrSlice_i.
+// If condition is present, we restict to those L-tuples for which condition(pointType_1, ..., pointType_L) returns true.
+//
+// We then construct slices slice1, ..., sliceL of length samples of types pointType1,...,pointTypeL and run fun(bInner, slice1,...) as a sub-benchmark (using bOuter.Run)
+// formatString is used to construct the subbenchmark's tag "example tag %[1]v %[2]v..." using Sprintf, where %[i]v is the tag of pointType_i.
+//
+// Note that Go's benchmarking/testing framework allows filtering for tags and only selectively run benchmarks for tags matching a regexp!
+func benchmarkForPointTypes(bOuter *testing.B, samples int, fun interface{}, args ...interface{}) {
+	// parse fun:
 	funReflected := reflect.ValueOf(fun)
 	if funReflected.Kind() != reflect.Func {
 		panic("second argument to benchmark for PointTypes must be function")
 	}
 	funType := funReflected.Type()
+	funVariadic := funType.IsVariadic() // if fun is itself variadic, counting the expected number of arguments does not work.
+
+	// condFun is the optional condition function
 	var haveCond bool = false
 	var condFun reflect.Value
+
+	// formatString is the optional format string argument
 	var formatString string
 	var haveFmt bool = false
-	funVariadic := funType.IsVariadic()
-	// process variadic args in a loop. We need to keep the index where we first encounter a slice of PointTypes
+
+	// process variadic args to benchmarkForPointType in a loop. This is used to detect whether a condition function / format string is present.
+	// We need to keep the index where we first encounter a slice of PointTypes, as further processing only accepts slice of PointTypes
 	argsIndex := 0
 argParse:
 	for ; argsIndex < len(args); argsIndex++ {
@@ -228,7 +315,7 @@ argParse:
 			argReflected = argReflected.Elem()
 		}
 		switch argReflected.Kind() {
-		case reflect.Func:
+		case reflect.Func: // condition argument
 			if haveCond {
 				panic("two conditions provided to benchmarkForPointTypes")
 			}
@@ -236,33 +323,36 @@ argParse:
 			condFun = argReflected
 			assert(condFun.Type().NumOut() == 1, "condition function must have exactly one return value")
 			assert(condFun.Type().Out(0).Kind() == reflect.Bool, "condition function must return bool")
-		case reflect.String:
+		case reflect.String: // formatString argument
 			if haveFmt {
 				panic("two format tags given")
 			}
 			haveFmt = true
 			formatString = argReflected.Interface().(string) // reflect.Value.String() is a weird special case we want to avoid
-		case reflect.Slice, reflect.Array:
+		case reflect.Slice, reflect.Array: // start of pointTypeArrayOrSlices. We break detecting poential condition / format string args
 			break argParse
 		default:
 			panic("Invalid argument to benchmarkForPointTypes")
 		}
 	}
+	// any remaining args must be pointTypeArrayOrSlices. We num parse those
 	sliceArgs := len(args) - argsIndex
 	if !funVariadic {
 		assert(sliceArgs == funType.NumIn()-1, "The function provided to benchmarkForPointTypes must take as many non-testing.B arguments as there are PointType slice arguments")
 	}
 	// process remaining arguments (must be of type slice/array of PointTypes).
-	// We derive the product of their lengths:
+	// We derive the product of their lengths; this is then used to create all tuples with a single for loop with that length (we do not want to nest for loops with recursion).
 	numCalls := 1
 	for i := argsIndex; i < len(args); i++ {
 		argReflected := reflect.ValueOf(args[i])
+		// dereferency args[i] as needed
 		if argReflected.Kind() == reflect.Ptr {
 			argReflected = argReflected.Elem()
 		}
 		assert(argReflected.Kind() == reflect.Slice || argReflected.Kind() == reflect.Array, "trailing arguments to benchmarkForPointTypes must be (pointers to / or plain values of) slices or arrays")
 		numCalls *= argReflected.Len()
 	}
+	// We now construct numCalls many sliceArgs-tuples.
 	for callIndex := 0; callIndex < numCalls; callIndex++ {
 		// translate callIndex into a sliceArgs-tuple of indices and obtain the actual pointTypes
 		var actualTypes []PointType = make([]PointType, sliceArgs)
@@ -284,13 +374,14 @@ argParse:
 			r -= sliceIndex
 			r /= sliceLen
 		}
+		// if we have a condition function, use it to filter
 		if haveCond {
 			var condInputArgs []reflect.Value = make([]reflect.Value, sliceArgs)
 			for i := 0; i < sliceArgs; i++ {
 				condInputArgs[i] = reflect.ValueOf(actualTypes[i])
 			}
-			condOutput := condFun.Call(condInputArgs)
-			ok := condOutput[0].Bool()
+			condOutput := condFun.Call(condInputArgs) // Note: condFun.Call returns a slice, since functions can in theory have multiple return values. We ensured it only has 1 during parsing.
+			ok := condOutput[0].Bool()                // condOutput[0] is the only return value of condFun
 			if !ok {
 				continue
 			}
@@ -317,55 +408,13 @@ argParse:
 			arg := getPrecomputedCurvePointSlice(int64(i), actualTypes[i], samples)
 			inputArgs[i+1] = reflect.ValueOf(arg)
 		}
-		b.Run(tag, func(bSubtest *testing.B) {
+		bOuter.Run(tag, func(bSubtest *testing.B) {
 			inputArgs[0] = reflect.ValueOf(bSubtest)
 			prepareBenchmarkCurvePoints(bSubtest)
 			funReflected.Call(inputArgs)
 		})
 	}
 }
-
-/*
-func benchmarkForPointTypes(b *testing.B, samples int, fun interface{}, pointTypes ...[]PointType) {
-	funReflected := reflect.ValueOf(fun)
-	if funReflected.Kind() != reflect.Func {
-		panic("second argument to benchmark for PointTypes must be function")
-	}
-	funType := funReflected.Type()
-	argNum := funType.NumIn() - 1
-	if argNum != len(pointTypes) {
-		panic("function must take as many arguments as there are variadic arguments afterwards")
-	}
-	numCalls := 1
-	for i := 0; i < argNum; i++ {
-		numCalls *= len(pointTypes[i])
-	}
-	if numCalls == 0 {
-		panic("variadic arguments must each be non-empty slice of PointTypes")
-	}
-	for callId := 0; callId < numCalls; callId++ {
-		var actualTypes []PointType = make([]PointType, argNum)
-		var tag string
-		r := callId
-		for i := 0; i < argNum; i++ {
-			actualTypes[i] = pointTypes[i][r%len(pointTypes[i])]
-			r -= r % len(pointTypes[i])
-			r /= len(pointTypes[i])
-			tag += pointTypeToTag(actualTypes[i])
-		}
-		var inputArgs []reflect.Value = make([]reflect.Value, argNum+1)
-		for i := 0; i < argNum; i++ {
-			arg := getPrecomputedCurvePointSlice(int64(i), actualTypes[i], samples)
-			inputArgs[i+1] = reflect.ValueOf(arg)
-		}
-		b.Run(tag, func(bSubtest *testing.B) {
-			inputArgs[0] = reflect.ValueOf(bSubtest)
-			prepareBenchmarkCurvePoints(bSubtest)
-			funReflected.Call(inputArgs)
-		})
-	}
-}
-*/
 
 // OLD CODE
 

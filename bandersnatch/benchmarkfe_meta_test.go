@@ -35,18 +35,27 @@ var DumpBools_fe [dumpSizeBench_fe]bool // the _fe is because we use a separate 
 var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_64
 var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
 
+// Note: We have versions of prepareBenchmark, postProcessBenchmark and resetBenchmark for field elements and CurvePoints.
+// At the moment, these are identical.
+// The reason is that we might eventually move everything field element-related to a sub-module
+
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
 // Note that it resets all counters.
 func prepareBenchmarkFieldElements(b *testing.B) {
 	b.Cleanup(func() { postProcessBenchmarkFieldElements(b) })
-	callcounters.ResetAllCounters()
-	b.ResetTimer()
+	resetBenchmarkFieldElements(b)
 }
 
 // postProcessBenchmarkFieldElements should be called at the end of each sub-test (preferably using b.Cleanup(...) )
 // Currently, the only thing it does is make sure call counters are included in the benchmark if the current build includes them
 func postProcessBenchmarkFieldElements(b *testing.B) {
 	BenchmarkWithCallCounters(b)
+}
+
+// resetBenchmarkFieldElements resets the benchmark counters; this should be called after any expensive setup that we do not want to include in the benchmark.
+func resetBenchmarkFieldElements(b *testing.B) {
+	callcounters.ResetAllCounters()
+	b.ResetTimer()
 }
 
 // Benchmarks operate on random-looking field elements.
@@ -66,6 +75,8 @@ type (
 		elements []bsFieldElement_8
 	}
 )
+
+// TODO: Add mutexes
 
 // cachedPseudoRandomFieldElements_64 resp. _8 hold per-seed caches (the map key) of pseudo-random field elements.
 var (

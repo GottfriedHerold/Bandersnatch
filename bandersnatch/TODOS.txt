@@ -37,6 +37,7 @@ Move utility functions that are only used inside tests into _test files?
 Rename _test files that do not contain tests and use build tags instead?
 Export all of Test interface?
 Review torsionAdd functions / interface -> As of now, it is define on base
+Add mutexes to mutable global variables (mostly caches for testing/benchmarking framework), required to make test thread-safe. MED
 
 
 

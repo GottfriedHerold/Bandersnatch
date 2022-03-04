@@ -55,6 +55,10 @@ var allSubgroupCurveTestPointTypes = []PointType{pointTypeXTWSubgroup, pointType
 // We might remove this
 var allBasePointTypes = []PointType{pointTypeXTWBase, pointTypeAXTWBase, pointTypeEFGHBase}
 
+func BenchmarkCurvePointSlices(b *testing.B) {
+
+}
+
 func TestCurvePointSlices(t *testing.T) {
 	var A1 [2]Point_axtw_subgroup
 	var A2 []Point_axtw_subgroup = A1[:]
@@ -124,8 +128,6 @@ func TestCurvePointSlices(t *testing.T) {
 	if !(P == A6[1]) {
 		t.Fatal("getElementFromCurvePointSlice does not work for *[]interface type")
 	}
-
-
 
 }
 
