@@ -1186,17 +1186,81 @@ func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
 
 // MultiInvertEq replaces every element in args by its multiplicative inverse.
 func MultiInvertEqSlice(args []bsFieldElement_64) {
-	// dummy implementation for now:
-	for i := 0; i < len(args); i++ {
-		args[i].InvEq()
+	L := len(args)
+	// special case L==0, L==1 to allow optimizing the initial cases (this avoids having to set some elements to 1 and then multiplyting by it)
+	if L == 0 {
+		return
 	}
+	if L == 1 {
+		args[0].InvEq()
+		return
+	}
+
+	// Mutli-Inversion algorithm: We compute P = args[0] * ... * args[L-1] via a multiplication tree with leaves args[i] and root P.
+	// then invert all nodes, starting from P (inverting a node is cheap if the parent was inverted, so we only need to invert P) until the leaves.
+	// We use the common version of the algorithm corresponding to the usual left-associative multiplication tree ((((...(args[0]*args[1]) * args[2]) *  ...
+
+	var productOfFirstN []bsFieldElement_64 = make([]bsFieldElement_64, L-1)
+
+	// Set productOfFirstN[i] == args[0] * args[1] * ... * args[i+1]
+	productOfFirstN[0].Mul(&args[0], &args[1])
+	for i := 1; i < len(args)-1; i++ {
+		productOfFirstN[i].Mul(&productOfFirstN[i-1], &args[i+1])
+	}
+
+	var temp1, temp2 bsFieldElement_64 // temp2 is just needed to swap
+	temp1.Inv(&productOfFirstN[L-2])
+
+	for i := L - 1; i >= 2; i-- {
+		// invariant: temp1 == 1 / (args[0] * args[1] * ... * args[i]) at the beginning of the lopp
+		temp2.Mul(&temp1, &args[i])
+		args[i].Mul(&temp1, &productOfFirstN[i-2])
+		temp1 = temp2
+	}
+	// temp1 == 1 / args[0] * args[1] at this point
+	temp2.Mul(&temp1, &args[0])
+	args[0].Mul(&temp1, &args[1])
+	args[1] = temp2
 }
 
 // MultiInvertEq replaces every argument by its multiplicative inverse.
 //
 // NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
 func MultiInvertEq(args ...*bsFieldElement_64) {
-	for i := 0; i < len(args); i++ {
-		args[i].InvEq()
+	L := len(args)
+	// special case L==0, L==1 to allow optimizing the initial cases (this avoids having to set some elements to 1 and then multiplyting by it)
+	if L == 0 {
+		return
 	}
+	if L == 1 {
+		args[0].InvEq()
+		return
+	}
+
+	// Mutli-Inversion algorithm: We compute P = args[0] * ... * args[L-1] via a multiplication tree with leaves args[i] and root P.
+	// then invert all nodes, starting from P (inverting a node is cheap if the parent was inverted, so we only need to invert P) until the leaves.
+	// We use the common version of the algorithm corresponding to the usual left-associative multiplication tree ((((...(args[0]*args[1]) * args[2]) *  ...
+
+	var productOfFirstN []bsFieldElement_64 = make([]bsFieldElement_64, L-1)
+
+	// Set productOfFirstN[i] == args[0] * args[1] * ... * args[i+1]
+	productOfFirstN[0].Mul(args[0], args[1])
+	for i := 1; i < len(args)-1; i++ {
+		productOfFirstN[i].Mul(&productOfFirstN[i-1], args[i+1])
+	}
+
+	var temp1, temp2 bsFieldElement_64 // temp2 is just needed to swap
+	temp1.Inv(&productOfFirstN[L-2])
+
+	for i := L - 1; i >= 2; i-- {
+		// invariant: temp1 == 1 / (args[0] * args[1] * ... * args[i]) at the beginning of the lopp
+		temp2.Mul(&temp1, args[i])
+		args[i].Mul(&temp1, &productOfFirstN[i-2])
+		temp1 = temp2
+	}
+	// temp1 == 1 / args[0] * args[1] at this point
+	temp2.Mul(&temp1, args[0])
+	args[0].Mul(&temp1, args[1])
+	*args[1] = temp2
+
 }

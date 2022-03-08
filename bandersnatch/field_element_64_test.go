@@ -468,33 +468,39 @@ func TestSerializeFieldElements(t *testing.T) {
 }
 
 func TestMultiInvert(t *testing.T) {
-	const size = 20
+	const MAXSIZE = 20
 	var drng *rand.Rand = rand.New(rand.NewSource(87))
 	empty := make([]bsFieldElement_64, 0)
 	MultiInvertEq()
 	MultiInvertEqSlice(empty)
-	var numsArray, numsArrayInv [size]bsFieldElement_64
-	for i := 0; i < size; i++ {
+	var numsArray, numsArrayInv [MAXSIZE]bsFieldElement_64
+	for i := 0; i < MAXSIZE; i++ {
 		numsArray[i].setRandomUnsafeNonZero(drng)
 		numsArrayInv[i].Inv(&numsArray[i])
 	}
-	numsArray2 := numsArray
-	MultiInvertEqSlice(numsArray[:])
-	for i := 0; i < size; i++ {
-		if !numsArray[i].IsEqual(&numsArrayInv[i]) {
-			t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+	for size := 0; size < MAXSIZE; size++ {
+		numsArrayCopy := numsArray
+		MultiInvertEqSlice(numsArrayCopy[0:size])
+		for i := 0; i < size; i++ {
+			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
+				t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+			}
 		}
 	}
-	Ptrs := make([]*bsFieldElement_64, size)
-	for i := 0; i < size; i++ {
-		Ptrs[i] = &numsArray2[i]
-	}
-	MultiInvertEq(Ptrs...)
-	for i := 0; i < size; i++ {
-		if !numsArray2[i].IsEqual(&numsArrayInv[i]) {
-			t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+	for size := 0; size < MAXSIZE; size++ {
+		numsArrayCopy := numsArray
+		Ptrs := make([]*bsFieldElement_64, size)
+		for i := 0; i < size; i++ {
+			Ptrs[i] = &numsArrayCopy[i]
+		}
+		MultiInvertEq(Ptrs...)
+		for i := 0; i < size; i++ {
+			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
+				t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+			}
 		}
 	}
+
 }
 
 func TestSummationSlice(t *testing.T) {

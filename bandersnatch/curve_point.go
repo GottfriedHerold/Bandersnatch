@@ -300,28 +300,31 @@ func getElementFromCurvePointSlice(v interface{}, n int) CurvePointPtrInterface 
 		return v[n].(CurvePointPtrInterface)
 
 	default:
-		v_type := reflect.TypeOf(v)
-		v_ref := reflect.ValueOf(v)
-		if v_ref.Kind() == reflect.Ptr {
-			v_ref = v_ref.Elem()
-			v_type = v_type.Elem()
-		}
+		return getElementFromCurvePointSliceGeneral(v, n)
+	}
+}
 
-		var elemType reflect.Type = v_type.Elem()
-		elem := v_ref.Index(n)
-		switch elemType.Kind() {
-		case reflect.Struct:
-			if !elem.CanAddr() {
-				panic("bandersnatch / curve point array/slice: cannot take address of element. Did you pass an array to getElementFromCurvePointSlice? If so, use a slice or take the adress of the array.")
-			}
-			return elem.Addr().Interface().(CurvePointPtrInterface)
-		case reflect.Ptr:
-			return elem.Interface().(CurvePointPtrInterface)
-		case reflect.Interface:
-			return elem.Interface().(CurvePointPtrInterface)
-		default:
-			panic("elements of Slice/array passed to getElemFromCurvePointSlice is not struct, pointer or interface")
-		}
+func getElementFromCurvePointSliceGeneral(v interface{}, n int) CurvePointPtrInterface {
+	v_type := reflect.TypeOf(v)
+	v_ref := reflect.ValueOf(v)
+	if v_ref.Kind() == reflect.Ptr {
+		v_ref = v_ref.Elem()
+		v_type = v_type.Elem()
+	}
 
+	var elemType reflect.Type = v_type.Elem()
+	elem := v_ref.Index(n)
+	switch elemType.Kind() {
+	case reflect.Struct:
+		if !elem.CanAddr() {
+			panic("bandersnatch / curve point array/slice: cannot take address of element. Did you pass an array to getElementFromCurvePointSlice? If so, use a slice or take the adress of the array.")
+		}
+		return elem.Addr().Interface().(CurvePointPtrInterface)
+	case reflect.Ptr:
+		return elem.Interface().(CurvePointPtrInterface)
+	case reflect.Interface:
+		return elem.Interface().(CurvePointPtrInterface)
+	default:
+		panic("elements of Slice/array passed to getElemFromCurvePointSlice is not struct, pointer or interface")
 	}
 }

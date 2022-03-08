@@ -55,8 +55,52 @@ var allSubgroupCurveTestPointTypes = []PointType{pointTypeXTWSubgroup, pointType
 // We might remove this
 var allBasePointTypes = []PointType{pointTypeXTWBase, pointTypeAXTWBase, pointTypeEFGHBase}
 
-func BenchmarkCurvePointSlices(b *testing.B) {
-
+func BenchmarkCurvePointSliceAccess(bOuter *testing.B) {
+	const size = 256
+	prepareBenchmarkCurvePoints(bOuter)
+	A1_slice := getPrecomputedCurvePointSlice(2, pointTypeAXTWSubgroup, size)
+	A2 := getPrecomputedCurvePointSlice(3, pointTypeAXTWSubgroup, size)
+	_ = A2
+	var A1 [size]Point_axtw_subgroup
+	for i := 0; i < size; i++ {
+		A1[i].SetFrom(A1_slice[i])
+	}
+	resetBenchmarkCurvePoints(bOuter)
+	fun_direct := func(bInner *testing.B) {
+		prepareBenchmarkCurvePoints(bInner)
+		for n := 0; n < bInner.N; n++ {
+			DumpAXTW_subgroup[n%dumpSizeBench_curve] = A1[n%size]
+		}
+	}
+	fun_SetFrom := func(bInner *testing.B) {
+		prepareBenchmarkCurvePoints(bInner)
+		for n := 0; n < bInner.N; n++ {
+			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(&A1[n%size])
+		}
+	}
+	fun_genericArray := func(bInner *testing.B) {
+		prepareBenchmarkCurvePoints(bInner)
+		for n := 0; n < bInner.N; n++ {
+			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(getElementFromCurvePointSlice(&A1, n%size))
+		}
+	}
+	fun_genericSlice := func(bInner *testing.B) {
+		prepareBenchmarkCurvePoints(bInner)
+		for n := 0; n < bInner.N; n++ {
+			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(getElementFromCurvePointSlice(A1[:], n%size))
+		}
+	}
+	fun_pointSliceReader := func(bInner *testing.B) {
+		prepareBenchmarkCurvePoints(bInner)
+		for n := 0; n < bInner.N; n++ {
+			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(CurvePointSlice_axtw_subgroup(A1[:]).GetByIndex(n % size))
+		}
+	}
+	bOuter.Run("direct access", fun_direct)
+	bOuter.Run("SetFrom", fun_SetFrom)
+	bOuter.Run("SetFrom getElementFromCurvePointSlice(&arr)", fun_genericArray)
+	bOuter.Run("SetFrom getElementFromCurvePointSlice(arr[:])", fun_genericSlice)
+	bOuter.Run("SetFrom via PointSliceReader interface", fun_pointSliceReader)
 }
 
 func TestCurvePointSlices(t *testing.T) {

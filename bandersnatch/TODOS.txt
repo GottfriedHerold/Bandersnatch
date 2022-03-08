@@ -47,7 +47,6 @@ Optimize field element Inversion MED
 Optimize field element square root MED
 Optimize field element Jacobi MED
 Optimize field element squaring MED
-Bulk inversion algorithm MED
 Optimize and consolidate Field element conversions MED
 improve efficiency of GLV transform MED
 
