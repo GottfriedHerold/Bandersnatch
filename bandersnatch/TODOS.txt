@@ -37,7 +37,7 @@ Move utility functions that are only used inside tests into _test files?
 Rename _test files that do not contain tests and use build tags instead?
 Export all of Test interface?
 Review torsionAdd functions / interface -> As of now, it is define on base
-Add mutexes to mutable global variables (mostly caches for testing/benchmarking framework), required to make test thread-safe. MED
+Add mutexes to mutable global variables (mostly caches for testing/benchmarking framework), required to make tests thread-safe. MED
 
 
 
@@ -51,6 +51,6 @@ Optimize and consolidate Field element conversions MED
 improve efficiency of GLV transform MED
 
 Functionality:
-Precomputation and serialization thereof
-Multi-exponentiation
-Multi-Multi-exponentiation
+Precomputation and serialization thereof HIGH
+Multi-exponentiation HIGH
+Multi-Multi-exponentiation MED

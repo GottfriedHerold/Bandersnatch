@@ -1,6 +1,10 @@
 package bandersnatch
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+)
 
 // This file contains routines that map curve points to field elements and allow reconstructing them from field elements.
 // This should be seen as part of serialization to byte streams: usually, we go curve points <-> field elements (+ some extra bits) <-> bye streams
@@ -16,12 +20,12 @@ import "fmt"
 // In general, preimages of MapToFieldElement have the form {P, P+A} with A the affine two-torsion point.
 func MapToFieldElement(input CurvePointPtrInterfaceRead) (ret FieldElement) {
 	if input.IsAtInfinity() {
-		panic("Called MapToFieldElement on point at infinity")
+		panic("bandersnatch / serialization: Called MapToFieldElement on point at infinity")
 	}
 	// Note: IsAtInfinity should already have detected NaPs.
 	// Still, if the nap-handler ignores it, we prefer to panic right now with a more meaningul error message rather than divide by zero later.
 	if input.IsNaP() {
-		panic("Called MapToFieldElement on a NaP")
+		panic("bandersnatch / serialization: Called MapToFieldElement on a NaP")
 	}
 	ret = input.Y_decaf_projective()
 	ret.InvEq()
@@ -34,7 +38,8 @@ func MapToFieldElement(input CurvePointPtrInterfaceRead) (ret FieldElement) {
 // An optimized implementation for hardwired field size probably is not, but a generic one for field size mod 8 = 1 is reasonably likely randomized.
 // We do not wish to depend on particularities of the base field implementation.
 
-// recoverYFromXAffine computes y from x such that (x,y) is on the curve. Note that the result only depends on x up to sign.
+// recoverYFromXAffine computes y from x such that (x,y) is a point on the Bandersnatch curve in affine twisted Edwards coordinates.
+// Note that the result only depends on x up to sign.
 // For valid input x, for which some y exists in the first place, there are always exactly two possible y which differ by sign. (Note y!=0 for affine points)
 // recoverYFromXAffine makes no guarantees about the choice of y. It need not even be consistent for multiple calls with the same x.
 // If legendreCheckX is set to true, we also check that the resulting (+/-x,+/-y) is on the subgroup for some choice of signs.
@@ -53,22 +58,24 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 	num.multiply_by_five()               // 5x^2 = -ax^2
 	num.AddEq(&FieldElementOne)          // 1 - ax^2
 	denom.Sub(&FieldElementOne, &denom)  // 1 - dx^2
+	// Since both a and d are non-squares, we are guaranteed that both num and denom are non-zero. This holds for any x, irrespective of whether it corresponds to a point on the curve.
 	// Note that x is in the correct subgroup iff *both* num and denom are squares
 	if legendreCheckX {
 		if num.Jacobi() < 0 {
-			// This is only done for better error messages.
+			// At this point, we already know that the given x does not correspond to any subgroup point.
+			// In the interest of better error message, we check whether it actually correspond to any point on the curve.
 			// While computationally expensive, we do not expect this branch to be taken often.
 			if denom.Jacobi() > 0 {
-				err = ErrXNotOnCurve
+				err = bandersnatchErrors.ErrXNotOnCurve
 			} else {
-				err = ErrXNotInSubgroup
+				err = bandersnatchErrors.ErrXNotInSubgroup
 			}
 			return
 		}
 	}
 	num.DivideEq(&denom) // (1-ax^2)/(1-dx^2). Note that 1-dx^2 cannot be 0, as d is a non-square.
 	if !y.SquareRoot(&num) {
-		err = ErrXNotOnCurve
+		err = bandersnatchErrors.ErrXNotOnCurve
 		return
 	}
 	err = nil // err is nil at this point anyway, but we prefer to be explicit.
@@ -76,7 +83,7 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 }
 
 // recoverXFromYAffine obtains an x coordinate from an y coordinate, s.t. (x,y) are a valid affine rational point.
-// If no y exists, returns ErrYNotOnCurve. Note that we have two choices for x, since (-x,y) is also on the curve if (x,y) is.
+// If no y exists, returns ErrYNotOnCurve. Note that we generally have two choices for x, since (-x,y) is also on the curve if (x,y) is.
 // We make no guarantees about which x we return; it need not even be consistent for multiple calls with the same y.
 func recoverXFromYAffine(y *FieldElement) (x FieldElement, err error) {
 	var num, denom FieldElement
@@ -85,15 +92,15 @@ func recoverXFromYAffine(y *FieldElement) (x FieldElement, err error) {
 	num.SubEq(&FieldElementOne)          // y^2 - 1
 	denom.SubEq(&CurveParameterA_fe)     // dy^2 - a
 	if denom.IsZero() {
-		err = ErrYNotOnCurve // Note: This case really corresponds to the points at infinity. We might want a more specific error.
-		x.SetZero()
+		err = bandersnatchErrors.ErrYNotOnCurve // Note: This case really corresponds to the points at infinity. We might want a more specific error.
+		x.SetZero()                             // x = 0, just to be explicit. The value is meaningless, but we prefer a reproducible behaviour.
 		return
 	}
 	num.DivideEq(&denom) // (y^2 - 1) / (dy^2 - a)
 	ok := x.SquareRoot(&num)
 	if !ok {
-		x.SetZero()
-		err = ErrYNotOnCurve
+		x.SetZero() // We prefer to have some consistent return value for x on error. It must not be used anyway.
+		err = bandersnatchErrors.ErrYNotOnCurve
 	}
 	return
 }
@@ -114,7 +121,7 @@ func recoverXFromYAffine(y *FieldElement) (x FieldElement, err error) {
 // CurvePointFromXYAffine_full constructs a curve point with the given affine x and y coordinates. trustLevel should be one of
 // TrustedInput or UntrustedInput.
 //
-// It returns an error, if the provided x and y coordinates are invalid. In this case, the returned point must not be used.
+// It returns an error if the provided x and y coordinates are invalid. In this case, the returned point must not be used.
 // If trustLevel is TrustedInput, you *MUST* call this only with valid x and y coordinates; the library has the liberty to skip checks.
 // The library makes no guarantees whatsoever about what happens if you violate this.
 //
@@ -132,11 +139,11 @@ func CurvePointFromXYAffine_full(x *FieldElement, y *FieldElement, trustLevel Is
 		// Note that isPointOnCurve would also catch it.
 		if point.IsNaP() {
 			point = Point_axtw_full{} // standard NaP
-			err = ErrCannotDeserializeXYAllZero
+			err = bandersnatchErrors.ErrCannotDeserializeXYAllZero
 			return
 		}
 		if !point.isPointOnCurve() {
-			err = ErrNotOnCurve
+			err = bandersnatchErrors.ErrNotOnCurve
 			// some extra footgun-protection for users who don't check the error return value (which is a mistake).
 			point = Point_axtw_full{}
 			return
@@ -157,14 +164,14 @@ func CurvePointFromXYAffine_subgroup(x *FieldElement, y *FieldElement, trustLeve
 		return
 	}
 	if !point.SetFromSubgroupPoint(&point_full, trustLevel) {
-		err = ErrNotInSubgroup
+		err = bandersnatchErrors.ErrNotInSubgroup
 	}
 	return
 }
 
 // NOTE: For the current implementation of FullCurvePointFromXAndSigny, trustLevel actually does not influence whether we perform checks.
 // We always check if the x coordinate corresponds to a curve point.
-// However, for trustedInput, we panic on failure.
+// However, for trustedInput, we panic on failure rather than return an error.
 
 // TODO: Document possible errors?
 
@@ -180,10 +187,10 @@ func CurvePointFromXYAffine_subgroup(x *FieldElement, y *FieldElement, trustLeve
 func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsPointTrusted) (point Point_axtw_full, err error) {
 	signValid := (signY == 1 || signY == -1)
 	if !signValid {
-		// Unsure if we shouldn't outright panic. This is as likely to be a bug in the calling code as it is malicious input.
+		// Unsure if we shouldn't outright panic. This is as likely a bug in the calling code as it is malicious input.
 		// TODO: write warning to stderr?
 		// Q: Consider treating signY == 0 specially (after all, sign(0)==0, so this is reasonably an ErrNotOnCurve error)
-		err = fmt.Errorf("%w. FullCurvePointFromXAndSignY expects the sign argument to be either +1 or -1. Got: %v", ErrInvalidSign, signY)
+		err = fmt.Errorf("%w. FullCurvePointFromXAndSignY expects the sign argument to be either +1 or -1. Got: %v", bandersnatchErrors.ErrInvalidSign, signY)
 		if trustLevel.Bool() {
 			panic(err)
 		}
@@ -220,7 +227,7 @@ func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsP
 		// Unsure if we shouldn't outright panic. This is as likely to be a bug in the calling code as it is malicious input.
 		// TODO: write warning to stderr?
 		// Q: Consider treating signY == 0 specially (after all, sign(0)==0, so this is reasonably an ErrNotOnCurve error)
-		err = fmt.Errorf("%w. CurvePointFromXAndSignY_subgroup expects the sign argument to be either +1 or -1. Got %v", ErrInvalidSign, signY)
+		err = fmt.Errorf("%w. CurvePointFromXAndSignY_subgroup expects the sign argument to be either +1 or -1. Got %v", bandersnatchErrors.ErrInvalidSign, signY)
 		if trustLevel.Bool() {
 			panic(err)
 		}
@@ -250,7 +257,7 @@ func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsP
 			point.y.NegEq()
 		}
 		if !legendreCheckE1_affineY(point.y) {
-			err = ErrNotInSubgroup
+			err = bandersnatchErrors.ErrNotInSubgroup
 			point = Point_axtw_subgroup{}
 			return
 		}
@@ -283,12 +290,12 @@ func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsPoint
 			}
 		} else {
 			point = Point_axtw_full{}
-			err = ErrInvalidZeroSignX
+			err = bandersnatchErrors.ErrInvalidZeroSignX
 			return
 		}
 	}
 	if !(signX == +1 || signX == -1) {
-		err = fmt.Errorf("%w. CurvePointFromYAndSignX_full and CurvePointFromYAndSignX_subgroup expect signX from {-1,0,+1}. Got: %v", ErrInvalidSign, signX)
+		err = fmt.Errorf("%w. CurvePointFromYAndSignX_full and CurvePointFromYAndSignX_subgroup expect signX from {-1,0,+1}. Got: %v", bandersnatchErrors.ErrInvalidSign, signX)
 		return
 	}
 	point.y = *y
@@ -325,7 +332,7 @@ func CurvePointFromYAndSignX_subgroup(y *FieldElement, signX int, trustLevel IsP
 	}
 	ok := point.SetFromSubgroupPoint(&point_full, trustLevel)
 	if !ok {
-		err = ErrNotInSubgroup
+		err = bandersnatchErrors.ErrNotInSubgroup
 		point = Point_axtw_subgroup{}
 	}
 	return
@@ -374,17 +381,21 @@ func CurvePointFromXTimesSignY_subgroup(xSignY *FieldElement, trustLevel IsPoint
 // If trustLevel is TrustedInput, you *MUST* call this only with valid input; we are free to skip some tests.
 // The library makes no guarantees whatsoever about what happens if you violate this.
 func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElement, trustlevel IsPointTrusted) (point Point_axtw_subgroup, err error) {
-	// If Sign(Y) == 1, then this is obviously correct (provided the input is good);
-	// However, if Sign(Y) == -1, this just differs by + A, which we do not care about.
+	if !trustlevel.Bool() {
+		// y * Sign(Y) must have Sign > 0. This also check that y!=0
+		if ySignY.Sign() <= 0 {
+			err = bandersnatchErrors.ErrWrongSignY
+			point = Point_axtw_subgroup{} // no-op, but we prefer to be explicit.
+			return
+		}
+	}
+
+	// If Sign(Y) == 1, then the following is obviously correct (provided the input is good);
+	// However, if Sign(Y) == -1, this just differs by + A, which we do not care about, since the internal representation of Point_axtw_subgroup works modulo A.
 	point.x = *xSignY
 	point.y = *ySignY
 	point.t.Mul(xSignY, ySignY)
 	if !trustlevel.Bool() {
-		// y * Sign(Y) must have Sign > 0. This also check that y!=0
-		if ySignY.Sign() <= 0 {
-			err = ErrWrongSignY
-			return
-		}
 
 		// We compute 1-ax^2 - y^2 + dt^2, which is 0 iff the point is on the curve (and finite).
 		// Observe that the subexpression 1-ax^2 is also used in the subgroup check, so we do that along the way.
@@ -397,7 +408,7 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 		accumulator.AddEq(&FieldElementOne) // 1+5x^2 == 1-ax^2
 
 		if accumulator.Jacobi() < 0 {
-			err = ErrNotInSubgroup
+			err = bandersnatchErrors.ErrNotInSubgroup
 			// no return. This way, if we have both "not on curve" and "not in subgroup", we get "not on curve", which is more informative.
 			// We also do not yet set point to a NaP, because we use point.t to continue the "not on curve" check.
 		}
@@ -408,7 +419,7 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 		temp.MulEq(&CurveParameterD_fe) // dt^2
 		accumulator.AddEq(&temp)        // 1 - ax^2 - y^2 + dt^2
 		if !accumulator.IsZero() {
-			err = ErrNotOnCurve
+			err = bandersnatchErrors.ErrNotOnCurve
 		}
 		if err != nil {
 			point = Point_axtw_subgroup{}

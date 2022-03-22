@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"math/bits"
 	"math/rand"
+	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 )
@@ -1184,7 +1185,7 @@ func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
 	*z = result
 }
 
-// MultiInvertEq replaces every element in args by its multiplicative inverse.
+// MultiInvertEq replaces every element in args by its multiplicative inverse. If any arguments are zero, panics with *ErrMultiInversionEncounteredZero without modifying any of the args.
 func MultiInvertEqSlice(args []bsFieldElement_64) {
 	L := len(args)
 	// special case L==0, L==1 to allow optimizing the initial cases (this avoids having to set some elements to 1 and then multiplyting by it)
@@ -1192,6 +1193,11 @@ func MultiInvertEqSlice(args []bsFieldElement_64) {
 		return
 	}
 	if L == 1 {
+		if args[0].IsZero() {
+			err := generateMultiDivisionByZeroPanic([]*bsFieldElement_64{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
+			panic(err)
+		}
+
 		args[0].InvEq()
 		return
 	}
@@ -1206,6 +1212,16 @@ func MultiInvertEqSlice(args []bsFieldElement_64) {
 	productOfFirstN[0].Mul(&args[0], &args[1])
 	for i := 1; i < len(args)-1; i++ {
 		productOfFirstN[i].Mul(&productOfFirstN[i-1], &args[i+1])
+	}
+
+	// check if product of all args is zero. If yes, we need to handle some errors.
+	if productOfFirstN[L-2].IsZero() {
+		var argPtrs []*bsFieldElement_64 = make([]*bsFieldElement_64, len(args))
+		for i := 0; i < len(args); i++ {
+			argPtrs[i] = &args[i]
+		}
+		err := generateMultiDivisionByZeroPanic(argPtrs, "bandersnatch / field elements: Division by zero when calling MultiInvertEq")
+		panic(err)
 	}
 
 	var temp1, temp2 bsFieldElement_64 // temp2 is just needed to swap
@@ -1223,16 +1239,23 @@ func MultiInvertEqSlice(args []bsFieldElement_64) {
 	args[1] = temp2
 }
 
-// MultiInvertEq replaces every argument by its multiplicative inverse.
+// NOTE: Some callers actually recover the panic and rely on the fact that no changes to args are made on panic.
+
+// MultiInvertEq replaces every argument by its multiplicative inverse. If any arguments are zero, panics with *ErrMultiInversionEncounteredZero without modifying any of the args.
 //
 // NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
 func MultiInvertEq(args ...*bsFieldElement_64) {
 	L := len(args)
-	// special case L==0, L==1 to allow optimizing the initial cases (this avoids having to set some elements to 1 and then multiplyting by it)
+	// special case L==0, L==1
+	// Having L >= 2 guaranteed avoids special cases.
 	if L == 0 {
 		return
 	}
 	if L == 1 {
+		if args[0].IsZero() {
+			err := generateMultiDivisionByZeroPanic(args, "bandersnatch / field elements: Division by zero when calling MultiInvertEq on single element")
+			panic(err)
+		}
 		args[0].InvEq()
 		return
 	}
@@ -1250,6 +1273,10 @@ func MultiInvertEq(args ...*bsFieldElement_64) {
 	}
 
 	var temp1, temp2 bsFieldElement_64 // temp2 is just needed to swap
+	if productOfFirstN[L-2].IsZero() {
+		err := generateMultiDivisionByZeroPanic(args, "bandersnatch / field elements: Division by zero when calling MultiInvertEq")
+		panic(err)
+	}
 	temp1.Inv(&productOfFirstN[L-2])
 
 	for i := L - 1; i >= 2; i-- {
@@ -1262,5 +1289,62 @@ func MultiInvertEq(args ...*bsFieldElement_64) {
 	temp2.Mul(&temp1, args[0])
 	args[0].Mul(&temp1, args[1])
 	*args[1] = temp2
+}
 
+// ErrMultiInversionEncounteredZero is a (stateful) error either returned by or provided as argument to panic by functions that perform
+// simulutaneous inversion of multiple field elements.
+//
+// It contains information about which elements were zero.
+type ErrMultiInversionEncounteredZero struct {
+	ZeroIndices         []bool // indices (starting from 0) of the field elements that were zero, i.e. in a call (ignoring argument types) MultiInvertEq(0, 1, 2, 0, 0), we would have ZeroIndices = [0, 3, 4]
+	NumberOfZeroIndices int    // number of field elements that were zero when multi-inversion was requested. In the above example, would be 3
+	s                   string // internal: (static) error string that is to be displayed by Error(). Note that Error() also outputs additional information about ZeroIndices etc.
+}
+
+// Error is provided to satisfy the error interface (for pointer receivers). We report the stored string s together with information about ZeroIndices.
+func (err *ErrMultiInversionEncounteredZero) Error() string {
+	var b strings.Builder
+	b.WriteString(err.s)
+	if err.NumberOfZeroIndices <= 0 {
+		fmt.Fprintf(&b, "\nThe number of zero indices stored as metadata is %v <= 0. This should only occur if you are creating uninitialized ErrMultiInversionEncounteredZero errors manually.", err.NumberOfZeroIndices)
+		return b.String()
+	}
+	if err.NumberOfZeroIndices == 1 {
+		for i := 0; i < len(err.ZeroIndices); i++ {
+			if err.ZeroIndices[i] {
+				fmt.Fprintf(&b, "\nThe %v'th argument (counting from 0) was the only one that was zero.", i)
+				return b.String()
+			}
+		}
+		fmt.Fprintf(&b, "\nInternal bug: the number of zero indices stored as metadata is 1, but no zero index was contained in the metadata.")
+		return b.String()
+	}
+	var indices []int = make([]int, 0, err.NumberOfZeroIndices)
+	for i := 0; i < len(err.ZeroIndices); i++ {
+		if err.ZeroIndices[i] {
+			indices = append(indices, i)
+		}
+	}
+	if len(indices) != err.NumberOfZeroIndices {
+		fmt.Fprintf(&b, "\nInternal bug: the number of zero indices stored as metadata does not match the number of field elements that were reported as zero. Error reporting may be unreliable.")
+	}
+	fmt.Fprintf(&b, "\nThere were %v numbers (starting indexing with 0) that were 0 in the call. Those are:\n %v", err.NumberOfZeroIndices, indices)
+	return b.String()
+}
+
+// generateMultiDivisionByZeroPanic is a helper function for MultiInvertEq and MultiInvertSliceEq.
+//
+// It creates the actual non-nil error that includes diagnostics which field Elements were zero.
+func generateMultiDivisionByZeroPanic(fieldElements []*bsFieldElement_64, s string) *ErrMultiInversionEncounteredZero {
+	var err ErrMultiInversionEncounteredZero
+	err.s = s
+	err.NumberOfZeroIndices = 0
+	err.ZeroIndices = make([]bool, len(fieldElements))
+	for i, fe := range fieldElements {
+		if fe.IsZero() {
+			err.ZeroIndices[i] = true
+			err.NumberOfZeroIndices++
+		}
+	}
+	return &err
 }

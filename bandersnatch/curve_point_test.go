@@ -243,3 +243,32 @@ func TestAllTestPointTypesSatisfyInterface(t *testing.T) {
 	}
 
 }
+
+type BulkNormalizerAffineZ interface {
+	normalizeAffineZ()
+	CurvePointSlice
+}
+
+type NormalizerAffineZ interface {
+	normalizeAffineZ()
+}
+
+func testMultiAffineZWorks(t *testing.T, vec BulkNormalizerAffineZ) {
+	L := vec.Len()
+	var vecCopy []CurvePointPtrInterface = make([]CurvePointPtrInterface, L)
+	for i := 0; i < L; i++ {
+		vecCopy[i] = vec.GetByIndex(i).Clone()
+	}
+
+	vec.normalizeAffineZ()
+
+	// not merged with loop above because we want to give preference to panics in the vec-version.
+	for i := 0; i < L; i++ {
+		vecCopy[i].(NormalizerAffineZ).normalizeAffineZ()
+	}
+	for i := 0; i < L; i++ {
+		if !vecCopy[i].IsEqual(vec.GetByIndex(i)) {
+			t.Fatal("Bulk-NormalizeAffineZ differs from NormalizeAffineZ")
+		}
+	}
+}

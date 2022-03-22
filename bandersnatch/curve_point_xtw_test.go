@@ -7,6 +7,52 @@ import (
 
 // test specific to Point_xtw go here. Note that most tests are contained in generic tests from curve_point_test_*_test.go files
 
+var _ BulkNormalizerAffineZ = CurvePointSlice_xtw_full{}
+var _ BulkNormalizerAffineZ = CurvePointSlice_xtw_subgroup{}
+
+func TestBulkNormalizeAffineZ_full(t *testing.T) {
+	drng := rand.New(rand.NewSource(1))
+	const size = 300
+	var points [size]Point_xtw_full
+	for i := 0; i < len(points); i++ {
+		points[i].sampleRandomUnsafe(drng)
+	}
+	testMultiAffineZWorks(t, CurvePointSlice_xtw_full(points[:]))
+	for i := 0; i < len(points); i++ {
+		points[i].sampleRandomUnsafe(drng)
+	}
+	testMultiAffineZWorks(t, CurvePointSlice_xtw_full(points[0:1]))
+	for i := 0; i < len(points); i++ {
+		points[i].sampleRandomUnsafe(drng)
+		if i%2 == 0 {
+			points[i].normalizeAffineZ()
+		}
+	}
+	// points[200].SetE1()
+	testMultiAffineZWorks(t, CurvePointSlice_xtw_full(points[:]))
+}
+
+func TestBulkNormalizeAffineZ_subgroup(t *testing.T) {
+	drng := rand.New(rand.NewSource(1))
+	const size = 300
+	var points [size]Point_xtw_subgroup
+	for i := 0; i < len(points); i++ {
+		points[i].sampleRandomUnsafe(drng)
+	}
+	testMultiAffineZWorks(t, CurvePointSlice_xtw_subgroup(points[:]))
+	for i := 0; i < len(points); i++ {
+		points[i].sampleRandomUnsafe(drng)
+	}
+	testMultiAffineZWorks(t, CurvePointSlice_xtw_subgroup(points[0:1]))
+	for i := 0; i < len(points); i++ {
+		points[i].sampleRandomUnsafe(drng)
+		if i%2 == 0 {
+			points[i].normalizeAffineZ()
+		}
+	}
+	testMultiAffineZWorks(t, CurvePointSlice_xtw_subgroup(points[:]))
+}
+
 // Old test, somewhat redundant with general test for Validate().
 // We just keep it around.
 

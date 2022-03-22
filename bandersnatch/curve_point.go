@@ -129,14 +129,19 @@ type CurvePointPtrInterfaceBaseRead interface {
 // CurvePointSlice is a joint interface for slices of CurvePoints or pointers to CurvePoints.
 //
 // This interface is needed (due to inadequacies of Go's type system) to make certain functions work with slices of concrete point types.
-type PointSliceReader interface {
+type CurvePointSlice interface {
 	GetByIndex(int) CurvePointPtrInterface
+	Len() int
 }
 
 type GenericPointSlice []CurvePointPtrInterface
 
 func (v GenericPointSlice) GetByIndex(n int) CurvePointPtrInterface {
 	return v[n]
+}
+
+func (v GenericPointSlice) Len() int {
+	return len(v)
 }
 
 // Cloneable means that the type (intended to be a pointer) has a Clone() function

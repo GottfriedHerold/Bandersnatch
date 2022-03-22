@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+
+	. "github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 )
 
 func TestRecoverYFromXAffine(t *testing.T) {

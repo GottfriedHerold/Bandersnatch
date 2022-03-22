@@ -54,7 +54,7 @@ func TestCofactorGroup(t *testing.T) {
 */
 
 func TestStuff(t *testing.T) {
-	f := func(x PointSliceReader) bool {
+	f := func(x CurvePointSlice) bool {
 		return true
 	}
 	var P [2]Point_axtw_subgroup

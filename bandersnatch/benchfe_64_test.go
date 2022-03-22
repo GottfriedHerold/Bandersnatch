@@ -1,6 +1,7 @@
 package bandersnatch
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -266,4 +267,42 @@ func BenchmarkSquareRoot_64(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		DumpFe_64[n%benchS].SquareRoot(&bench_x_64[n%benchS])
 	}
+}
+
+func BenchmarkMultiInverseion(bOuter *testing.B) {
+	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS+256)
+	assert(benchS >= 256)
+	batchSizes := []int{1, 2, 4, 16, 64, 256}
+	makeBenchmarkFunctionMultiInvertEqSlice := func(batchSize int) func(*testing.B) {
+		return func(bInner *testing.B) {
+			prepareBenchmarkFieldElements(bInner)
+			for n := 0; n < bInner.N; n++ {
+				MultiInvertEqSlice(bench_x_64[n%benchS : n%benchS+batchSize])
+			}
+		}
+	}
+	makeBenchmarkFunctionMultiInvertEq := func(batchSize int) func(*testing.B) {
+		return func(bInner *testing.B) {
+			var Ptrs [benchS + 256]*bsFieldElement_64
+			for i := 0; i < len(Ptrs); i++ {
+				Ptrs[i] = &bench_x_64[i]
+			}
+			prepareBenchmarkFieldElements(bInner)
+			for n := 0; n < bInner.N; n++ {
+				MultiInvertEq(Ptrs[n%benchS : n%benchS+batchSize]...)
+			}
+		}
+	}
+	prepareBenchmarkFieldElements(bOuter)
+	for _, batchSize := range batchSizes {
+		fun := makeBenchmarkFunctionMultiInvertEqSlice(batchSize)
+		tag := fmt.Sprintf("MultiInvertEqSlice of size %v", batchSize)
+		bOuter.Run(tag, fun)
+	}
+	for _, batchSize := range batchSizes {
+		fun := makeBenchmarkFunctionMultiInvertEq(batchSize)
+		tag := fmt.Sprintf("MultiInvertEq of size %v", batchSize)
+		bOuter.Run(tag, fun)
+	}
+
 }
