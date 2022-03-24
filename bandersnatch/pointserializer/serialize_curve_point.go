@@ -158,6 +158,8 @@ func (s *fieldElementEndianness) SetEndianness(e binary.ByteOrder) {
 	s.byteOrder = e
 }
 
+var defaultEndianness fieldElementEndianness = fieldElementEndianness{byteOrder: binary.LittleEndian}
+
 // bitHeader is a "header" consisting of a prefixLen many extra bits that are included inside a field element as a form of compression.
 type bitHeader struct {
 	prefixBits PrefixBits
@@ -276,7 +278,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (b
 	return
 }
 
-func (s *valuesSerializerHeaderFeHeaderFe) serializeValues(output io.Writer, fieldElement1, fieldElement2 *FieldElement) (bytesWritten int, err error) {
+func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *FieldElement) (bytesWritten int, err error) {
 	bytesWritten, err = fieldElement1.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
 	if err != nil {
 		return
@@ -333,7 +335,7 @@ func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead
 	return
 }
 
-func (s *valuesSerializerHeaderFe) serializeValues(output io.Writer, fieldElement *FieldElement) (bytesWritten int, err error) {
+func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *FieldElement) (bytesWritten int, err error) {
 	bytesWritten, err = fieldElement.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
 	return
 }

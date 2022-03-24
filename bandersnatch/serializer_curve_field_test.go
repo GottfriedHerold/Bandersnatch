@@ -49,7 +49,7 @@ func TestRecoverYFromXAffine(t *testing.T) {
 	const iterations = 1000
 	var temp FieldElement
 	for i := 0; i < iterations; i++ {
-		temp.setRandomUnsafe(rng)
+		temp.SetRandomUnsafe(rng)
 		_, err := recoverYFromXAffine(&temp, true)
 		switch err {
 		case ErrXNotInSubgroup:
@@ -118,7 +118,7 @@ func TestRecoverXFromYAffine(t *testing.T) {
 	const iterations = 1000
 	var temp FieldElement
 	for i := 0; i < iterations; i++ {
-		temp.setRandomUnsafe(rng)
+		temp.SetRandomUnsafe(rng)
 		_, err := recoverXFromYAffine(&temp)
 		switch err {
 		case ErrYNotOnCurve:

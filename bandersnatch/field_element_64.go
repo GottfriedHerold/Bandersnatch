@@ -574,19 +574,21 @@ func (z *bsFieldElement_64) SetUInt64(value uint64) {
 	z.restoreMontgomery()
 }
 
-// setRandomUnsafe generates a uniformly random field element.
+// temporarily exported. Needs some restructing to unexport.
+
+// SetRandomUnsafe generates a uniformly random field element.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
-func (z *bsFieldElement_64) setRandomUnsafe(rnd *rand.Rand) {
+func (z *bsFieldElement_64) SetRandomUnsafe(rnd *rand.Rand) {
 	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
 	var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize_Int)
 	z.SetBigInt(xInt)
 }
 
-// setRandomUnsafeNonZero generates uniformly random non-zero field elements.
+// SetRandomUnsafeNonZero generates uniformly random non-zero field elements.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
-func (z *bsFieldElement_64) setRandomUnsafeNonZero(rnd *rand.Rand) {
+func (z *bsFieldElement_64) SetRandomUnsafeNonZero(rnd *rand.Rand) {
 	for {
 		var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize_Int)
 		if xInt.Sign() != 0 {

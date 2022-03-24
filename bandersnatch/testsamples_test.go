@@ -165,7 +165,7 @@ func pointTypeToString(c PointType) string {
 	if ok {
 		return ret
 	} else {
-		return "unrecognized type [" + getReflectName(c) + "]"
+		return "unrecognized type [" + GetReflectName(c) + "]"
 	}
 }
 
@@ -188,18 +188,7 @@ func pointTypeToTag(c PointType) string {
 	if ok {
 		return ret
 	} else {
-		return "unrecognized tag [" + getReflectName(c) + "]"
-	}
-}
-
-// getReflectName obtain a string representation of the given type using the reflection package
-func getReflectName(c PointType) string {
-	// reflect.Type's  Name() only works for defined types, which
-	// *Point_xtw is not. (Only Point_xtw is a defined type)
-	if c.Kind() == reflect.Ptr {
-		return "*" + c.Elem().Name()
-	} else {
-		return c.Name()
+		return "unrecognized tag [" + GetReflectName(c) + "]"
 	}
 }
 

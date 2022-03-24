@@ -64,7 +64,7 @@ func TestPointsOnCurve(t *testing.T) {
 	drng := rand.New(rand.NewSource(202))
 
 	// Modifiy each coo and check whether it is still on the curve.
-	point.x.setRandomUnsafe(drng)
+	point.x.SetRandomUnsafe(drng)
 	if point.isPointOnCurve() {
 		t.Fatal("modified example point with wrong x-coo is still on curve")
 	}
@@ -74,7 +74,7 @@ func TestPointsOnCurve(t *testing.T) {
 	}
 
 	point = example_generator_xtw
-	point.y.setRandomUnsafe(drng)
+	point.y.SetRandomUnsafe(drng)
 	if point.isPointOnCurve() {
 		t.Fatal("modified example point wth wrong y-coo is still on curve")
 	}
@@ -84,7 +84,7 @@ func TestPointsOnCurve(t *testing.T) {
 	}
 
 	point = example_generator_xtw
-	point.t.setRandomUnsafe(drng)
+	point.t.SetRandomUnsafe(drng)
 	if point.isPointOnCurve() {
 		t.Fatal("modified example point with wrong t-coo is still on curve")
 	}
@@ -94,7 +94,7 @@ func TestPointsOnCurve(t *testing.T) {
 	}
 
 	point = example_generator_xtw
-	point.z.setRandomUnsafe(drng)
+	point.z.SetRandomUnsafe(drng)
 	if point.isPointOnCurve() {
 		t.Fatal("modified example point with wrong z-coo is still on curve")
 	}

@@ -144,10 +144,10 @@ func (p *Point_efgh_subgroup) normalizeSubgroup() {
 // It changes the internal representation to an equivalent one.
 func (p *point_efgh_base) rerandomizeRepresentation(rnd *rand.Rand) {
 	var m FieldElement
-	m.setRandomUnsafeNonZero(rnd)
+	m.SetRandomUnsafeNonZero(rnd)
 	p.e.MulEq(&m)
 	p.g.MulEq(&m)
-	m.setRandomUnsafeNonZero(rnd)
+	m.SetRandomUnsafeNonZero(rnd)
 	p.f.MulEq(&m)
 	p.h.MulEq(&m)
 }

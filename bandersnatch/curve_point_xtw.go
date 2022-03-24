@@ -318,7 +318,7 @@ func (p *Point_xtw_subgroup) HasDecaf() bool {
 // rerandomizeRepresentation is needed to satisfy the CurvePointPtrInterfaceTestSample interface for testing. It changes the internal representation to an equivalent one.
 func (p *point_xtw_base) rerandomizeRepresentation(rnd *rand.Rand) {
 	var m FieldElement
-	m.setRandomUnsafeNonZero(rnd)
+	m.SetRandomUnsafeNonZero(rnd)
 	p.x.MulEq(&m)
 	p.y.MulEq(&m)
 	p.t.MulEq(&m)

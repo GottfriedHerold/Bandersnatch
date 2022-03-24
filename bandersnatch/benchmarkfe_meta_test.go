@@ -92,7 +92,7 @@ func (pc *pseudoRandomFieldElementCache_64) getElements(amount int) (ret []bsFie
 	if amount > currentLen {
 		var temp bsFieldElement_64
 		for i := 0; i < amount-currentLen; i++ {
-			temp.setRandomUnsafe(pc.rng)
+			temp.SetRandomUnsafe(pc.rng)
 			pc.elements = append(pc.elements, temp)
 		}
 	}

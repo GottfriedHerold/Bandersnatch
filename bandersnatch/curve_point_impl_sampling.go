@@ -10,7 +10,7 @@ func makeRandomPointOnCurve_a(rnd *rand.Rand) point_axtw_base {
 
 	// Set x randomly, compute y from x
 	for {
-		x.setRandomUnsafe(rnd)
+		x.SetRandomUnsafe(rnd)
 		// x.SetUInt64(1)
 		var err error
 		y, err = recoverYFromXAffine(&x, false)
@@ -33,7 +33,7 @@ func makeRandomPointOnCurve_a(rnd *rand.Rand) point_axtw_base {
 func makeRandomPointOnCurve_t(rnd *rand.Rand) (ret point_xtw_base) {
 	rnd_axtw := makeRandomPointOnCurve_a(rnd)
 	var z FieldElement
-	z.setRandomUnsafeNonZero(rnd)
+	z.SetRandomUnsafeNonZero(rnd)
 	ret.x.Mul(&z, &rnd_axtw.x)
 	ret.y.Mul(&z, &rnd_axtw.y)
 	ret.t.Mul(&z, &rnd_axtw.t)
@@ -50,7 +50,7 @@ func (p *point_xtw_base) sampleNaP(rnd *rand.Rand, index int) {
 	case 1:
 		p.z.SetOne()
 	case 2:
-		p.z.setRandomUnsafe(rnd)
+		p.z.SetRandomUnsafe(rnd)
 	}
 	switch index % 4 {
 	case 0:
@@ -58,7 +58,7 @@ func (p *point_xtw_base) sampleNaP(rnd *rand.Rand, index int) {
 	case 1:
 		p.t.SetOne()
 	case 2:
-		p.t.setRandomUnsafe(rnd)
+		p.t.SetRandomUnsafe(rnd)
 	case 3:
 		p.t.Mul(&p.x, &p.y)
 		p.x.MulEq(&p.z)
@@ -76,7 +76,7 @@ func (p *point_axtw_base) sampleNaP(rnd *rand.Rand, index int) {
 	case 1:
 		p.t.SetOne()
 	case 2:
-		p.t.setRandomUnsafe(rnd)
+		p.t.SetRandomUnsafe(rnd)
 	}
 }
 
@@ -107,13 +107,13 @@ func (p *point_efgh_base) sampleNaP(rnd *rand.Rand, index int) {
 		other1.SetOne()
 		other2.SetOne()
 	case 2:
-		other1.setRandomUnsafe(rnd)
-		other2.setRandomUnsafe(rnd)
+		other1.SetRandomUnsafe(rnd)
+		other2.SetRandomUnsafe(rnd)
 	case 3:
-		other1.setRandomUnsafe(rnd)
+		other1.SetRandomUnsafe(rnd)
 		other2.SetZero()
 	case 4:
 		other1.SetZero()
-		other2.setRandomUnsafe(rnd)
+		other2.SetRandomUnsafe(rnd)
 	}
 }

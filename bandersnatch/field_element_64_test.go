@@ -35,7 +35,7 @@ func TestInit_64(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(12431254))
 	const iterations = 1000
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
 		y = x
 		z.Sub(&y, &x)
 		if !z.IsZero() {
@@ -44,7 +44,7 @@ func TestInit_64(t *testing.T) {
 		}
 	}
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
 		if x.IsZero() {
 			t.Log("Random Number is Zero")
 			continue
@@ -126,8 +126,8 @@ func TestDivision(t *testing.T) {
 	const iterations = 50
 	for i := 0; i < iterations; i++ {
 		var num, denom, result bsFieldElement_64
-		num.setRandomUnsafe(drng)
-		denom.setRandomUnsafe(drng)
+		num.SetRandomUnsafe(drng)
+		denom.SetRandomUnsafe(drng)
 		result.Divide(&num, &denom)
 		result.MulEq(&denom)
 		if !num.IsEqual(&result) {
@@ -143,7 +143,7 @@ func TestDivision(t *testing.T) {
 func TestAssign_64(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(123523))
 	var x, y, z bsFieldElement_64
-	x.setRandomUnsafe(drng)
+	x.SetRandomUnsafe(drng)
 	y.SetOne()
 	z = x
 	z.Add(&x, &y)
@@ -160,8 +160,8 @@ func TestOpsOnRandomValues_64(t *testing.T) {
 	var x, y, z, res1, res2 bsFieldElement_64
 
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
-		y.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
+		y.SetRandomUnsafe(drng)
 		res1.Add(&x, &y)
 		res2.Add(&y, &x)
 		if !res1.IsEqual(&res2) {
@@ -171,8 +171,8 @@ func TestOpsOnRandomValues_64(t *testing.T) {
 	}
 
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
-		y.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
+		y.SetRandomUnsafe(drng)
 		res1.Mul(&x, &y)
 		res2.Mul(&y, &x)
 		if !res1.IsEqual(&res2) {
@@ -182,9 +182,9 @@ func TestOpsOnRandomValues_64(t *testing.T) {
 	}
 
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
-		y.setRandomUnsafe(drng)
-		z.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
+		y.SetRandomUnsafe(drng)
+		z.SetRandomUnsafe(drng)
 		res1.Add(&x, &y)
 		res1.Add(&res1, &z)
 		res2.Add(&y, &z)
@@ -196,9 +196,9 @@ func TestOpsOnRandomValues_64(t *testing.T) {
 	}
 
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
-		y.setRandomUnsafe(drng)
-		z.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
+		y.SetRandomUnsafe(drng)
+		z.SetRandomUnsafe(drng)
 		res1.Mul(&x, &y)
 		res1.Mul(&res1, &z)
 		res2.Mul(&y, &z)
@@ -311,7 +311,7 @@ func TestSerializeInt_64(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		// Try zero in first case
 		if i != 0 {
-			x.setRandomUnsafe(drng)
+			x.SetRandomUnsafe(drng)
 		}
 		var y bsFieldElement_64 = x
 		var xInt *big.Int = x.ToBigInt()
@@ -356,7 +356,7 @@ func TestMultiplyByFive(t *testing.T) {
 	five.SetUInt64(5)
 
 	for i := 0; i < iterations; i++ {
-		x.setRandomUnsafe(drng)
+		x.SetRandomUnsafe(drng)
 		y.Mul(&x, &five)
 		x.multiply_by_five()
 		if !x.IsEqual(&y) {
@@ -392,7 +392,7 @@ func TestSerializeFieldElements(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		var buf bytes.Buffer
 		var fe bsFieldElement_64
-		fe.setRandomUnsafe(drng)
+		fe.SetRandomUnsafe(drng)
 		// do little endian and big endian half the time
 		var byteOrder binary.ByteOrder = binary.LittleEndian
 		if i%2 == 0 {
@@ -421,7 +421,7 @@ func TestSerializeFieldElements(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		var buf bytes.Buffer
 		var fe, fe2 bsFieldElement_64
-		fe.setRandomUnsafe(drng)
+		fe.SetRandomUnsafe(drng)
 		if fe.Sign() < 0 {
 			fe.NegEq()
 		}
@@ -475,7 +475,7 @@ func TestMultiInvert(t *testing.T) {
 	MultiInvertEqSlice(empty)
 	var numsArray, numsArrayInv [MAXSIZE]bsFieldElement_64
 	for i := 0; i < MAXSIZE; i++ {
-		numsArray[i].setRandomUnsafeNonZero(drng)
+		numsArray[i].SetRandomUnsafeNonZero(drng)
 		numsArrayInv[i].Inv(&numsArray[i])
 	}
 	for size := 0; size < MAXSIZE; size++ {
@@ -509,15 +509,15 @@ func TestSummationSlice(t *testing.T) {
 	empty := make([]bsFieldElement_64, 0)
 	var result bsFieldElement_64
 	var a, b, c bsFieldElement_64
-	result.setRandomUnsafe(drng) // arbitrary value, really.
-	a.setRandomUnsafe(drng)
-	b.setRandomUnsafe(drng)
-	c.setRandomUnsafe(drng)
+	result.SetRandomUnsafe(drng) // arbitrary value, really.
+	a.SetRandomUnsafe(drng)
+	b.SetRandomUnsafe(drng)
+	c.SetRandomUnsafe(drng)
 	result.SummationSlice(empty)
 	if !result.IsZero() {
 		t.Fatal("SummationSlice with zero-length slice does not result in 0")
 	}
-	result.setRandomUnsafe(drng)
+	result.SetRandomUnsafe(drng)
 	result.SummationMany()
 	if !result.IsZero() {
 		t.Fatal("SummationMany with 0 arguments does not result in 0")
@@ -537,7 +537,7 @@ func TestSummationSlice(t *testing.T) {
 	var acc bsFieldElement_64
 	var Ptrs [size]*bsFieldElement_64
 	for i := 0; i < size; i++ {
-		summands[i].setRandomUnsafe(drng)
+		summands[i].SetRandomUnsafe(drng)
 		Ptrs[i] = &summands[i]
 	}
 	acc.SetZero()
@@ -566,7 +566,7 @@ func TestSummationSlice(t *testing.T) {
 	if !summandsCopy[1].IsEqual(&result) {
 		t.Fatal("SummationMany does not work when result aliases an input")
 	}
-	a.setRandomUnsafe(drng)
+	a.SetRandomUnsafe(drng)
 	b.SetUInt64(size)
 	result.Mul(&b, &a)
 	for i := 0; i < size; i++ {
@@ -584,15 +584,15 @@ func TestMultiplySlice(t *testing.T) {
 	empty := make([]bsFieldElement_64, 0)
 	var result bsFieldElement_64
 	var a, b, c bsFieldElement_64
-	result.setRandomUnsafe(drng) // arbitrary value, really.
-	a.setRandomUnsafe(drng)
-	b.setRandomUnsafe(drng)
-	c.setRandomUnsafe(drng)
+	result.SetRandomUnsafe(drng) // arbitrary value, really.
+	a.SetRandomUnsafe(drng)
+	b.SetRandomUnsafe(drng)
+	c.SetRandomUnsafe(drng)
 	result.MultiplySlice(empty)
 	if !result.IsOne() {
 		t.Fatal("MultiplySlice with zero-length slice does not result in 1")
 	}
-	result.setRandomUnsafe(drng)
+	result.SetRandomUnsafe(drng)
 	result.MultiplyMany()
 	if !result.IsOne() {
 		t.Fatal("MultiplyMany with 0 arguments does not result in 0")
@@ -612,7 +612,7 @@ func TestMultiplySlice(t *testing.T) {
 	var acc bsFieldElement_64
 	var Ptrs [size]*bsFieldElement_64
 	for i := 0; i < size; i++ {
-		factors[i].setRandomUnsafe(drng)
+		factors[i].SetRandomUnsafe(drng)
 		Ptrs[i] = &factors[i]
 	}
 	acc.SetOne()
@@ -641,7 +641,7 @@ func TestMultiplySlice(t *testing.T) {
 	if !factorsCopy[1].IsEqual(&result) {
 		t.Fatal("MultiplyMany does not work when result aliases an input")
 	}
-	a.setRandomUnsafe(drng)
+	a.SetRandomUnsafe(drng)
 	result.SetOne()
 	for i := 0; i < size; i++ {
 		result.MulEq(&a)
