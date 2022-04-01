@@ -1,6 +1,10 @@
 package bandersnatch
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+)
 
 // This file contains the test for the efficient degree-2 endomorphism Endo.
 // We test the following properties:
@@ -144,7 +148,7 @@ func make_checkfun_endo_homomorphic(receiverType PointType) (returned_function c
 		}
 
 		if !typeCanRepresentInfinity(receiverType) {
-			assert(typeCanRepresentInfinity(pointTypeXTWFull))
+			testutils.Assert(typeCanRepresentInfinity(pointTypeXTWFull))
 			var P1, P2, sumInput, sumEndo Point_xtw_full
 			P1.Endo(s.Points[0])
 			P2.Endo(s.Points[1])

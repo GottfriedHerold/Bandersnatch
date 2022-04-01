@@ -1,6 +1,10 @@
 package bandersnatch
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+)
 
 // This test file checks whether the various coordinate retrieval functions are consistent with each other and allow reconstructing the point.
 // We check:
@@ -255,7 +259,7 @@ func checkfun_consistency_decaf_projective(s *TestSample) (bool, string) {
 		}
 		return true, ""
 	}
-	assert(!infinite) // We treated the infinite case above
+	testutils.Assert(!infinite) // We treated the infinite case above
 	clone1 := s.Points[0].Clone()
 	clone2 := s.Points[0].Clone()
 	X, Y, Z := clone1.XYZ_projective()

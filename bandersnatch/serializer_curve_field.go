@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 // This file contains routines that map curve points to field elements and allow reconstructing them from field elements.
@@ -238,12 +239,12 @@ func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsP
 		var point_full Point_axtw_full
 		point_full, err = CurvePointFromXAndSignY_full(x, signY, trustLevel)
 		// err==nil at this point, because FullCurvePointFromXAndSignY panics on error for trusted input.
-		assert(err == nil, "bandersnatch: error encountered upon trusted construction of curve point with SubgroupCurvePointFromXAndSignY")
+		testutils.Assert(err == nil, "bandersnatch: error encountered upon trusted construction of curve point with SubgroupCurvePointFromXAndSignY")
 		ok := point.SetFromSubgroupPoint(&point_full, trustLevel)
 		// It should not be possible to trigger this, even with crafted input, because
 		// SetFromSubgroupPoint does not perform checks for trusted input apart from Non-NaP-ness.
 		// If the input is not in the subgroup, we actually DO output garbage.
-		assert(ok, "bandersnatch: unexpected error during trusted construction of curve point with SubgroupCurvePointFromXAndSignY")
+		testutils.Assert(ok, "bandersnatch: unexpected error during trusted construction of curve point with SubgroupCurvePointFromXAndSignY")
 		return
 	} else {
 		// untrusted input case:
@@ -426,4 +427,23 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 		}
 	}
 	return
+}
+
+// Y*Sign(Y), X*Sign(Y) in this order feels less natural, but this is the order of serialization.
+// The reason is that in the serialization format(s) we want to read the information that distinguishes long from short format early, so we can autodetect that
+// while reading, while at the same time having the short format be a substring of the long format.
+
+// CurvePointFromXYTimesSignY_subgroup constructs an elliptic curve point on the prime order subgroup
+// from the pair (Y*sign(Y), X*sign(Y)), where X,Y are affine coordinates and the sign is {-1,+1}-valued.
+// trustLevel should be one of TrustedInput or UntrustedInput.
+// Note that the information that the point needs to be on the subgroup is neccessary to uniquely determine the point.
+//
+// This is identical except for the order of parameters to CurvePointFromXYTimesSignY_subgroup and provided for consistency with the
+// actual order of the Banderwagon serializer (which writes in this order)
+//
+// It returns an error if the provided input is invalid. In this case, the returned point must not be used.
+// If trustLevel is TrustedInput, you *MUST* call this only with valid input; we are free to skip some tests.
+// The library makes no guarantees whatsoever about what happens if you violate this.
+func CurvePointFromYXTimesSignY_subgroup(ySignY *FieldElement, xSignY *FieldElement, trustLevel IsPointTrusted) (point Point_axtw_subgroup, err error) {
+	return CurvePointFromXYTimesSignY_subgroup(xSignY, ySignY, trustLevel)
 }

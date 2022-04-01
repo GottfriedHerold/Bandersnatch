@@ -7,6 +7,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 /*
@@ -165,7 +167,7 @@ func pointTypeToString(c PointType) string {
 	if ok {
 		return ret
 	} else {
-		return "unrecognized type [" + GetReflectName(c) + "]"
+		return "unrecognized type [" + testutils.GetReflectName(c) + "]"
 	}
 }
 
@@ -188,7 +190,7 @@ func pointTypeToTag(c PointType) string {
 	if ok {
 		return ret
 	} else {
-		return "unrecognized tag [" + GetReflectName(c) + "]"
+		return "unrecognized tag [" + testutils.GetReflectName(c) + "]"
 	}
 }
 
@@ -411,7 +413,7 @@ func (s *precomputedSampleSlice) prepareFixedSamples1() {
 
 // prepareFixedSamples2 is called at the end of initialize() for sampleLen==2. Its job is to create TestSamples with pairs of curve points.
 func (s *precomputedSampleSlice) prepareFixedSamples2() {
-	assert(s.sampleLen == 2)
+	testutils.Assert(s.sampleLen == 2)
 	var rnd *rand.Rand = s.rnd
 	var sampleType1 PointType = s.pointTypes[0]
 	var sampleType2 PointType = s.pointTypes[1]
@@ -508,7 +510,7 @@ func (s *precomputedSampleSlice) prepareFixedSamples2() {
 }
 
 func (s *precomputedSampleSlice) prepareFixedSamples3() {
-	assert(s.sampleLen == 3)
+	testutils.Assert(s.sampleLen == 3)
 	// var rnd *rand.Rand = s.rnd
 	var sampleType1 PointType = s.pointTypes[0]
 	var sampleType2 PointType = s.pointTypes[1]
@@ -559,8 +561,8 @@ func (s *precomputedSampleSlice) elongate(newSize int) {
 }
 
 func (s *precomputedSampleSlice) elongate1() {
-	assert(s.sampleLen == 1)
-	assert(len(s.pointTypes) == 1)
+	testutils.Assert(s.sampleLen == 1)
+	testutils.Assert(len(s.pointTypes) == 1)
 	pointType1 := s.pointTypes[0]
 	var rnd *rand.Rand = s.rnd
 	randomSample, _ := makeSample_random(pointType1, rnd)
@@ -572,8 +574,8 @@ func (s *precomputedSampleSlice) elongate1() {
 }
 
 func (s *precomputedSampleSlice) elongate2() {
-	assert(s.sampleLen == 2)
-	assert(len(s.pointTypes) == 2)
+	testutils.Assert(s.sampleLen == 2)
+	testutils.Assert(len(s.pointTypes) == 2)
 	pointType1 := s.pointTypes[0]
 	pointType2 := s.pointTypes[1]
 	var rnd *rand.Rand = s.rnd
@@ -601,8 +603,8 @@ func (s *precomputedSampleSlice) elongate2() {
 }
 
 func (s *precomputedSampleSlice) elongate3() {
-	assert(s.sampleLen == 3)
-	assert(len(s.pointTypes) == 3)
+	testutils.Assert(s.sampleLen == 3)
+	testutils.Assert(len(s.pointTypes) == 3)
 	pointType1 := s.pointTypes[0]
 	pointType2 := s.pointTypes[1]
 	pointType3 := s.pointTypes[2]

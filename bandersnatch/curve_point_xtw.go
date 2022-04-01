@@ -1222,3 +1222,15 @@ func (p *Point_xtw_full) SetE2() {
 func (p *Point_xtw_full) SetAffineTwoTorsion() {
 	p.point_xtw_base = orderTwoPoint_xtw
 }
+
+// exported for cross-package testing
+
+func MakeRandomPointUnsafe_xtw_full(rng *rand.Rand) (ret Point_xtw_full) {
+	ret.sampleRandomUnsafe(rng)
+	return
+}
+
+func MakeRandomPointUnsafe_xtw_subgroup(rng *rand.Rand) (ret Point_xtw_subgroup) {
+	ret.sampleRandomUnsafe(rng)
+	return
+}

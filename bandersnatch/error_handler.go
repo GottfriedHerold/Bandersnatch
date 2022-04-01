@@ -67,6 +67,8 @@ func napEncountered(reason string, comparison bool, points ...CurvePointPtrInter
 	return f(reason, comparison, points...)
 }
 
+// TESTING FUNCTIONS:
+
 // Note: wasInvalidPointEncountered takes a unary f of type func().
 // If you want to call a function with parameters, The intent is to call it with a lambda that captures the args a la
 // wasInvalidPointEncountered(func() {f(args)})
@@ -88,11 +90,13 @@ func wasInvalidPointEncountered(fun func()) bool {
 	return error_bit
 }
 
-// checkPanic runs fun(args...), captures all panics() and returns whether a panic occurred.
+// TODO -> Move to internal utils
+
+// CheckPanic runs fun(args...), captures all panics() and returns whether a panic occurred.
 // It does not re-raise or return the actual panic argument (unless the panic argument is a string starting with "reflect")
 //
 // This function is only used in testing.
-func checkPanic(fun interface{}, args ...interface{}) (didPanic bool) {
+func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
 	didPanic = true
 	fun_reflected := reflect.ValueOf(fun)
 	if fun_reflected.Kind() != reflect.Func {

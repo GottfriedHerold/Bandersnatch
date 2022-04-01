@@ -1,3 +1,3 @@
 module github.com/GottfriedHerold/Bandersnatch
 
-go 1.17
+go 1.18

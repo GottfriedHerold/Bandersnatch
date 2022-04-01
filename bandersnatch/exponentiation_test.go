@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 func TestSimpleExponentiation(t *testing.T) {
@@ -66,7 +68,7 @@ func TestSlidingWindowExponentiation(t *testing.T) {
 		if singular {
 			return true, "skipped"
 		}
-		assert(s.Points[0].CanOnlyRepresentSubgroup())
+		testutils.Assert(s.Points[0].CanOnlyRepresentSubgroup())
 
 		const iterations = 500
 		var drng *rand.Rand = rand.New(rand.NewSource(1024))

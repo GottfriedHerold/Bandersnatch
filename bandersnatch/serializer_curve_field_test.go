@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	. "github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 func TestRecoverYFromXAffine(t *testing.T) {
 	var checkfun_recover_y checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
+		testutils.Assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
 		if s.AnyFlags().CheckFlag(PointFlagNAP) {
 			return true, "skipped"
 		}
@@ -63,7 +64,7 @@ func TestRecoverYFromXAffine(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	assert(iterations >= 1000)
+	testutils.Assert(iterations >= 1000)
 	const delta int = iterations / 10
 	if (num_notOnCurve > iterations/2+delta) || (num_notOnCurve < iterations/2-delta) {
 		t.Fatal("Unexpected ratio of x coordinates not on curve")
@@ -79,7 +80,7 @@ func TestRecoverYFromXAffine(t *testing.T) {
 func TestRecoverXFromYAffine(t *testing.T) {
 	var checkfun_recover_x checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
+		testutils.Assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
 		if s.AnyFlags().CheckFlag(PointFlagNAP) {
 			return true, "skipped"
 		}
@@ -130,7 +131,7 @@ func TestRecoverXFromYAffine(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	assert(iterations >= 1000)
+	testutils.Assert(iterations >= 1000)
 	const delta int = iterations / 10
 	if (num_notOnCurve > iterations/2+delta) || (num_notOnCurve < iterations/2-delta) {
 		t.Fatal("Unexpected ratio of x coordinates not on curve")
@@ -147,7 +148,7 @@ func TestMapToFieldElement(t *testing.T) {
 		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 		zeroModA := s.AnyFlags().CheckFlag(PointFlag_zeroModuloA)
 		var result FieldElement
-		didPanic := checkPanic(func(arg CurvePointPtrInterfaceRead) { result = MapToFieldElement(arg) }, s.Points[0])
+		didPanic := CheckPanic(func(arg CurvePointPtrInterfaceRead) { result = MapToFieldElement(arg) }, s.Points[0])
 		if singular && !didPanic {
 			return false, "MapToFieldElement did not panic for NaP inputs"
 		}
@@ -211,7 +212,7 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 		if signY == -1 {
 			xSignY.NegEq()
 		} else {
-			assert(signY == 1)
+			testutils.Assert(signY == 1)
 		}
 		return
 	}
@@ -227,7 +228,7 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 			xSignY.NegEq()
 			ySignY.NegEq()
 		} else {
-			assert(signY == +1)
+			testutils.Assert(signY == +1)
 		}
 		return
 	}
@@ -309,8 +310,8 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOnly bool, argGetter interface{}, roundTripModuloA bool) (returned_function checkfunction) {
 	recoveryFun_r := reflect.ValueOf(recoveryFun)
 	argGetter_r := reflect.ValueOf(argGetter)
-	assert(recoveryFun_r.Kind() == reflect.Func)
-	assert(argGetter_r.Kind() == reflect.Func)
+	testutils.Assert(recoveryFun_r.Kind() == reflect.Func)
+	testutils.Assert(argGetter_r.Kind() == reflect.Func)
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
 		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
@@ -318,7 +319,7 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 		subgroup := s.Points[0].IsInSubgroup()
 		var pointPlusA Point_xtw_full // only used if roundTripModuloA is true
 		if roundTripModuloA {
-			assert(subgroupOnly)
+			testutils.Assert(subgroupOnly)
 			pointPlusA.SetFrom(s.Points[0])
 			pointPlusA.AddEq(&AffineOrderTwoPoint_axtw)
 			subgroup = subgroup || pointPlusA.IsInSubgroup()

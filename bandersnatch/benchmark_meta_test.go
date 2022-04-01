@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 const dumpSizeBench_curve = 1 << 8
@@ -75,8 +76,8 @@ func (pc *pseudoRandomCurvePointCache) getElements(amount int) (ret []CurvePoint
 		return
 	}
 	// We assume the pseudoRandomCurvePointCache is already initialized. We only put initialized ones into the global map.
-	assert(pc.rng != nil)
-	assert(pc.elements != nil)
+	testutils.Assert(pc.rng != nil)
+	testutils.Assert(pc.elements != nil)
 	currentLen := len(pc.elements)
 	// grow the cache as needed:
 	if amount > currentLen {
@@ -87,7 +88,7 @@ func (pc *pseudoRandomCurvePointCache) getElements(amount int) (ret []CurvePoint
 			pc.elements = append(pc.elements, temp)
 		}
 	}
-	assert(len(pc.elements) >= amount)
+	testutils.Assert(len(pc.elements) >= amount)
 	// Fill ret with clones of the stored elements.
 	for i := 0; i < amount; i++ {
 		// Again, type assertion is guaranteed to be ok. This is checked when creating pc with newPrecomputedCurvePointSlice.
@@ -158,7 +159,7 @@ func initFromPrecomputedCurvePointSlice(writeTo interface{}, seed int64) {
 		curvePointPtr := outputSlice[i]
 		newPointReflected := reflect.ValueOf(curvePointPtr)
 		writeTarget := writeToReflected.Index(i)
-		assert(writeTarget.CanSet())
+		testutils.Assert(writeTarget.CanSet())
 		writeTarget.Set(newPointReflected.Elem())
 	}
 }
@@ -203,7 +204,7 @@ func resetBenchmarkCurvePoints(b *testing.B) {
 // condtion(x_1, x_2, ...) returns true.
 func callWithAllOptions(fun interface{}, args ...interface{}) {
 	funReflected := reflect.ValueOf(fun)
-	assert(funReflected.Kind() == reflect.Func, "callWithAllOptions's first argument must be a function")
+	testutils.Assert(funReflected.Kind() == reflect.Func, "callWithAllOptions's first argument must be a function")
 	// funType := funReflected.Type()
 	var haveCond bool = false
 	var condVariadic bool = false
@@ -217,13 +218,13 @@ func callWithAllOptions(fun interface{}, args ...interface{}) {
 		condFun = reflect.ValueOf(args[0])
 		condVariadic = condFun.Type().IsVariadic()
 		if !condVariadic {
-			assert(condFun.Type().NumIn() == argLen, "condition function has mismatch in number of arguments")
+			testutils.Assert(condFun.Type().NumIn() == argLen, "condition function has mismatch in number of arguments")
 		}
 	}
 	var numCalls uint64 = 1
 	for i := startIndex; i < len(args); i++ {
 		argReflected := reflect.ValueOf(args[i])
-		assert(argReflected.Kind() == reflect.Slice || argReflected.Kind() == reflect.Array, "non-condition arguments to callWithAllOptions must be slices or arrays")
+		testutils.Assert(argReflected.Kind() == reflect.Slice || argReflected.Kind() == reflect.Array, "non-condition arguments to callWithAllOptions must be slices or arrays")
 		numCalls *= uint64(argReflected.Len())
 	}
 	for callId := uint64(0); callId < numCalls; callId++ {
@@ -321,8 +322,8 @@ argParse:
 			}
 			haveCond = true
 			condFun = argReflected
-			assert(condFun.Type().NumOut() == 1, "condition function must have exactly one return value")
-			assert(condFun.Type().Out(0).Kind() == reflect.Bool, "condition function must return bool")
+			testutils.Assert(condFun.Type().NumOut() == 1, "condition function must have exactly one return value")
+			testutils.Assert(condFun.Type().Out(0).Kind() == reflect.Bool, "condition function must return bool")
 		case reflect.String: // formatString argument
 			if haveFmt {
 				panic("two format tags given")
@@ -338,7 +339,7 @@ argParse:
 	// any remaining args must be pointTypeArrayOrSlices. We num parse those
 	sliceArgs := len(args) - argsIndex
 	if !funVariadic {
-		assert(sliceArgs == funType.NumIn()-1, "The function provided to benchmarkForPointTypes must take as many non-testing.B arguments as there are PointType slice arguments")
+		testutils.Assert(sliceArgs == funType.NumIn()-1, "The function provided to benchmarkForPointTypes must take as many non-testing.B arguments as there are PointType slice arguments")
 	}
 	// process remaining arguments (must be of type slice/array of PointTypes).
 	// We derive the product of their lengths; this is then used to create all tuples with a single for loop with that length (we do not want to nest for loops with recursion).
@@ -349,7 +350,7 @@ argParse:
 		if argReflected.Kind() == reflect.Ptr {
 			argReflected = argReflected.Elem()
 		}
-		assert(argReflected.Kind() == reflect.Slice || argReflected.Kind() == reflect.Array, "trailing arguments to benchmarkForPointTypes must be (pointers to / or plain values of) slices or arrays")
+		testutils.Assert(argReflected.Kind() == reflect.Slice || argReflected.Kind() == reflect.Array, "trailing arguments to benchmarkForPointTypes must be (pointers to / or plain values of) slices or arrays")
 		numCalls *= argReflected.Len()
 	}
 	// We now construct numCalls many sliceArgs-tuples.

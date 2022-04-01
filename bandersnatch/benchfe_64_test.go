@@ -3,12 +3,14 @@ package bandersnatch
 import (
 	"fmt"
 	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 const benchS = 1 << 8
 
 func init() {
-	assert(benchS <= dumpSizeBench_fe)
+	testutils.Assert(benchS <= dumpSizeBench_fe)
 }
 
 // BenchmarkEnsureBuildFlags is not really a benchmark.
@@ -271,7 +273,7 @@ func BenchmarkSquareRoot_64(b *testing.B) {
 
 func BenchmarkMultiInverseion(bOuter *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS+256)
-	assert(benchS >= 256)
+	testutils.Assert(benchS >= 256)
 	batchSizes := []int{1, 2, 4, 16, 64, 256}
 	makeBenchmarkFunctionMultiInvertEqSlice := func(batchSize int) func(*testing.B) {
 		return func(bInner *testing.B) {

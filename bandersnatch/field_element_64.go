@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 /*
@@ -912,7 +913,7 @@ func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefi
 		}
 		var buffer *bytes.Reader = bytes.NewReader(bufArray[:])
 		bytes_just_read, err = fieldElementBuffer.Deserialize(buffer, binary.BigEndian)
-		assert(bytes_just_read == 32)
+		testutils.Assert(bytes_just_read == 32)
 		if err == nil || err == ErrNonNormalizedDeserialization {
 			*z = fieldElementBuffer
 		}

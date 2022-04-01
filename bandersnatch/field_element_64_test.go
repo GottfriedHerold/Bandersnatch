@@ -8,6 +8,8 @@ import (
 	"math/bits"
 	"math/rand"
 	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 var _ fmt.Formatter = bsFieldElement_64{}
@@ -553,7 +555,7 @@ func TestSummationSlice(t *testing.T) {
 		t.Fatal("SummationMany does not match result of manual addition")
 	}
 	summandsCopy := summands
-	assert((size >= 2))
+	testutils.Assert((size >= 2))
 	summandsCopy[1].SummationSlice(summandsCopy[:])
 	if !summandsCopy[1].IsEqual(&result) {
 		t.Fatal("SummationSlice does not work when result aliases an input")
@@ -628,7 +630,7 @@ func TestMultiplySlice(t *testing.T) {
 		t.Fatal("MultiplyMany does not match result of manual multiplication")
 	}
 	factorsCopy := factors
-	assert((size >= 2))
+	testutils.Assert((size >= 2))
 	factorsCopy[1].MultiplySlice(factorsCopy[:])
 	if !factorsCopy[1].IsEqual(&result) {
 		t.Fatal("MultiplySlice does not work when result aliases an input")

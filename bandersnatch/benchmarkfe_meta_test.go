@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 // This file contains code that is shared by a lot of benchmarking code
@@ -86,8 +87,8 @@ var (
 
 // getElements retrieves the first amount many elements from the given cache, expanding the cache as needed.
 func (pc *pseudoRandomFieldElementCache_64) getElements(amount int) (ret []bsFieldElement_64) {
-	assert(pc.rng != nil)
-	assert(pc.elements != nil)
+	testutils.Assert(pc.rng != nil)
+	testutils.Assert(pc.elements != nil)
 	currentLen := len(pc.elements)
 	if amount > currentLen {
 		var temp bsFieldElement_64
@@ -96,18 +97,18 @@ func (pc *pseudoRandomFieldElementCache_64) getElements(amount int) (ret []bsFie
 			pc.elements = append(pc.elements, temp)
 		}
 	}
-	assert(len(pc.elements) >= amount)
+	testutils.Assert(len(pc.elements) >= amount)
 
 	ret = make([]bsFieldElement_64, amount)
 	copied := copy(ret, pc.elements)
-	assert(copied == amount)
+	testutils.Assert(copied == amount)
 	return
 }
 
 // getElements retrieves the first amount many elements from the given cache, expanding the cache as needed.
 func (pc *pseudoRandomFieldElementCache_8) getElements(number int) (ret []bsFieldElement_8) {
-	assert(pc.rng != nil)
-	assert(pc.elements != nil)
+	testutils.Assert(pc.rng != nil)
+	testutils.Assert(pc.elements != nil)
 	currentLen := len(pc.elements)
 	if number > currentLen {
 		var temp bsFieldElement_8
@@ -116,11 +117,11 @@ func (pc *pseudoRandomFieldElementCache_8) getElements(number int) (ret []bsFiel
 			pc.elements = append(pc.elements, temp)
 		}
 	}
-	assert(len(pc.elements) >= number)
+	testutils.Assert(len(pc.elements) >= number)
 
 	ret = make([]bsFieldElement_8, number)
 	copied := copy(ret, pc.elements)
-	assert(copied == number)
+	testutils.Assert(copied == number)
 	return
 }
 

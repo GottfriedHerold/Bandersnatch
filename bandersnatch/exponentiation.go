@@ -1,5 +1,7 @@
 package bandersnatch
 
+import "github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+
 // Note: all exponentiation implementations here assume that the points are in the subgroup.
 // The individual Exponentiate - functions defined on point types need to take care of non-subgroup cases:
 // Basically, we can just remove the lsb of the exponent and square the base to reduce to the subgroup case.
@@ -8,7 +10,7 @@ const simpleSlidingWindowSize = 3
 
 func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *Exponent) (ret Point_efgh_subgroup) {
 	const k = simpleSlidingWindowSize
-	assert(arg.CanOnlyRepresentSubgroup())
+	testutils.Assert(arg.CanOnlyRepresentSubgroup())
 	glv := GLV_representation(exponent)
 	u_decomp := decomposeUnalignedSignedAdic(glv.U, simpleSlidingWindowSize)
 	v_decomp := decomposeUnalignedSignedAdic(glv.V, simpleSlidingWindowSize)
@@ -107,7 +109,7 @@ func exponentiate_slidingWindow(arg CurvePointPtrInterfaceRead, exponent *Expone
 			nextVExponent = -1
 		}
 	}
-	assert(doublingsRemaining >= 0)
+	testutils.Assert(doublingsRemaining >= 0)
 
 	for doublingsRemaining > 0 {
 		ret.DoubleEq()
