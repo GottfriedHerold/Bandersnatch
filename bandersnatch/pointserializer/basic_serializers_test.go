@@ -104,7 +104,15 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 		var typeName string = testutils.GetReflectName(reflect.TypeOf(basicSerializer))
 
 		funSubgroupOnly := func(val bool) {
-			_ = testutils.CallMethodByName(basicSerializer, "WithParameter", "SubgroupOnly", val)
+			newSerializer := testutils.CallMethodByName(basicSerializer, "WithParameter", "SubgroupOnly", val)[0]
+			// Does not work. newSerializer is not addressable.
+			_ = newSerializer
+			/*
+				newSerializerPtr = (&newSerializer).(curvePointDeserializer_basic)
+				if newSerializer.IsSubgroupOnly() != val {
+					t.Fatalf("Chaning SubgroupOnly not reflected by IsSubgroupOnly for %v", typeName)
+				}
+			*/
 		}
 		funSubgroupOnly(true)
 		didPanic := bandersnatch.CheckPanic(funSubgroupOnly, false)
