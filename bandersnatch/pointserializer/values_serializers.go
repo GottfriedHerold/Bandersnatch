@@ -4,7 +4,8 @@ import (
 	"errors"
 	"io"
 
-	. "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	// . "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 )
 
 // Due to lack of generics, we separate our serializers depending on whether the internal object that actually gets serialized consists of
@@ -25,7 +26,7 @@ type valuesSerializerFeFe struct {
 	fieldElementEndianness // meaning the endianness for fieldElementSerialization
 }
 
-func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 FieldElement) {
+func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
 	bytesRead, err = fieldElement1.Deserialize(input, s.byteOrder)
 	// Note: This aborts on ErrNonNormalizedDeserialization
 	if err != nil {
@@ -40,7 +41,7 @@ func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int
 	return
 }
 
-func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *FieldElement) (bytesWritten int, err error) {
+func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *bandersnatch.FieldElement) (bytesWritten int, err error) {
 	bytesWritten, err = fieldElement1.Serialize(output, s.byteOrder)
 	if err != nil {
 		return
@@ -66,7 +67,7 @@ type valuesSerializerHeaderFeHeaderFe struct {
 	bitHeader2 bitHeader
 }
 
-func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 FieldElement) {
+func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
 	bytesRead, err = fieldElement1.DeserializeWithPrefix(input, s.prefixBits, s.prefixLen, s.byteOrder)
 	// Note: This aborts on ErrNonNormalizedDeserialization
 	if err != nil {
@@ -81,7 +82,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (b
 	return
 }
 
-func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *FieldElement) (bytesWritten int, err error) {
+func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *bandersnatch.FieldElement) (bytesWritten int, err error) {
 	bytesWritten, err = fieldElement1.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
 	if err != nil {
 		return
@@ -113,12 +114,12 @@ type valuesSerializerFe struct {
 	fieldElementEndianness
 }
 
-func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement FieldElement) {
+func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement bandersnatch.FieldElement) {
 	bytesRead, err = fieldElement.Deserialize(input, s.byteOrder)
 	return
 }
 
-func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *FieldElement) (bytesWritten int, err error) {
+func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement) (bytesWritten int, err error) {
 	bytesWritten, err = fieldElement.Serialize(output, s.byteOrder)
 	return
 }
@@ -133,12 +134,12 @@ type valuesSerializerHeaderFe struct {
 	bitHeader
 }
 
-func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement FieldElement) {
+func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement bandersnatch.FieldElement) {
 	bytesRead, err = fieldElement.DeserializeWithPrefix(input, s.prefixBits, s.prefixLen, s.byteOrder)
 	return
 }
 
-func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *FieldElement) (bytesWritten int, err error) {
+func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement) (bytesWritten int, err error) {
 	bytesWritten, err = fieldElement.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
 	return
 }
@@ -153,19 +154,19 @@ type valuesSerializerFeCompressedBit struct {
 	fieldElementEndianness
 }
 
-func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement FieldElement, bit bool) {
-	var prefix PrefixBits
+func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement bandersnatch.FieldElement, bit bool) {
+	var prefix bandersnatch.PrefixBits
 	bytesRead, prefix, err = fieldElement.DeserializeAndGetPrefix(input, 1, s.byteOrder)
 	bit = (prefix == 0b1)
 	return
 }
 
-func (s *valuesSerializerFeCompressedBit) SerializeValues(output io.Writer, fieldElement *FieldElement, bit bool) (bytesWritten int, err error) {
-	var embeddedPrefix PrefixBits
+func (s *valuesSerializerFeCompressedBit) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement, bit bool) (bytesWritten int, err error) {
+	var embeddedPrefix bandersnatch.PrefixBits
 	if bit {
-		embeddedPrefix = PrefixBits(0b1)
+		embeddedPrefix = bandersnatch.PrefixBits(0b1)
 	} else {
-		embeddedPrefix = PrefixBits(0b0)
+		embeddedPrefix = bandersnatch.PrefixBits(0b0)
 	}
 	bytesWritten, err = fieldElement.SerializeWithPrefix(output, embeddedPrefix, 1, s.byteOrder)
 	return

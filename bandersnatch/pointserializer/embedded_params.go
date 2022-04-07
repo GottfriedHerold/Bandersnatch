@@ -3,7 +3,8 @@ package pointserializer
 import (
 	"encoding/binary"
 
-	. "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	// . "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 )
 
 // fieldElementEndianness is just a wrapper around binary.ByteOrder. It is part of serializers to control the fieldElementEndianness of field elements.
@@ -30,7 +31,7 @@ var defaultEndianness fieldElementEndianness = fieldElementEndianness{byteOrder:
 
 // bitHeader is a "header" consisting of a prefixLen many extra bits that are included inside a field element as a form of compression.
 type bitHeader struct {
-	prefixBits PrefixBits
+	prefixBits bandersnatch.PrefixBits
 	prefixLen  uint8
 }
 

@@ -1,86 +1,59 @@
 package pointserializer
 
-/*
 import (
-	. "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	"io"
+	"reflect"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 )
-*/
 
-/*
-type headerSerializer struct {
-	// headerAll           []byte
-	headerPerCurvePoint []byte
-	// footer              []byte
-	// headerAllReader     func(input io.Reader) (bytes_read int, err error, curvePointsToRead int, extra interface{})
-	// headerPointReader   func(input io.Reader) (bytes_read int, err error, extra interface{})
-}
-*/
+type CurvePointDeserializer interface {
+	curvePointDeserializer_basic // TODO: Copy definition for godoc
+	DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
+	DeserializeBatch(inputStream io.Reader, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 
-/*
-func (hs *headerSerializer) clone() (ret headerSerializer) {
-	if hs.headerPerCurvePoint == nil {
-		ret.headerPerCurvePoint = nil
-	} else {
-		ret.headerPerCurvePoint = make([]byte, len(hs.headerPerCurvePoint))
-		copy(ret.headerPerCurvePoint, hs.headerPerCurvePoint)
-	}
-	return
-}
-*/
-
-/*
-type simpleDeserializer struct {
-	headerSerializer
-	pointSerializer pointSerializerInterface
+	// Matches SerializeSlice
+	DeserializeSlice(inputStream io.Reader) (outputPoints bandersnatch.CurvePointSlice, bytesRead int, err bandersnatchErrors.BatchSerializationError)
+	DeserializeSliceToBuffer(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, pointsRead int32, err bandersnatchErrors.BatchSerializationError)
 }
 
-func (s *simpleDeserializer) Deserialize(outputPoint CurvePointPtrInterfaceWrite, inputStream io.Reader, trustLevel IsPointTrusted) (bytesRead int, err error) {
-	var bytesJustRead int
-	if s.headerSerializer.headerPerCurvePoint != nil {
-		bytesRead, err = consumeExpectRead(inputStream, s.headerSerializer.headerPerCurvePoint)
-		if err != nil {
-			return
-		}
-	}
-	bytesJustRead, err = s.pointSerializer.deserializeCurvePoint(inputStream, outputPoint, trustLevel)
-	bytesRead += bytesJustRead
-	return
+type CurvePointSerializer interface {
+	CurvePointDeserializer
+	curvePointSerializer_basic
+	SerializePoints(outputStream io.Writer, inputPoints bandersnatch.CurvePointSlice) (bytesWritten int, err bandersnatchErrors.BatchSerializationError) // SerializeBatch(os, points) is equivalent (if no error occurs) to calling Serialize(os, point[i]) for all i. NOTE: This provides the same functionality as SerializePoints, but with a different argument type.
+	SerializeBatch(outputStream io.Writer, inputPoints ...bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error)                         // SerializePoints(os, &x1, &x2, ...) is equivalent (if not error occurs, at least) to Serialize(os, &x1), Serialize(os, &x1), ... NOTE: Using SerializePoints(os, points...) with ...-notation might not work due to the need to convert []concrete Point type to []CurvePointPtrInterface. Use SerializeBatch to avoid this.
+	SerializeSlice(outputStream io.Writer, inputSlice bandersnatch.CurvePointSlice) (bytesWritten int, err bandersnatchErrors.BatchSerializationError)   // SerializeSlice(os, points) serializes a slice of points to outputStream. As opposed to SerializeBatch and SerializePoints, the number of points written is stored in the output stream and can NOT be read back individually, but only by DeserializeSlice
 }
 
-func (s *simpleDeserializer) Serialize(inputPoint CurvePointPtrInterfaceRead, outputStream io.Writer) (bytesWritten int, err error) {
-	var bytesJustWritten int
-	if s.headerSerializer.headerPerCurvePoint != nil {
-		bytesWritten, err = outputStream.Write(s.headerSerializer.headerPerCurvePoint)
-		if err != nil {
-			return
-		}
-	}
-	bytesJustWritten, err = s.pointSerializer.serializeCurvePoint(outputStream, inputPoint)
-	bytesWritten += bytesJustWritten
-	return
+type multiDeserializer struct {
+	curvePointDeserializer_basic
+	simpleHeaderDeserializer
 }
 
-func (s *simpleDeserializer) Clone() (ret simpleDeserializer) {
-	ret.headerSerializer = s.headerSerializer.clone()
-	ret.pointSerializer = s.pointSerializer.clone()
-	return
+type multiSerializer struct {
+	curvePointSerializer_basic
+	simpleHeaderSerializer
 }
 
-func (s *simpleDeserializer) WithEndianness(e binary.ByteOrder) (ret simpleDeserializer) {
-	ret = s.Clone()
-	ret.pointSerializer.setEndianness(e)
-	return
+func (md *multiDeserializer) Clone() *multiDeserializer {
+	var ret multiDeserializer
+	basicValue := reflect.ValueOf(md.curvePointDeserializer_basic)
+	basicCloner := basicValue.MethodByName("Clone")
+	ret.curvePointDeserializer_basic = basicCloner.Call()[0].Interface().(curvePointDeserializer_basic)
+	ret.simpleHeaderDeserializer = *(md.simpleHeaderDeserializer.Clone())
+	return &ret
 }
 
-func (s *simpleDeserializer) WithHeader(perPointHeader []byte) (ret simpleDeserializer) {
-	ret = s.Clone()
-	if perPointHeader == nil {
-		s.headerPerCurvePoint = nil
-	} else {
-		s.headerPerCurvePoint = make([]byte, len(perPointHeader))
-		copy(s.headerPerCurvePoint, perPointHeader)
-	}
-	return
+func (md *multiSerializer) Clone() *multiSerializer {
+	var ret multiSerializer
+	basicValue := reflect.ValueOf(md.curvePointSerializer_basic)
+	basicCloner := basicValue.MethodByName("Clone")
+	ret.curvePointSerializer_basic = basicCloner.Call()[0].Interface().(curvePointSerializer_basic)
+	ret.simpleHeaderSerializer = *(md.simpleHeaderSerializer.Clone())
+	return &ret
 }
 
-*/
+// TODO: Overwrite GetParam and GetEndianness
+
+// func (md *multiDeserializer) DeseriaizePoints()

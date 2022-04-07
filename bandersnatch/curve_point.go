@@ -309,6 +309,25 @@ func getElementFromCurvePointSlice(v interface{}, n int) CurvePointPtrInterface 
 	}
 }
 
+/*
+type TCurvePointSlice interface {
+	[]Point_axtw_full | []Point_axtw_subgroup |
+		[]Point_xtw_full | []Point_xtw_subgroup |
+		[]Point_efgh_full | []Point_efgh_subgroup
+}
+
+type TCurvePoint interface {
+	Point_axtw_full | Point_axtw_subgroup
+}
+
+func TGetElementFrom[T TCurvePoint](v []T, n int) CurvePointPtrInterface {
+	var p interface{} = &v[n]
+	var p2 T = v[n]
+	//_ = p2.X_affine()
+	return p.(CurvePointPtrInterface)
+}
+*/
+
 func getElementFromCurvePointSliceGeneral(v interface{}, n int) CurvePointPtrInterface {
 	v_type := reflect.TypeOf(v)
 	v_ref := reflect.ValueOf(v)

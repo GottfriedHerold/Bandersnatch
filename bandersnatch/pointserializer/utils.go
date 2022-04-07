@@ -126,3 +126,24 @@ func getSerializerParam(serializer interface{}, param string) interface{} {
 	retValue := getterMethod.Call([]reflect.Value{})[0]
 	return retValue.Interface()
 }
+
+func deepcopyByteSlice(dst []byte, source []byte) {
+	if source == nil {
+		dst = nil
+		return
+	}
+	dst = make([]byte, len(source))
+	L := copy(dst, source)
+	testutils.Assert(L == len(source))
+}
+
+// Note: This returns a copy (by design)
+func getHeaderByteSlice(v []byte) (ret []byte) {
+	if v == nil {
+		ret = make([]byte, 0)
+		return
+	}
+	ret = make([]byte, len(v))
+	deepcopyByteSlice(ret, v)
+	return
+}

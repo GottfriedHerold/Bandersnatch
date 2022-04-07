@@ -105,7 +105,7 @@ func CallMethodByName(receiver interface{}, methodName string, inputs ...interfa
 	}
 
 	if !methodValue.IsValid() {
-		panic(fmt.Errorf("%v has not method called %v", receiverTypeName, methodName))
+		panic(fmt.Errorf("%v has no method called %v", receiverTypeName, methodName))
 	}
 	var inputValues []reflect.Value = make([]reflect.Value, len(inputs))
 	outputs = make([]interface{}, methodValue.Type().NumOut())

@@ -96,11 +96,21 @@ func BenchmarkCurvePointSliceAccess(bOuter *testing.B) {
 			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(CurvePointSlice_axtw_subgroup(A1[:]).GetByIndex(n % size))
 		}
 	}
+	/*
+		Generic := func(bInner *testing.B) {
+			prepareBenchmarkCurvePoints(bInner)
+			for n := 0; n < bInner.N; n++ {
+				DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(TGetElementFrom(A1[:], n%size))
+			}
+		}
+	*/
+
 	bOuter.Run("direct access", fun_direct)
 	bOuter.Run("SetFrom", fun_SetFrom)
 	bOuter.Run("SetFrom getElementFromCurvePointSlice(&arr)", fun_genericArray)
 	bOuter.Run("SetFrom getElementFromCurvePointSlice(arr[:])", fun_genericSlice)
 	bOuter.Run("SetFrom via PointSliceReader interface", fun_pointSliceReader)
+	// bOuter.Run("SetFrom via Generic", Generic)
 }
 
 func TestCurvePointSlices(t *testing.T) {

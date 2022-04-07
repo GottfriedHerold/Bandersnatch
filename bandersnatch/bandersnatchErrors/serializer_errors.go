@@ -164,3 +164,5 @@ var ErrInvalidSign = errors.New("bandersnatch / point deserialization: impossibl
 
 // consumeExpectRead may return an error wrapping ErrDidNotReadExpectedString. Use errors.Is to compare.
 var ErrDidNotReadExpectedString = errors.New("bandersnatch / point deserialization: did not read expected string")
+
+var ErrSizeDoesNotFitInt32 = errors.New("bandersnatch / point slice serialization: size of point slice does not fit into (signed) 32-bit integer")
