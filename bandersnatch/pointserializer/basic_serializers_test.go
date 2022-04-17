@@ -27,6 +27,12 @@ var _ curvePointSerializer_basic = &pointSerializerYAndSignX{}
 var _ curvePointSerializer_basic = &pointSerializerXTimesSignY{}
 var _ curvePointSerializer_basic = &pointSerializerYXTimesSignY{}
 
+var _ modifyableSerializer[pointSerializerXY] = &pointSerializerXY{}
+var _ modifyableSerializer[pointSerializerXAndSignY] = &pointSerializerXAndSignY{}
+var _ modifyableSerializer[pointSerializerYAndSignX] = &pointSerializerYAndSignX{}
+var _ modifyableSerializer[pointSerializerXTimesSignY] = &pointSerializerXTimesSignY{}
+var _ modifyableSerializer[pointSerializerYXTimesSignY] = &pointSerializerYXTimesSignY{}
+
 var testBitHeader = bitHeader{prefixLen: 1, prefixBits: 0b1}
 
 var ps_XY = pointSerializerXY{valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: testBitHeader}, subgroupRestriction{subgroupOnly: false}}
@@ -60,6 +66,7 @@ var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []cu
 	&ps_YSX,
 }
 
+// Superseded by generics, but kept
 func TestBasicSerializersHasClonable(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
@@ -70,6 +77,7 @@ func TestBasicSerializersHasClonable(t *testing.T) {
 	}
 }
 
+// Superseded by generics, but kept
 func TestBasicSerializersHaveWithParams(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
@@ -84,6 +92,7 @@ func TestBasicSerializersHaveWithParams(t *testing.T) {
 	}
 }
 
+// Mostly superseded by generics, but kept
 func TestBasicSerializerHasWithEndianness(t *testing.T) {
 	endiannessType := byteOrderType
 	_ = ps_XSY.WithEndianness(binary.BigEndian)

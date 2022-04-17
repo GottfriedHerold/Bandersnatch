@@ -5,10 +5,10 @@ import (
 	"io"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
-	// . "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// Due to lack of generics, we separate our serializers depending on whether the internal object that actually gets serialized consists of
+// Due to insufficency of generics, we separate our serializers depending on whether the internal object that actually gets serialized consists of
 // a field element, two field element, field element+bit etc.
 // These (de)serializiers all have serializeValues and DeserializeValues methods, which differ in their arguments.
 
@@ -16,10 +16,13 @@ import (
 //
 // DeserializeValues(input io.Reader) (bytesRead int, err error, ...)
 // SerializeValues(output io.Writer, ...) (bytesWritten int, err error)
-// Clone() receiver [not interface type]
+// Clone() receiver(pointer) [NOTE: Returned type is concrete, not interface type]
 //
 // The parameter types of DeserializeValues and SerializeValues need to match. The return type of Clone() is the same as the pointer receiver.
 // Go's interfaces cannot express this. We use reflection.
+
+// Note: These are internal struct that only serve to modularize the (de)serializers.
+// The methods are exported in order to make them callable via reflection.
 
 // valuesSerializerFeFe is a simple serializer for a pair of field elements
 type valuesSerializerFeFe struct {
@@ -48,9 +51,7 @@ func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, 
 	}
 	bytesJustWritten, err := fieldElement2.Serialize(output, s.byteOrder)
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	if errors.Is(err, io.EOF) {
-		err = io.ErrUnexpectedEOF
-	}
+	utils.UnexpectEOF(&err)
 	bytesWritten += bytesJustWritten
 	return
 }

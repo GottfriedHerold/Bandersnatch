@@ -9,7 +9,7 @@ import (
 
 // fieldElementEndianness is just a wrapper around binary.ByteOrder. It is part of serializers to control the fieldElementEndianness of field elements.
 // Note that we ONLY support the predefined standard library constants binary.BigEndian and binary.LittleEndian.
-// the reason is that the binary.ByteOrder interface is restricted to the default integer types and the interface lacks any general way to meaningfull extend it to 256-bit ints for field elements.
+// the reason is that the binary.ByteOrder interface is restricted to the default integer types and the interface lacks any general way to meaningfully extend it to 256-bit ints for field elements.
 type fieldElementEndianness struct {
 	byteOrder binary.ByteOrder
 }

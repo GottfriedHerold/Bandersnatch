@@ -1,9 +1,15 @@
 package pointserializer
 
-type subgroupRestrictionInterface interface {
-	SetSubgroupRestriction(bool)
-	IsSubgroupOnly() bool
-}
+import (
+	"strings"
+	"testing"
+)
 
-var _ subgroupRestrictionInterface = &subgroupRestriction{}
-var _ subgroupRestrictionInterface = &subgroupOnly{}
+
+func TestParamsLowercase(t *testing.T) {
+	for key := range serializerParams {
+		if key != strings.ToLower(key) {
+			t.Fatalf("serializerParams has non-lowercased key %v", key)
+		}
+	}
+}

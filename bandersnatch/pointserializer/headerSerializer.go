@@ -10,6 +10,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// TODO: Should header errors be data-carrying wrappers?
+
 type headerDeserializer interface {
 	deserializeGlobalSliceHeader(input io.Reader) (bytes_read int, size int32, err error)
 	deserializeGlobalSliceFooter(input io.Reader) (bytes_read int, err error)
@@ -46,12 +48,12 @@ type simpleHeaderSerializer struct {
 
 func (shd *simpleHeaderDeserializer) Clone() *simpleHeaderDeserializer {
 	var ret simpleHeaderDeserializer
-	deepcopyByteSlice(ret.headerSlice, shd.headerSlice)
-	deepcopyByteSlice(ret.headerPerCurvePoint, shd.headerPerCurvePoint)
-	deepcopyByteSlice(ret.headerSingleCurvePoint, shd.headerSingleCurvePoint)
-	deepcopyByteSlice(ret.footerSlice, shd.footerSlice)
-	deepcopyByteSlice(ret.footerPerCurvePoint, shd.footerPerCurvePoint)
-	deepcopyByteSlice(ret.footerSingleCurvePoint, shd.footerSingleCurvePoint)
+	deepCopyMaybeNilByteSlice(ret.headerSlice, shd.headerSlice)
+	deepCopyMaybeNilByteSlice(ret.headerPerCurvePoint, shd.headerPerCurvePoint)
+	deepCopyMaybeNilByteSlice(ret.headerSingleCurvePoint, shd.headerSingleCurvePoint)
+	deepCopyMaybeNilByteSlice(ret.footerSlice, shd.footerSlice)
+	deepCopyMaybeNilByteSlice(ret.footerPerCurvePoint, shd.footerPerCurvePoint)
+	deepCopyMaybeNilByteSlice(ret.footerSingleCurvePoint, shd.footerSingleCurvePoint)
 	ret.sliceSizeEndianness = shd.sliceSizeEndianness
 	return &ret
 }
@@ -62,8 +64,17 @@ func (shs *simpleHeaderSerializer) Clone() *simpleHeaderSerializer {
 	return &ret
 }
 
+// fixNilEntries replaces any nil []byte entries by length-0 []bytes.
+func (shd *simpleHeaderDeserializer) fixNilEntries() {
+	for _, arg := range [][]byte{shd.headerSlice, shd.headerPerCurvePoint, shd.headerSingleCurvePoint, shd.footerPerCurvePoint, shd.footerSlice, shd.footerPerCurvePoint, shd.footerSingleCurvePoint} {
+		if arg == nil {
+			arg = make([]byte, 0)
+		}
+	}
+}
+
 func (shd *simpleHeaderDeserializer) SetGlobalSliceHeader(v []byte) {
-	deepcopyByteSlice(shd.headerSlice, v)
+	deepCopyMaybeNilByteSlice(shd.headerSlice, v)
 }
 
 func (shd *simpleHeaderDeserializer) GetGlobalSliceHeader() []byte {
@@ -114,7 +125,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 }
 
 func (shd *simpleHeaderDeserializer) SetGlobalSliceFooter(v []byte) {
-	deepcopyByteSlice(shd.footerSlice, v)
+	deepCopyMaybeNilByteSlice(shd.footerSlice, v)
 }
 
 func (shd *simpleHeaderDeserializer) GetGlobalSliceFooter() []byte {
@@ -132,7 +143,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceFooter(output io.Writer) 
 }
 
 func (shd *simpleHeaderDeserializer) SetPerPointHeader(v []byte) {
-	deepcopyByteSlice(shd.headerPerCurvePoint, v)
+	deepCopyMaybeNilByteSlice(shd.headerPerCurvePoint, v)
 }
 
 func (shd *simpleHeaderDeserializer) GetPerPointHeader() []byte {
@@ -150,7 +161,7 @@ func (shs *simpleHeaderSerializer) serializePerPointHeader(output io.Writer) (by
 }
 
 func (shd *simpleHeaderDeserializer) SetPerPointFooter(v []byte) {
-	deepcopyByteSlice(shd.footerPerCurvePoint, v)
+	deepCopyMaybeNilByteSlice(shd.footerPerCurvePoint, v)
 }
 
 func (shd *simpleHeaderDeserializer) GetPerPointFooter() []byte {
@@ -168,7 +179,7 @@ func (shs *simpleHeaderSerializer) serializePerPointFooter(output io.Writer) (by
 }
 
 func (shd *simpleHeaderDeserializer) SetSinglePointHeader(v []byte) {
-	deepcopyByteSlice(shd.headerSingleCurvePoint, v)
+	deepCopyMaybeNilByteSlice(shd.headerSingleCurvePoint, v)
 }
 
 func (shd *simpleHeaderDeserializer) GetSinglePointHeader() []byte {
@@ -186,7 +197,7 @@ func (shs *simpleHeaderSerializer) serializeSinglePointHeader(output io.Writer) 
 }
 
 func (shd *simpleHeaderDeserializer) SetSinglePointFooter(v []byte) {
-	deepcopyByteSlice(shd.footerSingleCurvePoint, v)
+	deepCopyMaybeNilByteSlice(shd.footerSingleCurvePoint, v)
 }
 
 func (shd *simpleHeaderDeserializer) GetSinglePointFooter() []byte {

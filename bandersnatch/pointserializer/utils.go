@@ -11,13 +11,16 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
+
+// TODO: Should the returned error capture the actually read bytes?
 
 // consumeExpectRead reads and consumes len(expectToRead) bytes from input and reports an error if the read bytes differ from expectToRead.
 // This is intended to read headers. Remember to use errors.Is to check the returned errors rather than == due to error wrapping.
 //
 // NOTES:
-// Returns an error wrapping io.ErrUnexpectedEOF or io.EOF on end-of-file (io.EOF if the io.Reader was in EOF file to start with, io.ErrUnexpectedEOF if we encounter EOF after reading >0 bytes)
+// Returns an error wrapping io.ErrUnexpectedEOF or io.EOF on end-of-file (io.EOF if the io.Reader was in EOF state to start with, io.ErrUnexpectedEOF if we encounter EOF after reading >0 bytes)
 // On mismatch of expectToRead vs. actually read values, returns an error wrapping ErrDidNotReadExpectedString
 func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, err error) {
 	if len(expectToRead) == 0 {
@@ -40,8 +43,7 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, er
 	return
 }
 
-var dummyByterOrderPtr *binary.ByteOrder
-var byteOrderType = reflect.TypeOf(dummyByterOrderPtr).Elem()
+var byteOrderType reflect.Type = reflect.TypeOf((*binary.ByteOrder)(nil)).Elem() // reflect.Type of binary.ByteOrder. Since it is an interface, we need this roundabout way.
 
 var serializerParams = map[string]struct {
 	getter  string
@@ -52,6 +54,27 @@ var serializerParams = map[string]struct {
 	"bitheader":    {getter: "GetBitHeader", setter: "SetBitHeader", vartype: reflect.TypeOf(bitHeader{})},
 	"bitheader2":   {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: reflect.TypeOf(bitHeader{})},
 	"subgrouponly": {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: reflect.TypeOf(bool(false))},
+}
+
+func hasParam(serializer any, param string) bool {
+	param = strings.ToLower(param) // make params case-insensitive
+	paramInfo, ok := serializerParams[param]
+	if !ok {
+		panic("bandersnatch / serialization: makeCopyWithParams called with unrecognized parameter name")
+	}
+
+	serializerValue := reflect.ValueOf(serializer)
+	serializerType := reflect.TypeOf(serializer)
+	if serializerType.Kind() != reflect.Pointer {
+		// We could take the adress and work with values as well, but none of our serializers does that
+		panic("bandersnatch / serialization: hasParam called on non-pointer type")
+	}
+	setterMethod := serializerValue.MethodByName(paramInfo.setter)
+	if !setterMethod.IsValid() {
+		return false
+	}
+	getterMethod := serializerValue.MethodByName(paramInfo.getter)
+	return getterMethod.IsValid()
 }
 
 // .With(...) forwards to this
@@ -100,6 +123,37 @@ func makeCopyWithParams(serializer interface{}, param string, newParam interface
 	return serializerClone.Elem().Interface()
 }
 
+// Note: K is pointer
+
+func makeCopyWithParamsNew[K utils.Clonable[K]](serializer K, param string, newParam any) K {
+	param = strings.ToLower(param)
+	paramInfo, ok := serializerParams[param]
+	if !ok {
+		panic("bandersnatch / serialization: makeCopyWithParams called with unrecognized parameter name")
+	}
+	var clone K = serializer.Clone()
+	cloneValue := reflect.ValueOf(clone)
+	cloneType := cloneValue.Type()
+	var typeName string = testutils.GetReflectName(cloneType) // name of K, used for better error messages
+	if cloneType.Kind() != reflect.Pointer {
+		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called on non-pointer type %v", typeName))
+	}
+	setterMethod := cloneValue.MethodByName(paramInfo.setter)
+	if !setterMethod.IsValid() {
+		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, param))
+	}
+	if setterMethod.Type().NumOut() != 0 {
+		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v whose serializer %v returns non-zero values", typeName, paramInfo.setter))
+	}
+	newParamValue := reflect.ValueOf(newParam)
+	newParamType := newParamValue.Type()
+	if !newParamType.AssignableTo(paramInfo.vartype) {
+		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with wrong type of argument %v. Expected argument type was %v", testutils.GetReflectName(newParamType), testutils.GetReflectName(paramInfo.vartype)))
+	}
+	setterMethod.Call([]reflect.Value{newParamValue})
+	return clone
+}
+
 // getSerializerParam takes a serializer and returns the parameter stored under the key param. The type of the return value depend on param.
 func getSerializerParam(serializer interface{}, param string) interface{} {
 	param = strings.ToLower(param)
@@ -127,7 +181,7 @@ func getSerializerParam(serializer interface{}, param string) interface{} {
 	return retValue.Interface()
 }
 
-func deepcopyByteSlice(dst []byte, source []byte) {
+func deepCopyMaybeNilByteSlice(dst []byte, source []byte) {
 	if source == nil {
 		dst = nil
 		return
@@ -144,6 +198,6 @@ func getHeaderByteSlice(v []byte) (ret []byte) {
 		return
 	}
 	ret = make([]byte, len(v))
-	deepcopyByteSlice(ret, v)
+	deepCopyMaybeNilByteSlice(ret, v)
 	return
 }

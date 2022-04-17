@@ -6,24 +6,51 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-type curvePointDeserializer_basic interface {
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
-	IsSubgroupOnly() bool
-	OutputLength() int // returns the length in bytes that this serializer will try to read/write per curve point.
+// This file is part of the serialization-for-curve-points package.
+// This package defines types that act a (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
+// (De)serializers then have methods that are called with the actual curve point(s) as arguments to serialize them.
 
-	GetParam(paramterName string) interface{}
-	GetEndianness() binary.ByteOrder // returns the endianness used for field element serialization
+// This file defines basic serializers that serialize and deserialize a single curve point.
+
+// curvePointDeserializer_basic is a deserializer for single curve points
+type curvePointDeserializer_basic interface {
+	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point. TrustLevel determines whether we trust the input to be a valid representation of a curve point.
+	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
+	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
+	OutputLength() int    // returns the length in bytes that this serializer will try to read/write per curve point.
+
+	GetParam(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
+	GetEndianness() binary.ByteOrder           // returns the endianness used for field element serialization
+
 	// additional required interface (checked and accessed via reflection, because Go's type system is too weak to express this)
 	// WithParameter(parameterName string, newParam any) SELF  // returns a (non-pointer) copy of the receiver with parameter paramName replaced by newParam.
 	// WithEndianness(binary.ByteOrder) SELF // returns a (non-pointer) copy of the receiver with the desired endianness for field element serialization. Only supports binary.LittleEndian and binary.BigEndian
-
 }
 
+type modifyableSerializer[SelfValue any] interface {
+	WithParameter(parameterName string, newParam any) SelfValue
+	WithEndianness(newEndianness binary.ByteOrder) SelfValue
+	utils.Clonable[*SelfValue]
+}
+
+type modifyableDeserializer_basic[SelfValue any] interface {
+	curvePointDeserializer_basic
+	modifyableSerializer[SelfValue]
+}
+
+// curvePointSerializer_basic is a serializer+deserializer for single curve points.
 type curvePointSerializer_basic interface {
 	curvePointDeserializer_basic
 	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error)
+}
+
+type modifyableSerializer_basic[SelfValue any] interface {
+	curvePointSerializer_basic
+	modifyableSerializer[SelfValue]
 }
 
 // TODO: Separate into separate checks?
@@ -105,7 +132,8 @@ func (s *pointSerializerXY) Clone() (ret *pointSerializerXY) {
 }
 
 func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXY) {
-	return makeCopyWithParams(s, param, newParam).(pointSerializerXY)
+	return *makeCopyWithParamsNew(s, param, newParam)
+	// return makeCopyWithParams(s, param, newParam).(pointSerializerXY)
 }
 
 func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXY {
@@ -178,7 +206,8 @@ func (s *pointSerializerXAndSignY) Clone() (ret *pointSerializerXAndSignY) {
 }
 
 func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXAndSignY) {
-	return makeCopyWithParams(s, param, newParam).(pointSerializerXAndSignY)
+	return *makeCopyWithParamsNew(s, param, newParam)
+	// return makeCopyWithParams(s, param, newParam).(pointSerializerXAndSignY)
 }
 
 func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXAndSignY {
@@ -222,7 +251,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		signInt = +1
 	}
 
-	// Note: CurvePointFromYAndSignX_* accept any sign for Y=+/-1. We need to correct this to ensure uniqueness of serialized representation.
+	// Note: CurvePointFromYAndSignX_* accepts any sign for Y=+/-1. We need to correct this to ensure uniqueness of serialized representation.
 
 	if s.subgroupOnly || point.CanOnlyRepresentSubgroup() {
 		var P bandersnatch.Point_axtw_subgroup
@@ -268,7 +297,8 @@ func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 }
 
 func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYAndSignX) {
-	return makeCopyWithParams(s, param, newParam).(pointSerializerYAndSignX)
+	return *makeCopyWithParamsNew(s, param, newParam)
+	// return makeCopyWithParams(s, param, newParam).(pointSerializerYAndSignX)
 }
 
 func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYAndSignX {
@@ -339,7 +369,8 @@ func (s *pointSerializerXTimesSignY) Clone() (ret *pointSerializerXTimesSignY) {
 }
 
 func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXTimesSignY) {
-	return makeCopyWithParams(s, param, newParam).(pointSerializerXTimesSignY)
+	return *makeCopyWithParamsNew(s, param, newParam)
+	// return makeCopyWithParams(s, param, newParam).(pointSerializerXTimesSignY)
 }
 
 func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXTimesSignY {
@@ -400,7 +431,8 @@ func (s *pointSerializerYXTimesSignY) Clone() (ret *pointSerializerYXTimesSignY)
 }
 
 func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYXTimesSignY) {
-	return makeCopyWithParams(s, param, newParam).(pointSerializerYXTimesSignY)
+	return *makeCopyWithParamsNew(s, param, newParam)
+	// return makeCopyWithParams(s, param, newParam).(pointSerializerYXTimesSignY)
 }
 
 func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYXTimesSignY {
@@ -413,7 +445,7 @@ func (s *pointSerializerYXTimesSignY) GetParam(parameterName string) interface{}
 	return getSerializerParam(s, parameterName)
 }
 
-// Note: This selection of bitHeaders is not the original spec, but this has the advantage that
+// Note: This selection of bitHeaders is not the original spec, but this has the advantage that an all-zeroes input actually causes an error (rather than be interpreted as the neutral element)
 
 var bitHeaderBanderwagonX = bitHeader{prefixLen: 1, prefixBits: 1}
 var bitHeaderBanderwagonY = bitHeader{prefixLen: 2, prefixBits: 0b00}

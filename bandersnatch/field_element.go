@@ -11,6 +11,9 @@ package bandersnatch
 	(The arguments to Mul etc. in the interface and the concret type need to match, so
 	so the actual types' Mul(), Add() etc. implementation would need to accept an
 	interface type and start by making a type assertion.)
+
+	As as Go1.18, we have generics, but this does not change things :(
+
 type BSFieldElement_Interface interface {
 	IsZero() bool
 	IsOne() bool
