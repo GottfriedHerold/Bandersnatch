@@ -19,6 +19,8 @@ type headerDeserializer interface {
 	deserializeSinglePointFooter(input io.Reader) (bytes_read int, err error)
 	deserializePerPointHeader(input io.Reader) (bytes_read int, err error)
 	deserializePerPointFooter(input io.Reader) (bytes_read int, err error)
+	SinglePointHeaderOverhead() int               // returns the size taken up by headers and footers for single-point
+	MultiPointHeaderOverhead(numPoints int32) int // returns the size taken up by headers and footers for slice of given size
 }
 
 type headerSerializer interface {
@@ -212,4 +214,38 @@ func (shd *simpleHeaderDeserializer) deserializeSinglePointFooter(input io.Reade
 func (shs *simpleHeaderSerializer) serializeSinglePointFooter(output io.Writer) (bytesWritten int, err error) {
 	singlePointFooter := shs.GetSinglePointFooter()
 	return output.Write(singlePointFooter)
+}
+
+func (shd *simpleHeaderDeserializer) SinglePointHeaderOverhead() int {
+	shd.fixNilEntries()
+	return len(shd.headerSingleCurvePoint) + len(shd.footerSingleCurvePoint)
+}
+
+func (shs *simpleHeaderSerializer) SinglePointHeaderOverhead() int {
+	shs.fixNilEntries()
+	return len(shs.headerSingleCurvePoint) + len(shs.footerSingleCurvePoint)
+}
+
+// TODO: Overflow protection
+
+func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (ret int) {
+	shd.fixNilEntries()
+	if numPoints < 0 {
+		panic("bandersnatch / serializer: Querying Overhead size for slice deserialization for negative length")
+	}
+	ret = 4 // for writing the size
+	ret += len(shd.headerSlice) + len(shd.footerSlice)
+	ret += int(numPoints) * (len(shd.headerPerCurvePoint) + len(shd.footerPerCurvePoint))
+	return
+}
+
+func (shd *simpleHeaderSerializer) MultiPointHeaderOverhead(numPoints int32) (ret int) {
+	shd.fixNilEntries()
+	if numPoints < 0 {
+		panic("bandersnatch / serializer: Querying Overhead size for slice deserialization for negative length")
+	}
+	ret = 4 // for writing the size
+	ret += len(shd.headerSlice) + len(shd.footerSlice)
+	ret += int(numPoints) * (len(shd.headerPerCurvePoint) + len(shd.footerPerCurvePoint))
+	return
 }

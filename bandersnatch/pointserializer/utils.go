@@ -56,7 +56,7 @@ var serializerParams = map[string]struct {
 	"subgrouponly": {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: reflect.TypeOf(bool(false))},
 }
 
-func hasParam(serializer any, param string) bool {
+func hasParam[ValueType any, PtrType *ValueType](serializer PtrType, param string) bool {
 	param = strings.ToLower(param) // make params case-insensitive
 	paramInfo, ok := serializerParams[param]
 	if !ok {
@@ -64,11 +64,7 @@ func hasParam(serializer any, param string) bool {
 	}
 
 	serializerValue := reflect.ValueOf(serializer)
-	serializerType := reflect.TypeOf(serializer)
-	if serializerType.Kind() != reflect.Pointer {
-		// We could take the adress and work with values as well, but none of our serializers does that
-		panic("bandersnatch / serialization: hasParam called on non-pointer type")
-	}
+	// serializerType := reflect.TypeOf(serializer)
 	setterMethod := serializerValue.MethodByName(paramInfo.setter)
 	if !setterMethod.IsValid() {
 		return false
@@ -78,6 +74,9 @@ func hasParam(serializer any, param string) bool {
 }
 
 // .With(...) forwards to this
+
+// replaced by generic version below, which has better compile-time guards.
+/*
 
 // makeCopyWithParams takes a serializer and returns a copy of it with param modified to newParam.
 // It uses reflection and requires serializer to have a Clone() - method. To modify params, we look up getters / setters in serializerParams.
@@ -123,21 +122,27 @@ func makeCopyWithParams(serializer interface{}, param string, newParam interface
 	return serializerClone.Elem().Interface()
 }
 
+*/
+
 // Note: K is pointer
 
-func makeCopyWithParamsNew[K utils.Clonable[K]](serializer K, param string, newParam any) K {
+func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
+	*SerializerType
+	utils.Clonable[*SerializerType]
+}](serializer SerializerPtr, param string, newParam any) SerializerType {
 	param = strings.ToLower(param)
 	paramInfo, ok := serializerParams[param]
 	if !ok {
 		panic("bandersnatch / serialization: makeCopyWithParams called with unrecognized parameter name")
 	}
-	var clone K = serializer.Clone()
+	var clone SerializerPtr = serializer.Clone()
 	cloneValue := reflect.ValueOf(clone)
 	cloneType := cloneValue.Type()
 	var typeName string = testutils.GetReflectName(cloneType) // name of K, used for better error messages
-	if cloneType.Kind() != reflect.Pointer {
-		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called on non-pointer type %v", typeName))
-	}
+
+	// should be guananteed by restrictions on type parameters.
+	testutils.Assert(cloneType.Kind() == reflect.Pointer)
+
 	setterMethod := cloneValue.MethodByName(paramInfo.setter)
 	if !setterMethod.IsValid() {
 		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, param))
@@ -151,11 +156,11 @@ func makeCopyWithParamsNew[K utils.Clonable[K]](serializer K, param string, newP
 		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with wrong type of argument %v. Expected argument type was %v", testutils.GetReflectName(newParamType), testutils.GetReflectName(paramInfo.vartype)))
 	}
 	setterMethod.Call([]reflect.Value{newParamValue})
-	return clone
+	return *clone
 }
 
 // getSerializerParam takes a serializer and returns the parameter stored under the key param. The type of the return value depend on param.
-func getSerializerParam(serializer interface{}, param string) interface{} {
+func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, param string) interface{} {
 	param = strings.ToLower(param)
 	paramInfo, ok := serializerParams[param]
 	serializerType := reflect.TypeOf(serializer)

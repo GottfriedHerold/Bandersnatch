@@ -132,7 +132,7 @@ func (s *pointSerializerXY) Clone() (ret *pointSerializerXY) {
 }
 
 func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXY) {
-	return *makeCopyWithParamsNew(s, param, newParam)
+	return makeCopyWithParamsNew(s, param, newParam)
 	// return makeCopyWithParams(s, param, newParam).(pointSerializerXY)
 }
 
@@ -206,7 +206,7 @@ func (s *pointSerializerXAndSignY) Clone() (ret *pointSerializerXAndSignY) {
 }
 
 func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXAndSignY) {
-	return *makeCopyWithParamsNew(s, param, newParam)
+	return makeCopyWithParamsNew(s, param, newParam)
 	// return makeCopyWithParams(s, param, newParam).(pointSerializerXAndSignY)
 }
 
@@ -297,7 +297,7 @@ func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 }
 
 func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYAndSignX) {
-	return *makeCopyWithParamsNew(s, param, newParam)
+	return makeCopyWithParamsNew(s, param, newParam)
 	// return makeCopyWithParams(s, param, newParam).(pointSerializerYAndSignX)
 }
 
@@ -369,7 +369,7 @@ func (s *pointSerializerXTimesSignY) Clone() (ret *pointSerializerXTimesSignY) {
 }
 
 func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXTimesSignY) {
-	return *makeCopyWithParamsNew(s, param, newParam)
+	return makeCopyWithParamsNew(s, param, newParam)
 	// return makeCopyWithParams(s, param, newParam).(pointSerializerXTimesSignY)
 }
 
@@ -431,7 +431,7 @@ func (s *pointSerializerYXTimesSignY) Clone() (ret *pointSerializerYXTimesSignY)
 }
 
 func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYXTimesSignY) {
-	return *makeCopyWithParamsNew(s, param, newParam)
+	return makeCopyWithParamsNew(s, param, newParam)
 	// return makeCopyWithParams(s, param, newParam).(pointSerializerYXTimesSignY)
 }
 
