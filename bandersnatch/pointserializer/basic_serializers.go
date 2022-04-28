@@ -10,7 +10,7 @@ import (
 )
 
 // This file is part of the serialization-for-curve-points package.
-// This package defines types that act a (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
+// This package defines types that act as (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
 // (De)serializers then have methods that are called with the actual curve point(s) as arguments to serialize them.
 
 // This file defines basic serializers that serialize and deserialize a single curve point.
@@ -21,7 +21,7 @@ type curvePointDeserializer_basic interface {
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
 	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
-	OutputLength() int    // returns the length in bytes that this serializer will try to read/write per curve point.
+	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point.
 
 	GetParam(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
 	GetEndianness() binary.ByteOrder           // returns the endianness used for field element serialization

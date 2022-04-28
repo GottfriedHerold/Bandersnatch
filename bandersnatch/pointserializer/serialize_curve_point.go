@@ -36,7 +36,7 @@ type CurvePointSerializer interface {
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
 	OutputLength() int    // returns the length in bytes that this serializer will try to read/write per curve point.
 
-	GetParam(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
+	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
 	GetFieldElementEndianness() binary.ByteOrder
 
 	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error)
