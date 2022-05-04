@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strings"
 
@@ -23,16 +24,28 @@ import (
 // Returns an error wrapping io.ErrUnexpectedEOF or io.EOF on end-of-file (io.EOF if the io.Reader was in EOF state to start with, io.ErrUnexpectedEOF if we encounter EOF after reading >0 bytes)
 // On mismatch of expectToRead vs. actually read values, returns an error wrapping ErrDidNotReadExpectedString
 func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, err error) {
-	if len(expectToRead) == 0 {
+	l := len(expectToRead)
+	if l > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: Trying to read from io.Reader, expecting to read %v bytes, which is more than MaxInt32", l))
+	}
+	if l == 0 {
 		return 0, nil
 	}
-	var buf []byte = make([]byte, len(expectToRead))
+	var buf []byte = make([]byte, l)
 	bytes_read, err = io.ReadFull(input, buf)
 	if err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) {
+			// Replaces expectToRead by a copy of itself.
+			// The reason is that we do not want the returned error to retain a copy of the passed expectToRead.
+			// Otherwise, if this is used in an implementation of io.Writer, it would break part of the contract.
+			deepCopyMaybeNilByteSlice(expectToRead, expectToRead)
 			err = fmt.Errorf("bandersnatch / deserialization: Unexpected EOF after reading %v out of %v bytes when reading header.\nReported error was %w.\nBytes expected were 0x%x, got 0x%x", bytes_read, len(expectToRead), err, expectToRead, buf[0:bytes_read])
 		}
 		if errors.Is(err, io.EOF) {
+			// Replaces expectToRead by a copy of itself.
+			// The reason is that we do not want the returned error to retain a copy of the passed expectToRead.
+			// Otherwise, if this is used in an implementation of io.Writer, it would break part of the contract.
+			deepCopyMaybeNilByteSlice(expectToRead, expectToRead)
 			err = bandersnatchErrors.NewWrappedError(err, fmt.Sprintf("bandersnatch / deserialization: Unexpected EOF when trying to read buffer.\nExpected to read 0x%x, got EOF instead", expectToRead))
 		}
 		return
@@ -43,7 +56,7 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, er
 	return
 }
 
-var byteOrderType reflect.Type = reflect.TypeOf((*binary.ByteOrder)(nil)).Elem() // reflect.Type of binary.ByteOrder. Since it is an interface, we need this roundabout way.
+var byteOrderType reflect.Type = reflect.TypeOf((*binary.ByteOrder)(nil)).Elem() // reflect.Type of binary.ByteOrder. Since it is an interface type, we need this roundabout way.
 
 var serializerParams = map[string]struct {
 	getter  string
@@ -56,6 +69,9 @@ var serializerParams = map[string]struct {
 	"subgrouponly": {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: reflect.TypeOf(bool(false))},
 }
 
+// hasParam(serializer, param) checks whether the type of serializer has setter and getter methods for parameter param.
+// The name of these getter and setter methods is looked up via the serializerParams map.
+// param is case-insensitive
 func hasParam[ValueType any, PtrType *ValueType](serializer PtrType, param string) bool {
 	param = strings.ToLower(param) // make params case-insensitive
 	paramInfo, ok := serializerParams[param]
@@ -121,11 +137,13 @@ func makeCopyWithParams(serializer interface{}, param string, newParam interface
 	setterMethod.Call([]reflect.Value{newParamValue})
 	return serializerClone.Elem().Interface()
 }
-
 */
 
-// Note: K is pointer
+// TODO: Delete above and rename the new version.
 
+// makeCopyWithParamsNew(serializer, param, newParam) takes a serializer (anything with a Clone-method, really) and returns an
+// indepepdent copy with param replaced by newParam. The serializer argument is a pointer, but the returned value is not.
+// param is looked up in the global serializerParams map to obtain getter/setter method names. The function panics on failure.
 func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	utils.Clonable[*SerializerType]
@@ -138,7 +156,7 @@ func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	var clone SerializerPtr = serializer.Clone()
 	cloneValue := reflect.ValueOf(clone)
 	cloneType := cloneValue.Type()
-	var typeName string = testutils.GetReflectName(cloneType) // name of K, used for better error messages
+	var typeName string = testutils.GetReflectName(cloneType) // name of parameter type. This is used for better error messages
 
 	// should be guananteed by restrictions on type parameters.
 	testutils.Assert(cloneType.Kind() == reflect.Pointer)
@@ -148,7 +166,7 @@ func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, param))
 	}
 	if setterMethod.Type().NumOut() != 0 {
-		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v whose serializer %v returns non-zero values", typeName, paramInfo.setter))
+		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v whose serializer %v returns a non-zero number of return values", typeName, paramInfo.setter))
 	}
 	newParamValue := reflect.ValueOf(newParam)
 	newParamType := newParamValue.Type()
@@ -159,7 +177,7 @@ func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	return *clone
 }
 
-// getSerializerParam takes a serializer and returns the parameter stored under the key param. The type of the return value depend on param.
+// getSerializerParam takes a serializer and returns the parameter stored under the key param. The type of the return value depends on param.
 func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, param string) interface{} {
 	param = strings.ToLower(param)
 	paramInfo, ok := serializerParams[param]
@@ -186,23 +204,14 @@ func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, p
 	return retValue.Interface()
 }
 
-func deepCopyMaybeNilByteSlice(dst []byte, source []byte) {
-	if source == nil {
-		dst = nil
-		return
-	}
-	dst = make([]byte, len(source))
-	L := copy(dst, source)
-	testutils.Assert(L == len(source))
-}
-
-// Note: This returns a copy (by design)
-func getHeaderByteSlice(v []byte) (ret []byte) {
+// Note: This returns a copy (by design). For v==nil, we return a fresh, empty non-nil slice.
+func copyByteSlice(v []byte) (ret []byte) {
 	if v == nil {
 		ret = make([]byte, 0)
 		return
 	}
 	ret = make([]byte, len(v))
-	deepCopyMaybeNilByteSlice(ret, v)
+	L := copy(ret, v)
+	testutils.Assert(L == len(v))
 	return
 }

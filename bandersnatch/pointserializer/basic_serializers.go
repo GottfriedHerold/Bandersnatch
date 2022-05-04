@@ -140,7 +140,7 @@ func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) point
 	return s.WithParameter("endianness", newEndianness)
 }
 
-func (s *pointSerializerXY) OutputLength() int { return 64 }
+func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 
 func (s *pointSerializerXY) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
@@ -214,7 +214,7 @@ func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder
 	return s.WithParameter("endianness", newEndianness)
 }
 
-func (s *pointSerializerXAndSignY) OutputLength() int { return 32 }
+func (s *pointSerializerXAndSignY) OutputLength() int32 { return 32 }
 
 func (s *pointSerializerXAndSignY) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
@@ -305,7 +305,7 @@ func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder
 	return s.WithParameter("endianness", newEndianness)
 }
 
-func (s *pointSerializerYAndSignX) OutputLength() int { return 32 }
+func (s *pointSerializerYAndSignX) OutputLength() int32 { return 32 }
 
 func (s *pointSerializerYAndSignX) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
@@ -377,7 +377,7 @@ func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrd
 	return s.WithParameter("endianness", newEndianness)
 }
 
-func (s *pointSerializerXTimesSignY) OutputLength() int { return 32 }
+func (s *pointSerializerXTimesSignY) OutputLength() int32 { return 32 }
 
 func (s *pointSerializerXTimesSignY) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
@@ -439,7 +439,7 @@ func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOr
 	return s.WithParameter("endianness", newEndianness)
 }
 
-func (s *pointSerializerYXTimesSignY) OutputLength() int { return 64 }
+func (s *pointSerializerYXTimesSignY) OutputLength() int32 { return 64 }
 
 func (s *pointSerializerYXTimesSignY) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)

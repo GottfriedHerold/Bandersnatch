@@ -158,7 +158,7 @@ func TestBasicSerializeNAPs(t *testing.T) {
 func TestBasicSerializersRoundtrip(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(1024))
 	for _, basicSerializer := range allBasicSerializers {
-		outputLen := basicSerializer.OutputLength()
+		outputLen := int(basicSerializer.OutputLength())
 		const iterations = 20
 		for i := 0; i < iterations+outputLen; i++ {
 			serializerName := testutils.GetReflectName(reflect.TypeOf(basicSerializer))
@@ -176,7 +176,7 @@ func TestBasicSerializersRoundtrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(fmt.Errorf("Error when using %v's SerializeCurvePoint Method: %w", serializerName, err))
 			}
-			if bytesWritten != basicSerializer.OutputLength() {
+			if bytesWritten != int(basicSerializer.OutputLength()) {
 				t.Fatalf("Error when using %v's SerializeCurvePoint Method: bytesWritten == %v, expected output length == %v", serializerName, bytesWritten, basicSerializer.OutputLength())
 			}
 

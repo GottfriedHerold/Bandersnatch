@@ -165,11 +165,11 @@ func (md *multiSerializer[BasicValue, BasicPtr]) IsSubgroupOnly() bool {
 }
 
 func (md *multiDeserializer[BasicValue, BasicPtr]) OutputLength() int {
-	return md.headerDeserializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicDeserializer).OutputLength()
+	return md.headerDeserializer.SinglePointHeaderOverhead() + int(BasicPtr(&md.basicDeserializer).OutputLength())
 }
 
 func (md *multiSerializer[BasicValue, BasicPtr]) OutputLength() int {
-	return md.headerSerializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicSerializer).OutputLength()
+	return md.headerSerializer.SinglePointHeaderOverhead() + int(BasicPtr(&md.basicSerializer).OutputLength())
 }
 
 // TODO: Overwrite GetParam and GetEndianness

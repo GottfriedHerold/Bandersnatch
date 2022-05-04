@@ -21,7 +21,7 @@ import (
 // The parameter types of DeserializeValues and SerializeValues need to match. The return type of Clone() is the same as the pointer receiver.
 // Go's interfaces cannot express this. We use reflection.
 
-// Note: These are internal struct that only serve to modularize the (de)serializers.
+// Note: These are internal structs that only serve to modularize the (de)serializers.
 // The methods are exported in order to make them callable via reflection.
 
 // valuesSerializerFeFe is a simple serializer for a pair of field elements

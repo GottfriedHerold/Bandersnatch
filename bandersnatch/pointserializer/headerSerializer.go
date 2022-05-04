@@ -12,6 +12,23 @@ import (
 
 // TODO: Should header errors be data-carrying wrappers?
 
+// headerDeserializer and headerSerializer are abstractions used to (de)serialize headers / footers for multiple points.
+//
+// When (de)serializing a single point, we call
+// - (de)serializeSinglePointHeader
+// - actual point (de)serialization
+// - (de)deserializeSinglePointFooter
+//
+// When (de)serializing a slice (this includes its length in-band), we call
+// - (de)serializeGlobalSliceHeader : This reads/writes the slice length
+// - for each element:
+//    -- (de)serializePerPointHeader
+//    -- actual point (de)serialization
+//    -- (de)serializePerPointFooter
+// - (de)serializeGlobalSliceFooter
+//
+// NOTE: While the return type is int (for consistency with the standard library), we promise that all bytes_read / bytes_written fit into an int32.
+// Too big reads/write will panic. This is to ensure consistency for 32-bit and 64-bit users.
 type headerDeserializer interface {
 	deserializeGlobalSliceHeader(input io.Reader) (bytes_read int, size int32, err error)
 	deserializeGlobalSliceFooter(input io.Reader) (bytes_read int, err error)
@@ -19,9 +36,11 @@ type headerDeserializer interface {
 	deserializeSinglePointFooter(input io.Reader) (bytes_read int, err error)
 	deserializePerPointHeader(input io.Reader) (bytes_read int, err error)
 	deserializePerPointFooter(input io.Reader) (bytes_read int, err error)
-	SinglePointHeaderOverhead() int               // returns the size taken up by headers and footers for single-point
-	MultiPointHeaderOverhead(numPoints int32) int // returns the size taken up by headers and footers for slice of given size
+	SinglePointHeaderOverhead() int32                        // returns the size taken up by headers and footers for single-point
+	MultiPointHeaderOverhead(numPoints int32) (int32, error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 }
+
+// headerSerializer extends headerDeserializer by also providing serialization routines.
 
 type headerSerializer interface {
 	headerDeserializer
@@ -33,6 +52,7 @@ type headerSerializer interface {
 	serializePerPointFooter(output io.Writer) (bytes_written int, err error)
 }
 
+// simpleHeaderDeserializer is a headerDeserializer where all headers are just constant []byte's and the size of slices is written into 4 bytes after the slice header.
 type simpleHeaderDeserializer struct {
 	headerSlice            []byte
 	headerPerCurvePoint    []byte
@@ -41,9 +61,10 @@ type simpleHeaderDeserializer struct {
 	footerPerCurvePoint    []byte
 	footerSlice            []byte
 
-	sliceSizeEndianness binary.ByteOrder
+	sliceSizeEndianness binary.ByteOrder // endianness for writing the size of slices.
 }
 
+// simpleHeaderSerializer extends simpleHeaderDeserializer by also providing write methods.
 type simpleHeaderSerializer struct {
 	simpleHeaderDeserializer
 }
@@ -75,8 +96,56 @@ func (shd *simpleHeaderDeserializer) fixNilEntries() {
 	}
 }
 
+// this should be called after all setters.
+
+// ensureInt32Constraints fixes any nil entries (replacing them by length-0 slices) and ensures that
+// relevant overhead lengths fit into int32's
+func (shd *simpleHeaderDeserializer) ensureInt32Constraints() {
+	shd.fixNilEntries()
+	l1 := len(shd.headerSingleCurvePoint)
+	l2 := len(shd.footerSingleCurvePoint)
+	if l1 > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has single-point header length of %v, which exceeds MaxInt32", l1))
+	}
+	if l2 > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has single-point footer length of %v, which exceeds MaxInt32", l2))
+	}
+	sum := int64(l1) + int64(l2)
+	if sum > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has single-point overhead of %v, which exceeds MaxInt32", sum))
+	}
+	l1 = len(shd.headerSlice)
+	l2 = len(shd.footerSlice)
+	if l1 > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has slice serialization header of length %v, which exceeds MaxInt32", l1))
+	}
+	if l2 > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has slice serialization footer of length %v, which exceeds MaxInt32", l2))
+	}
+	sum = int64(l1) + int64(l2) + 4 // +4 for writing the size
+	if sum > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has fixed overhead for slice serialization of length %v, which exceeds MaxInt32", sum))
+	}
+	l1 = len(shd.headerPerCurvePoint)
+	l2 = len(shd.footerPerCurvePoint)
+	if l1 > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has per-point header for slice serialization of length %v, which exceeds MaxInt32", l1))
+	}
+	if l2 > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has per-point footer for slice serialization of length %v, which exceeds MaxInt32", l2))
+	}
+	sum = int64(l1) + int64(l2)
+	if sum > math.MaxInt32 {
+		panic(fmt.Errorf("bandersnatch / serialization: serializer has per-point overhead for slice serialization of length %v, which exceeds MaxInt32", sum))
+	}
+}
+
+// NOTE: Getters return a copy, by design. This is because all serializers are read-only.
+// The only way for users to modify a serializer is to create a modified copy. Returning the contained slice would break that.
+
 func (shd *simpleHeaderDeserializer) SetGlobalSliceHeader(v []byte) {
 	deepCopyMaybeNilByteSlice(shd.headerSlice, v)
+	shd.ensureInt32Constraints()
 }
 
 func (shd *simpleHeaderDeserializer) GetGlobalSliceHeader() []byte {
@@ -84,14 +153,13 @@ func (shd *simpleHeaderDeserializer) GetGlobalSliceHeader() []byte {
 }
 
 func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reader) (bytes_read int, size int32, err error) {
-	header := shd.GetGlobalSliceHeader()
-	bytes_read, err = consumeExpectRead(input, header)
+	bytes_read, err = consumeExpectRead(input, shd.headerSlice[:])
 	if err != nil {
 		return
 	}
 	var buf [4]byte
 	bytesJustRead, err := io.ReadFull(input, buf[:])
-	bytes_read += bytesJustRead
+	bytes_read += bytesJustRead // ensureInt32Constrains ensures this fits into int32
 	if err != nil {
 		utils.UnexpectEOF(&err)
 		return
@@ -109,8 +177,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 	if size < 0 {
 		panic(fmt.Errorf("bandersnatch / serializers: called simpleHeaderSerializer.serializeGlobalSliceHeader with negative size %v", size))
 	}
-	header := shs.GetGlobalSliceHeader()
-	bytesWritten, err = output.Write(header[:])
+	bytesWritten, err = output.Write(shs.headerSlice[:])
 	if err != nil {
 		return
 	}
@@ -118,7 +185,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 	var buf [4]byte
 	shs.sliceSizeEndianness.PutUint32(buf[:], uint32(size))
 	bytesJustWritten, err := output.Write(buf[:])
-	bytesWritten += bytesJustWritten
+	bytesWritten += bytesJustWritten // ensureInt32Constrains ensures this fits into int32
 	if err != nil {
 		utils.UnexpectEOF(&err)
 		return
@@ -127,108 +194,116 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 }
 
 func (shd *simpleHeaderDeserializer) SetGlobalSliceFooter(v []byte) {
-	deepCopyMaybeNilByteSlice(shd.footerSlice, v)
+	shd.footerSlice = copyByteSlice(v)
+	shd.ensureInt32Constraints()
 }
 
 func (shd *simpleHeaderDeserializer) GetGlobalSliceFooter() []byte {
-	return getHeaderByteSlice(shd.footerSlice)
+	return copyByteSlice(shd.footerSlice)
 }
 
 func (shd *simpleHeaderDeserializer) deserializeGlobalSliceFooter(input io.Reader) (bytesRead int, err error) {
-	footer := shd.GetGlobalSliceFooter()
-	return consumeExpectRead(input, footer)
+	return consumeExpectRead(input, shd.footerSlice) // ensureInt32Constrains ensures bytesRead fits into int32
 }
 
 func (shs *simpleHeaderSerializer) serializeGlobalSliceFooter(output io.Writer) (bytesWritten int, err error) {
-	footer := shs.GetGlobalSliceFooter()
-	return output.Write(footer)
+	return output.Write(shs.footerSlice)
 }
 
 func (shd *simpleHeaderDeserializer) SetPerPointHeader(v []byte) {
-	deepCopyMaybeNilByteSlice(shd.headerPerCurvePoint, v)
+	shd.headerPerCurvePoint = copyByteSlice(v)
+	shd.ensureInt32Constraints()
 }
 
 func (shd *simpleHeaderDeserializer) GetPerPointHeader() []byte {
-	return getHeaderByteSlice(shd.headerPerCurvePoint)
+	return copyByteSlice(shd.headerPerCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) deserializePerPointHeader(input io.Reader) (bytesRead int, err error) {
-	perPointHeader := shd.GetPerPointHeader()
-	return consumeExpectRead(input, perPointHeader)
+	return consumeExpectRead(input, shd.headerPerCurvePoint)
 }
 
 func (shs *simpleHeaderSerializer) serializePerPointHeader(output io.Writer) (bytesWritten int, err error) {
-	perPointHeader := shs.GetPerPointHeader()
-	return output.Write(perPointHeader)
+	return output.Write(shs.headerPerCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) SetPerPointFooter(v []byte) {
-	deepCopyMaybeNilByteSlice(shd.footerPerCurvePoint, v)
+	shd.footerPerCurvePoint = copyByteSlice(v)
+	shd.ensureInt32Constraints()
 }
 
 func (shd *simpleHeaderDeserializer) GetPerPointFooter() []byte {
-	return getHeaderByteSlice(shd.footerPerCurvePoint)
+	return copyByteSlice(shd.footerPerCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) deserializePerPointFooter(input io.Reader) (bytesRead int, err error) {
-	perPointFooter := shd.GetPerPointFooter()
-	return consumeExpectRead(input, perPointFooter)
+	return consumeExpectRead(input, shd.footerPerCurvePoint)
 }
 
 func (shs *simpleHeaderSerializer) serializePerPointFooter(output io.Writer) (bytesWritten int, err error) {
-	perPointFooter := shs.GetPerPointFooter()
-	return output.Write(perPointFooter)
+	return output.Write(shs.footerPerCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) SetSinglePointHeader(v []byte) {
-	deepCopyMaybeNilByteSlice(shd.headerSingleCurvePoint, v)
+	shd.headerSingleCurvePoint = copyByteSlice(v)
+	shd.ensureInt32Constraints()
 }
 
 func (shd *simpleHeaderDeserializer) GetSinglePointHeader() []byte {
-	return getHeaderByteSlice(shd.headerSingleCurvePoint)
+	return copyByteSlice(shd.headerSingleCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) deserializeSinglePointHeader(input io.Reader) (bytesRead int, err error) {
-	singlePointHeader := shd.GetSinglePointHeader()
-	return consumeExpectRead(input, singlePointHeader)
+	return consumeExpectRead(input, shd.headerSingleCurvePoint)
 }
 
 func (shs *simpleHeaderSerializer) serializeSinglePointHeader(output io.Writer) (bytesWritten int, err error) {
-	singlePointHeader := shs.GetSinglePointHeader()
-	return output.Write(singlePointHeader)
+	return output.Write(shs.headerSingleCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) SetSinglePointFooter(v []byte) {
-	deepCopyMaybeNilByteSlice(shd.footerSingleCurvePoint, v)
+	shd.footerSingleCurvePoint = copyByteSlice(v)
+	shd.ensureInt32Constraints()
 }
 
 func (shd *simpleHeaderDeserializer) GetSinglePointFooter() []byte {
-	return getHeaderByteSlice(shd.footerSingleCurvePoint)
+	return copyByteSlice(shd.footerSingleCurvePoint)
 }
 
 func (shd *simpleHeaderDeserializer) deserializeSinglePointFooter(input io.Reader) (bytesRead int, err error) {
-	singlePointFooter := shd.GetSinglePointFooter()
-	return consumeExpectRead(input, singlePointFooter)
+	return consumeExpectRead(input, shd.footerSingleCurvePoint)
 }
 
 func (shs *simpleHeaderSerializer) serializeSinglePointFooter(output io.Writer) (bytesWritten int, err error) {
-	singlePointFooter := shs.GetSinglePointFooter()
-	return output.Write(singlePointFooter)
+	return output.Write(shs.footerSingleCurvePoint)
 }
 
-func (shd *simpleHeaderDeserializer) SinglePointHeaderOverhead() int {
-	shd.fixNilEntries()
-	return len(shd.headerSingleCurvePoint) + len(shd.footerSingleCurvePoint)
+func (shd *simpleHeaderDeserializer) SinglePointHeaderOverhead() int32 {
+	// ensureInt32Contrains ensures this does not overflow int32
+	return int32(len(shd.headerSingleCurvePoint) + len(shd.footerSingleCurvePoint))
 }
 
-func (shs *simpleHeaderSerializer) SinglePointHeaderOverhead() int {
-	shs.fixNilEntries()
-	return len(shs.headerSingleCurvePoint) + len(shs.footerSingleCurvePoint)
+// TODO: Have error carry actual overhead in int64
+
+func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (ret int32, err error) {
+	var ret64 int64
+	// shd.fixNilEntries()
+	if numPoints < 0 {
+		panic(fmt.Errorf("bandersnatch / serializer: Querying overhead size for slice (de)serialization for negative length %v", numPoints))
+	}
+	ret64 = int64(numPoints) * int64(len(shd.headerPerCurvePoint)+len(shd.footerPerCurvePoint)) // both factors are guaranteed to fit into int32, so no overflow here.
+	ret64 += 4                                                                                  // for writing the size
+	ret64 += int64(len(shd.headerSlice) + len(shd.footerSlice))                                 // term added is guaranteed to fit into int32
+	// NOTE: ret64 is guaranteed to not have overflown, since it is at max (2^31-1) * (2^31-1) + 4 + (2^31-1), which is smaller than 2^63-1
+	if ret64 > math.MaxInt32 {
+		err = fmt.Errorf("MultiPointOverhead does not fit into int32, size was %v", ret64)
+	}
+	ret = int32(ret64)
+	return
 }
 
-// TODO: Overflow protection
-
-func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (ret int) {
+/*
+func (shd *simpleHeaderSerializer) MultiPointHeaderOverhead(numPoints int32) (ret int32, err error) {
 	shd.fixNilEntries()
 	if numPoints < 0 {
 		panic("bandersnatch / serializer: Querying Overhead size for slice deserialization for negative length")
@@ -238,14 +313,4 @@ func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (
 	ret += int(numPoints) * (len(shd.headerPerCurvePoint) + len(shd.footerPerCurvePoint))
 	return
 }
-
-func (shd *simpleHeaderSerializer) MultiPointHeaderOverhead(numPoints int32) (ret int) {
-	shd.fixNilEntries()
-	if numPoints < 0 {
-		panic("bandersnatch / serializer: Querying Overhead size for slice deserialization for negative length")
-	}
-	ret = 4 // for writing the size
-	ret += len(shd.headerSlice) + len(shd.footerSlice)
-	ret += int(numPoints) * (len(shd.headerPerCurvePoint) + len(shd.footerPerCurvePoint))
-	return
-}
+*/
