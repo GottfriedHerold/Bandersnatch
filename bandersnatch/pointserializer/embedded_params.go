@@ -21,13 +21,21 @@ func (s *fieldElementEndianness) GetEndianness() binary.ByteOrder {
 }
 
 func (s *fieldElementEndianness) SetEndianness(e binary.ByteOrder) {
-	if e != binary.BigEndian && e != binary.LittleEndian {
+	s.byteOrder = e
+	s.Verify()
+}
+
+func (s *fieldElementEndianness) Verify() {
+	if s.byteOrder != binary.BigEndian && s.byteOrder != binary.LittleEndian {
 		panic("bandersnatch / serialize: we only support binary.BigEndian and binary.LittleEndian from the standard library as possible endianness")
 	}
-	s.byteOrder = e
 }
 
 var defaultEndianness fieldElementEndianness = fieldElementEndianness{byteOrder: binary.LittleEndian}
+
+func init() {
+	defaultEndianness.Verify()
+}
 
 // TODO: Move this to main utils? Should be used by field element serializers.
 
@@ -38,19 +46,24 @@ type bitHeader struct {
 }
 
 func (bh *bitHeader) SetBitHeader(newBitHeader bitHeader) {
-	if newBitHeader.prefixLen > 8 {
-		panic("bandersnatch / serialization: trying to set bit-prefix of length > 8")
-	}
-	bitFilter := (1 << newBitHeader.prefixLen) - 1 // bitmask of the form 0b0..01..1 ending with prefixLen 1s
-	if bitFilter&int(newBitHeader.prefixBits) != int(newBitHeader.prefixBits) {
-		panic("bandersnatch / serialization: trying to set bitHeader with a prefix and length, where the prefix has bits set that are not among the length many lsb")
-	}
 	*bh = newBitHeader
+	bh.Verify()
 }
 
 func (bh *bitHeader) GetBitHeader() bitHeader {
 	// Note: No need to make a copy, since we return a value.
 	return *bh
+}
+
+func (bh *bitHeader) Verify() {
+	if bh.prefixLen > 8 {
+		panic("bandersnatch / serialization: trying to set bit-prefix of length > 8")
+	}
+	bitFilter := (1 << bh.prefixLen) - 1 // bitmask of the form 0b0..01..1 ending with prefixLen 1s
+	if bitFilter&int(bh.prefixBits) != int(bh.prefixBits) {
+		panic("bandersnatch / serialization: trying to set bitHeader with a prefix and length, where the prefix has bits set that are not among the length many lsb")
+	}
+
 }
 
 // implicit interface with methods SetSubgroupRestriction(bool) and IsSubgroupOnly() bool defined in tests only. Since we use reflection, we don't need the explicit interface here.
@@ -68,6 +81,8 @@ func (sr *subgroupRestriction) IsSubgroupOnly() bool {
 	return sr.subgroupOnly
 }
 
+func (sr *subgroupRestriction) Verify() {}
+
 // subgroupOnly is a type wrapping a bool constant true that indicates that the serializer only works for subgroup elements. Used as embedded struct to forward setter and getter methods to reflect.
 type subgroupOnly struct {
 }
@@ -81,3 +96,5 @@ func (sr *subgroupOnly) SetSubgroupRestriction(restrict bool) {
 		panic("bandersnatch / serialization: Trying to unset restriction to subgroup points for a serializer that does not support this")
 	}
 }
+
+func (sr *subgroupOnly) Verify() {}

@@ -2,7 +2,9 @@ package pointserializer
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
+	"math"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 )
@@ -15,6 +17,7 @@ type CurvePointDeserializer interface {
 
 	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is case-insensitive.
 	GetFieldElementEndianness() binary.ByteOrder
+	Verifier
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 	// DeserializeBatch(inputStream io.Reader, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
@@ -40,6 +43,7 @@ type CurvePointSerializer interface {
 
 	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is case-insensitive.
 	GetFieldElementEndianness() binary.ByteOrder
+	Verifier
 
 	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error)
 
@@ -86,6 +90,30 @@ func (md *multiSerializer[BasicValue, BasicPtr]) makeCopy() multiSerializer[Basi
 	ret.basicSerializer = *BasicPtr(&md.basicSerializer).Clone()
 	ret.headerSerializer = *md.headerSerializer.Clone()
 	return ret
+}
+
+func (md *multiDeserializer[BasicValue, BasicPtr]) Verify() {
+	basicDeserializerPtr := BasicPtr(&md.basicDeserializer) // required to tell Go to use the interface constraints
+	basicDeserializerPtr.Verify()
+	md.headerDeserializer.Verify()
+
+	// overflow check for output length:
+	var singleOutputLength64 int64 = int64(md.headerDeserializer.SinglePointHeaderOverhead()) + int64(basicDeserializerPtr.OutputLength())
+	if singleOutputLength64 > math.MaxInt32 {
+		panic(fmt.Errorf("Output length of deserializer for single point is %v, which does not fit into int32", singleOutputLength64))
+	}
+}
+
+func (md *multiSerializer[BasicValue, BasicPtr]) Verify() {
+	basicSerializerPtr := BasicPtr(&md.basicSerializer)
+	basicSerializerPtr.Verify()
+	md.headerSerializer.Verify()
+
+	// overflow check for output length:
+	var singleOutputLength64 int64 = int64(md.headerSerializer.SinglePointHeaderOverhead()) + int64(basicSerializerPtr.OutputLength())
+	if singleOutputLength64 > math.MaxInt32 {
+		panic(fmt.Errorf("Output length of deserializer for single point is %v, which does not fit into int32", singleOutputLength64))
+	}
 }
 
 func (md *multiDeserializer[BasicValue, BasicPtr]) Clone() CurvePointDeserializer {
@@ -167,12 +195,12 @@ func (md *multiSerializer[BasicValue, BasicPtr]) IsSubgroupOnly() bool {
 }
 
 func (md *multiDeserializer[BasicValue, BasicPtr]) OutputLength() int32 {
-	panic(0)
+	// Verify ensures this does not overflow
 	return md.headerDeserializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicDeserializer).OutputLength()
 }
 
 func (md *multiSerializer[BasicValue, BasicPtr]) OutputLength() int32 {
-	panic(0)
+	// Verify ensures this does not overflow
 	return md.headerSerializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicSerializer).OutputLength()
 }
 

@@ -15,6 +15,10 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+type Verifier interface {
+	Verify()
+}
+
 // consumeExpectRead reads and consumes len(expectToRead) bytes from input and reports an error if the read bytes differ from expectToRead.
 // This is intended to read headers. Remember to use errors.Is to check the returned errors rather than == due to error wrapping.
 //
@@ -118,6 +122,7 @@ func hasParameter[ValueType any, PtrType *ValueType](serializer PtrType, paramet
 func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	utils.Clonable[*SerializerType]
+	Verifier
 }](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
 	parameterName = strings.ToLower(parameterName) // make parameterName case-insensitive. The map keys are all lower-case
 	paramInfo, ok := serializerParams[parameterName]
@@ -145,6 +150,7 @@ func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with wrong type of argument %v. Expected argument type was %v", testutils.GetReflectName(newParamType), testutils.GetReflectName(paramInfo.vartype)))
 	}
 	setterMethod.Call([]reflect.Value{newParamValue})
+	clone.Verify()
 	return *clone
 }
 

@@ -25,6 +25,7 @@ type curvePointDeserializer_basic interface {
 
 	GetParam(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
 	GetEndianness() binary.ByteOrder           // returns the endianness used for field element serialization
+	Verifier
 
 	// additional required interface (checked and accessed via reflection, because Go's type system is too weak to express this)
 	// WithParameter(parameterName string, newParam any) SELF  // returns a (non-pointer) copy of the receiver with parameter paramName replaced by newParam.
@@ -125,6 +126,11 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel ba
 	return
 }
 
+func (s *pointSerializerXY) Verify() {
+	s.valuesSerializerHeaderFeHeaderFe.Verify()
+	s.subgroupRestriction.Verify()
+}
+
 func (s *pointSerializerXY) Clone() (ret *pointSerializerXY) {
 	var sCopy pointSerializerXY = *s
 	ret = &sCopy
@@ -220,10 +226,20 @@ func (s *pointSerializerXAndSignY) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
+func (s *pointSerializerXAndSignY) Verify() {
+	s.valuesSerializerFeCompressedBit.Verify()
+	s.fieldElementEndianness.Verify()
+}
+
 // pointSerializerYAndSignX serializes a point via its Y coordinate and the sign of X. (For X==0, we do not set the sign bit)
 type pointSerializerYAndSignX struct {
 	valuesSerializerFeCompressedBit
 	subgroupRestriction
+}
+
+func (s *pointSerializerYAndSignX) Verify() {
+	s.valuesSerializerFeCompressedBit.Verify()
+	s.subgroupRestriction.Verify()
 }
 
 func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
@@ -333,6 +349,11 @@ type pointSerializerXTimesSignY struct {
 	subgroupOnly
 }
 
+func (s *pointSerializerXTimesSignY) Verify() {
+	s.valuesSerializerHeaderFe.Verify()
+	s.subgroupOnly.Verify()
+}
+
 func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
 	err = checkPointSerializability(point, true)
 	if err != nil {
@@ -387,6 +408,11 @@ func (s *pointSerializerXTimesSignY) GetParam(parameterName string) interface{} 
 type pointSerializerYXTimesSignY struct {
 	valuesSerializerHeaderFeHeaderFe
 	subgroupOnly
+}
+
+func (s *pointSerializerYXTimesSignY) Verify() {
+	s.valuesSerializerHeaderFeHeaderFe.Verify()
+	s.subgroupOnly.Verify()
 }
 
 func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
@@ -452,3 +478,10 @@ var bitHeaderBanderwagonY = bitHeader{prefixLen: 2, prefixBits: 0b00}
 
 var basicBanderwagonShort = pointSerializerXTimesSignY{valuesSerializerHeaderFe: valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
 var basicBanderwagonLong = pointSerializerYXTimesSignY{valuesSerializerHeaderFeHeaderFe: valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: bitHeaderBanderwagonY, bitHeader2: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
+
+func init() {
+	bitHeaderBanderwagonX.Verify()
+	bitHeaderBanderwagonY.Verify()
+	basicBanderwagonShort.Verify()
+	basicBanderwagonLong.Verify()
+}

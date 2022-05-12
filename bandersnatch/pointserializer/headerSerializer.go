@@ -99,10 +99,11 @@ func (shd *simpleHeaderDeserializer) fixNilEntries() {
 }
 
 // this must be called after all setters.
+// (Note: We call this from the setters, but this is actually redundant, as the external caller is actually responsible)
 
-// ensureInt32Constraints fixes any nil entries (replacing them by length-0 slices) and ensures that
+// Verify fixes any nil entries (replacing them by length-0 slices) and ensures that
 // relevant overhead lengths fit into int32's
-func (shd *simpleHeaderDeserializer) ensureInt32Constraints() {
+func (shd *simpleHeaderDeserializer) Verify() {
 	shd.fixNilEntries()
 	l1 := len(shd.headerSingleCurvePoint)
 	l2 := len(shd.footerSingleCurvePoint)
@@ -147,7 +148,7 @@ func (shd *simpleHeaderDeserializer) ensureInt32Constraints() {
 
 func (shd *simpleHeaderDeserializer) SetGlobalSliceHeader(v []byte) {
 	shd.headerSlice = copyByteSlice(v)
-	shd.ensureInt32Constraints()
+	shd.Verify()
 }
 
 func (shd *simpleHeaderDeserializer) GetGlobalSliceHeader() []byte {
@@ -197,7 +198,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 
 func (shd *simpleHeaderDeserializer) SetGlobalSliceFooter(v []byte) {
 	shd.footerSlice = copyByteSlice(v)
-	shd.ensureInt32Constraints()
+	shd.Verify()
 }
 
 func (shd *simpleHeaderDeserializer) GetGlobalSliceFooter() []byte {
@@ -214,7 +215,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceFooter(output io.Writer) 
 
 func (shd *simpleHeaderDeserializer) SetPerPointHeader(v []byte) {
 	shd.headerPerCurvePoint = copyByteSlice(v)
-	shd.ensureInt32Constraints()
+	shd.Verify()
 }
 
 func (shd *simpleHeaderDeserializer) GetPerPointHeader() []byte {
@@ -231,7 +232,7 @@ func (shs *simpleHeaderSerializer) serializePerPointHeader(output io.Writer) (by
 
 func (shd *simpleHeaderDeserializer) SetPerPointFooter(v []byte) {
 	shd.footerPerCurvePoint = copyByteSlice(v)
-	shd.ensureInt32Constraints()
+	shd.Verify()
 }
 
 func (shd *simpleHeaderDeserializer) GetPerPointFooter() []byte {
@@ -248,7 +249,7 @@ func (shs *simpleHeaderSerializer) serializePerPointFooter(output io.Writer) (by
 
 func (shd *simpleHeaderDeserializer) SetSinglePointHeader(v []byte) {
 	shd.headerSingleCurvePoint = copyByteSlice(v)
-	shd.ensureInt32Constraints()
+	shd.Verify()
 }
 
 func (shd *simpleHeaderDeserializer) GetSinglePointHeader() []byte {
@@ -265,7 +266,7 @@ func (shs *simpleHeaderSerializer) serializeSinglePointHeader(output io.Writer) 
 
 func (shd *simpleHeaderDeserializer) SetSinglePointFooter(v []byte) {
 	shd.footerSingleCurvePoint = copyByteSlice(v)
-	shd.ensureInt32Constraints()
+	shd.Verify()
 }
 
 func (shd *simpleHeaderDeserializer) GetSinglePointFooter() []byte {

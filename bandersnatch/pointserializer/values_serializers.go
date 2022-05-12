@@ -17,6 +17,7 @@ import (
 // DeserializeValues(input io.Reader) (bytesRead int, err error, ...)
 // SerializeValues(output io.Writer, ...) (bytesWritten int, err error)
 // Clone() receiver(pointer) [NOTE: Returned type is concrete, not interface type]
+// VerifyPtr
 //
 // The parameter types of DeserializeValues and SerializeValues need to match. The return type of Clone() is the same as the pointer receiver.
 // Go's interfaces cannot express this. We use reflection.
@@ -62,6 +63,12 @@ func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, 
 
 func (s *valuesSerializerFeFe) Clone() *valuesSerializerFeFe {
 	return &valuesSerializerFeFe{fieldElementEndianness: s.fieldElementEndianness}
+}
+
+// not needed (due to struct embedinng, but added for consistency)
+
+func (s *valuesSerializerFeFe) Verify() {
+	s.fieldElementEndianness.Verify()
 }
 
 // valuesSerializerHeaderFeHeaderFe is a serializer for a pair of field elements, where each of the two field elements has a prefix (of sub-byte length) contained in the
@@ -114,6 +121,12 @@ func (s *valuesSerializerHeaderFeHeaderFe) Clone() *valuesSerializerHeaderFeHead
 	return &copy
 }
 
+func (s *valuesSerializerHeaderFeHeaderFe) Verify() {
+	s.fieldElementEndianness.Verify()
+	s.bitHeader.Verify()
+	s.bitHeader2.Verify()
+}
+
 // valuesSerializerFe is a simple serializer for a single field element.
 type valuesSerializerFe struct {
 	fieldElementEndianness
@@ -131,6 +144,10 @@ func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *ban
 
 func (s *valuesSerializerFe) Clone() *valuesSerializerFe {
 	return &valuesSerializerFe{fieldElementEndianness: s.fieldElementEndianness}
+}
+
+func (s *valuesSerializerFe) Verify() {
+	s.fieldElementEndianness.Verify()
 }
 
 // valuesSerializerHeaderFe is a simple serializer for a single field element with sub-byte header
@@ -152,6 +169,11 @@ func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElemen
 func (s *valuesSerializerHeaderFe) Clone() *valuesSerializerHeaderFe {
 	copy := *s
 	return &copy
+}
+
+func (s *valuesSerializerHeaderFe) Verify() {
+	s.fieldElementEndianness.Verify()
+	s.bitHeader.Verify()
 }
 
 // valuesSerializerFeCompressedBit is a simple serializer for a field element + 1 extra bit. The extra bit is squeezed into the field element.
@@ -179,4 +201,8 @@ func (s *valuesSerializerFeCompressedBit) SerializeValues(output io.Writer, fiel
 
 func (s *valuesSerializerFeCompressedBit) Clone() *valuesSerializerFeCompressedBit {
 	return &valuesSerializerFeCompressedBit{fieldElementEndianness: s.fieldElementEndianness}
+}
+
+func (s *valuesSerializerFeCompressedBit) Verify() {
+	s.fieldElementEndianness.Verify()
 }

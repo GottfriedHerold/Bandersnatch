@@ -18,13 +18,23 @@ var allValuesSerializers []interface{} = []interface{}{
 	&valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness},
 }
 
-func TestValueSerializersHasClonable(t *testing.T) {
+func TestValueSerializersHasClonableAndVerify(t *testing.T) {
 	for _, basicSerializer := range allValuesSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
 		ok, reason := testutils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{serializerType})
 		if !ok {
 			t.Error(reason)
 		}
+		ok, reason = testutils.DoesMethodExist(serializerType, "Verify", []reflect.Type{}, []reflect.Type{})
+		if !ok {
+			t.Error(reason)
+		}
+	}
+}
+
+func TestAllValuesSerializersVerify(t *testing.T) {
+	for _, basicSerializer := range allValuesSerializers {
+		basicSerializer.(Verifier).Verify()
 	}
 }
 
