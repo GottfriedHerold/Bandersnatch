@@ -148,7 +148,7 @@ func TestMapToFieldElement(t *testing.T) {
 		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 		zeroModA := s.AnyFlags().CheckFlag(PointFlag_zeroModuloA)
 		var result FieldElement
-		didPanic := CheckPanic(func(arg CurvePointPtrInterfaceRead) { result = MapToFieldElement(arg) }, s.Points[0])
+		didPanic := testutils.CheckPanic(func(arg CurvePointPtrInterfaceRead) { result = MapToFieldElement(arg) }, s.Points[0])
 		if singular && !didPanic {
 			return false, "MapToFieldElement did not panic for NaP inputs"
 		}

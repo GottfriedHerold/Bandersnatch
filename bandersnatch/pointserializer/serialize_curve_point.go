@@ -9,10 +9,11 @@ import (
 
 type CurvePointDeserializer interface {
 	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
-	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
-	OutputLength() int    // returns the length in bytes that this serializer will try to read/write per curve point.
+	IsSubgroupOnly() bool                             // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
+	OutputLength() int32                              // returns the length in bytes that this serializer will try to read/write per curve point.
+	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try to read/write if serializing a slice of numPoints many points.
 
-	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
+	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is case-insensitive.
 	GetFieldElementEndianness() binary.ByteOrder
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
@@ -33,10 +34,11 @@ type CurvePointSerializer interface {
 	// similar to curvePointSerializer_basic
 
 	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
-	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
-	OutputLength() int    // returns the length in bytes that this serializer will try to read/write per curve point.
+	IsSubgroupOnly() bool                             // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
+	OutputLength() int32                              // returns the length in bytes that this serializer will try to read/write per curve point.
+	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try to read/write if serializing a slice of numPoints many points.
 
-	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
+	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is case-insensitive.
 	GetFieldElementEndianness() binary.ByteOrder
 
 	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error)
@@ -99,7 +101,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) Clone() CurvePointSerializer {
 func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointDeserializer {
 	mdCopy := md.makeCopy()
 	var basicDeserializationPtr = BasicPtr(&mdCopy.basicDeserializer)
-	if hasParam(basicDeserializationPtr, parameterName) {
+	if hasParameter(basicDeserializationPtr, parameterName) {
 		mdCopy.basicDeserializer = makeCopyWithParamsNew(basicDeserializationPtr, parameterName, newParam)
 	} else {
 		mdCopy.headerDeserializer = makeCopyWithParamsNew(&mdCopy.headerDeserializer, parameterName, newParam)
@@ -110,7 +112,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName s
 func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointSerializer {
 	mdCopy := md.makeCopy()
 	var basicSerializationPtr = BasicPtr(&mdCopy.basicSerializer)
-	if hasParam(basicSerializationPtr, parameterName) {
+	if hasParameter(basicSerializationPtr, parameterName) {
 		mdCopy.basicSerializer = makeCopyWithParamsNew(basicSerializationPtr, parameterName, newParam)
 	} else {
 		mdCopy.headerSerializer = makeCopyWithParamsNew(&mdCopy.headerSerializer, parameterName, newParam)
@@ -120,7 +122,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName str
 
 func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicDeserializer)
-	if hasParam(basicPointer, parameterName) {
+	if hasParameter(basicPointer, parameterName) {
 		return basicPointer.GetParam(parameterName)
 	} else {
 		return getSerializerParam(&md.headerDeserializer, parameterName)
@@ -129,7 +131,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName st
 
 func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicSerializer)
-	if hasParam(basicPointer, parameterName) {
+	if hasParameter(basicPointer, parameterName) {
 		return basicPointer.GetParam(parameterName)
 	} else {
 		return getSerializerParam(&md.headerSerializer, parameterName)
@@ -164,12 +166,14 @@ func (md *multiSerializer[BasicValue, BasicPtr]) IsSubgroupOnly() bool {
 	return BasicPtr(&md.basicSerializer).IsSubgroupOnly()
 }
 
-func (md *multiDeserializer[BasicValue, BasicPtr]) OutputLength() int {
-	return md.headerDeserializer.SinglePointHeaderOverhead() + int(BasicPtr(&md.basicDeserializer).OutputLength())
+func (md *multiDeserializer[BasicValue, BasicPtr]) OutputLength() int32 {
+	panic(0)
+	return md.headerDeserializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicDeserializer).OutputLength()
 }
 
-func (md *multiSerializer[BasicValue, BasicPtr]) OutputLength() int {
-	return md.headerSerializer.SinglePointHeaderOverhead() + int(BasicPtr(&md.basicSerializer).OutputLength())
+func (md *multiSerializer[BasicValue, BasicPtr]) OutputLength() int32 {
+	panic(0)
+	return md.headerSerializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicSerializer).OutputLength()
 }
 
 // TODO: Overwrite GetParam and GetEndianness

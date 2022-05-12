@@ -29,6 +29,10 @@ type valuesSerializerFeFe struct {
 	fieldElementEndianness // meaning the endianness for fieldElementSerialization
 }
 
+// NOTE: DeserializeValues has err as second (rather than last) parameter, triggering warnings from static style-checkers.
+// This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
+// Having the unknown-length part at the end makes things simpler.
+
 func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
 	bytesRead, err = fieldElement1.Deserialize(input, s.byteOrder)
 	// Note: This aborts on ErrNonNormalizedDeserialization

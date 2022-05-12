@@ -124,7 +124,7 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 			*/
 		}
 		funSubgroupOnly(true)
-		didPanic := bandersnatch.CheckPanic(funSubgroupOnly, false)
+		didPanic := testutils.CheckPanic(funSubgroupOnly, false)
 		if !didPanic {
 			t.Fatalf("%v did not panic when trying to set it to non-subgroup-only", typeName)
 		}

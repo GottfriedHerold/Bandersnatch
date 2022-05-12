@@ -20,6 +20,7 @@ direct tests for curve_point_impl_add HIGH
 direct tests for curve_point_impl_endo HIGH
 direct tests for curve_point_impl_equality MED
 direct tests for curve_point_impl_subgroupcheck HIGH
+Test for pointserializer/headerSerializer
 
 
 Benchmarks:
@@ -54,3 +55,5 @@ Functionality:
 Precomputation and serialization thereof HIGH
 Multi-exponentiation HIGH
 Multi-Multi-exponentiation MED
+
+move bitHeader from serializers to fieldElement interface MED

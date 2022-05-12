@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
-	// . "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 )
+
+// This file defines wrappers (essentially just a data element with a setter/getter method) that are supposed to struct-embedded in serializers.
+// parameter setting actually goes through reflection, which is a bit easier with getters/setters, so we want those.
 
 // fieldElementEndianness is just a wrapper around binary.ByteOrder. It is part of serializers to control the fieldElementEndianness of field elements.
 // Note that we ONLY support the predefined standard library constants binary.BigEndian and binary.LittleEndian.
@@ -47,6 +49,7 @@ func (bh *bitHeader) SetBitHeader(newBitHeader bitHeader) {
 }
 
 func (bh *bitHeader) GetBitHeader() bitHeader {
+	// Note: No need to make a copy, since we return a value.
 	return *bh
 }
 

@@ -26,7 +26,7 @@ import (
 	We note that the testing framework heavily makes use of interfaces and reflection to avoid writing separate tests for all Point Types.
 	Also, note that checkfunction might need additional parameters. This is usually achieved using closures.
 	(e.g. checkfunction_addition_commutative actually is a make_checkfun_addcommutes(receiverType) that returns a checkfunction
-	that with a given receiverType that determines which type P+Q and Q+P actually has (P, Q and P+Q do not need to have the same type))
+	with a given receiverType that determines which type P+Q and Q+P actually has (P, Q and P+Q do not need to have the same type))
 */
 
 // checkfunction is the type of function that we run on test samples.
@@ -214,8 +214,8 @@ func getPointType(p CurvePointPtrInterfaceTestSample) PointType {
 type TestSample struct {
 	Points  []CurvePointPtrInterfaceTestSample // a slice of 1--3 points. The individual points can have different concrete type.
 	Flags   []PointFlags                       // flags that give additional information about the points. This determines intended behaviour to test against.
-	Comment string                             // A human-readable comment that describes the sample. Useful for
-	Len     uint                               // Len == len(Points) == len(Flags). The given TestSample consists of this many points (1--3)
+	Comment string                             // A human-readable comment that describes the sample. Useful for diagnostics.
+	Len     uint                               // Len == len(Points) == len(Flags). The given TestSample consists of this many points. Must be one of 1,2 or 3.
 	info    []string                           // uninitialized by default. This can be used to record information via Log(...) that is output as diagnostic on errors.
 }
 
@@ -253,9 +253,7 @@ func (s *TestSample) Clone() (ret TestSample) {
 	if s.info != nil {
 		l := len(s.info)
 		ret.info = make([]string, l)
-		for i, s := range s.info {
-			ret.info[i] = s
-		}
+		copy(ret.info, s.info)
 	}
 	return
 }
@@ -272,7 +270,7 @@ func (s TestSample) AnyFlags() (ret PointFlags) {
 // TODO: Automatically add flags based on type of p?
 
 // MakeSample1 turns point p into a 1-point sample with given flags and comment.
-// This takes ownership of p in the sense that the pointer gives a argument must no longer be used by the caller.
+// This takes ownership of p in the sense that the pointer p given as argument must no longer be used by the caller.
 func MakeSample1(p CurvePointPtrInterfaceTestSample, flags PointFlags, comment string) (ret TestSample) {
 	ret.Points = []CurvePointPtrInterfaceTestSample{p}
 	ret.Flags = []PointFlags{flags}
@@ -323,7 +321,7 @@ type precomputedSampleSlice struct {
 	NaPSamples    []TestSample
 	rnd           *rand.Rand  // we keep the random seed to create/append new samples and create the samples in a deterministic order. This way, everything is reproducible
 	sampleLen     int         // Each sample in fixedSamples, randomSamples, NaPSamples needs to have the same number of points given by sampleLen
-	initialized   bool        // bool to denote whether this was already initialzed (done on first request)
+	initialized   bool        // bool to denote whether this was already initialized (done on first request)
 	pointTypes    []PointType // all samples have these point Types. len(pointTypes) == sampleLen
 }
 

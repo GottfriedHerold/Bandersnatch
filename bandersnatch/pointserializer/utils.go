@@ -15,49 +15,66 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// TODO: Should the returned error capture the actually read bytes?
-
 // consumeExpectRead reads and consumes len(expectToRead) bytes from input and reports an error if the read bytes differ from expectToRead.
 // This is intended to read headers. Remember to use errors.Is to check the returned errors rather than == due to error wrapping.
 //
 // NOTES:
 // Returns an error wrapping io.ErrUnexpectedEOF or io.EOF on end-of-file (io.EOF if the io.Reader was in EOF state to start with, io.ErrUnexpectedEOF if we encounter EOF after reading >0 bytes)
-// On mismatch of expectToRead vs. actually read values, returns an error wrapping ErrDidNotReadExpectedString
-func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, err error) {
+// On mismatch of expectToRead vs. actually read values, returns an error wrapping bandersnatchErrors.ErrDidNotReadExpectedString
+// The returned error type satisfies the error interface and, if non-nil, contains a .Data member of type []byte and length bytes_read with the actually read bytes.
+//
+// Panics if expectToRead has length >MaxInt32. The function always (tries to) consume len(expectToRead) bytes, even if a mismatch is already early in the stream.
+// Panics if expectToRead is nil or input is nil (unless len(expectToRead)==0)
+func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError *bandersnatchErrors.ErrorWithData[[]byte]) {
+	if expectToRead == nil {
+		panic("bandernatch / serialization: consumeExpectRead called with nil input for expectToRead")
+	}
 	l := len(expectToRead)
 	if l > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: Trying to read from io.Reader, expecting to read %v bytes, which is more than MaxInt32", l))
+		// should we return an error instead of panicking?
+		panic(fmt.Errorf("bandersnatch / serialization: trying to read from io.Reader, expecting to read %v bytes, which is more than MaxInt32", l))
 	}
 	if l == 0 {
 		return 0, nil
 	}
+	if input == nil {
+		panic("bandersnatch / serialization: consumeExpectRead was called on nil reader")
+	}
+	var err error
 	var buf []byte = make([]byte, l)
 	bytes_read, err = io.ReadFull(input, buf)
 	if err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) {
-			// Replaces expectToRead by a copy of itself.
-			// The reason is that we do not want the returned error to retain a copy of the passed expectToRead.
-			// Otherwise, if this is used in an implementation of io.Writer, it would break part of the contract.
-			deepCopyMaybeNilByteSlice(expectToRead, expectToRead)
-			err = fmt.Errorf("bandersnatch / deserialization: Unexpected EOF after reading %v out of %v bytes when reading header.\nReported error was %w.\nBytes expected were 0x%x, got 0x%x", bytes_read, len(expectToRead), err, expectToRead, buf[0:bytes_read])
-		}
-		if errors.Is(err, io.EOF) {
-			// Replaces expectToRead by a copy of itself.
-			// The reason is that we do not want the returned error to retain a copy of the passed expectToRead.
-			// Otherwise, if this is used in an implementation of io.Writer, it would break part of the contract.
-			deepCopyMaybeNilByteSlice(expectToRead, expectToRead)
-			err = bandersnatchErrors.NewWrappedError(err, fmt.Sprintf("bandersnatch / deserialization: Unexpected EOF when trying to read buffer.\nExpected to read 0x%x, got EOF instead", expectToRead))
+			data := buf[0:bytes_read]
+			message := fmt.Sprintf("bandersnatch / deserialization: Unexpected EOF after reading %v out of %v bytes when reading header.\nReported error was %v.\nBytes expected were 0x%x, got 0x%x", bytes_read, len(expectToRead), err, expectToRead, data)
+			returnedError = bandersnatchErrors.NewErrorWithData(err, message, data)
+		} else if errors.Is(err, io.EOF) {
+			expectToRead = copyByteSlice(expectToRead)
+			message := fmt.Sprintf("bandersnatch / deserialization: Unexpected EOF when trying to read buffer.\nExpected to read 0x%x, got EOF instead", expectToRead)
+			testutils.Assert(bytes_read == 0)
+			data := make([]byte, 0) // no need to retain buf's underlying array.
+			returnedError = bandersnatchErrors.NewErrorWithData(err, message, data)
+		} else {
+			data := buf[0:bytes_read]
+			// empty message means that err.Error() is used as error message.
+			returnedError = bandersnatchErrors.NewErrorWithData(err, "", data)
 		}
 		return
 	}
 	if !bytes.Equal(expectToRead, buf) {
-		err = bandersnatchErrors.NewWrappedError(bandersnatchErrors.ErrDidNotReadExpectedString, fmt.Sprintf("bandersnatch / deserialization: Unexpected Header encountered upon deserialization. Expected 0x%x, got 0x%x", expectToRead, buf))
+		err = bandersnatchErrors.ErrDidNotReadExpectedString
+		message := fmt.Sprintf("bandersnatch / deserialization: Unexpected Header encountered upon deserialization. Expected 0x%x, got 0x%x", expectToRead, buf)
+		data := buf
+		returnedError = bandersnatchErrors.NewErrorWithData(err, message, data)
 	}
+	// returnedError == nil iff no error occured so far
 	return
 }
 
-var byteOrderType reflect.Type = reflect.TypeOf((*binary.ByteOrder)(nil)).Elem() // reflect.Type of binary.ByteOrder. Since it is an interface type, we need this roundabout way.
+// btyeOrderType is the reflect.Type of binary.ByteOrder. Since it is an interface type, we need this roundabout way of writing it down.
+var byteOrderType reflect.Type = reflect.TypeOf((*binary.ByteOrder)(nil)).Elem()
 
+// serializerParams is a global constant map that is used to lookup the names of setter and getter methods (which are called via reflection)
 var serializerParams = map[string]struct {
 	getter  string
 	setter  string
@@ -69,12 +86,16 @@ var serializerParams = map[string]struct {
 	"subgrouponly": {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: reflect.TypeOf(bool(false))},
 }
 
-// hasParam(serializer, param) checks whether the type of serializer has setter and getter methods for parameter param.
+// hasParameter(serializer, parameterName) checks whether the type of serializer has setter and getter methods for the given parameter.
 // The name of these getter and setter methods is looked up via the serializerParams map.
-// param is case-insensitive
-func hasParam[ValueType any, PtrType *ValueType](serializer PtrType, param string) bool {
-	param = strings.ToLower(param) // make params case-insensitive
-	paramInfo, ok := serializerParams[param]
+// parameterName is case-insensitive
+func hasParameter[ValueType any, PtrType *ValueType](serializer PtrType, parameterName string) bool {
+	parameterName = strings.ToLower(parameterName) // make parameterName case-insensitive
+	paramInfo, ok := serializerParams[parameterName]
+
+	// Technically, we could just meaningufully return false if parameterName is not found in serializerParams.
+	// However, this is an internal function and we never intend to call hasParameter on anything but a fixed string which is supposed to be a key of the serializerParams map.
+	// Hence, this can only occur due to a bug (e.g. a typo in the parameterName string).
 	if !ok {
 		panic("bandersnatch / serialization: makeCopyWithParams called with unrecognized parameter name")
 	}
@@ -91,65 +112,15 @@ func hasParam[ValueType any, PtrType *ValueType](serializer PtrType, param strin
 
 // .With(...) forwards to this
 
-// replaced by generic version below, which has better compile-time guards.
-/*
-
-// makeCopyWithParams takes a serializer and returns a copy of it with param modified to newParam.
-// It uses reflection and requires serializer to have a Clone() - method. To modify params, we look up getters / setters in serializerParams.
-// If such a setter is not found or some other error is encountered, we panic.
-func makeCopyWithParams(serializer interface{}, param string, newParam interface{}) (ret interface{}) {
-	param = strings.ToLower(param) // make params case-insensitive
-	paramInfo, ok := serializerParams[param]
-	if !ok {
-		panic("bandersnatch / serialization: makeCopyWithParams called with unrecognized parameter name")
-	}
-
-	serializerValue := reflect.ValueOf(serializer)
-	// serializerType := reflect.TypeOf(serializer)
-	cloneMethod := serializerValue.MethodByName("Clone")
-	if !cloneMethod.IsValid() {
-		panic("bandersnatch / serialization: makeCopyWithParams called with non-clonable serializer")
-	}
-	cloneMethodType := cloneMethod.Type()
-	if cloneMethodType.NumIn() != 0 {
-		panic("bandersnatch / serialization: makeCopyWithParams called with type whose Clone() method has >0 args")
-	}
-	if cloneMethodType.NumOut() != 1 {
-		panic("bandersnatch / serialization: makeCopyWithParams called with type whose Clone() method returns != 1 args")
-	}
-	serializerClone := cloneMethod.Call([]reflect.Value{})[0]
-	// serializerClone.Type() ought to be the same as serializerValue.Type(), up to pointer indirection. We care only about the result of clone(), which should be
-	// a pointer (since we need to modify the result)
-	serializerType := serializerClone.Type()
-	if serializerType.Kind() != reflect.Ptr {
-		// We could take the adress and work with values as well, but none of our serializers does that
-		panic("bandersnatch / serialization: makeCopyWithParams calles with type whole Clone() method returns non-pointer type")
-	}
-	setterMethod := serializerClone.MethodByName(paramInfo.setter)
-	if !setterMethod.IsValid() {
-		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type lacking a setter method %v for the requested parameter %v", paramInfo.setter, param))
-	}
-	newParamValue := reflect.ValueOf(newParam)
-	newParamType := newParamValue.Type()
-	if !newParamType.AssignableTo(paramInfo.vartype) {
-		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with wrong type of argument %v. Expected argument type was %v", testutils.GetReflectName(newParamType), testutils.GetReflectName(paramInfo.vartype)))
-	}
-	setterMethod.Call([]reflect.Value{newParamValue})
-	return serializerClone.Elem().Interface()
-}
-*/
-
-// TODO: Delete above and rename the new version.
-
-// makeCopyWithParamsNew(serializer, param, newParam) takes a serializer (anything with a Clone-method, really) and returns an
-// indepepdent copy with param replaced by newParam. The serializer argument is a pointer, but the returned value is not.
-// param is looked up in the global serializerParams map to obtain getter/setter method names. The function panics on failure.
+// makeCopyWithParamsNew(serializer, parameterName, newParam) takes a serializer (anything with a Clone-method, really) and returns an
+// indepepdent copy with the parameter given by parameterName replaced by newParam. The serializer argument is a pointer, but the returned value is not.
+// parameterName is looked up in the global serializerParams map to obtain getter/setter method names. The function panics on failure.
 func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	utils.Clonable[*SerializerType]
-}](serializer SerializerPtr, param string, newParam any) SerializerType {
-	param = strings.ToLower(param)
-	paramInfo, ok := serializerParams[param]
+}](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
+	parameterName = strings.ToLower(parameterName) // make parameterName case-insensitive. The map keys are all lower-case
+	paramInfo, ok := serializerParams[parameterName]
 	if !ok {
 		panic("bandersnatch / serialization: makeCopyWithParams called with unrecognized parameter name")
 	}
@@ -158,12 +129,12 @@ func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	cloneType := cloneValue.Type()
 	var typeName string = testutils.GetReflectName(cloneType) // name of parameter type. This is used for better error messages
 
-	// should be guananteed by restrictions on type parameters.
+	// This should be guaranteed by restrictions on type parameters.
 	testutils.Assert(cloneType.Kind() == reflect.Pointer)
 
 	setterMethod := cloneValue.MethodByName(paramInfo.setter)
 	if !setterMethod.IsValid() {
-		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, param))
+		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, parameterName))
 	}
 	if setterMethod.Type().NumOut() != 0 {
 		panic(fmt.Errorf("bandersnatch / serialization: makeCopyWithParams called with type %v whose serializer %v returns a non-zero number of return values", typeName, paramInfo.setter))
@@ -177,21 +148,23 @@ func makeCopyWithParamsNew[SerializerType any, SerializerPtr interface {
 	return *clone
 }
 
-// getSerializerParam takes a serializer and returns the parameter stored under the key param. The type of the return value depends on param.
-func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, param string) interface{} {
-	param = strings.ToLower(param)
-	paramInfo, ok := serializerParams[param]
+// getSerializerParam takes a serializer and returns the parameter stored under the key parameterName. The type of the return value depends on parameterName.
+// parameterName is case-insensitive.
+func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, parameterName string) interface{} {
 	serializerType := reflect.TypeOf(serializer)
-	receiverName := testutils.GetReflectName(serializerType)
+	receiverName := testutils.GetReflectName(serializerType) // used for diagnostics.
+
+	parameterName = strings.ToLower(parameterName)
+	paramInfo, ok := serializerParams[parameterName]
 	if !ok {
-		panic(fmt.Errorf("bandersnatch / serialization: getSerializerParam called on %v with unrecognized parameter name %v (lowercased)", receiverName, param))
+		panic(fmt.Errorf("bandersnatch / serialization: getSerializerParam called on %v with unrecognized parameter name %v (lowercased)", receiverName, parameterName))
 	}
 
 	getterName := paramInfo.getter
 	serializerValue := reflect.ValueOf(serializer)
 	getterMethod := serializerValue.MethodByName(getterName)
 	if !getterMethod.IsValid() {
-		panic(fmt.Errorf("bandersnatch / serialization: getSerializeParam called on %v with parameter %v, but that type does not have a %v method", receiverName, param, getterName))
+		panic(fmt.Errorf("bandersnatch / serialization: getSerializeParam called on %v with parameter %v, but that type does not have a %v method", receiverName, parameterName, getterName))
 	}
 	getterType := getterMethod.Type()
 	if getterType.NumIn() != 0 {
@@ -205,6 +178,8 @@ func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, p
 }
 
 // Note: This returns a copy (by design). For v==nil, we return a fresh, empty non-nil slice.
+
+// copyByteSlice returns a copy of the given byte slice. For nil inputs, returns an empty byte slice.
 func copyByteSlice(v []byte) (ret []byte) {
 	if v == nil {
 		ret = make([]byte, 0)
