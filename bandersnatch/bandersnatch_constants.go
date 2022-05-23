@@ -7,10 +7,11 @@ import "math/big"
 // Note: We might want to move FieldElement (field of definition) and/or Exponents (scalar fields) into
 // separate packages at some point. For that reason, the file is separated into "sections" according to that split.
 //
+// Constanst usually have a _suffix, which has some meaning; we often provide constant in several types.
 
 // BaseFieldSize_untyped is the prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
 // Due to overflowing all standard types, this is only useful in constant expressions.
-// In most case, you want to use BaseFieldSize of type big.Int instead
+// In most case, you want to use BaseFieldSize_Int of type big.Int instead
 const (
 	BaseFieldSize_untyped = 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
 	BaseFieldSize_string  = "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
@@ -20,12 +21,12 @@ var BaseFieldSize_Int = initIntFromString(BaseFieldSize_string)
 
 /*
 	These are used as constants in the multiplication algorithm.
-	Since there are no compile-time const-arrays in go, we need to define individual constants and manually
-	unroll loops to make the compiler aware these are constants.
+	Since there are no compile-time const-arrays in go (JUST WHY???),
+	we define individual constants and manually	unroll loops to make the compiler aware these are constants.
 	(Or initialize a local array with these)
 */
 
-// 64-bit sized words of the modulus
+// 64-bit sized words of the modulus. The index is the position of the word
 const (
 	baseFieldSize_0 = (BaseFieldSize_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
 	baseFieldSize_1

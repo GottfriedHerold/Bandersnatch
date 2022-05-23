@@ -43,6 +43,8 @@ type Point_xtw_full struct {
 	point_xtw_base
 }
 
+// Might go away
+
 type CurvePointSlice_xtw_subgroup []Point_xtw_subgroup
 type CurvePointSlice_xtw_full []Point_xtw_full
 

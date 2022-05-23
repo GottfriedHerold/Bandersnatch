@@ -1205,7 +1205,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) {
 		return
 	}
 
-	// Mutli-Inversion algorithm: We compute P = args[0] * ... * args[L-1] via a multiplication tree with leaves args[i] and root P.
+	// Multi-Inversion algorithm: We compute P = args[0] * ... * args[L-1] via a multiplication tree with leaves args[i] and root P.
 	// then invert all nodes, starting from P (inverting a node is cheap if the parent was inverted, so we only need to invert P) until the leaves.
 	// We use the common version of the algorithm corresponding to the usual left-associative multiplication tree ((((...(args[0]*args[1]) * args[2]) *  ...
 
@@ -1293,6 +1293,8 @@ func MultiInvertEq(args ...*bsFieldElement_64) {
 	args[0].Mul(&temp1, args[1])
 	*args[1] = temp2
 }
+
+// TODO: Base on ErrorWithData
 
 // ErrMultiInversionEncounteredZero is a (stateful) error either returned by or provided as argument to panic by functions that perform
 // simulutaneous inversion of multiple field elements.

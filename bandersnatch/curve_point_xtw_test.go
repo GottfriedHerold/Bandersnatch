@@ -7,8 +7,8 @@ import (
 
 // test specific to Point_xtw go here. Note that most tests are contained in generic tests from curve_point_test_*_test.go files
 
-var _ BulkNormalizerAffineZ = CurvePointSlice_xtw_full{}
-var _ BulkNormalizerAffineZ = CurvePointSlice_xtw_subgroup{}
+var _ bulkNormalizerAffineZ = CurvePointSlice_xtw_full{}
+var _ bulkNormalizerAffineZ = CurvePointSlice_xtw_subgroup{}
 
 func TestBulkNormalizeAffineZ_full(t *testing.T) {
 	drng := rand.New(rand.NewSource(1))

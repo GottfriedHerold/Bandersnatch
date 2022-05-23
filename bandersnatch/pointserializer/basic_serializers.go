@@ -13,18 +13,20 @@ import (
 // This package defines types that act as (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
 // (De)serializers then have methods that are called with the actual curve point(s) as arguments to serialize them.
 
+type errorWithPartialRead = bandersnatchErrors.ErrorWithData[bool]
+
 // This file defines basic serializers that serialize and deserialize a single curve point.
 
 // curvePointDeserializer_basic is a deserializer for single curve points
 type curvePointDeserializer_basic interface {
 	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point. TrustLevel determines whether we trust the input to be a valid representation of a curve point.
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err *errorWithPartialRead)
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point.
 
-	GetParam(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
-	GetEndianness() binary.ByteOrder           // returns the endianness used for field element serialization
+	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
+	GetEndianness() binary.ByteOrder               // returns the endianness used for field element serialization
 	Verifier
 
 	// additional required interface (checked and accessed via reflection, because Go's type system is too weak to express this)
@@ -46,7 +48,7 @@ type modifyableDeserializer_basic[SelfValue any] interface {
 // curvePointSerializer_basic is a serializer+deserializer for single curve points.
 type curvePointSerializer_basic interface {
 	curvePointDeserializer_basic
-	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error)
+	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err *errorWithPartialRead)
 }
 
 type modifyableSerializer_basic[SelfValue any] interface {
@@ -92,26 +94,33 @@ type pointSerializerXY struct {
 	subgroupRestriction // wraps a bool
 }
 
-func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
-	err = checkPointSerializability(point, s.IsSubgroupOnly())
-	if err != nil {
+func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err *errorWithPartialRead) {
+	errPlain := checkPointSerializability(point, s.IsSubgroupOnly())
+	if errPlain != nil {
+		err = bandersnatchErrors.NewErrorWithData(errPlain, "", false)
 		return
 	}
 	X, Y := point.XY_affine()
-	bytesWritten, err = s.valuesSerializerHeaderFeHeaderFe.SerializeValues(output, &X, &Y)
+	bytesWritten, errPlain = s.valuesSerializerHeaderFeHeaderFe.SerializeValues(output, &X, &Y)
+	if errPlain != nil {
+		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != int(s.valuesSerializerHeaderFeHeaderFe.OutputLength()))
+	}
 	return
 }
 
-func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err *errorWithPartialRead) {
 	var X, Y bandersnatch.FieldElement
-	bytesRead, err, X, Y = s.DeserializeValues(input)
+	var errPlain error
+	bytesRead, errPlain, X, Y = s.DeserializeValues(input)
 	if err != nil {
+		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != int(s.OutputLength()))
 		return
 	}
 	if s.IsSubgroupOnly() || point.CanOnlyRepresentSubgroup() {
 		var P bandersnatch.Point_axtw_subgroup
-		P, err = bandersnatch.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
+		P, errPlain = bandersnatch.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
 		if err != nil {
+			err = bandersnatchErrors.NewErrorWithData(errPlain, "", false)
 			return
 		}
 		point.SetFrom(&P)
@@ -148,7 +157,7 @@ func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) point
 
 func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 
-func (s *pointSerializerXY) GetParam(parameterName string) interface{} {
+func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 

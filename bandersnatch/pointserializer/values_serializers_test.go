@@ -10,7 +10,11 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-var allValuesSerializers []interface{} = []interface{}{
+type OutputLengthAware interface {
+	OutputLength() int32
+}
+
+var allValuesSerializers []OutputLengthAware = []OutputLengthAware{
 	&valuesSerializerFeFe{fieldElementEndianness: defaultEndianness},
 	&valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness},
 	&valuesSerializerFe{fieldElementEndianness: defaultEndianness},
@@ -88,6 +92,9 @@ func TestValuesSerializersRountrip(t *testing.T) {
 					panic("unrecognized type to be serialized")
 				}
 
+			}
+			if valuesSerializer.OutputLength() != int32(expectedLen) {
+				t.Fatalf("%v's OutputLength does not return expected value", typeName)
 			}
 			buf.Reset()
 			outputs := valueSerializerFun.Call(inputs)

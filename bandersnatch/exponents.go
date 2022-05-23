@@ -14,7 +14,7 @@ import (
 //
 // In order not to complicate things (and since doing this in Go is really a pain), we do not want to distinguish the p253 and the 2*p253 cases by having separate types.
 // We work modulo 2*p253 for the most part; note, however, that the GLV decomposition needs to work modulo p253.
-// For exponentiation algorithms when we do not know whether P is in the subgroup, we reduce to the subgroup case anyway by computing (2n)*P = n*(2P) resp. (2n+1)*P = P + n*(2P).
+// For exponentiation algorithms computing n*P when we do not know whether P is in the subgroup, we reduce to the subgroup case anyway by computing (2n)*P = n*(2P) resp. (2n+1)*P = P + n*(2P).
 
 // Note: The implementation for Exponents is quite different from the implementation FieldElement of the field of definition GF(BaseFieldSize) of the curve.
 // For FieldElement, we internally use Montgomery representation to speed up multiplication. For Exponents, we do not multiply often, So we use a "plain" representation.
@@ -132,7 +132,7 @@ func (z *Exponent) SetInt(x int64) {
 
 // normalize_once reduces z once by curveExponent, provided the value stores is >= curveExponent.
 func (z *Exponent) normalize_once() {
-	if !z.isNormalized() {
+	if !z.isNormalized_Full() {
 		var borrow uint64
 		z.value[0], borrow = bits.Sub64(z.value[0], curveExponent_0, 0)
 		z.value[1], borrow = bits.Sub64(z.value[1], curveExponent_1, borrow)
@@ -169,8 +169,8 @@ func (z *Exponent) maybe_reduce_once() {
 }
 */
 
-// isNormalized checks whether the internally stored value is in 0 <= . < CurveExponent
-func (z *Exponent) isNormalized() bool {
+// isNormalized_Full checks whether the internally stored value is in 0 <= . < CurveExponent
+func (z *Exponent) isNormalized_Full() bool {
 	if z.value[3] > curveExponent_3 {
 		return false
 	} else if z.value[3] < curveExponent_3 {

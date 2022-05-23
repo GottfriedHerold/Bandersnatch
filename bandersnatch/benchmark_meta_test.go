@@ -13,7 +13,7 @@ import (
 const dumpSizeBench_curve = 1 << 8
 
 // benchmark functions write to DumpXXX variables.
-// These are "exported" (well, sort of: in non-test builds this file is ignored) to prevent the compiler from optimizations
+// These are "exported" (well, sort of: in non-test builds this file is ignored) to disabuse the compiler from potential optimizations
 // based on the fact that they are never read from within the bandersnatch module
 
 var DumpBools_curve [dumpSizeBench_curve]bool
@@ -115,7 +115,7 @@ func newPrecomputedCurvePointSlice(seed int64, pointType PointType) (pc *pseudoR
 
 // getPrecomputedCurvePointSlice samples amount many curve points of the given pointType with given seed.
 //
-// We use caching to speed up multiple calls to this function with the same seed, pointType pairs.
+// We use caching to speed up multiple calls to this function with the same (seed, pointType) pairs.
 // Note that while the returned elements are slices of pointers, multiple calls return pointers to independent copies.
 func getPrecomputedCurvePointSlice(seed int64, pointType PointType, amount int) []CurvePointPtrInterfaceTestSample {
 	mapKey := pseudoRandomCurvePointCacheKey{seed: seed, pointType: pointType}

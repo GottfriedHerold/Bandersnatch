@@ -1,7 +1,5 @@
 package bandersnatch
 
-import "testing"
-
 /*
 func getCofactors(P *Point_xtw) (tN, tA, t1, t2 FieldElement) {
 	var tmp FieldElement
@@ -53,6 +51,7 @@ func TestCofactorGroup(t *testing.T) {
 
 */
 
+/*
 func TestStuff(t *testing.T) {
 	f := func(x CurvePointSlice) bool {
 		return true
@@ -60,3 +59,4 @@ func TestStuff(t *testing.T) {
 	var P [2]Point_axtw_subgroup
 	f(CurvePointSlice_axtw_subgroup(P[:]))
 }
+*/

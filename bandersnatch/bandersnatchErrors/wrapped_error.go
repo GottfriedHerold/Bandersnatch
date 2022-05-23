@@ -21,6 +21,8 @@ func (we *WrappedError) Unwrap() error {
 	return we.Inner
 }
 
+// WILL BE REMOVED in favor of more flexible (but less type-safe) BandersnatchError
+
 // ErrorWithData is an error wrapper similar to WrappedError that also contains a data payload of type DataType.
 type ErrorWithData[DataType any] struct {
 	Inner   error    // wrapped error

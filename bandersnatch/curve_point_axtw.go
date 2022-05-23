@@ -36,6 +36,8 @@ type Point_axtw_full struct {
 	point_axtw_base
 }
 
+// TODO: Might go away
+
 type CurvePointSlice_axtw_full []Point_axtw_full
 type CurvePointSlice_axtw_subgroup []Point_axtw_subgroup
 
@@ -563,7 +565,7 @@ func (p *Point_axtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead,
 
 // SetFrom initializes the point from the given input point (which may have a different coordinate format).
 //
-// NOTE: To intialize a Point of type Point_axtw_subgroup with an input of a type that can hold points outside the subgroup, you need to use SetFromSubgroupPoint instead.
+// NOTE: To initialize a Point of type Point_axtw_subgroup with an input of a type that can hold points outside the subgroup, you need to use SetFromSubgroupPoint instead.
 func (p *Point_axtw_subgroup) SetFrom(input CurvePointPtrInterfaceRead) {
 	switch input := input.(type) {
 	case *Point_efgh_subgroup:
