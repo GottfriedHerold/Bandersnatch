@@ -5,8 +5,10 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 )
+
+type FieldElementEndianess = common.FieldElementEndianness
 
 // Due to insufficency of generics, we separate our serializers depending on whether the internal object that actually gets serialized consists of
 // a field element, two field element, field element+bit etc.
@@ -27,43 +29,45 @@ import (
 
 // valuesSerializerFeFe is a simple serializer for a pair of field elements
 type valuesSerializerFeFe struct {
-	fieldElementEndianness // meaning the endianness for fieldElementSerialization
+	common.FieldElementEndianness // meaning the endianness for fieldElementSerialization
 }
 
 // NOTE: DeserializeValues has err as second (rather than last) parameter, triggering warnings from static style-checkers.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
 
-func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err *errorWithPartialRead, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
-	bytesRead, errPlain := fieldElement1.Deserialize(input, s.byteOrder)
+func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
+	bytesRead, err = fieldElement1.Deserialize(input, s.FieldElementEndianness)
 	// Note: This aborts on ErrNonNormalizedDeserialization
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != 0)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesRead != 0)
 		return
 	}
-	bytesJustRead, errPlain := fieldElement2.Deserialize(input, s.byteOrder)
+	bytesJustRead, err := fieldElement2.Deserialize(input, s.byteOrder)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	utils.UnexpectEOF(&errPlain)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != int(s.OutputLength()))
+	bandersnatchErrors.UnexpectEOF(&err)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesRead != int(s.OutputLength()))
 	}
 	return
 }
 
-func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *bandersnatch.FieldElement) (int, *errorWithPartialRead) {
-	bytesWritten, errPlain := fieldElement1.Serialize(output, s.byteOrder)
-	if errPlain != nil {
-		return bytesWritten, bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != 0)
+func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *bandersnatch.FieldElement) (bytesWritten int, err error) {
+	bytesWritten, err = fieldElement1.Serialize(output, s.byteOrder)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesWritten != 0)
+		return
 	}
-	bytesJustWritten, errPlain := fieldElement2.Serialize(output, s.byteOrder)
+	bytesJustWritten, err := fieldElement2.Serialize(output, s.byteOrder)
 	bytesWritten += bytesJustWritten
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	utils.UnexpectEOF(&errPlain)
-	if errPlain != nil {
-		return bytesWritten, bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != int(s.OutputLength()))
+	bandersnatchErrors.UnexpectEOF(&err)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesWritten != int(s.OutputLength()))
+		return
 	}
-	return bytesWritten, nil
+	return // bytesWritten, nil
 }
 
 func (s *valuesSerializerFeFe) Clone() *valuesSerializerFeFe {
@@ -86,36 +90,39 @@ type valuesSerializerHeaderFeHeaderFe struct {
 	bitHeader2 bitHeader
 }
 
-func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err *errorWithPartialRead, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
-	bytesRead, errPlain := fieldElement1.DeserializeWithPrefix(input, s.prefixBits, s.prefixLen, s.byteOrder)
+func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement1, fieldElement2 bandersnatch.FieldElement) {
+	bytesRead, err = fieldElement1.DeserializeWithPrefix(input, s.prefixBits, s.prefixLen, s.byteOrder)
 	// Note: This aborts on ErrNonNormalizedDeserialization
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != 0)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesRead != 0)
 		return
 	}
-	bytesJustRead, errPlain := fieldElement2.DeserializeWithPrefix(input, s.bitHeader2.prefixBits, s.bitHeader2.prefixLen, s.byteOrder)
+	bytesJustRead, err := fieldElement2.DeserializeWithPrefix(input, s.bitHeader2.prefixBits, s.bitHeader2.prefixLen, s.byteOrder)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	utils.UnexpectEOF(&errPlain)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != int(s.OutputLength()))
+	bandersnatchErrors.UnexpectEOF(&err)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesRead != int(s.OutputLength()))
+		return
 	}
 	return
 }
 
-func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *bandersnatch.FieldElement) (int, *errorWithPartialRead) {
-	bytesWritten, errPlain := fieldElement1.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
-	if errPlain != nil {
-		return bytesWritten, bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != 0)
+func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *bandersnatch.FieldElement) (bytesWritten int, err error) {
+	bytesWritten, err = fieldElement1.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesWritten != 0)
+		return
 	}
-	bytesJustWritten, errPlain := fieldElement2.SerializeWithPrefix(output, s.bitHeader2.prefixBits, s.bitHeader2.prefixLen, s.byteOrder)
+	bytesJustWritten, err := fieldElement2.SerializeWithPrefix(output, s.bitHeader2.prefixBits, s.bitHeader2.prefixLen, s.byteOrder)
 	bytesWritten += bytesJustWritten
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	utils.UnexpectEOF(&errPlain)
-	if errPlain != nil {
-		return bytesWritten, bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != int(s.OutputLength()))
+	bandersnatchErrors.UnexpectEOF(&err)
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, bytesWritten != int(s.OutputLength()))
+		return
 	}
-	return bytesWritten, nil
+	return // bytesWritten, nil
 }
 
 func (s *valuesSerializerHeaderFeHeaderFe) SetBitHeader2(bh bitHeader) {
@@ -144,19 +151,13 @@ type valuesSerializerFe struct {
 	fieldElementEndianness
 }
 
-func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, err *errorWithPartialRead, fieldElement bandersnatch.FieldElement) {
-	bytesRead, errPlain := fieldElement.Deserialize(input, s.byteOrder)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(err, "", bytesRead != int(s.OutputLength()) && bytesRead != 0)
-	}
+func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement bandersnatch.FieldElement) {
+	bytesRead, err = fieldElement.Deserialize(input, s.byteOrder)
 	return
 }
 
-func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement) (bytesWritten int, err *errorWithPartialRead) {
-	bytesWritten, errPlain := fieldElement.Serialize(output, s.byteOrder)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(err, "", bytesWritten != int(s.OutputLength()) && bytesWritten != 0)
-	}
+func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement) (bytesWritten int, err error) {
+	bytesWritten, err = fieldElement.Serialize(output, s.byteOrder)
 	return
 }
 
@@ -176,19 +177,13 @@ type valuesSerializerHeaderFe struct {
 	bitHeader
 }
 
-func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err *errorWithPartialRead, fieldElement bandersnatch.FieldElement) {
-	bytesRead, errPlain := fieldElement.DeserializeWithPrefix(input, s.prefixBits, s.prefixLen, s.byteOrder)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != int(s.OutputLength()) && bytesRead != 0)
-	}
+func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement bandersnatch.FieldElement) {
+	bytesRead, err = fieldElement.DeserializeWithPrefix(input, s.prefixBits, s.prefixLen, s.byteOrder)
 	return
 }
 
-func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement) (bytesWritten int, err *errorWithPartialRead) {
-	bytesWritten, errPlain := fieldElement.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != int(s.OutputLength()) && bytesWritten != 0)
-	}
+func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *bandersnatch.FieldElement) (bytesWritten int, err error) {
+	bytesWritten, err = fieldElement.SerializeWithPrefix(output, s.prefixBits, s.prefixLen, s.byteOrder)
 	return
 }
 
@@ -209,7 +204,7 @@ type valuesSerializerFeCompressedBit struct {
 	fieldElementEndianness
 }
 
-func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err *errorWithPartialRead, fieldElement bandersnatch.FieldElement, bit bool) {
+func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err error, fieldElement bandersnatch.FieldElement, bit bool) {
 	var prefix bandersnatch.PrefixBits
 	bytesRead, prefix, err = fieldElement.DeserializeAndGetPrefix(input, 1, s.byteOrder)
 	bit = (prefix == 0b1)

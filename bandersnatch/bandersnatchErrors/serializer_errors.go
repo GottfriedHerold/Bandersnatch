@@ -6,12 +6,15 @@ import (
 	"os"
 )
 
+// DEPRECATED
+
 // BatchSerializationError is the interface type of errors that are returned by (De-)Serialization routines for multiple points
 // This extends the standard error interface by allowing to query for information in case of error about the state change in case in addition to the actual error.
 // Notably, it allows to query how many points were actually read/written in case of potential partial reads.
 //
 // Note that in case of no error, we return nil, so this information (albeit it would meaningful) cannot be gotten via the returned error.
 // However, it is available via other means such as len() of the returned slice, provided buffer etc.
+// DEPRECATED
 type BatchSerializationError interface {
 	error
 	PointsWritten() int // How many points were written to the io.Writer in case of error
@@ -20,6 +23,7 @@ type BatchSerializationError interface {
 	Unwrap() error // requires for errors.Is and errors.As
 }
 
+// DEPRECATED
 type BatchDeserializationError interface {
 	error
 	PointsRead() int
@@ -30,6 +34,7 @@ type BatchDeserializationError interface {
 // batchSerializationError is an error wrapper returned when there is an error when trying to serializae a batch of curve points.
 // Since serialization a batch of curve points is equivalent to serializing them individually, there is the meaningful case of writing into a too small buffer (which gives an EOF or UnexpectedEOF); in this case, only a subset will be written
 // and the extra information contained can be used to query how many were written.
+// DEPRECATED
 type batchSerializationError struct {
 	e             error
 	pointsWritten int

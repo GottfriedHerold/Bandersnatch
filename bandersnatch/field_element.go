@@ -1,8 +1,13 @@
 package bandersnatch
 
-// FieldElement
+// Code for FieldElement (meaning the field of definition of the bandersnatch curve)
+// is in field_element_64.go and field_element_8.go
+// Only field_element_64.go is used; field_element_8.go serves as a compariso
+// implementation that is only used in testing.
 
 // NOTE: The _8 comparison implementation does not have everything implemented.
+
+// TODO: Interface here is not complete. Refer to field_element_64.go for what we actually provide.
 
 /*
 	This is the intended interface of Field Elements.
@@ -13,6 +18,7 @@ package bandersnatch
 	interface type and start by making a type assertion.)
 
 	As as Go1.18, we have generics, but this does not change things :(
+	(without making unacceptable sacrifices in efficiency, at least)
 
 type BSFieldElement_Interface interface {
 	IsZero() bool
@@ -47,14 +53,14 @@ type BSFieldElement_Interface interface {
 // The size of this field matches (by design) the size of the prime-order subgroup of the BLS12-381 curve.
 type FieldElement = bsFieldElement_64
 
+// NOTE: We intentionally expose copies of unexported variables here to prevent users from modifying bsFieldElement_64_one etc. and
+// to give the compiler at least a chance to observe that these are never modified.
+// Internal code should not use the exported variables.
+
 var (
-	FieldElementOne                   = bsFieldElement_64_one
-	FieldElementZero                  = bsFieldElement_64_zero
-	FieldElementMinusOne              = bsFieldElement_64_minusone
+	// Important constants of type FieldElement
+	FieldElementOne      FieldElement = bsFieldElement_64_one
+	FieldElementZero     FieldElement = bsFieldElement_64_zero
+	FieldElementMinusOne FieldElement = bsFieldElement_64_minusone
 	FieldElementTwo      FieldElement = initFieldElementFromString("2")
-
-	// We do not expose FieldElementZero_alt, because users doing IsEqual(&FieldElementZero_alt, .) might call Normalize() on it, which would make
-	// IsZero() subsequently fail.
-	// FieldElementZero_alt = bsFieldElement_64_zero_alt
-
 )

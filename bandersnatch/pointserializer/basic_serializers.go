@@ -21,11 +21,12 @@ type errorWithPartialRead = bandersnatchErrors.ErrorWithData[bool]
 type curvePointDeserializer_basic interface {
 	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point. TrustLevel determines whether we trust the input to be a valid representation of a curve point.
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err *errorWithPartialRead)
+	// On error, outputPoint is kept unchanged.
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
-	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point.
+	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers withot serializers, it is an upper bound.
 
-	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insesitive.
+	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insensitive.
 	GetEndianness() binary.ByteOrder               // returns the endianness used for field element serialization
 	Verifier
 
@@ -94,40 +95,39 @@ type pointSerializerXY struct {
 	subgroupRestriction // wraps a bool
 }
 
-func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err *errorWithPartialRead) {
-	errPlain := checkPointSerializability(point, s.IsSubgroupOnly())
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", false)
+func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
+	err = checkPointSerializability(point, s.IsSubgroupOnly())
+	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	X, Y := point.XY_affine()
-	bytesWritten, errPlain = s.valuesSerializerHeaderFeHeaderFe.SerializeValues(output, &X, &Y)
-	if errPlain != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesWritten != int(s.valuesSerializerHeaderFeHeaderFe.OutputLength()))
-	}
+	bytesWritten, err = s.valuesSerializerHeaderFeHeaderFe.SerializeValues(output, &X, &Y)
 	return
 }
 
-func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err *errorWithPartialRead) {
+func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	var X, Y bandersnatch.FieldElement
-	var errPlain error
-	bytesRead, errPlain, X, Y = s.DeserializeValues(input)
+	// var errPlain error
+	bytesRead, err, X, Y = s.DeserializeValues(input)
 	if err != nil {
-		err = bandersnatchErrors.NewErrorWithData(errPlain, "", bytesRead != int(s.OutputLength()))
 		return
 	}
 	if s.IsSubgroupOnly() || point.CanOnlyRepresentSubgroup() {
+		// using a temporary P here to ensure P is unchanged on error
 		var P bandersnatch.Point_axtw_subgroup
-		P, errPlain = bandersnatch.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
+		P, err = bandersnatch.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
 		if err != nil {
-			err = bandersnatchErrors.NewErrorWithData(errPlain, "", false)
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 		point.SetFrom(&P)
 	} else {
+		// using a temporary P here to ensure P is unchanged on error
 		var P bandersnatch.Point_axtw_full
 		P, err = bandersnatch.CurvePointFromXYAffine_full(&X, &Y, trustLevel)
 		if err != nil {
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 		point.SetFrom(&P)
@@ -172,6 +172,7 @@ type pointSerializerXAndSignY struct {
 func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
 	err = checkPointSerializability(point, s.subgroupOnly)
 	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	X, Y := point.XY_affine()
@@ -200,6 +201,7 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 		var P bandersnatch.Point_axtw_subgroup
 		P, err = bandersnatch.CurvePointFromXAndSignY_subgroup(&X, signInt, trustLevel)
 		if err != nil {
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 		point.SetFrom(&P)
@@ -207,6 +209,7 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 		var P bandersnatch.Point_axtw_full
 		P, err = bandersnatch.CurvePointFromXAndSignY_full(&X, signInt, trustLevel)
 		if err != nil {
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 		point.SetFrom(&P)
@@ -254,6 +257,7 @@ func (s *pointSerializerYAndSignX) Verify() {
 func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
 	err = checkPointSerializability(point, s.IsSubgroupOnly())
 	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	X, Y := point.XY_affine()
@@ -276,18 +280,21 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		signInt = +1
 	}
 
-	// Note: CurvePointFromYAndSignX_* accepts any sign for Y=+/-1. We need to correct this to ensure uniqueness of serialized representation.
+	// Note: CurvePointFromYAndSignX_* accepts any sign for Y=+/-1.
+	// We need to correct this to ensure uniqueness of the serialized representation.
 
 	if s.subgroupOnly || point.CanOnlyRepresentSubgroup() {
 		var P bandersnatch.Point_axtw_subgroup
 		P, err = bandersnatch.CurvePointFromYAndSignX_subgroup(&Y, signInt, trustLevel)
 		if err != nil {
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 
 		// This can only happen if Y = +1. In this case, we only accept signBit = false, as that's what we write when serializing.
 		if P.IsNeutralElement() && signBit {
 			err = bandersnatchErrors.ErrUnexpectedNegativeZero
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 
@@ -296,6 +303,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		var P bandersnatch.Point_axtw_full
 		P, err = bandersnatch.CurvePointFromYAndSignX_full(&Y, signInt, trustLevel)
 		if err != nil {
+			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 			return
 		}
 
@@ -304,6 +312,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 			var X bandersnatch.FieldElement = P.X_decaf_affine()
 			if X.IsZero() && signBit {
 				err = bandersnatchErrors.ErrUnexpectedNegativeZero
+				bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 				return
 			}
 		}
@@ -323,7 +332,6 @@ func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 
 func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYAndSignX) {
 	return makeCopyWithParamsNew(s, param, newParam)
-	// return makeCopyWithParams(s, param, newParam).(pointSerializerYAndSignX)
 }
 
 func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYAndSignX {
@@ -336,23 +344,9 @@ func (s *pointSerializerYAndSignX) GetParam(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
-/*
-func (s *pointSerializerYAndSignX) WithEndianness(e binary.ByteOrder) (ret pointSerializerYAndSignX) {
-	ret = *s.Clone()
-	ret.SetEndianness(e)
-	return
-}
-*/
-
-/*
-func (s *pointSerializerYAndSignX) WithSubgroupOnly(b bool) (ret pointSerializerYAndSignX) {
-	ret = *s.Clone()
-	ret.subgroupOnly = b
-	return
-}
-*/
-
-// pointSerializerXTimesSignY is a basic serializer that serializes via X * Sign(Y). Note that this only works for points in the subgroup, as the information of being in the subgroup is needed to deserialize uniquely.
+// pointSerializerXTimesSignY is a basic serializer that serializes via X * Sign(Y).
+// Note that this only works for points in the subgroup, as the information of being in the subgroup
+// is needed to deserialize uniquely.
 type pointSerializerXTimesSignY struct {
 	valuesSerializerHeaderFe
 	subgroupOnly
@@ -366,6 +360,7 @@ func (s *pointSerializerXTimesSignY) Verify() {
 func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
 	err = checkPointSerializability(point, true)
 	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	X := point.X_decaf_affine()
@@ -387,6 +382,7 @@ func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trus
 	var P bandersnatch.Point_axtw_subgroup
 	P, err = bandersnatch.CurvePointFromXTimesSignY_subgroup(&XSignY, trustLevel)
 	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	point.SetFrom(&P)
@@ -400,7 +396,6 @@ func (s *pointSerializerXTimesSignY) Clone() (ret *pointSerializerXTimesSignY) {
 
 func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXTimesSignY) {
 	return makeCopyWithParamsNew(s, param, newParam)
-	// return makeCopyWithParams(s, param, newParam).(pointSerializerXTimesSignY)
 }
 
 func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXTimesSignY {
@@ -413,7 +408,9 @@ func (s *pointSerializerXTimesSignY) GetParam(parameterName string) interface{} 
 	return getSerializerParam(s, parameterName)
 }
 
-// pointSerializerYXTimesSignY is a serializer that used X*Sign(Y), Y*Sign(Y). This serializer only works for subgroup elements.
+// pointSerializerYXTimesSignY is a serializer that uses X*Sign(Y), Y*Sign(Y).
+// This serializer only works for subgroup elements:
+// The fact of being in the subgroup is needed to uniquely deserialize.
 type pointSerializerYXTimesSignY struct {
 	valuesSerializerHeaderFeHeaderFe
 	subgroupOnly
@@ -427,6 +424,7 @@ func (s *pointSerializerYXTimesSignY) Verify() {
 func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
 	err = checkPointSerializability(point, true)
 	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	X := point.X_decaf_affine()
@@ -449,6 +447,7 @@ func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, tru
 	var P bandersnatch.Point_axtw_subgroup
 	P, err = bandersnatch.CurvePointFromXYTimesSignY_subgroup(&XSignY, &YSignY, trustLevel)
 	if err != nil {
+		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
 		return
 	}
 	ok := point.SetFromSubgroupPoint(&P, bandersnatch.TrustedInput) // P is trusted at this point
@@ -467,7 +466,6 @@ func (s *pointSerializerYXTimesSignY) Clone() (ret *pointSerializerYXTimesSignY)
 
 func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYXTimesSignY) {
 	return makeCopyWithParamsNew(s, param, newParam)
-	// return makeCopyWithParams(s, param, newParam).(pointSerializerYXTimesSignY)
 }
 
 func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYXTimesSignY {

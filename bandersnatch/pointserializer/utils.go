@@ -19,6 +19,10 @@ type Verifier interface {
 	Verify()
 }
 
+const PARTIAL_READ_FLAG = bandersnatchErrors.PARTIAL_READ_FLAG
+
+const ACTUAL_READ = "actuallyread"
+
 // consumeExpectRead reads and consumes len(expectToRead) bytes from input and reports an error if the read bytes differ from expectToRead.
 // This is intended to read headers. Remember to use errors.Is to check the returned errors rather than == due to error wrapping.
 //
@@ -29,7 +33,12 @@ type Verifier interface {
 //
 // Panics if expectToRead has length >MaxInt32. The function always (tries to) consume len(expectToRead) bytes, even if a mismatch is already early in the stream.
 // Panics if expectToRead is nil or input is nil (unless len(expectToRead)==0)
-func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError *bandersnatchErrors.ErrorWithData[[]byte]) {
+//
+// a returned non-nil error always has parameters ACTUAL_READ and PARTIAL_READ_FLAG.
+// ACTUAL_READ contains the actually read bytes (type []byte)
+// PARTIAL_READ_FLAG (type bool) is true iff 0 < bytes_read.
+// Note here that if bytesRead == len(expectToRead), io errors are dropped and the only possible error is ErrDidNotReadExpectedString; we consider PARTIAL_READ_FLAG = true appropriate here.
+func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError bandersnatchErrors.PlainErrorWithParameters) {
 	if expectToRead == nil {
 		panic("bandernatch / serialization: consumeExpectRead called with nil input for expectToRead")
 	}
@@ -49,29 +58,30 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 	bytes_read, err = io.ReadFull(input, buf)
 	if err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) {
-			data := buf[0:bytes_read]
+			var data []byte = buf[0:bytes_read]
 			message := fmt.Sprintf("bandersnatch / deserialization: Unexpected EOF after reading %v out of %v bytes when reading header.\nReported error was %v.\nBytes expected were 0x%x, got 0x%x", bytes_read, len(expectToRead), err, expectToRead, data)
-			returnedError = bandersnatchErrors.NewErrorWithData(err, message, data)
+			returnedError = bandersnatchErrors.NewErrorWithParameters(err, message, ACTUAL_READ, data, PARTIAL_READ_FLAG, true)
 		} else if errors.Is(err, io.EOF) {
 			expectToRead = copyByteSlice(expectToRead)
 			message := fmt.Sprintf("bandersnatch / deserialization: Unexpected EOF when trying to read buffer.\nExpected to read 0x%x, got EOF instead", expectToRead)
 			testutils.Assert(bytes_read == 0)
 			data := make([]byte, 0) // no need to retain buf's underlying array.
-			returnedError = bandersnatchErrors.NewErrorWithData(err, message, data)
+			returnedError = bandersnatchErrors.NewErrorWithParameters(err, message, ACTUAL_READ, data, PARTIAL_READ_FLAG, true)
 		} else {
 			data := buf[0:bytes_read]
-			// empty message means that err.Error() is used as error message.
-			returnedError = bandersnatchErrors.NewErrorWithData(err, "", data)
+			partial_read := bytes_read != 0 // NOTE: io.ReadFull guarantees bytes_read != l
+			returnedError = bandersnatchErrors.NewErrorWithParameters(err, "", ACTUAL_READ, data, PARTIAL_READ_FLAG, partial_read)
 		}
 		return
 	}
 	if !bytes.Equal(expectToRead, buf) {
 		err = bandersnatchErrors.ErrDidNotReadExpectedString
 		message := fmt.Sprintf("bandersnatch / deserialization: Unexpected Header encountered upon deserialization. Expected 0x%x, got 0x%x", expectToRead, buf)
-		data := buf
-		returnedError = bandersnatchErrors.NewErrorWithData(err, message, data)
+		var data []byte = buf
+		returnedError = bandersnatchErrors.NewErrorWithParameters(err, message, ACTUAL_READ, data, PARTIAL_READ_FLAG, true)
+		return
 	}
-	// returnedError == nil iff no error occured so far
+	returnedError = nil // this is true anyway at this point, we like being explicit.
 	return
 }
 
@@ -185,7 +195,8 @@ func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, p
 
 // Note: This returns a copy (by design). For v==nil, we return a fresh, empty non-nil slice.
 
-// copyByteSlice returns a copy of the given byte slice. For nil inputs, returns an empty byte slice.
+// copyByteSlice returns a copy of the given byte slice (with newly allocated underlying array).
+// For nil inputs, returns an empty byte slice.
 func copyByteSlice(v []byte) (ret []byte) {
 	if v == nil {
 		ret = make([]byte, 0)

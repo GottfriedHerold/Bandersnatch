@@ -7,8 +7,12 @@ func CheckSliceAlias[T any](x []T, y []T) bool {
 	}
 	cx := cap(x)
 	cy := cap(y)
+	// Whether or not the underlying storage array is the same for capacity-0 slices
+	// is undetectable anyway without looking into the internals of the slice implementation.
 	if cx == 0 || cy == 0 {
 		return false
 	}
+	// While reslicing may change the start, the end (extended to capacity) is invariant.
+	// So we check the address of the last entries (last when extended to capacity)
 	return &(x[0:cx][cx-1]) == &(y[0:cy][cy-1])
 }

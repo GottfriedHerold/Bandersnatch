@@ -11,9 +11,15 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
+
+// This file gives an implementation for field elements (meaning the field of definition of the Bandersnatch elliptic curve)
+// using a low-endian Montgomery representation without uniqueness of internal representation
+// (i.e. a given field element can have multiple representations).
 
 /*
 	WARNING :
@@ -23,10 +29,18 @@ import (
 	(Be aware that most computations actually *do* result in the smallest possible representation -- so this might not show in test)
 	- certain bit-patterns of BaseFieldSize and terms derived from it.
 
-	Adapting this code to other moduli is, hence, extremely error-prone!
+	Adapting this code to other moduli is, hence, extremely error-prone and is recommended against!
 */
 
-// 2 * BaseFieldSize, precomputed
+// Notation: m == BaseFieldSize, r == 2^256 is the Montgomery multiplier.
+// TODO: Unify the notation of constants!!!
+
+// Note: Since Go for some inexplicable reason lacks const arrays,
+// we define large 256-bit constants both as untyped 256-bit constants and
+// separately as constants for every 64-bit word.
+// (Note that the language does not let one do ANYTHING with 256-bit constants other than define other constants)
+
+// mdoubled_64_i denotes the i'th 64-bit word of 2 * BaseFieldSize
 const (
 	mdoubled_64_0 = (2 * BaseFieldSize_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
 	mdoubled_64_1
@@ -34,12 +48,12 @@ const (
 	mdoubled_64_3
 )
 
-// 1/2 * (BaseFieldSize-1), precomputed
-
+// mhalved equals 1/2 * (BaseFieldSize-1) as untyped int
 const (
 	mhalved = (BaseFieldSize_untyped - 1) / 2
 )
 
+// mhalved_64_i denotes the i'th 64-bit word of 1/2 * (BaseFieldSize-1)
 const (
 	mhalved_64_0 = (mhalved >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
 	mhalved_64_1
@@ -47,11 +61,12 @@ const (
 	mhalved_64_3
 )
 
-// 2^512 mod BaseFieldSize. This is useful for converting to/from montgomery form.
+// rsquared_untyped is 2^512 mod BaseFieldSize. This is useful for converting to/from montgomery form.
 const (
 	rsquared_untyped = 0x748d9d99f59ff1105d314967254398f2b6cedcb87925c23c999e990f3f29c6d
 )
 
+// rsquared_64_i is the i'th 64-bit word of 2^512 mod BaseFieldSize.
 const (
 	rsquared_64_0 = (rsquared_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
 	rsquared_64_1
@@ -59,12 +74,14 @@ const (
 	rsquared_64_3
 )
 
-// 2^256 - 2*BaseFieldSize == 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1.
+// 2^256 - 2*BaseFieldSize == 2^256 mod BaseFieldSize. This is also the (unique) Montgomery representation of 1.
 // Note: Value is 0x1824b159acc5056f_998c4fefecbc4ff5_5884b7fa00034802_00000001fffffffe
 // The weird computation is to avoid 1 << 256, which is not portable according to the go spec (intermediate results are too large even for untyped computations)
 
+// rModBaseField_untyped is 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1.
 const rModBaseField_untyped = 2 * ((1 << 255) - BaseFieldSize_untyped)
 
+// rModBaseField_64_i is the i'th 64-bit word of (2^256 mod BaseFieldSize). Note that this corresponds to the Montgomery representation of 1.
 const (
 	rModBaseField_64_0 uint64 = (rModBaseField_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
 	rModBaseField_64_1
@@ -72,9 +89,12 @@ const (
 	rModBaseField_64_3
 )
 
-// Negative of rModBaseField modulo BaseFieldSize. This is the Montgomery representation of -1.
+// montgomeryNegOne_untyped is the negative of rModBaseField modulo BaseFieldSize.
+// This is the Montgomery representation of -1.
 const montgomeryNegOne_untyped = BaseFieldSize_untyped - rModBaseField_untyped
 
+// montgomeryNegOne_i is the i'th 64-bit word of the negative of rModBaseField modulo BaseFieldSize.
+// This is the Montgomery representation of -1.
 const (
 	montgomeryNegOne_0 uint64 = (montgomeryNegOne_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
 	montgomeryNegOne_1
@@ -83,13 +103,23 @@ const (
 )
 
 type bsFieldElement_64 struct {
-	// field elements stored in low-endian 64-bit uints in Montgomery form, i.e. words encodes a number x s.t.
-	// words - x * (1<<256) == 0 (mod BaseFieldSize).
+	// field elements stored in low-endian 64-bit uints in Montgomery form, i.e.
+	// a bsFieldElement_64 encodes a field element x if
+	// words - x * 2^256 == 0 (mod BaseFieldSize), where words is interpreted in LowEndiant as a 256-bit number.
 
 	// Note that the representation of x is actually NOT unique.
-	// The invariant that we maintain to get efficient field operations is that 0 <= words < (1<<256) - BaseFieldSize, i.e. adding BaseFieldSize does not overflow.
-	// Of course, the invariant concerns the Montgomery representation, interpreting words directly as a 256-bit integer.)
-	// Since BaseFieldSize is between 1/3*2^256 and 1/2*2^256, a given x might have either 1 or 2 possible representations.
+	// The invariant that we maintain to get efficient field operations is that
+	//
+	// ********************************************
+	// *                                          *
+	// *   0 <= words < (1<<256) - BaseFieldSize  *
+	// *                                          *
+	// ********************************************
+	//
+	// i.e. adding BaseFieldSize does not overflow.
+	// Of course, this invariant concerns the Montgomery representation, interpreting words directly as a 256-bit integer.
+	// Since BaseFieldSize is between 1/3*2^256 and 1/2*2^256, a given field element x might have either 1 or 2 possible representations as
+	// a bsFieldElement_64, both of which are equally valid as far as this implementation is concerned.
 	words [4]uint64
 }
 
@@ -144,7 +174,8 @@ func (z *bsFieldElement_64) maybe_reduce_once() {
 // isNormalized checks whether the internal representaion is in 0<= . < BaseFieldSize.
 // This function is only used internally.
 func (z *bsFieldElement_64) isNormalized() bool {
-	// Workaround for Go's lack of constexpr. Hoping for smart-ish compiler.
+	// Workaround for Go's lack of const-arrays. Hoping for smart-ish compiler.
+	// Note that the RHS is const and the left-hand-side is local and never written to after initialization.
 	var baseFieldSize_copy [4]uint64 = [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}
 	for i := int(3); i >= 0; i-- {
 		if z.words[i] < baseFieldSize_copy[i] {
@@ -160,7 +191,8 @@ func (z *bsFieldElement_64) isNormalized() bool {
 // Normalize() changes the internal representation of z to a unique number in 0 <= . < BaseFieldSize
 //
 // After a call to Normalize on both operands, the default == operator does the right thing.
-// This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say).
+// This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say)
+// or when using bsFieldElement_64 as keys for a map.
 func (z *bsFieldElement_64) Normalize() {
 	if z.isNormalized() {
 		return
@@ -205,6 +237,9 @@ func (z *bsFieldElement_64) Sign() int {
 
 // TODO: Make MUCH more efficient. The standard library's implementation's performance appears to be quite bad.
 // (For a start, it allocates like crazy, for which there is absolutely no reason)
+// Furthermore, the standard library does the Euclid-like algorithm with computing
+// denominator modulo numerator, but chooses the representative in 0 <= . < denominator
+// (Rather than minimal absolute value, with is better)
 
 // Jacobi computes the Legendre symbol of the received elements z.
 // This means that z.Jacobi() is +1 if z is a non-zero square and -1 if z is a non-square. z.Jacobi() == 0 iff z.IsZero()
@@ -385,7 +420,8 @@ func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
 
 	// If reducer == 0, then temp == x*y[0]/r.
 	// Otherwise, we need to compute temp = ([temp, reducer] + BaseFieldSize * (reducer * negativeInverseModulus mod r)) / r
-	// Note that we know exactly what happens in the least significant uint64 in the addition (result 0, carry 1). Be aware that carry 1 relies on reducer != 0, hence the if...
+	// Note that we know exactly what happens in the least significant uint64 in the addition (result is 0, carry is 1).
+	// Be aware that carry 1 relies on reducer != 0, hence the if reducer!=0 condition
 	if reducer != 0 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
 	}
@@ -402,7 +438,7 @@ func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
 
 	reducer = add_mul_shift_64(&temp, &x.words, y.words[3])
 	if reducer != 0 {
-		// TODO: Store directly into z
+		// TODO: Store directly into z?
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
 	}
 
@@ -430,6 +466,9 @@ func (z *bsFieldElement_64) IsZero() bool {
 
 // IsOne checks whether the field element is 1
 func (z *bsFieldElement_64) IsOne() bool {
+	// Note: The representation of 1 is unique:
+	// bsFieldElement_64_one.words corresponds to 2^256 - 2*BaseField, so the other (potential) Montgomery representation
+	// would be 2^256-1*BaseFieldSize, which (barely) violates our invariant that addition of BaseFieldSize does not overflow.
 	return *z == bsFieldElement_64_one
 }
 
@@ -738,13 +777,6 @@ func (z bsFieldElement_64) Format(s fmt.State, ch rune) {
 	z.ToBigInt().Format(s, ch)
 }
 
-// Serialization-related functionalities start here:
-
-type PrefixBits byte
-type prefixBits = byte // must be the same as above, but as alias
-
-const maxprefixlength = 8
-
 var (
 	ErrPrefixDoesNotFit             error = errors.New("while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large")
 	ErrPrefixLengthInvalid          error = errors.New("in FieldElement (de)serializitation, an invalid prefix length > 8 was requested")
@@ -754,6 +786,7 @@ var (
 	ErrNonNormalizedDeserialization error = errors.New("during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )
 
+/*
 // checkPrefixValidity is a helper function that checks whether the pair (prefix, prefix_length) is a valid, i.e.
 // 0<=prefix_length<=8 and prefix only contains set bits among the prefix_length many lsb's.
 func checkPrefixValidity(prefix PrefixBits, prefix_length uint8) error {
@@ -765,6 +798,7 @@ func checkPrefixValidity(prefix PrefixBits, prefix_length uint8) error {
 	}
 	return nil
 }
+*/
 
 // SerializeWithPrefix is used to serialize the given number with some extra prefix bits squeezed into the most significant byte of the field element.
 // This function is needed for "compressed" serialization of curve points, where we often need to write an extra sign bit.
@@ -786,14 +820,13 @@ func checkPrefixValidity(prefix PrefixBits, prefix_length uint8) error {
 // It returns the number of actually written bytes and an error (nil if ok).
 // If byteOrder, prefix or prefix_length are invalid or the prefix_length many bits of z are not all zero, we report an error and do not write anything to output.
 // On other (io-related) errors, we might perform (partial) writes to output.
-func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix PrefixBits, prefix_length uint8, byteOrder binary.ByteOrder) (bytes_written int, err error) {
-	err = checkPrefixValidity(prefix, prefix_length)
-	if err != nil {
-		return
-	}
+func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix common.BitHeader, byteOrder common.FieldElementEndianness) (bytes_written int, err error) {
 	var low_endian_words [4]uint64 = z.undoMontgomery()
+	prefix_length := prefix.PrefixLen()
+	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(low_endian_words[3]) < int(prefix_length) {
 		err = ErrPrefixDoesNotFit
+		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, false)
 		return
 	}
 

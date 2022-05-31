@@ -1,6 +1,6 @@
 package testutils
 
-// NOTE: Not really an assert (since the check is actually performed). Maybe rename?
+// TODO: Not really an assert (since the check is actually performed). Maybe rename to PanicUnless?
 
 // Assert(condition) panics if condition is false; Assert(condition, error) panics if condition is false with panic(error).
 func Assert(condition bool, err ...interface{}) {

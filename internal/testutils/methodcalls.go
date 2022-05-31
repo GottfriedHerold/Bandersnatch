@@ -5,8 +5,11 @@ import (
 	"reflect"
 )
 
+// This file contains some helper functions to outsource some boilerplate checks when calling methods via reflection.
+
 // DoesMethodExist checks whether receiverType has a method of name methodName with inputs and outputs of (approximately) the given type.
 // Note that input and output types only need to match up to assignability. On failure, gives a reason string explaining the failure.
+// On success, reason == ""
 func DoesMethodExist(receiverType reflect.Type, methodName string, inputs []reflect.Type, outputs []reflect.Type) (good bool, reason string) {
 	var elemType reflect.Type
 	// var ptrReceiver bool
@@ -52,7 +55,9 @@ func DoesMethodExist(receiverType reflect.Type, methodName string, inputs []refl
 	return true, ""
 }
 
-// CallMethodByName(receiver, methodName, args...) calls receiver.method(args...) using reflection. It takes care about some part of the boilerplate and hides reflect.Value / reflect.Type.
+// CallMethodByName(receiver, methodName, args...) calls receiver.method(args...) using reflection.
+// It takes care about some part of the boilerplate and hides reflect.Value / reflect.Type at the expense of some
+// issues with settability.
 func CallMethodByName(receiver interface{}, methodName string, inputs ...interface{}) (outputs []interface{}) {
 	var receiverValue reflect.Value = reflect.ValueOf(receiver)
 	var receiverType reflect.Type = receiverValue.Type()

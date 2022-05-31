@@ -55,7 +55,7 @@ func SquareRoot() {
 // and have the parent ExpensiveOps just count the Sum ExpensiveOp1 and ExpensiveOp2CalledDirectly
 
 // In the external interface, call counters are always refered to by the id string.
-// A CallCounter with a given need to be created and registered exactly once by one the provided function before it can be used.
+// A CallCounter with a given id needs to be created and registered exactly once by one the provided function before it can be used.
 // We assume that all call counters are created before any increments happen.
 // Call counters can be refered to by id and be created later, so initialization order does not matter.
 // If a call counter is refered, but never actually created, a dummy entry with sensible defaults is used.
@@ -98,6 +98,7 @@ func (id Id) Exists() (ret bool) {
 // and keep a map callCounters that map Id strings -> pointers for existing CallCounters.
 // As users may register CallCounters in an non-dependency-compatible order,
 // we just add a dummy entry into the map in order to be able to take an adress.
+// This dummy is the later replaced (while keeping the adress) when the user request actual creation later.
 
 // addDummyCounter registers an (marked as uninitialized) dummy entry
 // into the callCounters map and returns a pointer to it.
@@ -174,7 +175,7 @@ func CreateHierarchicalCallCounter(id Id, displayName string, parentId Id) *Call
 			parentcc.displayName = string(parentId) + "(dummy)"
 		}
 		linkAsChildParent(cc, parentcc)
-		// Note: +=1 instead of = 1 in case someone creates a and modifies a dummy entry before calling AddNewCallCounter (which is a bad idea, but anyway)
+		// Note: +=1 instead of = 1 in case someone creates and modifies a dummy entry before calling AddNewCallCounter (which is a bad idea, but anyway)
 		cc.addToRecursive[parentcc] += 1 // this creates the map entry if it did not exist before
 		if cc.addToRecursive[parentcc] == 0 {
 			delete(cc.addToRecursive, parentcc)
@@ -220,7 +221,7 @@ func CreateNewCallCounter(id Id, displayName string, doDisplay bool, attachTo Id
 }
 
 // CreateAttachedCallCounter(id, displayName, attachTo) creates a and registers a new call counter with the given parameters.
-// If attachTo is not the empty set, it is created as a child of attachTo, but does not add to it.
+// If attachTo is not the empty string, it is created as a child of attachTo, but does not add to it.
 // It also makes the attached-to parent display the difference between itself and its children.
 func CreateAttachedCallCounter(id Id, displayName string, attachTo Id) (cc *CallCounter) {
 	cc = CreateNewCallCounter(id, displayName, true, attachTo, false)
@@ -384,7 +385,7 @@ func ReportCallCounters(onlyPositive bool, useDisplayName bool) (ret []CCReport)
 
 // Q: Should this function take an io.Writer rather than return a string?
 
-// GetCallCounterStructureReport creates a string that can be printed to show the structure of call counters.
+// GetCallCounterStructureReport creates a string that can be printed to show the structure of all created call counters.
 // Indent is the indent used to show the subtree-structure
 func GetCallCounterStructureReport(indent string) (ret string) {
 	var seen_cc map[*CallCounter]bool = make(map[*CallCounter]bool)
