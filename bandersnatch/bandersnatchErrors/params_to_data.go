@@ -16,10 +16,13 @@ var enforcedDataTypeMapMutex sync.RWMutex
 var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[reflect.Type]lookupStructMapConversion)
 
 // getStructMapConversionLookup obtains a lookup table for converting a struct data type (passed as reflect.Type)
-// to a map[string]any. This essentially is just reflect.VisibleFields with some extra checks upfront and skipping embedded fields.
+// to a map[string]any. Repeated calls with the same argument give identical results (slice with same backing array)
+//
+// This essentially is just reflect.VisibleFields with some extra checks upfront and skipping embedded fields.
 func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConversion) {
-	// Note: Our rw locking strategy can lead to multiple goroutines get different lookupStructMapConversion
-	// (i.e. with different underlying arrays), but equivalent content.
+	// Note: We cache the result in a global map. This implies
+	// that e.g. the order of entries in the returned struct is consistent.
+	// (Note sure whether this is needed and this is probably true anyway, not guaranteed by the spec of reflect.VisibleFields otherwise)
 	enforcedDataTypeMapMutex.RLock()
 	ret, ok := enforcedDataTypeMap[tType]
 	enforcedDataTypeMapMutex.RUnlock()
@@ -38,7 +41,7 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 		if !visibleField.IsExported() {
 			panic("bandersnatch / error handling: Using errorWithEnsuredParameters with struct type containing unexported fields")
 		}
-		// .Anonymous denotes whether the field is embedded.
+		// .Anonymous denotes whether the field is embedded (a bit of a misnomer).
 		// for an embedded field, reflect.VisibleFields returns both the name of the embedded type and its included field
 		// We only want the latter, so we skip here.
 		if visibleField.Anonymous {
@@ -47,15 +50,20 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 		ret = append(ret, visibleField)
 	}
 	enforcedDataTypeMapMutex.Lock()
-	enforcedDataTypeMap[tType] = ret
-	enforcedDataTypeMapMutex.Unlock()
+	defer enforcedDataTypeMapMutex.Unlock()
+	_, ok = enforcedDataTypeMap[tType]
+	if ok {
+		ret = enforcedDataTypeMap[tType]
+	} else {
+		enforcedDataTypeMap[tType] = ret
+	}
 	return
 }
 
 // validateErrorContainsData checks whether e actually contains data for all fields of a struct of type StructType.
 // This is called after creating an error with T==StructType.
 // e == nil is treated as error without any data.
-func validateErrorContainsData[T any, StructType any](e *errorWithEnsuredParameters[T]) (err error) {
+func validateErrorContainsData[StructType any](e errorWithParameters_commonInterface) (err error) {
 	structType := utils.TypeOfType[StructType]()
 	allExpectedFields := getStructMapConversionLookup(structType)
 	for _, expectedField := range allExpectedFields {
@@ -107,7 +115,11 @@ func validateErrorContainsData[T any, StructType any](e *errorWithEnsuredParamet
 // setting all visible fields (possibly from embedded anonymous structs) in T according to m.
 // The map must contain an entry for every such field of T and T must not not contain non-exported fields.
 // m is allowed to contain entries that are not required for T.
-// panics on failure.
+//
+// Returns an error if m does not contain data for some struct fields or data of invalid type;
+// On error, the value for the returned struct ret is the zero value of the struct.
+// We ask that data has exaclty matching type except for interface types in the struct or nil values in the map.
+// m == nil is treated like an empty map. Using an invalid T causes panic.
 func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err error) {
 	reflectedStructType := utils.TypeOfType[StructType]() // could do reflect.TypeOf(ret), but this gives better errors in case someone wrongly sets T to an interface type.
 	allStructFields := getStructMapConversionLookup(reflectedStructType)
@@ -118,6 +130,8 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 		if !ok {
 			err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
 				reflectedStructType, structField.Name)
+			var zero StructType
+			ret = zero
 			return
 		}
 		// This is stupid, but Go1.18 requires special-casing here.
@@ -130,6 +144,8 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 			} else {
 				err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v from parameters; parameter named %v is set to nil, which is not valid for the struct field",
 					reflectedStructType, structField.Name)
+				var zero StructType
+				ret = zero
 				return
 			}
 		} else { // valueFromMap non-nil
@@ -140,12 +156,16 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 				if !reflect.TypeOf(valueFromMap).AssignableTo(fieldInRetValue.Type()) {
 					err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v from parameters; parameter named %v is not assignable type: expected %v, got %v",
 						reflectedStructType, structField.Name, fieldInRetValue.Type(), reflect.TypeOf(valueFromMap))
+					var zero StructType
+					ret = zero
 					return
 				}
 			} else { // non-interface type for the field
 				if fieldInRetValue.Type() != reflect.TypeOf(valueFromMap) {
 					err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v from parameters; parameter named %v is of wrong type: expected %v, got %v",
 						reflectedStructType, structField.Name, fieldInRetValue.Type(), reflect.TypeOf(valueFromMap))
+					var zero StructType
+					ret = zero
 					return
 				}
 			}

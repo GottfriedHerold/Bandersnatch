@@ -38,7 +38,7 @@ const ACTUAL_READ = "actuallyread"
 // ACTUAL_READ contains the actually read bytes (type []byte)
 // PARTIAL_READ_FLAG (type bool) is true iff 0 < bytes_read.
 // Note here that if bytesRead == len(expectToRead), io errors are dropped and the only possible error is ErrDidNotReadExpectedString; we consider PARTIAL_READ_FLAG = true appropriate here.
-func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError bandersnatchErrors.PlainErrorWithParameters) {
+func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError bandersnatchErrors.errorWithParameters_plain) {
 	if expectToRead == nil {
 		panic("bandernatch / serialization: consumeExpectRead called with nil input for expectToRead")
 	}

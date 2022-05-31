@@ -1,26 +1,28 @@
 package bandersnatchErrors
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // TODO: Global Renaming
 
-// errorWithParams is a simple implementation of the ErrorWithParameters interface
+// errorWithParameters_common is a simple implementation of the ErrorWithParameters interface
 // NOTE:
 // functions must ALWAYS return an error as an interface, never as a concrete type.
 // (since otherwise, nil errors are returned as typed nil pointers, which is a serious footgun)
-type errorWithParams struct {
+type errorWithParameters_common struct {
 	contained_error error          // wrapped underlying error
 	message         string         // if not "", overrides the error string.
 	params          map[string]any // map strings -> data.
 	showparams      bool           // should we show embedded data on error
 }
 
-type errorWithEnsuredParameters[T any] struct {
-	errorWithParams
+type errorWithParameters_T[T any] struct {
+	errorWithParameters_common
 }
 
 // Error is provided to satisfy the error interface
-func (e *errorWithParams) Error() string {
+func (e *errorWithParameters_common) Error() string {
 	if e == nil {
 		panic("bandersnatch / error handling: called error on nil error of concrete type errorWithParams. This is likely a bug, since nil errors of concrete type should never exist.")
 	}
@@ -39,7 +41,7 @@ func (e *errorWithParams) Error() string {
 }
 
 // Unwrap is provided to work with errors.Is
-func (e *errorWithParams) Unwrap() error {
+func (e *errorWithParameters_common) Unwrap() error {
 	// Note: This panics if e is nil (of type *errorWithParams).
 	// While returnining untyped nil would give "meaningful" behaviour
 	// (including for the recursive calls in HasParameter etc.),
@@ -48,22 +50,22 @@ func (e *errorWithParams) Unwrap() error {
 }
 
 // getAllParameters returns the map of all parameters present, NOT following the error chain.
-func (e *errorWithParams) getAllParameters() map[string]any {
+func (e *errorWithParameters_common) getAllParameters() map[string]any {
 	return e.params
 }
 
-func (e *errorWithParams) showParametersOnError() bool {
+func (e *errorWithParameters_common) showParametersOnError() bool {
 	return e.showparams
 }
 
-func (e *errorWithParams) withShowParametersOnError(newVal bool) PlainErrorWithParameters {
-	var ret errorWithParams = *e // Note: This shallow-copies the map and any error chain, but since it's immutable, it's OK.
+func (e *errorWithParameters_common) withShowParametersOnError(newVal bool) errorWithParameters_commonInterface {
+	var ret errorWithParameters_common = *e // Note: This shallow-copies the map and any error chain, but since it's immutable, it's OK.
 	ret.showparams = newVal
 	return &ret
 }
 
 // getParameter returns the value stored under parameterName and whether is was present.
-func (e *errorWithParams) getParameter(parameterName string) (any, bool) {
+func (e *errorWithParameters_common) getParameter(parameterName string) (any, bool) {
 	data, ok := e.params[parameterName]
 	if !ok {
 		// Testing hook only, probably better to install a callback
@@ -77,17 +79,16 @@ func (e *errorWithParams) getParameter(parameterName string) (any, bool) {
 }
 
 // hasParameter returns whether the key parameterName exists.
-func (e *errorWithParams) hasParameter(parameterName string) bool {
+func (e *errorWithParameters_common) hasParameter(parameterName string) bool {
 	_, ok := e.params[parameterName]
 	return ok
 }
 
-/*
-// DeteleData deletes the value stored under the given key.
-func (e *errorWithParams) deleteData(parameterName string) (oldValue any, wasPresent bool) {
-	oldValue, wasPresent = e.params[parameterName]
-	delete(e.params, parameterName)
+func (e *errorWithParameters_T[T]) Get() (ret T) {
+	allParams := GetAllParametersFromError(e)
+	ret, err := makeStructFromMap[T](allParams)
+	if err != nil {
+		panic(err)
+	}
 	return
 }
-
-*/

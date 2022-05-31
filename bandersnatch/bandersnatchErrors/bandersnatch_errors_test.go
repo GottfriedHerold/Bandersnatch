@@ -1,6 +1,6 @@
 package bandersnatchErrors
 
-var _ PlainErrorWithParameters = &errorWithParams{}
+var _ errorWithParameters_commonInterface = &errorWithParameters_common{}
 
 /*
 func TestBandersnatchError(t *testing.T) {
