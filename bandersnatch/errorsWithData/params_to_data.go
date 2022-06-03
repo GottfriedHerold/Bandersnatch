@@ -1,4 +1,4 @@
-package bandersnatchErrors
+package errorsWithData
 
 import (
 	"fmt"
@@ -30,16 +30,16 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 		return
 	}
 	if tType == nil {
-		panic("bandersnatch / error handling: Called getStructMapConversionLookup with nil argment")
+		panic(errorPrefix + "called getStructMapConversionLookup with nil argment")
 	}
 	if tType.Kind() != reflect.Struct {
-		panic("bandersnatch / error handling: Using getStructMapConversionLookup with non-struct type")
+		panic(errorPrefix + "using getStructMapConversionLookup with non-struct type")
 	}
 	allVisibleFields := reflect.VisibleFields(tType)
 	ret = make(lookupStructMapConversion, 0, len(allVisibleFields))
 	for _, visibleField := range allVisibleFields {
 		if !visibleField.IsExported() {
-			panic("bandersnatch / error handling: Using errorWithEnsuredParameters with struct type containing unexported fields")
+			panic(errorPrefix + "using errorWithEnsuredParameters with struct type containing unexported fields")
 		}
 		// .Anonymous denotes whether the field is embedded (a bit of a misnomer).
 		// for an embedded field, reflect.VisibleFields returns both the name of the embedded type and its included field
@@ -60,32 +60,33 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 	return
 }
 
-// validateErrorContainsData checks whether e actually contains data for all fields of a struct of type StructType.
+// canMakeStructFromParametersInError checks whether e actually contains data for all fields of a struct of type StructType.
 // This is called after creating an error with T==StructType.
 // e == nil is treated as error without any data.
-func validateErrorContainsData[StructType any](e errorWithParameters_commonInterface) (err error) {
+func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 	structType := utils.TypeOfType[StructType]()
 	allExpectedFields := getStructMapConversionLookup(structType)
+	m := GetAllParametersFromError(e)
 	for _, expectedField := range allExpectedFields {
-		mapEntry, exists := GetParameterFromError(e, expectedField.Name)
+		// Special case e==nil for better error message.
+		// If e == nil, GetParameterFromError returns nil, false so any iteration of the for loop ends up here.
+		if e == nil {
+			err = fmt.Errorf(errorPrefix+"nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
+			return
+		}
+
+		mapEntry, exists := m[expectedField.Name]
 		if !exists {
-			// Special case e==nil for better error message.
-			// If e == nil, GetParameterFromError returns nil, false so any iteration of the for loop ends up here.
-			if e == nil {
-				err = fmt.Errorf("bandersnatch / error handling: nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
-				return
-			}
-			err = fmt.Errorf("bandersnatch / error handling: error %v does not contain a parameters named %v, neccessary to export data a a struct of type %v", e, expectedField.Name, structType)
+			err = fmt.Errorf(errorPrefix+"error %v does not contain a parameters named %v, neccessary to export data a a struct of type %v", e, expectedField.Name, structType)
 			return
 		}
 		// requires special casing due to what I consider a design error in reflection.
-		// See https://github.com/golang/go/issues/51649 for an actual discussion to change it
-		// for Go1.19 or later.
+		// See https://github.com/golang/go/issues/51649 for an actual discussion to change it for Go1.19 or later.
 		if mapEntry == nil {
 			if utils.IsNilable(expectedField.Type) {
 				continue
 			} else {
-				err = fmt.Errorf("bandersnatch / error handling: error %v contains a parameter %v that is set to nil. This cannot be used to construct a struct of type %v",
+				err = fmt.Errorf(errorPrefix+"error %v contains a parameter %v that is set to nil. This cannot be used to construct a struct of type %v",
 					e, expectedField.Name, structType)
 				return
 			}
@@ -94,12 +95,12 @@ func validateErrorContainsData[StructType any](e errorWithParameters_commonInter
 		// interface types as fields in StructType need special handling, because reflect.TypeOf(mapEntry) contains the dynamic type.
 		if expectedField.Type.Kind() == reflect.Interface {
 			if !mapEntryType.AssignableTo(expectedField.Type) {
-				err = fmt.Errorf("bandersnatch / error handling: error %v has parameter %v set to a value %v; cannot export that in as struct of type %v, because that that value is not assignable to the intended field of interface type", e, expectedField.Name, mapEntry, structType)
+				err = fmt.Errorf(errorPrefix+"error %v has parameter %v set to a value %v; cannot export that in as struct of type %v, because that that value is not assignable to the intended field of interface type", e, expectedField.Name, mapEntry, structType)
 				return
 			}
-		} else { // field of non-interface type in T
+		} else { // field of non-interface type in T: We require the types to match exactly.
 			if mapEntryType != expectedField.Type {
-				err = fmt.Errorf("bandersnatch / error handling: error %v has parameter %v of wrong type to construct struct of type %v. Value is %v of type %v, expected %v",
+				err = fmt.Errorf(errorPrefix+" error %v has parameter %v of wrong type to construct struct of type %v. Value is %v of type %v, expected %v",
 					e, expectedField.Name, structType, mapEntry, mapEntryType, expectedField.Type)
 				return
 			}
@@ -128,7 +129,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 		fieldInRetValue := retValue.FieldByIndex(structField.Index)
 		valueFromMap, ok := m[structField.Name]
 		if !ok {
-			err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
+			err = fmt.Errorf(errorPrefix+"trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
 				reflectedStructType, structField.Name)
 			var zero StructType
 			ret = zero
@@ -142,7 +143,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 				appropriateNil := reflect.Zero(fieldInRetValue.Type())
 				fieldInRetValue.Set(appropriateNil)
 			} else {
-				err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v from parameters; parameter named %v is set to nil, which is not valid for the struct field",
+				err = fmt.Errorf(errorPrefix+"trying to construct value of type %v from parameters; parameter named %v is set to nil, which is not valid for the struct field",
 					reflectedStructType, structField.Name)
 				var zero StructType
 				ret = zero
@@ -154,7 +155,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 			// type equality for concrete types, but assignability for struct fields of interface type.
 			if fieldInRetValue.Kind() == reflect.Interface {
 				if !reflect.TypeOf(valueFromMap).AssignableTo(fieldInRetValue.Type()) {
-					err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v from parameters; parameter named %v is not assignable type: expected %v, got %v",
+					err = fmt.Errorf(errorPrefix+"trying to construct value of type %v from parameters; parameter named %v is not assignable type: expected %v, got %v",
 						reflectedStructType, structField.Name, fieldInRetValue.Type(), reflect.TypeOf(valueFromMap))
 					var zero StructType
 					ret = zero
@@ -162,7 +163,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 				}
 			} else { // non-interface type for the field
 				if fieldInRetValue.Type() != reflect.TypeOf(valueFromMap) {
-					err = fmt.Errorf("bandersnatch / error handling: trying to construct value of type %v from parameters; parameter named %v is of wrong type: expected %v, got %v",
+					err = fmt.Errorf(errorPrefix+" trying to construct value of type %v from parameters; parameter named %v is of wrong type: expected %v, got %v",
 						reflectedStructType, structField.Name, fieldInRetValue.Type(), reflect.TypeOf(valueFromMap))
 					var zero StructType
 					ret = zero

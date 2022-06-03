@@ -1,4 +1,4 @@
-package bandersnatchErrors
+package errorsWithData
 
 import (
 	"fmt"
@@ -21,10 +21,14 @@ type errorWithParameters_T[T any] struct {
 	errorWithParameters_common
 }
 
+func (e *errorWithParameters_common) isNil() bool {
+	return e == nil
+}
+
 // Error is provided to satisfy the error interface
 func (e *errorWithParameters_common) Error() string {
 	if e == nil {
-		panic("bandersnatch / error handling: called error on nil error of concrete type errorWithParams. This is likely a bug, since nil errors of concrete type should never exist.")
+		panic(errorPrefix + "called error on nil error of concrete type errorWithParams. This is likely a bug, since nil errors of concrete type should never exist.")
 	}
 	var mstring string = ""
 	if e.showparams {
@@ -54,12 +58,15 @@ func (e *errorWithParameters_common) getAllParameters() map[string]any {
 	return e.params
 }
 
-func (e *errorWithParameters_common) showParametersOnError() bool {
+func (e *errorWithParameters_common) ShowParametersOnError() bool {
 	return e.showparams
 }
 
-func (e *errorWithParameters_common) withShowParametersOnError(newVal bool) errorWithParameters_commonInterface {
-	var ret errorWithParameters_common = *e // Note: This shallow-copies the map and any error chain, but since it's immutable, it's OK.
+func (e *errorWithParameters_T[T]) WithShowParametersOnError(newVal bool) ErrorWithParameters[T] {
+	if e == nil {
+		panic(errorPrefix + "called WithShowParametersOnError on nil pointer of concrete type")
+	}
+	var ret errorWithParameters_T[T] = *e // Note: This shallow-copies the map and any error chain, but since everything is immutable, it's OK.
 	ret.showparams = newVal
 	return &ret
 }
@@ -70,7 +77,7 @@ func (e *errorWithParameters_common) getParameter(parameterName string) (any, bo
 	if !ok {
 		// Testing hook only, probably better to install a callback
 		if GetDataPanicOnNonExistantKeys {
-			err := fmt.Errorf("bandersnatch / error handling: Requesting non-existing parameter %v (lowercased) from an errorWithParams. The error from which the parameter was requested was %v", parameterName, e)
+			err := fmt.Errorf(errorPrefix+"requesting non-existing parameter %v (lowercased) from an errorWithParams. The error from which the parameter was requested was %v", parameterName, e)
 			panic(err)
 		}
 		return nil, false
@@ -84,7 +91,7 @@ func (e *errorWithParameters_common) hasParameter(parameterName string) bool {
 	return ok
 }
 
-func (e *errorWithParameters_T[T]) Get() (ret T) {
+func (e *errorWithParameters_T[T]) GetData() (ret T) {
 	allParams := GetAllParametersFromError(e)
 	ret, err := makeStructFromMap[T](allParams)
 	if err != nil {

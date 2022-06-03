@@ -4,6 +4,3 @@ package bandersnatchErrors
 
 const PARTIAL_READ_FLAG = "PartialRead"
 const IO_ERROR_FLAG = "IOError"
-
-// Exported for cross-package testing. Will be removed/replaced by callback. Not part of the official interface
-var GetDataPanicOnNonExistantKeys = false

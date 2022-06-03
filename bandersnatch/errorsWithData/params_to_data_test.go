@@ -1,4 +1,4 @@
-package bandersnatchErrors
+package errorsWithData
 
 import (
 	"io"
