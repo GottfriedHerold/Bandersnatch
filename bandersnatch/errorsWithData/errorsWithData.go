@@ -100,11 +100,10 @@ type errorWithParameters_commonInterface interface {
 	hasParameter(parameterName string) bool
 	// GetAllParams returns a map of all parameters. DOES NOT FOLLOW THE ERROR CHAIN.
 	getAllParameters() map[string]any
+
 	// Queries whether the map of included parameters should be shown by Error() if non-empty.
 	// Note that when *showing* parameters, we actually follow the whole error chain to get all parameters.
 	ShowParametersOnError() bool
-	// withShowParametersOnError creates a copy of the error with ShowParametersOnError set as requested.
-	// withShowParametersOnError(bool) errorWithParameters_commonInterface // TODO: Return type?
 
 	// isNil checks whether the receiver is a nil pointer of concrete type. These should never occur.
 	isNil() bool
@@ -127,9 +126,11 @@ type errorWithParameters_commonInterface interface {
 //
 // ShowParametersOnError / WithShowParametersOnError query / set whether parameter are shown by Error().
 // When set, this particular error's Error() message includes all parameters of itself and its error chain.
-// Note that when an ErrorWithParameters is wrapped, this flag does not affect what the wrapping error does (unless it calls Error() on its ancestor)
-// and any new additional parameters are not shown (unless the wrapping error also sets this flag, in which case some parameters are shown twice with
-// possibly different values if the new values override the old ones)
+// Note that when an ErrorWithParameters is wrapped, this flag does not affect what the wrapping error does
+// (apart from what happens after it potentially calls Error() on its ancestor) and any new additional parameters
+// are not shown (unless the wrapping error also sets this flag, in which case some parameters are shown twice with
+// possibly different values if the new values override the old ones). This behaviour is hard to fix without using some
+// form of thread-local storage.
 type ErrorWithParameters[StructType any] interface {
 	error
 	Unwrap() error       // Note: May return nil if there is nothing to wrap.
@@ -153,7 +154,7 @@ type ErrorWithParameters[StructType any] interface {
 type UnconstrainedErrorWithParameters = ErrorWithParameters[struct{}]
 
 // To delete a parameter from an error, we need to actually place a "This value is deleted"-marker, which is an arbitrary singleton.
-// Just removing the value would not work, because the actualy value might be from somewhere down the error chain.
+// Just removing the value would not work, because there might be values anywhere down the error chain.
 
 type deletedType struct{}
 
@@ -240,6 +241,30 @@ func NewErrorWithParameters[StructType any](baseError error, overrideMessage str
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
+func NewErrorWithParametersMap[StructType any](baseError error, overrideMessage string, params map[string]any) ErrorWithParameters[StructType] {
+	extraParams := len(params) // 0 for nil
+	if baseError == nil {
+		if overrideMessage == "" {
+			if extraParams > 0 {
+				panic(errorPrefix + "called NewErrorWithParametersMap(nil,\"\",actualParams_map)")
+			}
+			return nil
+		}
+		// If we get here, err==nil, overrideMessage != "".
+		// If we just proceed, the returned error will have contained_error == nil in this case.
+		// This is actually fine.
+	}
+	ret := errorWithParameters_common{contained_error: baseError, message: overrideMessage, params: make(map[string]any)}
+	for key, value := range params {
+		ret.params[key] = value
+	}
+	validationError := canMakeStructFromParametersInError[StructType](&ret)
+	if validationError != nil {
+		panic(validationError)
+	}
+	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
+}
+
 // IncludeParametersInError creates a new error wrapping err with parameter under parameterName set to newParameter.
 // As opposed to if err == nil, returns nil
 func IncludeParametersInError[StructType any](err error, parameters ...any) ErrorWithParameters[StructType] {
@@ -249,10 +274,19 @@ func IncludeParametersInError[StructType any](err error, parameters ...any) Erro
 	return NewErrorWithParameters[StructType](err, "", parameters...)
 }
 
+func IncludeParametersInErrorMap[StructType any](err error, parameters map[string]any) ErrorWithParameters[StructType] {
+	if err == nil {
+		return nil
+	}
+	return NewErrorWithParametersMap[StructType](err, "", parameters)
+}
+
 // Special case for StructType == struct{}
 
 var NewErrorWithParametersUnconstrained func(err error, messageOverride string, params ...any) UnconstrainedErrorWithParameters = NewErrorWithParameters[struct{}]
 var IncludeParametersInErrorUnconstrained func(err error, parameters ...any) UnconstrainedErrorWithParameters = IncludeParametersInError[struct{}]
+var NewErrorWithParametersUnconstrainedMap func(err error, messageOverride string, params map[string]any) UnconstrainedErrorWithParameters = NewErrorWithParametersMap[struct{}]
+var InlcudeParametersInErrorUnconstrainedMap func(err error, parameters map[string]any) UnconstrainedErrorWithParameters = IncludeParametersInErrorMap[struct{}]
 
 // TODO: global rename after old usage is refactored, intended name NewErrorWithData currently clashes.
 
@@ -358,4 +392,4 @@ func DeleteParameterFromError(err error, parameterName string) UnconstrainedErro
 }
 
 // Exported for cross-package testing. Will be removed/replaced by callback. Not part of the official interface
-var GetDataPanicOnNonExistantKeys = false
+var GetDataPanicOnNonExistentKeys = false

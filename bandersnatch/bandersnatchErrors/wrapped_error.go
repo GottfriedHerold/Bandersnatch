@@ -1,5 +1,7 @@
 package bandersnatchErrors
 
+// Note: errorsWithData provides a superset of this functionality. We might want to remove this
+
 // WrappedError is a simple error that only contains a string (similar to errors.New(s string)'s output), but in addition wraps another given error.
 // This has the effect that errors.Is(error1, error2) will return true if error2 == error1.Inner
 // WrappedError is similar to the output of fmt.Errorf("%w", Inner ), execpt that WrappedError's Error() method can avoid including the wrapped error's string.
@@ -21,7 +23,8 @@ func (we *WrappedError) Unwrap() error {
 	return we.Inner
 }
 
-// WILL BE REMOVED in favor of more flexible (but less type-safe) BandersnatchError
+// REMOVED in favor of more flexible (but less type-safe) BandersnatchError
+/*
 
 // ErrorWithData is an error wrapper similar to WrappedError that also contains a data payload of type DataType.
 // DEPRECATED
@@ -48,3 +51,4 @@ func NewErrorWithData[DataType any](inner error, s string, data DataType) *Error
 	return &ErrorWithData[DataType]{Inner: inner, Message: s, Data: data}
 }
 
+*/

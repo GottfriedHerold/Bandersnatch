@@ -7,7 +7,6 @@ import (
 )
 
 var _ error = NewWrappedError(io.EOF, "some string")
-var _ error = NewErrorWithData(io.EOF, "some string", int32(5))
 
 func TestWrappedError(t *testing.T) {
 	err1 := NewWrappedError(io.EOF, "test1")
@@ -37,6 +36,10 @@ func TestWrappedError(t *testing.T) {
 		t.Fatal("WrappedError does not report indented string")
 	}
 }
+
+/*
+var _ error = NewErrorWithData(io.EOF, "some string", int32(5))
+
 
 func TestErrorWithData(t *testing.T) {
 	err := NewErrorWithData(io.EOF, "t", int64(6))
@@ -74,3 +77,5 @@ func TestErrorWithData(t *testing.T) {
 		t.Fatal("Could not retrieve wrapped contained data")
 	}
 }
+
+*/

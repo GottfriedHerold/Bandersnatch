@@ -76,7 +76,7 @@ func (e *errorWithParameters_common) getParameter(parameterName string) (any, bo
 	data, ok := e.params[parameterName]
 	if !ok {
 		// Testing hook only, probably better to install a callback
-		if GetDataPanicOnNonExistantKeys {
+		if GetDataPanicOnNonExistentKeys {
 			err := fmt.Errorf(errorPrefix+"requesting non-existing parameter %v (lowercased) from an errorWithParams. The error from which the parameter was requested was %v", parameterName, e)
 			panic(err)
 		}
