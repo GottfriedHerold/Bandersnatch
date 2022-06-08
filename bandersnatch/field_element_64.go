@@ -1,20 +1,15 @@
 package bandersnatch
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"math/bits"
 	"math/rand"
 	"strings"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 // This file gives an implementation for field elements (meaning the field of definition of the Bandersnatch elliptic curve)
@@ -705,7 +700,7 @@ var _ = callcounters.CreateAttachedCallCounter("InvFromDivide", "Inversion in Di
 	AddToThisFromSource("DivideFe", +1).
 	AddThisToTarget("Divisions", -1)
 
-var _ = callcounters.CreateAttachedCallCounter("MulFromDivide", "Multiplications called by Didive", "MulFe").
+var _ = callcounters.CreateAttachedCallCounter("MulFromDivide", "Multiplications called by Divide", "MulFe").
 	AddToThisFromSource("DivideFe", +1).
 	AddThisToTarget("FieldOps", -1)
 
@@ -785,208 +780,6 @@ var (
 	ErrPrefixMismatch               error = errors.New("during deserialization, the read prefix did not match the expected one")
 	ErrNonNormalizedDeserialization error = errors.New("during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )
-
-/*
-// checkPrefixValidity is a helper function that checks whether the pair (prefix, prefix_length) is a valid, i.e.
-// 0<=prefix_length<=8 and prefix only contains set bits among the prefix_length many lsb's.
-func checkPrefixValidity(prefix PrefixBits, prefix_length uint8) error {
-	if prefix_length > maxprefixlength {
-		return ErrPrefixLengthInvalid
-	}
-	if prefixBits(prefix)>>prefix_length != 0 {
-		return ErrPrefixLengthInvalid2
-	}
-	return nil
-}
-*/
-
-// SerializeWithPrefix is used to serialize the given number with some extra prefix bits squeezed into the most significant byte of the field element.
-// This function is needed for "compressed" serialization of curve points, where we often need to write an extra sign bit.
-//
-// Notably, it performs the following operation:
-// Reduce the field element modulo BaseFieldSize and interpret it as a 256-bit string (Note the most significant bit is always zero, because BaseFieldSize has only 255 bits).
-// Ensure the prefix_length many most significant bits of the field element are zero. If so, then temporarily replace those bits with prefix and write the resulting 256 bits=32 bytes to output in byte order determined by byteOrder.
-//
-// prefix needs to be a uint8 with at most prefix_length many bits and 0<=prefix_length<=8.
-// Note that the bits of prefix are in a different bit-position than the bits they replace inside the most significant byte:
-// If z (in high-endian bit-order, 256 bit) has bit-pattern 0b00??????_... (31*8 more bits) and prefix_length=2,
-// we need to set prefix = 0b00000010 to replace the bit-pattern with 0b10??????_...
-//
-// output is a io.Writer. Use e.g. the standard library type bytes.Buffer to wrap an existing byte-slice.
-//
-// byteOrder must be one of binary.BigEndian or binary.LittleEndian from the standard library. Note that this choice only affects
-// the order in which the bytes are written to output, NOT the replacement above, which always happens inside the most signifant byte.
-//
-// It returns the number of actually written bytes and an error (nil if ok).
-// If byteOrder, prefix or prefix_length are invalid or the prefix_length many bits of z are not all zero, we report an error and do not write anything to output.
-// On other (io-related) errors, we might perform (partial) writes to output.
-func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix common.BitHeader, byteOrder common.FieldElementEndianness) (bytes_written int, err error) {
-	var low_endian_words [4]uint64 = z.undoMontgomery()
-	prefix_length := prefix.PrefixLen()
-	prefix_bits := prefix.PrefixBits()
-	if bits.LeadingZeros64(low_endian_words[3]) < int(prefix_length) {
-		err = ErrPrefixDoesNotFit
-		bandersnatchErrors.IncludeParametersInError(&err, bandersnatchErrors.PARTIAL_READ_FLAG, false)
-		return
-	}
-
-	low_endian_words[3] |= (uint64(prefix) << (64 - prefix_length))
-	var buf []byte = make([]byte, 8)
-	var written_now int
-
-	if byteOrder == binary.BigEndian {
-		for i := int(3); i >= 0; i-- {
-			byteOrder.PutUint64(buf, low_endian_words[i])
-			written_now, err = output.Write(buf)
-			bytes_written += written_now
-			if err != nil {
-				return
-			}
-		}
-	} else if byteOrder == binary.LittleEndian {
-		for i := 0; i < 4; i++ {
-			byteOrder.PutUint64(buf, low_endian_words[i])
-			written_now, err = output.Write(buf)
-			bytes_written += written_now
-			if err != nil {
-				return
-			}
-		}
-	} else {
-		err = ErrInvalidByteOrder
-	}
-	return
-}
-
-// DeserializeAndGetPrefix is an inverse to SerializeWithPrefix. It reads a 32*8 bit number from input in byte order determined by byte order;
-// The prefix_length many most significant bits of the resulting number are returned in prefix, the remaining bits are interpreted and stored as a field element.
-//
-// As with SerializeWithPrefix, the prefix bits are returned in the lower-order bits (i.e. shifted), even though they belonged to the most significant bits inside the most significant byte of the input.
-// prefix_lenght can be at most 8.
-//
-// On error, we return a non-nil error in err.
-// If the integer to be stored (modulo BaseFieldSize) in z is not the smallest non-negative representative of the field element (this can only happen with prefix_length <= 1), we set
-// err = ErrNonNormalizedDeserialization, provided no other error occurred and still write the number to z.
-// On all other errors, z is untouched.
-//
-// possible errors: ErrPrefixLengthInvalid, ErrInvalidByteOrder, ErrNonNormalizedDeserialization, io errors
-func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefix_length uint8, byteOrder binary.ByteOrder) (bytes_read int, prefix PrefixBits, err error) {
-	if prefix_length > maxprefixlength {
-		err = ErrPrefixLengthInvalid
-		return
-	}
-	buf := make([]byte, 32)
-	bytes_read, err = io.ReadFull(input, buf)
-	if err != nil {
-		return
-	}
-	if byteOrder == binary.BigEndian {
-		for i := 0; i < 4; i++ {
-			z.words[3-i] = byteOrder.Uint64(buf[i*8 : (i+1)*8])
-		}
-	} else if byteOrder == binary.LittleEndian {
-		for i := 0; i < 4; i++ {
-			z.words[i] = byteOrder.Uint64(buf[i*8 : (i+1)*8])
-		}
-	} else {
-		err = ErrInvalidByteOrder
-		return
-	}
-	var bitmask_remaining uint64 = 0xFFFFFFFF_FFFFFFFF >> prefix_length
-	prefix = PrefixBits(z.words[3] >> (64 - prefix_length))
-	z.words[3] &= bitmask_remaining
-	if !z.isNormalized() {
-		err = ErrNonNormalizedDeserialization
-		// We do not return, because we put z in Montgomery form before, such that the output is what we read modulo BaseFieldSize, even though we have an error.
-	}
-	z.restoreMontgomery()
-	return
-}
-
-// DeserializeWithPrefix works like DeserializeAndGetPrefix, but instead of returning a prefix, it checks whether an expected prefix is present;
-// it is intended to verify and consume expected "headers" of sub-byte size.
-//
-// If the prefix is not present, we return err=ErrPrefixMismatch and do not write to z.
-// Similar to DeserializeAndGetPrefix, we return err=ErrNonNormalizedDeserialization iff the non-negative integer value that is to be written to z modulo BaseFieldSize is not the smallest representative and no other error occurred.
-// In this case, we actually write to z. On all other errors, z is untouched.
-//
-// Note: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
-// For the little endian case, we always try to read 32 bytes.
-func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefix PrefixBits, prefix_length uint8, byteOrder binary.ByteOrder) (bytes_read int, err error) {
-	err = checkPrefixValidity(expectedPrefix, prefix_length)
-	if err != nil {
-		return
-	}
-	var fieldElementBuffer bsFieldElement_64 // we do not write to z directly, because we need to check for errors first.
-	switch byteOrder {
-	// The case distinction is done to abort reading after 1 byte if the prefix did not match.
-	case binary.BigEndian:
-		var bufArray [32]byte
-		var bytes_just_read int
-		bytes_read, err = io.ReadFull(input, bufArray[0:1])
-		if err != nil {
-			return
-		}
-		if bufArray[0]>>(8-prefix_length) != byte(expectedPrefix) {
-			err = ErrPrefixMismatch
-			return
-		}
-		var bitmask_remaining uint8 = 0xFF >> prefix_length
-		bufArray[0] &= byte(bitmask_remaining)
-
-		bytes_just_read, err = io.ReadFull(input, bufArray[1:32])
-		bytes_read += bytes_just_read
-		if err != nil {
-			// this case happens if we read 0 bytes after the one prefix byte was read.
-			// ErrUnexpectedEOF is what we would have gotten if we had tried to read all 32 bytes in one go and only got one.
-			if err == io.EOF {
-				err = io.ErrUnexpectedEOF
-			}
-			return
-		}
-		var buffer *bytes.Reader = bytes.NewReader(bufArray[:])
-		bytes_just_read, err = fieldElementBuffer.Deserialize(buffer, binary.BigEndian)
-		testutils.Assert(bytes_just_read == 32)
-		if err == nil || err == ErrNonNormalizedDeserialization {
-			*z = fieldElementBuffer
-		}
-		return
-	case binary.LittleEndian:
-		var prefix_read PrefixBits
-		bytes_read, prefix_read, err = fieldElementBuffer.DeserializeAndGetPrefix(input, prefix_length, byteOrder)
-		// We want to have the following error precendece nonsensical input > IO errors and others > PrefixMismatch > ErrNonNormalizedDeserialization.
-		if err != nil && err != ErrNonNormalizedDeserialization {
-			return
-		}
-		if prefix_read != expectedPrefix {
-			err = ErrPrefixMismatch
-			return
-		}
-		*z = fieldElementBuffer // if we get here, err==nil or err==ErrNonNormalizedDeserialization
-		return
-	default:
-		err = ErrInvalidByteOrder
-		return
-	}
-}
-
-// Deserialize(input, byteOrder) deserializes from input, reading 32 bytes from it and interpreting it as an integer.
-// The result is stored in the receiver. byteOrder must be either binary.BigEndian or binary.LittleEndian and relates to the order of bytes in input.
-// Note that the input number must be in 0 <= . < BaseFieldSize.
-// We have err == ErrNonNormalizedDeserialization iff this is violated and we have no other error. In this case, the result is still correct modulo BaseFieldSize.
-// Other values for err are possible: in particular io errors from input.
-func (z *bsFieldElement_64) Deserialize(input io.Reader, byteOrder binary.ByteOrder) (bytes_read int, err error) {
-	bytes_read, _, err = z.DeserializeAndGetPrefix(input, 0, byteOrder) // _ == 0
-	return
-}
-
-// Serialize(output, byteOrder) serializes the received field element to output. It interprets the field element as a 32-byte number in 0<=.<BaseFieldSize (not in Montgomery Form) and tries to write
-// 32 bytes to output. byteOrder must be either binary.BigEndian or binary.LittleEndian and refers to the ordering of bytes (not words) in output.
-// The return values are the actual number of bytes written and a potential error (such as io errors). If no error happened, err == nil, in which case we are guaranteed that bytes_written == 32.
-func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder binary.ByteOrder) (bytes_written int, err error) {
-	bytes_written, err = z.SerializeWithPrefix(output, PrefixBits(0), 0, byteOrder)
-	return
-}
 
 // String is provided to satisfy the fmt.Stringer interface. Note that this is defined on a *value* receiver.
 func (z bsFieldElement_64) String() string {

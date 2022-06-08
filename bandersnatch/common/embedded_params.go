@@ -5,10 +5,10 @@ import (
 )
 
 // This file defines wrappers (essentially just a data element with a setter/getter method) that are needed because
-// either, we have some validity constraints that we need to check in the setter or that are struct-embedded in serializers.
+// either we have some validity constraints that we need to check in the setter or that are struct-embedded in serializers.
 //
-// For the latter, note that parameter setting actually goes through reflection, which is a bit easier
-// (and consistent, since for some parameters we need validity checks)
+// For the latter (structs embedded in serializers), note that parameter setting actually goes through reflection, which is a bit easier
+// (and consistent, since at least for some parameters we need validity checks)
 // with getters/setters, so we want to always have those.
 
 // Note: FieldElementEndianness has only 2 possible values, so we could use a bool;
@@ -30,11 +30,16 @@ func (s *FieldElementEndianness) GetEndianness() binary.ByteOrder {
 	return s.byteOrder
 }
 
-// SetEndianness sets FieldElementEndianess by wrapping e. We only accept (literal) binary.LittleEndian or binary.BigEndian.
+// SetEndianness sets FieldElementEndianess by wrapping e. We only accept (literal) binary.LittleEndian or binary.BigEndian or any *FieldElementEndianness.
 // Other values will cause a panic.
 func (s *FieldElementEndianness) SetEndianness(e binary.ByteOrder) {
-	s.byteOrder = e
-	s.Validate()
+	if wrapping, ok := e.(*FieldElementEndianness); ok {
+		s.byteOrder = wrapping.byteOrder
+		s.Validate()
+	} else {
+		s.byteOrder = e
+		s.Validate()
+	}
 }
 
 // Validate checks the FieldElementEndianness for Validity.
@@ -47,12 +52,85 @@ func (s *FieldElementEndianness) Validate() {
 	}
 }
 
-// DefaultEndianness is the default setting, we use in our serializers unless overridden.
-// NOTE: Do not modify DefaultEndianness; if you want to deviate from the default, create a new serializer with modified endianness.
-var DefaultEndianness FieldElementEndianness = FieldElementEndianness{byteOrder: binary.LittleEndian}
+func (s *FieldElementEndianness) IsLittleEndian() bool {
+	return s.byteOrder == binary.LittleEndian
+}
+
+func (s *FieldElementEndianness) IsBigEndian() bool {
+	return s.byteOrder == binary.BigEndian
+}
+
+// forward function from binary.ByteOrder, so FieldElementEndianness actually satisfies binary.ByteOrder
+
+func (s *FieldElementEndianness) Uint64(in []byte) uint64 {
+	return s.byteOrder.Uint64(in)
+}
+
+func (s *FieldElementEndianness) Uint32(in []byte) uint32 {
+	return s.byteOrder.Uint32(in)
+}
+
+func (s *FieldElementEndianness) Uint16(in []byte) uint16 {
+	return s.byteOrder.Uint16(in)
+}
+
+func (s *FieldElementEndianness) PutUint64(out []byte, in uint64) {
+	s.byteOrder.PutUint64(out, in)
+}
+
+func (s *FieldElementEndianness) PutUint32(out []byte, in uint32) {
+	s.byteOrder.PutUint32(out, in)
+}
+
+func (s *FieldElementEndianness) PutUint16(out []byte, in uint16) {
+	s.byteOrder.PutUint16(out, in)
+}
+
+func (s FieldElementEndianness) String() string {
+	return s.byteOrder.String()
+}
+
+func (s *FieldElementEndianness) PutUInt256(out []byte, low_endian_words [4]uint64) {
+	if cap(out) < 32 {
+		panic("bandersnatch / serialization: PutUInt256 called on a slice of insufficient capacity")
+	}
+	if s.IsBigEndian() {
+		for i := 0; i < 4; i++ {
+			s.byteOrder.PutUint64(out[i*8:(i+1)*8], low_endian_words[3-i])
+		}
+	} else {
+		for i := 0; i < 4; i++ {
+			s.byteOrder.PutUint64(out[i*8:(i+1)*8], low_endian_words[i])
+		}
+	}
+}
+
+func (s *FieldElementEndianness) UInt256(in []byte) (ret [4]uint64) {
+	if len(in) < 32 {
+		panic("bandersnatch / serialization: UInt256 called on a slice of insufficient length")
+	}
+	if s.IsBigEndian() {
+		for i := 0; i < 4; i++ {
+			ret[3-i] = s.byteOrder.Uint64(in[i*8 : (i+1)*8])
+		}
+	} else {
+		for i := 0; i < 4; i++ {
+			ret[i] = s.byteOrder.Uint64(in[i*8 : (i+1)*8])
+		}
+	}
+	return
+}
+
+// DefaultEndian is the default setting, we use in our serializers unless overridden.
+// NOTE: Do not modify DefaultEndian; if you want to deviate from the default, create a new serializer with modified endianness.
+var DefaultEndian FieldElementEndianness = FieldElementEndianness{byteOrder: binary.LittleEndian}
+var LittleEndian FieldElementEndianness = FieldElementEndianness{byteOrder: binary.LittleEndian}
+var BigEndian FieldElementEndianness = FieldElementEndianness{byteOrder: binary.BigEndian}
 
 func init() {
-	DefaultEndianness.Validate()
+	DefaultEndian.Validate()
+	LittleEndian.Validate()
+	BigEndian.Validate()
 }
 
 // BitHeader is a "header" consisting of a prefixLen < 8 many extra bits that are included inside a field element as a form of compression.
@@ -65,8 +143,8 @@ type BitHeader struct {
 // PrefixBits is a type based on byte
 type PrefixBits byte
 
-// maxprefixlength is the maximal length of a BitHeader. Since it needs to fit in a byte, it's 8.
-const maxprefixlength = 8
+// MaxLengthPrefixBits is the maximal length of a BitHeader. Since it needs to fit in a byte, this value is 8.
+const MaxLengthPrefixBits = 8
 
 // SetBitHeaderFromBitHeader and GetBitHeader are an internal function that
 // need to be exported for cross-package and reflect usage:
@@ -127,7 +205,7 @@ func (bh *BitHeader) PrefixLen() uint8 {
 
 // Validate ensures the BitHeader is valid. It panics if not.
 func (bh *BitHeader) Validate() {
-	if bh.prefixLen > maxprefixlength {
+	if bh.prefixLen > MaxLengthPrefixBits {
 		panic("bandersnatch / serialization: trying to set bit-prefix of length > 8")
 	}
 	bitFilter := (1 << bh.prefixLen) - 1 // bitmask of the form 0b0..01..1 ending with prefixLen 1s
