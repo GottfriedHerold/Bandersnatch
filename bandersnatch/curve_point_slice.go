@@ -2,6 +2,8 @@ package bandersnatch
 
 import "reflect"
 
+// TODO: This file might go away since Go has generics as of Go1.18
+
 // CurvePointSlice is a joint interface for slices of CurvePoints or pointers to CurvePoints.
 //
 // This interface is needed (due to inadequacies of Go's type system) to make certain functions work with slices of concrete point types.

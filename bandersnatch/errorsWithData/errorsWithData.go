@@ -81,6 +81,8 @@ import (
 // (This is done so we get a least some compile-time(!) checks on the side creating the error for this, as
 // error handling is prone to bad testing coverage)
 
+/*
+
 // errorWithParameters_commonInterface is the common interface satified by all types satisfying ErrorWithParamerers[StructType]
 //
 // it allows retrieving the associated data for an error *WITHOUT* following the error chain.
@@ -109,6 +111,15 @@ type errorWithParameters_commonInterface interface {
 	isNil() bool
 }
 
+*/
+
+type errorWithParameters_commonInterfaceNew interface {
+	error
+	GetParameter(parameterName string) (value any, wasPresent bool)
+	HasParameter(parameterName string) bool
+	GetAllParameters() map[string]any
+}
+
 // TODO: Should we include the non-exported fields?
 // We only use this interface for return values;
 // Of course, other packagess can always define a sub-interface ED with just error, Unwrap, GetData on their own and assign to it.
@@ -132,22 +143,26 @@ type errorWithParameters_commonInterface interface {
 // possibly different values if the new values override the old ones). This behaviour is hard to fix without using some
 // form of thread-local storage.
 type ErrorWithParameters[StructType any] interface {
-	error
-	Unwrap() error       // Note: May return nil if there is nothing to wrap.
+	errorWithParameters_commonInterfaceNew
 	GetData() StructType // Note: e.GetData() Is equivalent to calling GetDataFromError[StructType](e)
 
-	// getParameter obtains the parameter stored under the key parameterName. Returns the value and whether it was present.
-	// If wasPresent == false, returned value is nil. DOES NOT FOLLOW THE ERROR CHAIN.
-	getParameter(parameterName string) (value any, wasPresent bool)
-	// hasParameter tests if the parameter stored under the key is present. DOES NOT FOLLOW THE ERROR CHAIN.
-	hasParameter(parameterName string) bool
-	// GetAllParams returns a map of all parameters. DOES NOT FOLLOW THE ERROR CHAIN.
-	getAllParameters() map[string]any
-	// Queries whether the map of included parameters should be shown by Error() if non-empty.
-	// Note that when *showing* parameters, we actually follow the whole error chain to get all parameters.
-	ShowParametersOnError() bool
-	// withShowParametersOnError creates a copy of the error with ShowParametersOnError set as requested.
-	WithShowParametersOnError(bool) ErrorWithParameters[StructType] // TODO: Return type?
+	/*
+		error
+		Unwrap() error // Note: May return nil if there is nothing to wrap.
+
+		// getParameter obtains the parameter stored under the key parameterName. Returns the value and whether it was present.
+		// If wasPresent == false, returned value is nil. DOES NOT FOLLOW THE ERROR CHAIN.
+		getParameter(parameterName string) (value any, wasPresent bool)
+		// hasParameter tests if the parameter stored under the key is present. DOES NOT FOLLOW THE ERROR CHAIN.
+		hasParameter(parameterName string) bool
+		// GetAllParams returns a map of all parameters. DOES NOT FOLLOW THE ERROR CHAIN.
+		getAllParameters() map[string]any
+		// Queries whether the map of included parameters should be shown by Error() if non-empty.
+		// Note that when *showing* parameters, we actually follow the whole error chain to get all parameters.
+		ShowParametersOnError() bool
+		// withShowParametersOnError creates a copy of the error with ShowParametersOnError set as requested.
+		WithShowParametersOnError(bool) ErrorWithParameters[StructType] // TODO: Return type?
+	*/
 }
 
 // UnconstrainedErrorWithParameters is the special case of ErrorWithParameters without any data guarantees.
@@ -156,9 +171,9 @@ type UnconstrainedErrorWithParameters = ErrorWithParameters[struct{}]
 // To delete a parameter from an error, we need to actually place a "This value is deleted"-marker, which is an arbitrary singleton.
 // Just removing the value would not work, because there might be values anywhere down the error chain.
 
-type deletedType struct{}
+// type deletedType struct{}
 
-var markedAsDeleted deletedType // we just want an unique unexported value that compares unequal to everything a library use can create.
+// var markedAsDeleted deletedType // we just want an unique unexported value that compares unequal to everything a library use can create.
 
 // errorPrefix is a prefix added to all (internal) error messages/panics that originate from this package. Does not apply to wrapped errors.
 const errorPrefix = "bandersnatch / error handling:"
@@ -171,36 +186,12 @@ const errorPrefix = "bandersnatch / error handling:"
 // GetAllParametersFromError returns a map for all parameters stored in the error, including all of err's error chain.
 // For err==nil, returns nil. If no error in err's error chain has any data, returns an empty map.
 func GetAllParametersFromError(err error) map[string]any {
-	if err == nil {
-		return nil
-	}
-	// Find all errors it the error chain which satisfy the ErrorWithParameters_plain interface
-	relevantErrors := make([]*errorWithParameters_commonInterface, 0)
-	for errChain := err; errChain != nil; errChain = errors.Unwrap(errChain) {
-		errChainGood, ok := errChain.(errorWithParameters_commonInterface)
-		if ok {
-			if errChainGood.isNil() {
-				// Users of the package should never be able to trigger this.
-				panic(errorPrefix + "internal bug: typed nil error satisfying the ErrorWithParameters interface in error chain detected")
-			}
-			relevantErrors = append(relevantErrors, &errChainGood)
+	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+		if errChainGood, ok := errorChain.(errorWithParameters_commonInterfaceNew); ok {
+			return errChainGood.GetAllParameters()
 		}
 	}
-	// Build up the resulting map by going through the relevant ErrorWithParameters starting from the end of the error chain.
-	ret := make(map[string]any)
-	for i := len(relevantErrors) - 1; i >= 0; i-- {
-		m := (*relevantErrors[i]).getAllParameters()
-		if m == nil {
-			panic(errorPrefix + "getParams returned nil for error satifying ErrorWithParameters in error chain")
-		}
-		for key, value := range m {
-			ret[key] = value
-			if value == markedAsDeleted {
-				delete(ret, key)
-			}
-		}
-	}
-	return ret
+	return make(map[string]any)
 }
 
 // NewErrorWithParameters creates a new ErrorWithParameters wrapping the given baseError, possibly overriding the error message message and adding parameters.
@@ -211,6 +202,7 @@ func GetAllParametersFromError(err error) map[string]any {
 // For baseError == nil, overrideMessage == "", #params == 0, we return a nil interface
 // For baseError == nil, overrideMessage != "", the returned error does not wrap an error.
 func NewErrorWithParameters[StructType any](baseError error, overrideMessage string, params ...any) ErrorWithParameters[StructType] {
+	// make some validity checks to give meaningful error messages.
 	if len(params)%2 != 0 {
 		panic(errorPrefix + "called NewErrorWithParameters(err, overrideMessage, args...) with an odd number of args. These are supposed to be name-value pairs")
 	}
@@ -226,7 +218,11 @@ func NewErrorWithParameters[StructType any](baseError error, overrideMessage str
 		// If we just proceed, the returned error will have contained_error == nil in this case.
 		// This is actually fine.
 	}
-	ret := errorWithParameters_common{contained_error: baseError, message: overrideMessage, params: make(map[string]any)}
+
+	// create a wrapper, copying all parameters from baseError
+	ret := makeErrorWithParametersCommon(baseError, overrideMessage)
+
+	// add new parameters to it
 	for i := 0; i < extraParams; i++ {
 		s, ok := params[2*i].(string)
 		if !ok {
@@ -234,10 +230,13 @@ func NewErrorWithParameters[StructType any](baseError error, overrideMessage str
 		}
 		ret.params[s] = params[2*i+1]
 	}
+
+	// Check whether the promise of being able to construct an instance of StructType is satisfied.
 	validationError := canMakeStructFromParametersInError[StructType](&ret)
 	if validationError != nil {
 		panic(validationError)
 	}
+
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
@@ -254,7 +253,9 @@ func NewErrorWithParametersMap[StructType any](baseError error, overrideMessage 
 		// If we just proceed, the returned error will have contained_error == nil in this case.
 		// This is actually fine.
 	}
-	ret := errorWithParameters_common{contained_error: baseError, message: overrideMessage, params: make(map[string]any)}
+
+	ret := makeErrorWithParametersCommon(baseError, overrideMessage)
+
 	for key, value := range params {
 		ret.params[key] = value
 	}
@@ -290,16 +291,16 @@ var InlcudeParametersInErrorUnconstrainedMap func(err error, parameters map[stri
 
 // TODO: global rename after old usage is refactored, intended name NewErrorWithData currently clashes.
 
-// NewErrorWithParametersAsData creates a new ErrorWithParameters wrapping the given error if non-nil, overriding the error message if != "" and adding
+// NewErrorWithParametersFromData creates a new ErrorWithParameters wrapping the given baseError if non-nil, overriding the error message if != "" and adding
 // parameters for each visible field of StructType.
 //
-// For err == nil, overrideMessage == "", #visibleFields of (*data) > 0, this function panics.
-// For err == nil, overrideMessage == "", #visibleFields of (*data) ==0, returns nil
-// For err == nil, overrideMessage != "", creates a new error that does not wrap an error.
-func NewErrorWithParametersAsData[StructType any](err error, overrideMessage string, data *StructType) ErrorWithParameters[StructType] {
+// For baseError == nil, overrideMessage == "", #visibleFields of (*data) > 0, this function panics.
+// For baseError == nil, overrideMessage == "", #visibleFields of (*data) ==0, returns nil
+// For baseError == nil, overrideMessage != "", creates a new error that does not wrap an error.
+func NewErrorWithParametersFromData[StructType any](baseError error, overrideMessage string, data *StructType) ErrorWithParameters[StructType] {
 	reflectedStructType := utils.TypeOfType[StructType]()
 	allStructFields := getStructMapConversionLookup(reflectedStructType)
-	if err == nil {
+	if baseError == nil {
 		if overrideMessage == "" {
 			if len(allStructFields) > 0 {
 				panic(errorPrefix + "called NewErrorWithData(nil,\"\",data) with non-empty data")
@@ -310,34 +311,32 @@ func NewErrorWithParametersAsData[StructType any](err error, overrideMessage str
 		// If we just proceed, the returned error will have contained_error == nil in this case.
 		// This is actually fine.
 	}
-	createdError := errorWithParameters_common{contained_error: err, message: overrideMessage, params: make(map[string]any)}
+
+	createdError := makeErrorWithParametersCommon(baseError, overrideMessage)
+
 	fillMapFromStruct(data, &createdError.params)
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: createdError}
 }
 
 // IncludeDataInError returns a new error with the data provided.
 //
-// On nil input, returns nil, ignoring the provided data. Use NewErrorWithData for a variant that behaves differently instead.
-func IncludeDataInError[StructType any](err error, data *StructType) ErrorWithParameters[StructType] {
-	if err == nil {
+// On nil input for baseError, returns nil, ignoring the provided data. Use NewErrorWithData for a variant that behaves differently instead.
+func IncludeDataInError[StructType any](baseError error, data *StructType) ErrorWithParameters[StructType] {
+	if baseError == nil {
 		return nil
 	}
-	return NewErrorWithParametersAsData(err, "", data)
+	return NewErrorWithParametersFromData(baseError, "", data)
 }
 
 // HasParameter checks whether some error in err's error chain contains a parameter keyed by parameterName
 // HasParameter(nil, ...) returns false
 func HasParameter(err error, parameterName string) bool {
-	if err == nil {
-		return false
-	}
-	errWithParams, ok := err.(errorWithParameters_commonInterface)
-	if ok {
-		if arg, present := errWithParams.getParameter(parameterName); present {
-			return arg != markedAsDeleted
+	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+		if errChainGood, ok := errorChain.(errorWithParameters_commonInterfaceNew); ok {
+			return errChainGood.HasParameter(parameterName)
 		}
 	}
-	return HasParameter(errors.Unwrap(err), parameterName)
+	return false
 }
 
 // HasData checks whether the error contains enough parameters of correct types to create an instance of StructType.
@@ -351,25 +350,18 @@ func HasData[StructType any](err error) bool {
 // where some entry was found.
 // If no entry was found in the error chain or err==nil, returns nil, false.
 func GetParameterFromError(err error, parameterName string) (value any, wasPresent bool) {
-	if err == nil {
-		return nil, false
-	}
-	errWithParams, ok := err.(errorWithParameters_commonInterface)
-	if ok {
-		if arg, present := errWithParams.getParameter(parameterName); present {
-			if arg == markedAsDeleted {
-				return nil, false
-			} else {
-				return arg, true
-			}
+	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+		if errChainGood, ok := errorChain.(errorWithParameters_commonInterfaceNew); ok {
+			return errChainGood.GetParameter(parameterName)
 		}
 	}
-	return GetParameterFromError(errors.Unwrap(err), parameterName)
+	return nil, false
 }
 
 // GetDataFromError obtains the parameters contained in err in the form of a struct of type StructType.
 //
-// If err does not contain enough parameters ( including the case err==nil, #visibleFields(StructType)>0 ), this function panics.
+// If err does not contain enough parameters, this function panics.
+// NOTE: If StructType has 0 visible fields, the function does not panic, even if err == nil.
 func GetDataFromError[StructType any](err error) (ret StructType) {
 	allParams := GetAllParametersFromError(err)
 	ret, wrongDataError := makeStructFromMap[StructType](allParams)
@@ -388,7 +380,9 @@ func DeleteParameterFromError(err error, parameterName string) UnconstrainedErro
 	if err == nil {
 		return nil
 	}
-	return IncludeParametersInErrorUnconstrained(err, parameterName, markedAsDeleted)
+	ret := makeErrorWithParametersCommon(err, "")
+	delete(ret.params, parameterName)
+	return &errorWithParameters_T[struct{}]{errorWithParameters_common: ret}
 }
 
 // Exported for cross-package testing. Will be removed/replaced by callback. Not part of the official interface

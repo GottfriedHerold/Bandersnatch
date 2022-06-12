@@ -22,7 +22,7 @@ var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[re
 func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConversion) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.
-	// (Note sure whether this is needed and this is probably true anyway, not guaranteed by the spec of reflect.VisibleFields otherwise)
+	// (Note sure whether this is needed and this is probably true anyway, but not guaranteed by the spec of reflect.VisibleFields otherwise)
 	enforcedDataTypeMapMutex.RLock()
 	ret, ok := enforcedDataTypeMap[tType]
 	enforcedDataTypeMapMutex.RUnlock()

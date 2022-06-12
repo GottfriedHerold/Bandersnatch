@@ -1,6 +1,7 @@
 package bandersnatch
 
 import (
+	"errors"
 	"io"
 	"math/bits"
 
@@ -8,6 +9,15 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+)
+
+var (
+	ErrPrefixDoesNotFit             error = errors.New("while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large")
+	ErrPrefixLengthInvalid          error = errors.New("in FieldElement (de)serializitation, an invalid prefix length > 8 was requested")
+	ErrPrefixLengthInvalid2         error = errors.New("in FieldElement (de)serialization, the requested prefix has bits in positions that are not allowed by prefix length")
+	ErrInvalidByteOrder             error = errors.New("unrecognized byte order in FieldElement (de)serialization. You must use either LittleEndian or BigEndian from the encoding/binary standard library")
+	ErrPrefixMismatch               error = errors.New("during deserialization, the read prefix did not match the expected one")
+	ErrNonNormalizedDeserialization error = errors.New("during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )
 
 /*
@@ -57,7 +67,7 @@ func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHead
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(low_endian_words[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithParametersAsData(ErrPrefixDoesNotFit, "", &struct{ PartialWrite bool }{false})
+		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &struct{ PartialWrite bool }{false})
 		return
 	}
 
@@ -87,7 +97,7 @@ func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHead
 // possible errors: ErrPrefixLengthInvalid, ErrInvalidByteOrder, ErrNonNormalizedDeserialization, io errors
 func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err errorsWithData.ErrorWithParameters[struct{ PartialRead bool }]) {
 	if prefixLength > common.MaxLengthPrefixBits {
-		err = errorsWithData.NewErrorWithParametersAsData(ErrPrefixLengthInvalid, "", &struct{ PartialRead bool }{false})
+		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &struct{ PartialRead bool }{false})
 		return
 	}
 	var errPlain error
@@ -110,7 +120,7 @@ func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLengt
 	z.words[3] &= bitmask_remaining
 
 	if !z.isNormalized() {
-		err = errorsWithData.NewErrorWithParametersAsData(ErrNonNormalizedDeserialization, "", &struct{ PartialRead bool }{false})
+		err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &struct{ PartialRead bool }{false})
 
 		// We do not immediately return, because we put z in Montgomery form before, such that the output is what we read modulo BaseFieldSize, even though we have an error.
 	}
