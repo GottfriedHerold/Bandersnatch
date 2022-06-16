@@ -5,7 +5,7 @@ package bandersnatch
 // they are involved in actually constructing curve points
 // (The alternative is initializing a curve point with these coordinates and running a function on those, but this at least temporarily breaks invariants and we wish to avoid that.)
 //
-// We have variants optimizes for the coordinate system used
+// We have variants optimized for the coordinate system used
 
 // legendreCheckA_affineX returns true for points of the form P or P+A and false for P+E1 or P+E2 where P is in the prime-order subgroup.
 // The input is the affine x coordinate. Only x^2 matters, so calling with -x instead of x is fine.
@@ -159,6 +159,7 @@ func (p *point_efgh_base) isPointOnCurve() bool {
 	if p.IsNaP() {
 		return false
 	}
+	// direct check might only be slightly faster.
 	p_xtw := p.toDecaf_xtw()
 	return p_xtw.isPointOnCurve()
 }

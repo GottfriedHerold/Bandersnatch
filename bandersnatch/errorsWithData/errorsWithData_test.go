@@ -9,7 +9,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-var _ errorWithParameters_commonInterfaceNew = &errorWithParameters_common{}
+var _ ErrorWithParameters = &errorWithParameters_common{}
 
 func TestErrorWithParameters(t *testing.T) {
 	var nilError error = nil
@@ -31,9 +31,9 @@ func TestErrorWithParameters(t *testing.T) {
 		}
 	}
 
-	nilModified := IncludeParametersInErrorUnconstrained(nilError, "foo", true)
-	nilModified2 := IncludeParametersInError[struct{ Bar bool }](nilError, "Foo", true) // mismatch, but nil stays nil
-	nilModified3 := IncludeParametersInErrorUnconstrained(nilError)
+	nilModified := IncludeParametersInError(nilError, "foo", true)
+	nilModified2 := IncludeGuaranteedParametersInError[struct{ Bar bool }](nilError, "Foo", true) // mismatch, but nil stays nil
+	nilModified3 := IncludeParametersInError(nilError)
 	if nilModified != nil {
 		t.Fatalf("E1-1")
 	}
@@ -44,40 +44,40 @@ func TestErrorWithParameters(t *testing.T) {
 		t.Fatalf("E1-3")
 	}
 
-	nilWithFoo := NewErrorWithParametersUnconstrained(nilError, "message", "foo", true)
+	nilWithFoo := NewErrorWithParameters(nilError, "message", "foo", true)
 	if nilWithFoo == nil {
 		t.Fatalf("E2-1")
 	}
 
-	nilWithFoo2 := NewErrorWithParameters[struct{ Foo bool }](nilError, "message", "Foo", true)
+	nilWithFoo2 := NewErrorWithGuaranteedParameters[struct{ Foo bool }](nilError, "message", "Foo", true)
 	if nilWithFoo2 == nil {
 		t.Fatalf("E2-2")
 	}
 
 	// need to create anonymous function, because CheckPanic has issues with the pair (variadic functions, nil arguments).
-	if !testutils.CheckPanic(func() { NewErrorWithParametersUnconstrained(nilError, "", "foo", "true") }) {
+	if !testutils.CheckPanic(func() { NewErrorWithParameters(nilError, "", "foo", "true") }) {
 		t.Fatalf("E2-3")
 	}
 
-	if !testutils.CheckPanic(func() { NewErrorWithParametersUnconstrained(nilError, "message", "foo") }) {
-		t.Fatalf("E2-4")
+	if !testutils.CheckPanic(func() { NewErrorWithParameters(nilError, "message", "foo") }) {
+		t.Fatalf("NewErrorWithParameters did not panic when called with odd number of variadic arguments.")
 	}
 
-	if !testutils.CheckPanic(func() { NewErrorWithParametersUnconstrained(err1, "message", true, "foo") }) {
+	if !testutils.CheckPanic(func() { NewErrorWithParameters(err1, "message", true, "foo") }) {
 		t.Fatalf("E2-5")
 	}
 
-	if !testutils.CheckPanic(func() { NewErrorWithParameters[struct{ Foo1 bool }](err1, "", "Foo2", false) }) {
+	if !testutils.CheckPanic(func() { NewErrorWithGuaranteedParameters[struct{ Foo1 bool }](err1, "", "Foo2", false) }) {
 		t.Fatalf("E3-6")
 	}
 
-	stillNil := NewErrorWithParametersUnconstrained(nilError, "")
+	stillNil := NewErrorWithParameters(nilError, "")
 	if stillNil != nil {
 		t.Fatalf("E3")
 	}
 
-	wrappedEOFWithData1 := IncludeParametersInErrorUnconstrained(wrappedEOF, "Data1", 5, "Data2", 6)
-	wrappedEOFWithData12 := fmt.Errorf("Wrapping %w", IncludeParametersInErrorUnconstrained(wrappedEOFWithData1, "Data2", "arg2"))
+	wrappedEOFWithData1 := IncludeParametersInError(wrappedEOF, "Data1", 5, "Data2", 6)
+	wrappedEOFWithData12 := fmt.Errorf("Wrapping %w", IncludeParametersInError(wrappedEOFWithData1, "Data2", "arg2"))
 
 	m := GetAllParametersFromError(wrappedEOFWithData12)
 	if m["Data1"] != 5 || m["Data2"] != "arg2" {
@@ -175,4 +175,13 @@ func TestErrorWithParameters(t *testing.T) {
 		t.Fatalf("E8-3")
 	}
 
+	e1 := fmt.Errorf("ABC")
+	e2 := NewErrorWithParameters(e1, "%w %{Param1}", "Param1", 5)
+	if e2.Error() != "ABC 5" {
+		t.Fatalf("Error message output not as expected")
+	}
+	e3 := IncludeParametersInError(e1)
+	if e3.Error() != "ABC" {
+		t.Fatalf("Error message output not as expected for empty map")
+	}
 }

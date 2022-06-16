@@ -1,4 +1,4 @@
-package bandersnatch
+package fieldElement
 
 import (
 	"fmt"
@@ -112,7 +112,7 @@ func BenchmarkMultiplyByFive_64(b *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		bench_x_64[n%benchS].multiply_by_five()
+		bench_x_64[n%benchS].Multiply_by_five()
 	}
 	b.StopTimer()
 	// This is just to really ensure the compiler does not optimize things away.

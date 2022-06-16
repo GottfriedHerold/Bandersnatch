@@ -1,7 +1,12 @@
 package bandersnatch
 
-// this file contains internal function that add torsion points to given points.
+// this file contains internal function that add 2-torsion points to given points.
 // This is mostly used in testing.
+// The point here is that 2-torsion points might not be representable by
+// the point type and we want to express these operations without resorting to some
+// other point type.
+
+// Note that these functions are defined on the "_base"-types
 
 func (p *point_xtw_base) torsionAddA() {
 	p.x.NegEq()
@@ -52,7 +57,7 @@ func (p *point_efgh_base) torsionAddE1() {
 		*p = point_efgh_base{}
 		return
 	}
-	// New e;f;g;h = G;\sqrt{d/a}H; a\sqrt{d/a}E;F
+	// For input E,F,G,H, we have output e, f, g, h = G, \sqrt{d/a} * H, a\sqrt{d/a}*E, F
 	p.e, p.f, p.g, p.h = p.g, p.h, p.e, p.f
 	p.f.MulEq(&squareRootDbyA_fe)
 	p.g.MulEq(&squareRootDbyA_fe)

@@ -18,7 +18,7 @@ func UnexpectEOF(errPtr *error) {
 	if errors.Is(*errPtr, io.EOF) {
 		m := errorsWithData.GetAllParametersFromError(*errPtr)
 		if len(m) > 0 {
-			*errPtr = errorsWithData.NewErrorWithParametersUnconstrainedMap(io.ErrUnexpectedEOF, "", m)
+			*errPtr = errorsWithData.NewErrorWithParametersFromMap(io.ErrUnexpectedEOF, "", m)
 		} else {
 			*errPtr = io.ErrUnexpectedEOF
 		}

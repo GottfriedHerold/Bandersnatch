@@ -1,4 +1,4 @@
-package bandersnatch
+package fieldElement
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 var _ fmt.Formatter = bsFieldElement_64{}
@@ -117,6 +117,11 @@ func TestOps_8_vs_64(t *testing.T) {
 		if result_8.Cmp(result_64) != 0 {
 			t.Fatal("Inversion differs between bsFieldElement_8 and bsFieldElement64", *result_8, *result_64)
 		}
+
+		if x_8.Sign() != x_64.Sign() {
+			t.Fatalf("Sign differs between bsFieldElement_8 and bsFieldElement_64")
+		}
+
 	}
 }
 
@@ -209,6 +214,34 @@ func TestOpsOnRandomValues_64(t *testing.T) {
 	}
 }
 
+func TestSign(t *testing.T) {
+	// Testing random x and comparing against _8 is done already.
+	// We only check special values.
+
+	var x FieldElement
+	x.SetZero()
+	if x.Sign() != 0 {
+		t.Fatalf("Sign(0) != 0")
+	}
+	x = bsFieldElement_64_zero_alt
+	if x.Sign() != 0 {
+		t.Fatalf("Sign(0_alt) != 0")
+	}
+	x = bsFieldElement_64_minusone
+	if x.Sign() != -1 {
+		t.Fatalf("Sign(-1) != -1")
+	}
+	x = FieldElementTwo
+	x.InvEq() // x = 1/2 == (1-BaseFieldSize)/2. This is the point where the sign switches
+	if x.Sign() != -1 {
+		t.Fatalf("Sign(1/2) != -1")
+	}
+	x.SubEq(&FieldElementOne)
+	if x.Sign() != +1 {
+		t.Fatalf("Sign(1/2 - 1) != +1")
+	}
+}
+
 func TestMulHelpers(testing_instance *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(11141))
 	const iterations = 1000
@@ -223,7 +256,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test mul_four_one_64 by comparing to big.Int computation on random inputs x, y
 	for i := 1; i < iterations; i++ {
 		xInt := new(big.Int).Rand(drng, bound)
-		var x [4]uint64 = bigIntToUIntArray(xInt)
+		var x [4]uint64 = utils.BigIntToUIntArray(xInt)
 
 		var y uint64 = drng.Uint64()
 		yInt := new(big.Int).SetUint64(y)
@@ -233,7 +266,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 
 		low, high := mul_four_one_64(&x, y)
 		lowInt := new(big.Int).SetUint64(low)
-		highInt := uintarrayToInt(&high)
+		highInt := utils.UIntarrayToInt(&high)
 		resultInt2 := new(big.Int).Mul(highInt, R)
 
 		// x*y as computed using mul_four_one
@@ -248,7 +281,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test montgomery_step_64
 	for i := 1; i < iterations; i++ {
 		tInt := new(big.Int).Rand(drng, bound)
-		var t [4]uint64 = bigIntToUIntArray(tInt)
+		var t [4]uint64 = utils.BigIntToUIntArray(tInt)
 
 		var q uint64 = drng.Uint64()
 		qInt := new(big.Int).SetUint64(q)
@@ -262,7 +295,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 			continue
 		}
 		montgomery_step_64(&t, q)
-		tInt2 := uintarrayToInt(&t)
+		tInt2 := utils.UIntarrayToInt(&t)
 		if tInt.Cmp(tInt2) != 0 {
 			testing_instance.Error("montgomery_step_64 is incorrect", *tInt, *tInt2)
 			break
@@ -273,10 +306,10 @@ func TestMulHelpers(testing_instance *testing.T) {
 	// Test add_mul_shift_64
 	for i := 1; i < iterations; i++ {
 		targetInt := new(big.Int).Rand(drng, bound)
-		var target [4]uint64 = bigIntToUIntArray(targetInt)
+		var target [4]uint64 = utils.BigIntToUIntArray(targetInt)
 
 		xInt := new(big.Int).Rand(drng, bound)
-		var x [4]uint64 = bigIntToUIntArray(xInt)
+		var x [4]uint64 = utils.BigIntToUIntArray(xInt)
 
 		var y uint64 = drng.Uint64()
 		yInt := new(big.Int).SetUint64(y)
@@ -288,7 +321,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 		resultlowInt := new(big.Int).Mod(resultInt, R)
 		var result_low1 uint64 = resultlowInt.Uint64()
 		resultInt.Rsh(resultInt, 64)
-		result_target1 := bigIntToUIntArray(resultInt)
+		result_target1 := utils.BigIntToUIntArray(resultInt)
 
 		result_low2 := add_mul_shift_64(&target, &x, y)
 		if target != result_target1 {
@@ -357,7 +390,7 @@ func TestMultiplyByFive(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		x.SetRandomUnsafe(drng)
 		y.Mul(&x, &five)
-		x.multiply_by_five()
+		x.Multiply_by_five()
 		if !x.IsEqual(&y) {
 			t.Fatal("Multiplication by five does not work", i, x, y)
 		}
@@ -365,12 +398,11 @@ func TestMultiplyByFive(t *testing.T) {
 }
 
 func TestConstants(t *testing.T) {
-	// Note that IsEqual can internally call Normalize(). This is not a problem, because we do not export it.
-	var oldaltzero = bsFieldElement_64_zero_alt
-	if !bsFieldElement_64_zero.IsEqual(&bsFieldElement_64_zero_alt) {
+	// Note that IsEqual can internally call Normalize(), hence the need to work on a copy.
+	var altzero = bsFieldElement_64_zero_alt
+	if !bsFieldElement_64_zero.IsEqual(&altzero) {
 		t.Fatal("Different representations of zero do not compare equal")
 	}
-	bsFieldElement_64_zero_alt = oldaltzero
 	var temp bsFieldElement_64 = bsFieldElement_64_zero
 	if !temp.IsZero() {
 		t.Fatal("Zero is not recognized as zero")
@@ -382,193 +414,5 @@ func TestConstants(t *testing.T) {
 	temp.Add(&bsFieldElement_64_minusone, &bsFieldElement_64_one)
 	if !temp.IsZero() {
 		t.Fatal("Representation of one or minus one are inconsistent: They do not add to zero")
-	}
-}
-
-func TestMultiInvert(t *testing.T) {
-	const MAXSIZE = 20
-	var drng *rand.Rand = rand.New(rand.NewSource(87))
-	empty := make([]bsFieldElement_64, 0)
-	MultiInvertEq()
-	MultiInvertEqSlice(empty)
-	var numsArray, numsArrayInv [MAXSIZE]bsFieldElement_64
-	for i := 0; i < MAXSIZE; i++ {
-		numsArray[i].SetRandomUnsafeNonZero(drng)
-		numsArrayInv[i].Inv(&numsArray[i])
-	}
-	for size := 0; size < MAXSIZE; size++ {
-		numsArrayCopy := numsArray
-		MultiInvertEqSlice(numsArrayCopy[0:size])
-		for i := 0; i < size; i++ {
-			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
-				t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
-			}
-		}
-	}
-	for size := 0; size < MAXSIZE; size++ {
-		numsArrayCopy := numsArray
-		Ptrs := make([]*bsFieldElement_64, size)
-		for i := 0; i < size; i++ {
-			Ptrs[i] = &numsArrayCopy[i]
-		}
-		MultiInvertEq(Ptrs...)
-		for i := 0; i < size; i++ {
-			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
-				t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
-			}
-		}
-	}
-
-}
-
-func TestSummationSlice(t *testing.T) {
-	const size = 20
-	var drng *rand.Rand = rand.New(rand.NewSource(100))
-	empty := make([]bsFieldElement_64, 0)
-	var result bsFieldElement_64
-	var a, b, c bsFieldElement_64
-	result.SetRandomUnsafe(drng) // arbitrary value, really.
-	a.SetRandomUnsafe(drng)
-	b.SetRandomUnsafe(drng)
-	c.SetRandomUnsafe(drng)
-	result.SummationSlice(empty)
-	if !result.IsZero() {
-		t.Fatal("SummationSlice with zero-length slice does not result in 0")
-	}
-	result.SetRandomUnsafe(drng)
-	result.SummationMany()
-	if !result.IsZero() {
-		t.Fatal("SummationMany with 0 arguments does not result in 0")
-	}
-	result.SummationMany(&a)
-	if !result.IsEqual(&a) {
-		t.Fatal("SummationMany with 1 argument does not copy")
-	}
-	result.SummationMany(&a, &b, &c)
-	result.SubEq(&a)
-	result.SubEq(&b)
-	result.SubEq(&c)
-	if !result.IsZero() {
-		t.Fatal("SummationMany with 3 arguments does not match expected result")
-	}
-	var summands [size]bsFieldElement_64
-	var acc bsFieldElement_64
-	var Ptrs [size]*bsFieldElement_64
-	for i := 0; i < size; i++ {
-		summands[i].SetRandomUnsafe(drng)
-		Ptrs[i] = &summands[i]
-	}
-	acc.SetZero()
-	for i := 0; i < size; i++ {
-		acc.AddEq(&summands[i])
-	}
-	result.SummationSlice(summands[:])
-	if !result.IsEqual(&acc) {
-		t.Fatal("SummationSlice does not match result of manual addition")
-	}
-	result.SummationMany(Ptrs[:]...)
-	if !result.IsEqual(&acc) {
-		t.Fatal("SummationMany does not match result of manual addition")
-	}
-	summandsCopy := summands
-	testutils.Assert((size >= 2))
-	summandsCopy[1].SummationSlice(summandsCopy[:])
-	if !summandsCopy[1].IsEqual(&result) {
-		t.Fatal("SummationSlice does not work when result aliases an input")
-	}
-	summandsCopy = summands
-	for i := 0; i < size; i++ {
-		Ptrs[i] = &summandsCopy[i]
-	}
-	summandsCopy[1].SummationMany(Ptrs[:]...)
-	if !summandsCopy[1].IsEqual(&result) {
-		t.Fatal("SummationMany does not work when result aliases an input")
-	}
-	a.SetRandomUnsafe(drng)
-	b.SetUInt64(size)
-	result.Mul(&b, &a)
-	for i := 0; i < size; i++ {
-		Ptrs[i] = &a
-	}
-	a.SummationMany(Ptrs[:]...)
-	if !a.IsEqual(&result) {
-		t.Fatal("SummationMany does not work when results and all inputs alias")
-	}
-}
-
-func TestMultiplySlice(t *testing.T) {
-	const size = 20
-	var drng *rand.Rand = rand.New(rand.NewSource(100))
-	empty := make([]bsFieldElement_64, 0)
-	var result bsFieldElement_64
-	var a, b, c bsFieldElement_64
-	result.SetRandomUnsafe(drng) // arbitrary value, really.
-	a.SetRandomUnsafe(drng)
-	b.SetRandomUnsafe(drng)
-	c.SetRandomUnsafe(drng)
-	result.MultiplySlice(empty)
-	if !result.IsOne() {
-		t.Fatal("MultiplySlice with zero-length slice does not result in 1")
-	}
-	result.SetRandomUnsafe(drng)
-	result.MultiplyMany()
-	if !result.IsOne() {
-		t.Fatal("MultiplyMany with 0 arguments does not result in 0")
-	}
-	result.MultiplyMany(&a)
-	if !result.IsEqual(&a) {
-		t.Fatal("MultiplyMany with 1 argument does not copy")
-	}
-	result.MultiplyMany(&a, &b, &c)
-	var result2 bsFieldElement_64
-	result2.Mul(&a, &b)
-	result2.MulEq(&c)
-	if !result.IsEqual(&result2) {
-		t.Fatal("MultiplyMany with 3 arguments does not match expected result")
-	}
-	var factors [size]bsFieldElement_64
-	var acc bsFieldElement_64
-	var Ptrs [size]*bsFieldElement_64
-	for i := 0; i < size; i++ {
-		factors[i].SetRandomUnsafe(drng)
-		Ptrs[i] = &factors[i]
-	}
-	acc.SetOne()
-	for i := 0; i < size; i++ {
-		acc.MulEq(&factors[i])
-	}
-	result.MultiplySlice(factors[:])
-	if !result.IsEqual(&acc) {
-		t.Fatal("MultiplySlice does not match result of manual multiplication")
-	}
-	result.MultiplyMany(Ptrs[:]...)
-	if !result.IsEqual(&acc) {
-		t.Fatal("MultiplyMany does not match result of manual multiplication")
-	}
-	factorsCopy := factors
-	testutils.Assert((size >= 2))
-	factorsCopy[1].MultiplySlice(factorsCopy[:])
-	if !factorsCopy[1].IsEqual(&result) {
-		t.Fatal("MultiplySlice does not work when result aliases an input")
-	}
-	factorsCopy = factors
-	for i := 0; i < size; i++ {
-		Ptrs[i] = &factorsCopy[i]
-	}
-	factorsCopy[1].MultiplyMany(Ptrs[:]...)
-	if !factorsCopy[1].IsEqual(&result) {
-		t.Fatal("MultiplyMany does not work when result aliases an input")
-	}
-	a.SetRandomUnsafe(drng)
-	result.SetOne()
-	for i := 0; i < size; i++ {
-		result.MulEq(&a)
-	}
-	for i := 0; i < size; i++ {
-		Ptrs[i] = &a
-	}
-	a.MultiplyMany(Ptrs[:]...)
-	if !a.IsEqual(&result) {
-		t.Fatal("MultiplyMany does not work when results and all inputs alias")
 	}
 }

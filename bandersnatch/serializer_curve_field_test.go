@@ -1,6 +1,7 @@
 package bandersnatch
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -28,7 +29,7 @@ func TestRecoverYFromXAffine(t *testing.T) {
 			return false, "RecoverYFromAffineX reported unexpected error (without Legendre check)"
 		}
 		if !good_subgroup {
-			if errChecked != ErrXNotInSubgroup {
+			if !errors.Is(errChecked, ErrXNotInSubgroup) {
 				return false, "RecoverYFromXAffineX did not report expected error for X not in subgroup"
 			}
 		} else {

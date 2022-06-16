@@ -209,7 +209,7 @@ func (points CurvePointSlice_xtw_full) normalizeAffineZ() {
 		err := recover()
 		if err != nil {
 			switch err := err.(type) {
-			case *ErrMultiInversionEncounteredZero:
+			case *errMultiInversionEncounteredZero:
 				err.s += "\nNOTE: For this call site, indices in MultiInvertEq skip curve points with z==1"
 				for i := 0; i < L; i++ {
 					if points[i].IsNaP() {
@@ -264,7 +264,7 @@ func (points CurvePointSlice_xtw_subgroup) normalizeAffineZ() {
 		err := recover()
 		if err != nil {
 			switch err := err.(type) {
-			case *ErrMultiInversionEncounteredZero:
+			case *errMultiInversionEncounteredZero:
 				err.s += "\nNOTE: For this call site, indices in MultiInvertEq skip curve points with z==1"
 				for i := 0; i < L; i++ {
 					if points[i].IsNaP() {

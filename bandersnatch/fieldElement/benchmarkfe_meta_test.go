@@ -1,4 +1,4 @@
-package bandersnatch
+package fieldElement
 
 import (
 	"math/rand"
@@ -13,7 +13,7 @@ import (
 // default benchmarking framework.
 
 // This file contains the code specific for benchmarking field elements;
-// (code for field elements is completely separate to facilitate moving all field-element related code into a subpackage if desired)
+// (There is similar code for curve operations)
 
 // We have benchmarking code for the actual FieldElement = bsFieldElement_64 implementation
 // and also (nearly identical) benchmarking code for the reference bsFieldElement_8 implementation. The latter is just for comparison.
@@ -21,7 +21,7 @@ import (
 // The concrete functionality provided is this:
 //
 // We provide global variables that the benchmarked functions write their result to. (This is to avoid the compiler from outsmarting us -- writing to a global constant forces the compiler to actually do the computation)
-// We provide a facility to sample slices random-looking field elements.
+// We provide a facility to sample slices of random-looking field elements.
 // We provide a setup function that ensures call counters are handled correctly.
 
 // size of Dump slices used in benchmarks
@@ -29,7 +29,7 @@ const dumpSizeBench_fe = 1 << 8
 
 // benchmark functions write to DumpXXX variables.
 // These are "exported"[*]  package-level variables to prevent the compiler from optimizations
-// based on the fact that they are never read from within the bandersnatch module
+// based on the fact that they are never read from within the module
 //
 // [*] in non-test builds this file is ignored anyway
 var DumpBools_fe [dumpSizeBench_fe]bool // the _fe is because we use a separate global variable for benchmarking curve operations. We could use the same, but this way the code for field element and curve point benchmark is separate.
@@ -38,7 +38,7 @@ var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
 
 // Note: We have versions of prepareBenchmark, postProcessBenchmark and resetBenchmark for field elements and CurvePoints.
 // At the moment, these are identical.
-// The reason is that we might eventually move everything field element-related to a sub-module
+// The reason is that we might eventually move everything field element-related to a sub-module. -- DONE
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
 // Note that it resets all counters.
@@ -71,6 +71,7 @@ type (
 		rng      *rand.Rand
 		elements []bsFieldElement_64
 	}
+
 	pseudoRandomFieldElementCache_8 struct {
 		rng      *rand.Rand
 		elements []bsFieldElement_8

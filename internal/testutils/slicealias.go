@@ -1,6 +1,7 @@
 package testutils
 
-// CheckSliceAlias returns true iff both x and y are both non-nil and share the same underlying array of positive capacity
+// CheckSliceAlias returns true iff both x and y are both non-nil, have positive capacity and share the same backing array.
+// Note: The slices do not have to start/end at the same point, so reslicing does not affect this (except when resliced to zero capacitiy).
 func CheckSliceAlias[T any](x []T, y []T) bool {
 	if x == nil || y == nil {
 		return false

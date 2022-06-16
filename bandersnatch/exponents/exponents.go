@@ -1,10 +1,12 @@
-package bandersnatch
+package exponents
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
 	"math/bits"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file contains implementations for the type used to store exponents used in exponentiation algorithms.
@@ -17,30 +19,10 @@ import (
 // For exponentiation algorithms computing n*P when we do not know whether P is in the subgroup, we reduce to the subgroup case anyway by computing (2n)*P = n*(2P) resp. (2n+1)*P = P + n*(2P).
 
 // Note: The implementation for Exponents is quite different from the implementation FieldElement of the field of definition GF(BaseFieldSize) of the curve.
-// For FieldElement, we internally use Montgomery representation to speed up multiplication. For Exponents, we do not multiply often, So we use a "plain" representation.
+// For FieldElement, we internally use Montgomery representation to speed up multiplication. For Exponents, we do not multiply often,
+// So we use a "plain" representation.
 // If needed, we can implement a "mixed" multiplication -- the main thing we need to do inside the library is compute A * n for exponents n and constant A, so
 // we could use Montgomery multiplication anyway.
-
-const (
-	curveExponent_0 = (CurveExponent >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	curveExponent_1
-	curveExponent_2
-	curveExponent_3
-)
-
-const (
-	curveOrder_0 = (CurveOrder >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	curveOrder_1
-	curveOrder_2
-	curveOrder_3
-)
-
-const (
-	groupOrder_0 = (GroupOrder >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	groupOrder_1
-	groupOrder_2
-	groupOrder_3
-)
 
 // Exponent stores an integer value used as an exponent for exponentiation algorithms.
 type Exponent struct {
@@ -54,7 +36,7 @@ var p253Exponent Exponent = Exponent{value: [4]uint64{groupOrder_0, groupOrder_1
 
 // ToBigInt_Full converts the exponent into a *big.Int, working modulo 2*p253
 func (z *Exponent) ToBigInt_Full() (result *big.Int) {
-	result = uintarrayToInt(&z.value)
+	result = utils.UIntarrayToInt(&z.value)
 	return
 }
 
@@ -64,7 +46,8 @@ func (z *Exponent) ToBigInt_Subgroup() (result *big.Int) {
 	return temp.ToBigInt_Full()
 }
 
-// ModuloP253 reduces the exponent modulo p253 (we usually work internally modulo 2*p253). We do not modify the receiver and return a fresh exponent.
+// ModuloP253 reduces the exponent modulo p253 (we usually work internally modulo 2*p253).
+// We do not modify the receiver and return a fresh exponent.
 //
 // NOTE: This reduction is done automatically for exponentiation algorithms.
 // The purpose of this function is mostly for formatted printing via fmt.Printf("...%v...", exponent.ModuloP253())
@@ -105,7 +88,7 @@ func (z *Exponent) isNormalized_Subgroup() bool {
 func (z *Exponent) SetBigInt(x *big.Int) {
 	var xReduced *big.Int = big.NewInt(0)
 	xReduced.Mod(x, CurveExponent_Int) // is in 0 <= . < CurveExponent_Int, even if input is negative
-	z.value = bigIntToUIntArray(xReduced)
+	z.value = utils.BigIntToUIntArray(xReduced)
 }
 
 // SetUInt sets the value of z to the given unsigned integer.
@@ -282,12 +265,19 @@ func (z *Exponent) IsOne_Subgroup() bool {
 
 // glvExponent is an exponent of at most 128 bit (usually 126bit). This is usually the result of a GLV-decomposition.
 type glvExponent struct {
+	// We store values as absolute value + sign pairs.
+	// This is better suited for our usage.
 	value uint128 // Note that we do NOT compute modulo anything here.
-	sign  int     // sign of the number. If value is all-zero, sign can be any value.
+	sign  int     // sign of the number. If value is non-zero, sign is from +/-1.
+	// If value is zero, sign can be any value.
 }
 
 type uint128 [2]uint64 // low-endian
 
+// Note: Most operations on uint128 are defined on value receivers
+// or return the result rather than setting receivers.
+
+// add128 adds two uint128, ignoring overflow (i.e. we work modulo 2**128)
 func add128(x, y uint128) (res uint128) {
 	var carry uint64
 	res[0], carry = bits.Add64(x[0], y[0], 0)
@@ -295,12 +285,15 @@ func add128(x, y uint128) (res uint128) {
 	return
 }
 
+// mul128 multiplies two uint128's, ignoring overflow (i.e. working modulo 2**128)
 func mul128(x, y uint128) (res uint128) {
 	res[1], res[0] = bits.Mul64(x[0], y[0])
 	res[1] += x[0]*y[1] + x[1]*y[0]
 	return
 }
 
+// SetBigInt converts from a big.Int to a uint128. The conversion
+// only considers the input x modulo 2**128.
 func (z *uint128) SetBigInt(x *big.Int) {
 	var temp *big.Int = new(big.Int)
 	temp.Mod(x, twoTo128_Int)
@@ -310,6 +303,7 @@ func (z *uint128) SetBigInt(x *big.Int) {
 	z[1] = binary.BigEndian.Uint64(bigEndianSlice[0:8])
 }
 
+// ToBigInt converts a uint128 to a big.Int.
 func (z uint128) ToBigInt() (x *big.Int) {
 	var bigEndianSlice [16]byte
 	binary.BigEndian.PutUint64(bigEndianSlice[8:16], z[0])
@@ -335,6 +329,7 @@ func (z *glvExponent) Bit(i uint) uint {
 	}
 }
 
+// Sign returns the sign of a glvExponent; the result is from {-1, 0, +1}.
 func (z *glvExponent) Sign() int {
 	if (z.value == uint128{}) {
 		return 0
@@ -343,6 +338,7 @@ func (z *glvExponent) Sign() int {
 	}
 }
 
+// ToBigInt converts a glvExponent to a big.Int
 func (z *glvExponent) ToBigInt() (ret *big.Int) {
 	ret = z.value.ToBigInt()
 	if z.sign < 0 {
@@ -351,18 +347,22 @@ func (z *glvExponent) ToBigInt() (ret *big.Int) {
 	return
 }
 
+// SetBigInt sets a glvExponent from a big.Int.
+//
+// This function panics if the absolute value of the input does not fit into 128 bits.
 func (z *glvExponent) SetBigInt(input *big.Int) {
 	if input.BitLen() > 128 {
 		panic("bandersnatch / exponents: glvExponent can only take values of at most 128bit")
 	}
 	z.sign = input.Sign()
-	var bigEndianByteSlice [16]byte
+	var bigEndianByteSlice [16]byte // big endian, because that's what big.int.FillBytes gives.
 	input.FillBytes(bigEndianByteSlice[:])
 	z.value[0] = binary.BigEndian.Uint64(bigEndianByteSlice[8:16])
 	z.value[1] = binary.BigEndian.Uint64(bigEndianByteSlice[0:8])
 }
 
-// IsNegative returns whether the exponent is negative. For z==0, the answer is arbitrary.
+// IsNegative returns whether the exponent is negative.
+// For z==0, the answer is arbitrary.
 func (z *glvExponent) IsNegative() bool {
 	return z.sign < 0
 }

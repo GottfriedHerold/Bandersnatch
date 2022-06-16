@@ -1,18 +1,18 @@
-package bandersnatch
+package fieldElement
 
 import (
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/big"
 	"math/bits"
 	"math/rand"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// This file gives an implementation for field elements (meaning the field of definition of the Bandersnatch elliptic curve)
-// using a low-endian Montgomery representation without uniqueness of internal representation
+// This file gives an implementation for field elements (meaning the field of
+// definition of the Bandersnatch elliptic curve) using a low-endian Montgomery
+// representation without uniqueness of internal representation
 // (i.e. a given field element can have multiple representations).
 
 /*
@@ -26,33 +26,32 @@ import (
 	Adapting this code to other moduli is, hence, extremely error-prone and is recommended against!
 */
 
-// Notation: m == BaseFieldSize, r == 2^256 is the Montgomery multiplier.
-// TODO: Unify the notation of constants!!!
+// r == 2^256 is the Montgomery multiplier.
 
 // Note: Since Go lacks const arrays,
 // we define large 256-bit constants both as untyped 256-bit constants and
 // separately as constants for every 64-bit word.
 // (Note that the language does not let one do ANYTHING with 256-bit constants other than define other constants)
 
-// mdoubled_64_i denotes the i'th 64-bit word of 2 * BaseFieldSize
+// baseFieldSizeDoubled_64_i denotes the i'th 64-bit word of 2 * BaseFieldSize
 const (
-	mdoubled_64_0 = (2 * BaseFieldSize_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	mdoubled_64_1
-	mdoubled_64_2
-	mdoubled_64_3
+	baseFieldSizeDoubled_64_0 = (2 * BaseFieldSize_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	baseFieldSizeDoubled_64_1
+	baseFieldSizeDoubled_64_2
+	baseFieldSizeDoubled_64_3
 )
 
-// mhalved equals 1/2 * (BaseFieldSize-1) as untyped int
+// minusOneHalf_64 equals 1/2 * (BaseFieldSize-1) as untyped int
 const (
-	mhalved = (BaseFieldSize_untyped - 1) / 2
+	minusOneHalf_64 = (BaseFieldSize_untyped - 1) / 2
 )
 
 // mhalved_64_i denotes the i'th 64-bit word of 1/2 * (BaseFieldSize-1)
 const (
-	mhalved_64_0 = (mhalved >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	mhalved_64_1
-	mhalved_64_2
-	mhalved_64_3
+	minusOneHalf_64_0 = (minusOneHalf_64 >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	minusOneHalf_64_1
+	minusOneHalf_64_2
+	minusOneHalf_64_3
 )
 
 // rsquared_untyped is 2^512 mod BaseFieldSize. This is useful for converting to/from montgomery form.
@@ -74,6 +73,12 @@ const (
 
 // rModBaseField_untyped is 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1.
 const rModBaseField_untyped = 2 * ((1 << 255) - BaseFieldSize_untyped)
+
+func init() {
+	if rModBaseField_untyped != 0x1824b159acc5056f_998c4fefecbc4ff5_5884b7fa00034802_00000001fffffffe {
+		panic(0)
+	}
+}
 
 // rModBaseField_64_i is the i'th 64-bit word of (2^256 mod BaseFieldSize). Note that this corresponds to the Montgomery representation of 1.
 const (
@@ -166,7 +171,7 @@ func (z *bsFieldElement_64) maybe_reduce_once() {
 }
 
 // isNormalized checks whether the internal representaion is in 0<= . < BaseFieldSize.
-// This function is only used internally.
+// This function is only used internally. Users should just call Normalize if in doubt.
 func (z *bsFieldElement_64) isNormalized() bool {
 	// Workaround for Go's lack of const-arrays. Hoping for smart-ish compiler.
 	// Note that the RHS is const and the left-hand-side is local and never written to after initialization.
@@ -183,10 +188,12 @@ func (z *bsFieldElement_64) isNormalized() bool {
 }
 
 // Normalize() changes the internal representation of z to a unique number in 0 <= . < BaseFieldSize
+// After a call to z.Normalize(), we are guaranteed that read-operations on z will no longer potentially
+// change the internal representation until we write to z again.
 //
 // After a call to Normalize on both operands, the default == operator does the right thing.
 // This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say)
-// or when using bsFieldElement_64 as keys for a map.
+// or when using bsFieldElement_64 as keys for a map or when sharing a field element between multiple goroutines.
 func (z *bsFieldElement_64) Normalize() {
 	if z.isNormalized() {
 		return
@@ -197,7 +204,7 @@ func (z *bsFieldElement_64) Normalize() {
 	z.words[2], borrow = bits.Sub64(z.words[2], baseFieldSize_2, borrow)
 	z.words[3], borrow = bits.Sub64(z.words[3], baseFieldSize_3, borrow)
 	if borrow != 0 {
-		panic("bsFieldElement_64: Underflow in normalization. This was supposed to be impossible to happen.")
+		panic(ErrorPrefix + "Underflow in normalization. This was supposed to be impossible to happen.")
 	}
 }
 
@@ -216,7 +223,7 @@ func (z *bsFieldElement_64) Sign() int {
 	var low_endian_words [4]uint64 = z.undoMontgomery()
 
 	// Go's lack of const-arrays is annoying.
-	var mhalf_copy [4]uint64 = [4]uint64{mhalved_64_0, mhalved_64_1, mhalved_64_2, mhalved_64_3}
+	var mhalf_copy [4]uint64 = [4]uint64{minusOneHalf_64_0, minusOneHalf_64_1, minusOneHalf_64_2, minusOneHalf_64_3}
 
 	for i := int(3); i >= 0; i-- {
 		if low_endian_words[i] > mhalf_copy[i] {
@@ -258,10 +265,10 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	// NOTE: If carry == 1, then z.maybe_reduce_once() actually commutes with the -=mdoubled here: it won't do anything either before or after it.
 
 	if carry != 0 {
-		z.words[0], carry = bits.Sub64(z.words[0], mdoubled_64_0, 0)
-		z.words[1], carry = bits.Sub64(z.words[1], mdoubled_64_1, carry)
-		z.words[2], carry = bits.Sub64(z.words[2], mdoubled_64_2, carry)
-		z.words[3], _ = bits.Sub64(z.words[3], mdoubled_64_3, carry)
+		z.words[0], carry = bits.Sub64(z.words[0], baseFieldSizeDoubled_64_0, 0)
+		z.words[1], carry = bits.Sub64(z.words[1], baseFieldSizeDoubled_64_1, carry)
+		z.words[2], carry = bits.Sub64(z.words[2], baseFieldSizeDoubled_64_2, carry)
+		z.words[3], _ = bits.Sub64(z.words[3], baseFieldSizeDoubled_64_3, carry)
 	}
 
 	// else?
@@ -286,10 +293,10 @@ func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
 			z.words[2], borrow = bits.Add64(z.words[2], baseFieldSize_2, borrow)
 			z.words[3], _ = bits.Add64(z.words[3], baseFieldSize_3, borrow) // _ is one
 		} else {
-			z.words[0], borrow = bits.Add64(z.words[0], mdoubled_64_0, 0)
-			z.words[1], borrow = bits.Add64(z.words[1], mdoubled_64_1, borrow)
-			z.words[2], borrow = bits.Add64(z.words[2], mdoubled_64_2, borrow)
-			z.words[3], _ = bits.Add64(z.words[3], mdoubled_64_3, borrow) // _ is one
+			z.words[0], borrow = bits.Add64(z.words[0], baseFieldSizeDoubled_64_0, 0)
+			z.words[1], borrow = bits.Add64(z.words[1], baseFieldSizeDoubled_64_1, borrow)
+			z.words[2], borrow = bits.Add64(z.words[2], baseFieldSizeDoubled_64_2, borrow)
+			z.words[3], _ = bits.Add64(z.words[3], baseFieldSizeDoubled_64_3, borrow) // _ is one
 			// Note: z might be > BaseFieldSize, but not by much. This is fine.
 		}
 	}
@@ -476,35 +483,6 @@ func (z *bsFieldElement_64) SetZero() {
 	z.words = bsFieldElement_64_zero.words
 }
 
-// uintarrayToInt converts a low-endian [4]uint64 array to big.Int, without any Montgomery conversions
-func uintarrayToInt(z *[4]uint64) *big.Int {
-	var big_endian_byte_slice [32]byte
-	binary.BigEndian.PutUint64(big_endian_byte_slice[0:8], z[3])
-	binary.BigEndian.PutUint64(big_endian_byte_slice[8:16], z[2])
-	binary.BigEndian.PutUint64(big_endian_byte_slice[16:24], z[1])
-	binary.BigEndian.PutUint64(big_endian_byte_slice[24:32], z[0])
-	return new(big.Int).SetBytes(big_endian_byte_slice[:])
-}
-
-// bigIntToUIntArray converts a big.Int to a low-endian [4]uint64 array without Montgomery conversions.
-// We assume 0 <= x < 2^256
-func bigIntToUIntArray(x *big.Int) (result [4]uint64) {
-	// As this is an internal function, panic is OK for error handling.
-	if x.Sign() < 0 {
-		panic("Trying to convert negative big Int")
-	}
-	if x.BitLen() > 256 {
-		panic("big Int too large to fit.")
-	}
-	var big_endian_byte_slice [32]byte
-	x.FillBytes(big_endian_byte_slice[:])
-	result[0] = binary.BigEndian.Uint64(big_endian_byte_slice[24:32])
-	result[1] = binary.BigEndian.Uint64(big_endian_byte_slice[16:24])
-	result[2] = binary.BigEndian.Uint64(big_endian_byte_slice[8:16])
-	result[3] = binary.BigEndian.Uint64(big_endian_byte_slice[0:8])
-	return
-}
-
 // shift_once shifts the internal uint64 array once (equivalent to division by 2^64) and returns the shifted-out uint64
 func (z *bsFieldElement_64) shift_once() (result uint64) {
 	result = z.words[0]
@@ -565,7 +543,7 @@ func (z *bsFieldElement_64) restoreMontgomery() {
 // ToBigInt returns a *big.Int that stores a representation of (a copy of) the given field element.
 func (z *bsFieldElement_64) ToBigInt() *big.Int {
 	temp := z.undoMontgomery()
-	return uintarrayToInt(&temp)
+	return utils.UIntarrayToInt(&temp)
 }
 
 // SetBigInt converts from *big.Int to a field element. The input need not be reduced modulo the field size.
@@ -580,10 +558,9 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 	if sign < 0 {
 		w.Sub(BaseFieldSize_Int, w)
 	}
-	z.words = bigIntToUIntArray(w)
+	z.words = utils.BigIntToUIntArray(w)
+	// Note z is Normalized.
 }
-
-var ErrCannotRepresentAsUInt64 = errors.New("bandersnatch / field element: cannot represent field element as a uint64")
 
 // ToUInt64 returns z with err==nil if z can be represented by a uint64.
 //
@@ -634,9 +611,9 @@ func (z *bsFieldElement_64) SetRandomUnsafeNonZero(rnd *rand.Rand) {
 	}
 }
 
-// multiply_by_five computes z *= 5.
+// Multiply_by_five computes z *= 5.
 // This is useful, because the coefficient of a in the twisted Edwards representation of Bandersnatch is a=-5
-func (z *bsFieldElement_64) multiply_by_five() {
+func (z *bsFieldElement_64) Multiply_by_five() {
 	IncrementCallCounter("MulByFive")
 
 	// We multiply by five by multiplying each individual word by 5 and then correcting the overflows later.
@@ -654,7 +631,7 @@ func (z *bsFieldElement_64) multiply_by_five() {
 	// splitting this into words gives the following contributions
 
 	// contributions due to overflows:
-	overflow1 += overflow4 * rModBaseField_64_1 // cannot overflow, because 2*rModBaseField_1 + 2 is not large enough
+	overflow1 += overflow4 * rModBaseField_64_1 // This computations itself cannot overflow, because 2*rModBaseField_1 + 2 is not large enough
 	overflow2 += overflow4 * rModBaseField_64_2 // this overflows itself iff overflow4 == 2
 	overflow3 += overflow4*rModBaseField_64_3 + (overflow4 / 2)
 
@@ -679,8 +656,6 @@ func (z *bsFieldElement_64) multiply_by_five() {
 
 	z.maybe_reduce_once()
 }
-
-var ErrDivisionByZero = errors.New("bandersnatch / field element: division by zero")
 
 // Inv computes the multiplicative Inverse:
 //
@@ -743,7 +718,7 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 		}
 	// needed to make golang not complain about missing return in all branches. The cases above are obviously exhaustive.
 	default:
-		panic("This cannot happen")
+		panic(ErrorPrefix + "This cannot happen")
 	}
 }
 
@@ -757,7 +732,6 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToBigInt()
-	// yInt := big.NewInt(0)
 	if xInt.ModSqrt(xInt, BaseFieldSize_Int) == nil {
 		return false
 	}
@@ -928,7 +902,7 @@ func (z *bsFieldElement_64) CmpAbs(x *bsFieldElement_64) (absEqual bool, exactly
 	if z.IsEqual(x) {
 		return true, true
 	}
-	var tmp FieldElement
+	var tmp bsFieldElement_64
 	tmp.Neg(x)
 	if tmp.IsEqual(z) {
 		return true, false

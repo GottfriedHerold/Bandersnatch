@@ -26,8 +26,8 @@ func TestUnexpectEOF(t *testing.T) {
 	}
 
 	err3 := fmt.Errorf("wrapping %w", io.EOF)
-	err3 = errorsWithData.IncludeParametersInErrorUnconstrained(err3, "Param1", true)
-	err3 = errorsWithData.IncludeParametersInErrorUnconstrained(err3, "Param2", 5)
+	err3 = errorsWithData.IncludeParametersInError(err3, "Param1", true)
+	err3 = errorsWithData.IncludeParametersInError(err3, "Param2", 5)
 	UnexpectEOF(&err3)
 	if errors.Is(err3, io.EOF) {
 		t.Fatalf("E3")

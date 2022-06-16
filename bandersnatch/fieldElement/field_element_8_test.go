@@ -1,4 +1,4 @@
-package bandersnatch
+package fieldElement
 
 import (
 	"fmt"

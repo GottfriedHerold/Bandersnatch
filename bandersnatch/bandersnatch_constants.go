@@ -60,60 +60,6 @@ const BaseFieldBitLength = 255
 // BaseFieldByteLength is the number of bytes of BaseFieldSize == (mimimum) number of bytes needed to store individual field elements.
 const BaseFieldByteLength = (BaseFieldBitLength + 7) / 8 // == 32
 
-// Curve parameters
-
-// GroupOrder is the order of the p253-subgroup of the Bandersnatch curve.
-// This is a 253-bit prime number.
-const (
-	GroupOrder        = 0x1cfb69d4ca675f520cce760202687600ff8f87007419047174fd06b52876e7e1
-	GroupOrder_string = "0x1cfb69d4ca675f520cce760202687600ff8f87007419047174fd06b52876e7e1"
-)
-
-// Cofactor is the cofactor of the Bandersnatch group, i.e. the size of the quotient of the group of rational curve points by the prime-order subgroup.
-// The structure of this group is Z/2 x Z/2
-const (
-	Cofactor        = 4
-	Cofactor_string = "4"
-)
-
-// CurveOrder denotes the non-prime size of the group of rational points of the Bandersnatch curve.
-const (
-	CurveOrder        = 52435875175126190479447740508185965837236623573762281007145613226918750691204 // = Cofactor * GroupOrder
-	CurveOrder_string = "52435875175126190479447740508185965837236623573762281007145613226918750691204"
-)
-
-// CurveExponent is the exponent of the group of rational points of the Bandersnatch curve, i.e. we have CurveExponent*P = Neutral Element for all rational P.
-// This is 2*GroupOrder rather than 4*GroupOrder, because the cofactor group has structure Z/2 x Z/2.
-// When computing with (general) exponents, we work modulo this number.
-const (
-	CurveExponent        = 2 * GroupOrder
-	CurveExponent_string = "26217937587563095239723870254092982918618311786881140503572806613459375345602"
-)
-
-// GroupOrder_Int is the order of the relevant prime order subgroup of the Bandersnatch curve as a *big.Int
-var GroupOrder_Int *big.Int = initIntFromString(GroupOrder_string)
-
-// Cofactor_Int is the cofactor of the Bandersnatch group as a *big.Int
-var Cofactor_Int *big.Int = big.NewInt(Cofactor)
-
-// CurveOrder_Int is the (non-prime) order of the group of rational points of the Bandersnatch curve as a *big.Int
-var CurveOrder_Int *big.Int = new(big.Int).Mul(GroupOrder_Int, Cofactor_Int)
-
-// CurveExponent_Int is the exponent of the group of rational points of the Bandersnatch curve as a *big.Int. This is 2*p253, where p253 is the size of the prime-order subgroup.
-var CurveExponent_Int *big.Int = initIntFromString(CurveExponent_string)
-
-// EndomorphismEigenvalue is a number, such that the efficient degree-2 endomorphism acts as multiplication by this constant on the p253-subgroup.
-// This is a square root of -2 modulo GroupOrder
-const (
-	EndomorphismEivenvalue        = 0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05
-	EndomorphismEigenvalue_string = "0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05"
-)
-
-const endomorphismEigenvalueIsOdd = true // we chose an odd representative above. This info is needed to get some test right.
-
-// EndomorphismEigenvalue_Int is a *big.Int, such that the the efficient degree-2 endomorphism of the Bandersnatch curve acts as multiplication by this constant on the p253-subgroup.
-var EndomorphismEigenvalue_Int *big.Int = initIntFromString(EndomorphismEigenvalue_string)
-
 // (p253-1)/2. We can represent Z/p253 by numbers from -halfGroupOrder, ... , + halfGroupOrder. This is used in the GLV decomposition algorithm.
 const (
 	halfGroupOrder        = (GroupOrder - 1) / 2
@@ -185,35 +131,4 @@ var (
 	endo_c_fe        FieldElement = initFieldElementFromString(endo_c_string)
 	endo_binverse_fe FieldElement = initFieldElementFromString(endo_binverse_string) // Note == SqrtDDivA_fe
 	endo_bcd_fe      FieldElement = initFieldElementFromString(endo_bcd_string)
-)
-
-// utility constants
-
-var (
-	one_Int      = initIntFromString("1")
-	two_Int      = initIntFromString("2")
-	twoTo32_Int  = initIntFromString("0x1_00000000")
-	twoTo64_Int  = initIntFromString("0x1_00000000_00000000")
-	twoTo128_Int = initIntFromString("0x1_00000000_00000000_00000000_00000000")
-	twoTo256_Int = initIntFromString("0x1_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000")
-	minusOne_Int = initIntFromString("-1")
-)
-
-// The point here is to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
-// in order to have better understandable semantics
-// Golang does not have enum types, sadly, so we need to use structs: declaring a "type InPointTrusted bool" would cause Deserialze(..., true, ...)  to actually work due to implicit conversion.
-
-// IsPointTrusted is a struct encapsulating a bool controlling whether some input is trusted or not.
-// This is used to enforce better readable semantics in arguments.
-// Users should use the predefined values TrustedInput and UntrustedInput of this type.
-type IsPointTrusted struct {
-	v bool
-}
-
-func (b IsPointTrusted) Bool() bool { return b.v }
-
-// TrustedInput and UntrustedInput are used as arguments to Deserialization routines and in ToSubgroup.
-var (
-	TrustedInput   IsPointTrusted = IsPointTrusted{v: true}
-	UntrustedInput IsPointTrusted = IsPointTrusted{v: false}
 )

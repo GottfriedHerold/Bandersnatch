@@ -3,34 +3,47 @@ package errorsWithData
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// This file defines functionality to add arbitrary paramters to errors in a way that is compatible with error wrapping.
+// This file defines functionality to add arbitrary parameters to errors in a way that is compatible with error wrapping.
 //
 // Parameters can be added and retrieved to errors in two flavours: as a map[string]interface{} or a structs.
 // We allow both interchangably, identifying a struct{A: x, B: y} with a map {"A":x, "B":y}, i.e.
-// the map keys are the field names (this gives some restrictions on what struct types are allowed).
+// the map keys are the field names (this gives some minor restrictions on what struct types are allowed).
 // The map/struct interfaces can be mixed-and-matched and when retrieving a struct only a subset of the parameters might be actually used.
-// Naming-wise, the map interface talks about "parameters" and the struct interface about "data"
+// Naming-wise, the API (arbitrarily) uses the term "parameters" for the map interface and the term "data" for the struct interface.
 //
-// The publicly-facing interface operates on errors of plain error type and is compatible with error wrapping.
-// We (need to) treat errors as immutable objects, so any modification to the parameters of an error will create a new one, typically wrapping the old.
+// The publicly-facing API operates on errors of plain error type and is compatible with error wrapping.
+// We (need to) treat errors as immutable objects, so any modification to the parameters of an error will create a new one,
+// typically wrapping the old one.
 //
-// Errors are returned in a parameterized interface ErrorWithParameters[StructType], where StructType is a struct type.
-// This interface extends error and for a struct type struct{A:type1, B:type2} non-nil errors of type ErrorWithParameters[StructType]
+// Errors are returned in a parameterized interface ErrorWithGuaranteedParameters[StructType],
+// where StructType is a struct type or as an interface ErrorWithParameters.
+// These interfaces extends error and for a struct type struct{A:type1, B:type2} non-nil errors of type ErrorWithGuaranteedParameters[StructType]
 // are guaranteed to contain (at least) parameters under keys "A" and "B" of appropriate type.
+// For ErrorWithParameters, we make no such guarantee.
 // Generally speaking, this (and retrievability as structs) exists purely as a way to get some partial type-safety.
 //
-// We recommend adding / retrieving via the struct interface for at least some compile-time type-safety.
+// We recommend adding / retrieving via the struct rather than the map interface for at least some compile-time type-safety.
 // When using the map interface, we recommend defining string constants for the map keys.
 //
 // We assert that any errors that are contained in error chains are either nil *interfaces* or non-nil.
 // In particular, no nil error of concrete struct (pointer) type shall ever appear.
 //
-// Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions
-// All field names must be exported. Fields of interface type are allowed. embedded struct are also allowed; anything else causes a panic.
+// We further assume that all errors involved are immutable. This is satisfied by our own implementation,
+// but if *T is a custom implementation of ErrorWithParameters and t has type T, then after
+// t2 := NewErrorWithParameters(&t, "", ...), we make no guarantees what happens with t2's parameters
+// if t's parameters are changed afterwards.
+//
+// Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions on allowed structs:
+// - All field names must be exported.
+// - Fields of interface type are allowed.
+// - Embedded struct are also allowed.
+// - Anything else causes a panic.
 // Embededded fields act in the following way:
 // For structs
 // type Struct1 struct{Data1 bool; Data2 int}
@@ -40,13 +53,31 @@ import (
 // "Data1" (yielding a bool) and "Data2" (yielding a string). There are no keys "Struct1" or "Struct1.Data1", "Struct1.Data2".
 // In particular, the shadowed int from Struct1.Data2 is completely ignored when adding data.
 // When retrieving data as an instance s of Struct2, s.Struct1.Data2 is zero-inintialized.
-// In particular, shadowed fields not not roundtrip.
+// In particular, roundtrip fails for shadowed fields.
+//
+// Interfaces creating new errors take an overrideMessage string parameter.
+// Supplying an empty string will make the function use the default value
+// given by the DefaultOverrideMessage constant, which prints the baseError and the parameters map (if non-empty)
+// If you really want to use an empty string, use the OverrideByEmptyMessage constant as argument.
+//
+// This overrideMessage will be used to format the error string of the newly created error with the following rules:
+// % is used as a control character, a literal % must be escaped as %% (except when used as a parameter name)
+// %m will print the map using fmt.FPrint
+// %w will print the parent error
+// %!M>0{string} will recursively print string iff the parameters map is non-empty.
+// Other %!... are reserved.
+// %FMTSTRING{PARAMETER} will look up PARAMETER in the error's map and format it using the fmt package with %FMTSTRING
+// FMTSTRING must not contain (even escaped) '%' or '{' or '}'. PARAMETER may (but should not) contain unescaped %.
+// The {} are mandatory, an empty FMTSTRING is interpreted as %v
+//
+// Note that most functions creating an error replace an empty string "" by
+// a default error message (containing %w and %m).
+
+/////////////
 
 // Since not even the standard library function specifies whether error wrapping works by reference or copy and we
 // do not want users to accidentially modify exported errors that people compare stuff against, we are essentially forced
 // to treat errors as immutable objects. This form of immutability is possibly shallow.
-
-/////////////
 
 // Implementation considerations:
 // Any kind of AddParametersToError(existingError error, params...) or possibly AddParametersToError(*error, params...)
@@ -81,128 +112,61 @@ import (
 // (This is done so we get a least some compile-time(!) checks on the side creating the error for this, as
 // error handling is prone to bad testing coverage)
 
-/*
-
-// errorWithParameters_commonInterface is the common interface satified by all types satisfying ErrorWithParamerers[StructType]
-//
-// it allows retrieving the associated data for an error *WITHOUT* following the error chain.
-// We really only need it to query all errors encountered along an arbitrary error's error chain for whether
-// they (potentially) contain any data.
-//
-// Note that since the above is the only usage and we only have 1 real implementation via errorsWithParameters_common (the StructType parameter is tacked-on via struct embedding),
-// we really could have defined this as an interface{ accessErrorParams() *errorsWithParameters_common },
-// However, this is less clear and relies on being able to decay the implementations of ErrorWithParameters[T] to a joint struct that does not depend on T
-type errorWithParameters_commonInterface interface {
+// ErrorWithParameters is an interface extending error to also contain arbitrary parameters
+// in the form of a map[string]any
+// Obtaining the additional data can and should be done via the more general free functions
+// GetAllParametersFromError, GetParameterFromError, GetDataFromError, etc.
+type ErrorWithParameters interface {
 	error
-	Unwrap() error // Note: May return nil if there is nothing to wrap.
-	// getParameter obtains the parameter stored under the key parameterName. Returns the value and whether it was present.
-	// If wasPresent == false, returned value is nil. DOES NOT FOLLOW THE ERROR CHAIN.
-	getParameter(parameterName string) (value any, wasPresent bool)
-	// hasParameter tests if the parameter stored under the key is present. DOES NOT FOLLOW THE ERROR CHAIN and treates markedAsDeleted as a perfectly normal value.
-	hasParameter(parameterName string) bool
-	// GetAllParams returns a map of all parameters. DOES NOT FOLLOW THE ERROR CHAIN.
-	getAllParameters() map[string]any
-
-	// Queries whether the map of included parameters should be shown by Error() if non-empty.
-	// Note that when *showing* parameters, we actually follow the whole error chain to get all parameters.
-	ShowParametersOnError() bool
-
-	// isNil checks whether the receiver is a nil pointer of concrete type. These should never occur.
-	isNil() bool
-}
-
-*/
-
-type errorWithParameters_commonInterfaceNew interface {
-	error
+	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns nil, false if not.
 	GetParameter(parameterName string) (value any, wasPresent bool)
+	// HasParameter returns whether parameterName is a key of the parameter map.
 	HasParameter(parameterName string) bool
+	// GetAllParameters returns *A SHALLOW COPY OF* the parameter map.
 	GetAllParameters() map[string]any
+	// typically also has Unwrap() error -- all errors created by this package do.
 }
 
-// TODO: Should we include the non-exported fields?
-// We only use this interface for return values;
-// Of course, other packagess can always define a sub-interface ED with just error, Unwrap, GetData on their own and assign to it.
-// Note that a custom struct implementing ED will not work well together with this package, as none of the free functions would
-// currently see the data contained in ED.
-// Consequently, the non-exported fields serve no purpose other than preventing users from shooting themselves in the foot.
-
-// ErrorWithParameters[StructType] is an interface extending error.
+// ErrorWithGuaranteedParameters[StructType] is an interface extending ErrorWithParameters.
 // Any non-nil error returned in such an interface is guaranteed to contain some additional data sufficient to create an instance of StructType.
 //
 // Obtaining the additional data can be done via the more general free functions
 // GetAllParametersFromError, GetParameterFromError, GetDataFromError,
-// but for ErrorWithParameters[StructType], we can also call the GetData member function and
+// but for ErrorWithGuaranteedParameters[StructType], we can also call the GetData member function and
 // we are guaranteed that the error actually contains appropriate parameters to create an instance of StructType.
-//
-// ShowParametersOnError / WithShowParametersOnError query / set whether parameter are shown by Error().
-// When set, this particular error's Error() message includes all parameters of itself and its error chain.
-// Note that when an ErrorWithParameters is wrapped, this flag does not affect what the wrapping error does
-// (apart from what happens after it potentially calls Error() on its ancestor) and any new additional parameters
-// are not shown (unless the wrapping error also sets this flag, in which case some parameters are shown twice with
-// possibly different values if the new values override the old ones). This behaviour is hard to fix without using some
-// form of thread-local storage.
-type ErrorWithParameters[StructType any] interface {
-	errorWithParameters_commonInterfaceNew
+type ErrorWithGuaranteedParameters[StructType any] interface {
+	ErrorWithParameters
 	GetData() StructType // Note: e.GetData() Is equivalent to calling GetDataFromError[StructType](e)
-
-	/*
-		error
-		Unwrap() error // Note: May return nil if there is nothing to wrap.
-
-		// getParameter obtains the parameter stored under the key parameterName. Returns the value and whether it was present.
-		// If wasPresent == false, returned value is nil. DOES NOT FOLLOW THE ERROR CHAIN.
-		getParameter(parameterName string) (value any, wasPresent bool)
-		// hasParameter tests if the parameter stored under the key is present. DOES NOT FOLLOW THE ERROR CHAIN.
-		hasParameter(parameterName string) bool
-		// GetAllParams returns a map of all parameters. DOES NOT FOLLOW THE ERROR CHAIN.
-		getAllParameters() map[string]any
-		// Queries whether the map of included parameters should be shown by Error() if non-empty.
-		// Note that when *showing* parameters, we actually follow the whole error chain to get all parameters.
-		ShowParametersOnError() bool
-		// withShowParametersOnError creates a copy of the error with ShowParametersOnError set as requested.
-		WithShowParametersOnError(bool) ErrorWithParameters[StructType] // TODO: Return type?
-	*/
 }
 
-// UnconstrainedErrorWithParameters is the special case of ErrorWithParameters without any data guarantees.
-type UnconstrainedErrorWithParameters = ErrorWithParameters[struct{}]
-
-// To delete a parameter from an error, we need to actually place a "This value is deleted"-marker, which is an arbitrary singleton.
-// Just removing the value would not work, because there might be values anywhere down the error chain.
-
-// type deletedType struct{}
-
-// var markedAsDeleted deletedType // we just want an unique unexported value that compares unequal to everything a library use can create.
+// unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
+// It's functionally equivalent to an ErrorWithParameters
+type unconstrainedErrorWithGuaranteedParameters = ErrorWithGuaranteedParameters[struct{}]
 
 // errorPrefix is a prefix added to all (internal) error messages/panics that originate from this package. Does not apply to wrapped errors.
 const errorPrefix = "bandersnatch / error handling:"
 
-// WARNING: Parts of the implementations of the structs realizing the interfaces
-// internally make use of GetAllParametersFromError.
-// Make sure not to create dependency cycles.
-// however, getAllParameters does not.
-
 // GetAllParametersFromError returns a map for all parameters stored in the error, including all of err's error chain.
-// For err==nil, returns nil. If no error in err's error chain has any data, returns an empty map.
+// For err==nil or if no error in err's error chain has any data, returns an empty map.
 func GetAllParametersFromError(err error) map[string]any {
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
-		if errChainGood, ok := errorChain.(errorWithParameters_commonInterfaceNew); ok {
+		if errChainGood, ok := errorChain.(ErrorWithParameters); ok {
 			return errChainGood.GetAllParameters()
 		}
 	}
 	return make(map[string]any)
 }
 
-// NewErrorWithParameters creates a new ErrorWithParameters wrapping the given baseError, possibly overriding the error message message and adding parameters.
-// If overrideMessage == "", the old error message is kept.
-// Note: The difference between this and IncludeParametersInError is the message and nil handling:
+// NewErrorWithGuaranteedParameters creates a new ErrorWithParameters wrapping the given baseError,
+// possibly overriding the error message message and adding parameters.
+// If overrideMessage == "", DefaultOverrideMessage is used (except if baseError == nil).
+// Note: The only difference between this and IncludeParametersInError is the message and nil handling:
 //
 // For baseError == nil and overrideMessage == "", #params > 0, we panic
 // For baseError == nil, overrideMessage == "", #params == 0, we return a nil interface
-// For baseError == nil, overrideMessage != "", the returned error does not wrap an error.
-func NewErrorWithParameters[StructType any](baseError error, overrideMessage string, params ...any) ErrorWithParameters[StructType] {
+func NewErrorWithGuaranteedParameters[StructType any](baseError error, overrideMessage string, params ...any) ErrorWithGuaranteedParameters[StructType] {
 	// make some validity checks to give meaningful error messages.
+	// Impressive: go - staticcheck actually recognizes this patterns and has my IDE complain about violations!
 	if len(params)%2 != 0 {
 		panic(errorPrefix + "called NewErrorWithParameters(err, overrideMessage, args...) with an odd number of args. These are supposed to be name-value pairs")
 	}
@@ -240,7 +204,8 @@ func NewErrorWithParameters[StructType any](baseError error, overrideMessage str
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
-func NewErrorWithParametersMap[StructType any](baseError error, overrideMessage string, params map[string]any) ErrorWithParameters[StructType] {
+// NewErrorWithGuaranteedParametersFromMap has the same meaning as NewErrorWithGuaranteedParameters, but the parameters are passed as a map rather than string, any - pairs.
+func NewErrorWithGuaranteedParametersFromMap[StructType any](baseError error, overrideMessage string, params map[string]any) ErrorWithGuaranteedParameters[StructType] {
 	extraParams := len(params) // 0 for nil
 	if baseError == nil {
 		if overrideMessage == "" {
@@ -266,38 +231,59 @@ func NewErrorWithParametersMap[StructType any](baseError error, overrideMessage 
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
-// IncludeParametersInError creates a new error wrapping err with parameter under parameterName set to newParameter.
-// As opposed to if err == nil, returns nil
-func IncludeParametersInError[StructType any](err error, parameters ...any) ErrorWithParameters[StructType] {
-	if err == nil {
+// IncludeGuaranteedParametersInError creates a new error wrapping baseError with additional parameters set.
+// This is identical to NewErrorWithGuaranteedParameters, except that it always used the default overrideMessage
+// and for the err==nil case:
+// If err == nil, returns nil
+func IncludeGuaranteedParametersInError[StructType any](baseError error, parameters ...any) ErrorWithGuaranteedParameters[StructType] {
+	if baseError == nil {
 		return nil
 	}
-	return NewErrorWithParameters[StructType](err, "", parameters...)
+	return NewErrorWithGuaranteedParameters[StructType](baseError, "", parameters...)
 }
 
-func IncludeParametersInErrorMap[StructType any](err error, parameters map[string]any) ErrorWithParameters[StructType] {
+// IncludeGuaranteedParametersInErrorFromMap is identical to IncludeGuaranteedParametersInError, except it
+// takes parameters as a map[string]any rather than variadic string, any - pairs.
+func IncludeGuaranteedParametersInErrorFromMap[StructType any](err error, parameters map[string]any) ErrorWithGuaranteedParameters[StructType] {
 	if err == nil {
 		return nil
 	}
-	return NewErrorWithParametersMap[StructType](err, "", parameters)
+	return NewErrorWithGuaranteedParametersFromMap[StructType](err, "", parameters)
 }
 
 // Special case for StructType == struct{}
 
-var NewErrorWithParametersUnconstrained func(err error, messageOverride string, params ...any) UnconstrainedErrorWithParameters = NewErrorWithParameters[struct{}]
-var IncludeParametersInErrorUnconstrained func(err error, parameters ...any) UnconstrainedErrorWithParameters = IncludeParametersInError[struct{}]
-var NewErrorWithParametersUnconstrainedMap func(err error, messageOverride string, params map[string]any) UnconstrainedErrorWithParameters = NewErrorWithParametersMap[struct{}]
-var InlcudeParametersInErrorUnconstrainedMap func(err error, parameters map[string]any) UnconstrainedErrorWithParameters = IncludeParametersInErrorMap[struct{}]
+// NewErrorWithParameters is identical to NewErrorWithGuaranteedParameters except for the guarantee about containing data.
+func NewErrorWithParameters(baseError error, overrideMessage string, parameters ...any) ErrorWithParameters {
+	return NewErrorWithGuaranteedParameters[struct{}](baseError, overrideMessage, parameters...)
+}
+
+// IncludeParametersInError is identical to IncludeGuaranteedParametersInError except for the guarantee about containing data.
+func IncludeParametersInError(baseError error, parameters ...any) ErrorWithParameters {
+	return IncludeGuaranteedParametersInError[struct{}](baseError, parameters...)
+}
+
+// NewErrorWithParametersFromMap is identical to NewErrorWithGuaranteedParametersFromMap except for the guarantee about containing data.
+func NewErrorWithParametersFromMap(baseError error, overrideMessage string, parameters map[string]any) ErrorWithParameters {
+	return NewErrorWithGuaranteedParametersFromMap[struct{}](baseError, overrideMessage, parameters)
+}
+
+// IncludeParametersInErrorsFromMap is identical to IncludeGuaranteedParametersInErrorFromMap except for the guaranteed about containing data.
+func IncludeParametersInErrorsFromMap(baseError error, parameters map[string]any) ErrorWithParameters {
+	return IncludeGuaranteedParametersInErrorFromMap[struct{}](baseError, parameters)
+}
 
 // TODO: global rename after old usage is refactored, intended name NewErrorWithData currently clashes.
 
-// NewErrorWithParametersFromData creates a new ErrorWithParameters wrapping the given baseError if non-nil, overriding the error message if != "" and adding
-// parameters for each visible field of StructType.
+// NewErrorWithParametersFromData creates a new ErrorWithGuaranteedParameters wrapping the given baseError if non-nil.
+// overrideMessage is used to create the new error message, where an empty string is
+// interpreted as a default error message (containing %w and %m).
+// Parameters are added for each visible field of StructType.
 //
 // For baseError == nil, overrideMessage == "", #visibleFields of (*data) > 0, this function panics.
 // For baseError == nil, overrideMessage == "", #visibleFields of (*data) ==0, returns nil
 // For baseError == nil, overrideMessage != "", creates a new error that does not wrap an error.
-func NewErrorWithParametersFromData[StructType any](baseError error, overrideMessage string, data *StructType) ErrorWithParameters[StructType] {
+func NewErrorWithParametersFromData[StructType any](baseError error, overrideMessage string, data *StructType) ErrorWithGuaranteedParameters[StructType] {
 	reflectedStructType := utils.TypeOfType[StructType]()
 	allStructFields := getStructMapConversionLookup(reflectedStructType)
 	if baseError == nil {
@@ -319,9 +305,10 @@ func NewErrorWithParametersFromData[StructType any](baseError error, overrideMes
 }
 
 // IncludeDataInError returns a new error with the data provided.
+// This is identical to NewErrorWithParametersFromData except for the baseError == nil case.
 //
-// On nil input for baseError, returns nil, ignoring the provided data. Use NewErrorWithData for a variant that behaves differently instead.
-func IncludeDataInError[StructType any](baseError error, data *StructType) ErrorWithParameters[StructType] {
+// On nil input for baseError, returns nil, ignoring the provided data.
+func IncludeDataInError[StructType any](baseError error, data *StructType) ErrorWithGuaranteedParameters[StructType] {
 	if baseError == nil {
 		return nil
 	}
@@ -329,10 +316,10 @@ func IncludeDataInError[StructType any](baseError error, data *StructType) Error
 }
 
 // HasParameter checks whether some error in err's error chain contains a parameter keyed by parameterName
-// HasParameter(nil, ...) returns false
+// HasParameter(nil, <anything>) returns false
 func HasParameter(err error, parameterName string) bool {
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
-		if errChainGood, ok := errorChain.(errorWithParameters_commonInterfaceNew); ok {
+		if errChainGood, ok := errorChain.(ErrorWithParameters); ok {
 			return errChainGood.HasParameter(parameterName)
 		}
 	}
@@ -341,7 +328,8 @@ func HasParameter(err error, parameterName string) bool {
 
 // HasData checks whether the error contains enough parameters of correct types to create an instance of StructType.
 //
-// Note: panics if StructType is malformed. If data is present, but of wrong type, returns false.
+// Note: This function panics if StructType is malformed for this purpose (e.g containing non-exported fields).
+// If data is present, but of wrong type, returns false.
 func HasData[StructType any](err error) bool {
 	return canMakeStructFromParametersInError[StructType](err) == nil
 }
@@ -351,7 +339,7 @@ func HasData[StructType any](err error) bool {
 // If no entry was found in the error chain or err==nil, returns nil, false.
 func GetParameterFromError(err error, parameterName string) (value any, wasPresent bool) {
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
-		if errChainGood, ok := errorChain.(errorWithParameters_commonInterfaceNew); ok {
+		if errChainGood, ok := errorChain.(ErrorWithParameters); ok {
 			return errChainGood.GetParameter(parameterName)
 		}
 	}
@@ -361,7 +349,7 @@ func GetParameterFromError(err error, parameterName string) (value any, wasPrese
 // GetDataFromError obtains the parameters contained in err in the form of a struct of type StructType.
 //
 // If err does not contain enough parameters, this function panics.
-// NOTE: If StructType has 0 visible fields, the function does not panic, even if err == nil.
+// NOTE: If StructType is empty with 0 visible fields, the function does not panic, even if err == nil.
 func GetDataFromError[StructType any](err error) (ret StructType) {
 	allParams := GetAllParametersFromError(err)
 	ret, wrongDataError := makeStructFromMap[StructType](allParams)
@@ -376,7 +364,7 @@ func GetDataFromError[StructType any](err error) (ret StructType) {
 // It works even if the input error's parameter is due to something deep in the error chain.
 //
 // If the input error is nil, returns nil
-func DeleteParameterFromError(err error, parameterName string) UnconstrainedErrorWithParameters {
+func DeleteParameterFromError(err error, parameterName string) unconstrainedErrorWithGuaranteedParameters {
 	if err == nil {
 		return nil
 	}
@@ -387,3 +375,156 @@ func DeleteParameterFromError(err error, parameterName string) UnconstrainedErro
 
 // Exported for cross-package testing. Will be removed/replaced by callback. Not part of the official interface
 var GetDataPanicOnNonExistentKeys = false
+
+// Providing this value as overrideMessage for creating an ErrorWithParameters will create an actual empty string
+// (Giving a literal empty string will instead default to DefaultOverrideMessage)
+const (
+	OverrideByEmptyMessage = "%Empty"
+	DefaultOverrideMessage = "%w%!M>0{ Included Parameters: %m}"
+)
+const nonEmptyMapFormatString = "!M>0" // without %
+
+// FormatError will print/interpolate the given format string using the parameters map if output == true
+// For output == false, it will only do some validity parsing checks.
+// This is done in one function in order to de-duplicate code.
+//
+// The format is as follows: %FMT{arg} is printed like fmt.Printf(%FMT, parameters[arg])
+// %% is used to escape literal %
+// %m is used to print the parameters map itself
+// %$nonEmptyMapFormatString{STR} will evaluate STR if len(parameters) > 0, nothing otherwise.
+// %w will print baseError.Error()
+func formatError(formatString string, parameters map[string]any, baseError error, output bool) (returned_string string, err error) {
+	if !utf8.ValidString(formatString) {
+		panic(errorPrefix + "formatString not a valid UTF-8 string")
+	}
+
+	// We build up the returned string piece-by-piece by writing to ret.
+	// This avoids some allocations & copying
+	var ret strings.Builder
+	if output {
+		defer func() {
+			returned_string = ret.String()
+			if err != nil {
+				returned_string += fmt.Sprintf("<error when printing error: %v>", err)
+			}
+		}()
+	}
+
+	var suffix string = formatString // holds the remaining yet-unprocessed part of the input.
+
+	for { // annoying to write as a "usual" for loop, because both init and iteration would need to consist of 2 lines (due to ret.WriteString(prefix)).
+		var prefix string
+		var found bool
+		// No :=, because that would create a local temporary suffix variable, shadowing the one from the outer scope.
+
+		// look for first % appearing and split according to that.
+		prefix, suffix, found = strings.Cut(suffix, `%`)
+
+		// everything before the first % can just go to output; for the rest (now in suffix, we need to actually do some parsing)
+		if output {
+			ret.WriteString(prefix)
+		}
+
+		if !found {
+			// We are guaranteed suffix == "" at this point and we are done.
+			return
+		}
+
+		// Trailing % in format string, not part of %% - escape.
+		if len(suffix) == 0 {
+			err = fmt.Errorf("invalid terminating \"%%\"")
+			return
+		}
+
+		// handle %c - cases where c is a single rune not followed by {param}
+
+		if output {
+			switch suffix[0] {
+			case '%': // Handle %% - escape for literal "%"
+				suffix = suffix[1:]
+				ret.WriteRune('%')
+				continue
+			case 'm': // Handle %m - print map of all parameters
+				suffix = suffix[1:]
+				_, err = fmt.Fprint(&ret, parameters)
+				if err != nil {
+					return
+				}
+				continue
+			case 'w': // handle %w - print wrapped error
+				suffix = suffix[1:]
+				ret.WriteString(baseError.Error())
+				continue
+			// case '!' handled later
+			default:
+				// Do nothing
+			}
+		} else {
+			switch suffix[0] {
+			case '%', 'm', 'w':
+				suffix = suffix[1:]
+				continue
+			}
+		}
+
+		// Everything else must be of the form %fmtString{parameterName}remainingString
+
+		// Get fmtString
+		var fmtString string
+		fmtString, suffix, found = strings.Cut(suffix, "{")
+		if !found {
+			err = fmt.Errorf("remaining error override string %%%v, which is missing mandatory {...}-brackets", fmtString)
+			return
+		}
+
+		// handle case where fmtString contains another %. This is not allowed (probably caused by some missing '{' ) and would cause strange errors later when we pass
+		// %fmtString to a ftm.[*]Printf - variant.
+		if strings.ContainsRune(fmtString, '%') {
+			err = fmt.Errorf("invalid format string: Must be %%fmtString{parameterName}, parsed %v for fmtString, which contains another %%", fmtString)
+			return
+		}
+
+		// Get parameterName
+		var parameterName string
+		parameterName, suffix, found = strings.Cut(suffix, "}")
+		if !found {
+			err = fmt.Errorf("error override message contained format string %v, which is missing terminating \"}\">", parameterName)
+			return
+		}
+
+		// If we don't actually output anything, we have no way of checking validity.
+		// (due to the possibility of custom format verbs)
+		if !output {
+			continue
+		}
+
+		// handle special case "!"
+		if fmtString == nonEmptyMapFormatString {
+			if len(parameters) > 0 {
+				var recursiveParseResult string
+				recursiveParseResult, err = formatError(parameterName, parameters, baseError, output)
+				if output {
+					ret.WriteString(recursiveParseResult)
+				}
+				if err != nil {
+					return
+				}
+			}
+			continue
+		}
+
+		// default to %v
+		if fmtString == "" {
+			fmtString = "v"
+		}
+
+		// actually print the parameter
+		_, err = fmt.Fprintf(&ret, "%"+fmtString, parameters[parameterName])
+		if err != nil {
+			return
+		}
+
+		continue // redundant
+	}
+
+}

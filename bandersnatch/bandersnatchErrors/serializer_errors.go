@@ -27,6 +27,13 @@ var ErrDidNotReadExpectedString = errors.New("bandersnatch / point deserializati
 
 var ErrSizeDoesNotFitInt32 = errors.New("bandersnatch / point slice serialization: size of point slice does not fit into (signed) 32-bit integer")
 
+var (
+	ErrCannotSerializePointAtInfinity = errors.New("bandersnatch / point serialization: The selected serializer cannot serialize points at infinity")
+	ErrCannotSerializeNaP             = errors.New("bandersnatch / point serialization: cannot serialize NaP")
+	ErrCannotDeserializeNaP           = errors.New("bandersnatch / point deserialization: cannot deserialize coordinates corresponding to NaP")
+	ErrCannotDeserializeXYAllZero     = NewWrappedError(ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0")
+)
+
 // removed in favor of errorsWithData
 
 /*
@@ -160,11 +167,6 @@ func (be *sliceDeserializationError) Error() string {
 	}
 }
 
-var (
-	ErrCannotSerializePointAtInfinity = errors.New("bandersnatch / point serialization: The selected serializer cannot serialize points at infinity")
-	ErrCannotSerializeNaP             = errors.New("bandersnatch / point serialization: cannot serialize NaP")
-	ErrCannotDeserializeXYAllZero     = NewWrappedError(ErrCannotSerializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0") // special case of ErrCannotSerializeNaP
-)
 
 func NewSliceDeserializationError(e error, pointsRead int, partialRead bool) BatchDeserializationError {
 	if !partialRead && pointsRead > 0 {
