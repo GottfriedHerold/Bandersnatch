@@ -67,7 +67,7 @@ const (
 	EndomorphismEigenvalue_string = "0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05"
 )
 
-const endomorphismEigenvalueIsOdd = (EndomorphismEigenvalue%2 == 0) // we chose an odd representative above. This info is needed to get some test right.
+// const endomorphismEigenvalueIsOdd = (EndomorphismEigenvalue%2 == 0) // we chose an odd representative above. This info is needed to get some test right.
 
 // EndomorphismEigenvalue_Int is a *big.Int, such that the the efficient degree-2 endomorphism of the Bandersnatch curve acts as multiplication by this constant on the p253-subgroup.
 var EndomorphismEigenvalue_Int *big.Int = InitIntFromString(EndomorphismEigenvalue_string)
@@ -87,6 +87,8 @@ func InitIntFromString(input string) *big.Int {
 	}
 	return t
 }
+
+// TODO: Rename to InputTrusted?
 
 // The point here is to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
 // in order to have better understandable semantics
