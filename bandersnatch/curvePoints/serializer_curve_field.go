@@ -17,7 +17,7 @@ import (
 
 // ErrorPrefix_CurveFieldElementSerializers is the prefix used by all
 // errors orgininating from the curve point <-> field element transition components.
-const ErrorPrefix_CurveFieldElementSerializers = "bandersnatch / curve point <-> field elements:"
+const ErrorPrefix_CurveFieldElementSerializers = "bandersnatch / curve point <-> field elements: "
 
 // MapToFieldElement maps a CurvePoint to a FieldElement as X/Y.
 // Note that for the prime-order subgroup, Y is never 0 and this function is actually injective.
@@ -29,7 +29,7 @@ func MapToFieldElement(input CurvePointPtrInterfaceRead) (ret FieldElement) {
 		panic(ErrorPrefix_CurveFieldElementSerializers + "Called MapToFieldElement on point at infinity")
 	}
 	// Note: IsAtInfinity should already have detected NaPs.
-	// Still, if the nap-handler ignores it, we prefer to panic right now with a more meaningul error message rather than divide by zero later.
+	// Still, if the NaP-handler ignores it, we prefer to panic right now with a more meaningul error message rather than divide by zero later.
 	if input.IsNaP() {
 		panic(ErrorPrefix_CurveFieldElementSerializers + "Called MapToFieldElement on a NaP")
 	}
@@ -52,7 +52,8 @@ func MapToFieldElement(input CurvePointPtrInterfaceRead) (ret FieldElement) {
 // (This is equivalent to running legendreCheckA_affineX, but we reuse some computation)
 // Returns err==nil if no error occurred (meaning that some y existed and the subgroup check, if requested, did not fail).
 //
-// Possible errors are (possibly errors wrapping) ErrXNotOnCurve and ErrXNotInSubgroup
+// Possible errors are (possibly errors wrapping) ErrXNotOnCurve and ErrXNotInSubgroup.
+// Note that for ErrXNotInSubgroup, the returned y is still meaningful.
 func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, err error) {
 
 	// We have y^2 = (1-ax^2) / (1-dx^2)
@@ -72,12 +73,32 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 			// At this point, we already know that the given x does not correspond to any subgroup point.
 			// In the interest of better error message, we check whether it actually correspond to any point on the curve.
 			// While computationally expensive, we do not expect this branch to be taken often.
+
+			// While we are at it, we might as well compute y. -- documentation of function changed to reflect that.
+
+			/*  The following is correct, but does not compute y.
+
+
 			if denom.Jacobi() > 0 {
 				err = bandersnatchErrors.ErrXNotOnCurve
 			} else {
 				err = bandersnatchErrors.ErrXNotInSubgroup
+
 			}
 			return
+			*/
+
+			// The type of error depends on whether denom is a square or not.
+			num.DivideEq(&denom)
+			if y.SquareRoot(&num) {
+				err = bandersnatchErrors.ErrXNotInSubgroup
+
+			} else {
+				err = bandersnatchErrors.ErrXNotOnCurve
+				y.SetZero() // not needed, but we like being explicit.
+			}
+			return
+
 		}
 	}
 	num.DivideEq(&denom) // (1-ax^2)/(1-dx^2). Note that 1-dx^2 cannot be 0, as d is a non-square.

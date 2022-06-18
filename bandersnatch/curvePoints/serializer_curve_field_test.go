@@ -11,23 +11,44 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// Tests for the recoverYFromXAffine function
 func TestRecoverYFromXAffine(t *testing.T) {
+	// This checkfun tests whether recoverYFromXAffine has appropriate approximate roundtrip properties.
+	// This is only meaningful for x coos that corresponds to a point on the curve, so we check that other case separately.
 	var checkfun_recover_y checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		testutils.Assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
+		testutils.Assert(getPointType(s.Points[0]) == pointTypeAXTWFull, "This test is only meaningful for AXTW_Full")
+		// Skip NaPs, because we don't know what the correct behaviour should be.
 		if s.AnyFlags().CheckFlag(PointFlagNAP) {
-			return true, "skipped"
+			panic("Cannot happen") // We omit those points via the testing framework's excludeFlags.
+			// return true, "skipped"
 		}
+
+		// Get x,y coordinates of the given input point P
+		//
+		// For a given x coordinate, there are two points related by +A;
+		// So we need to consider whether one of P or P+A is in the subgroup to determine what the
+		// correct behaviour should be.
 		x, y := s.Points[0].XY_affine()
 		var p_flip Point_axtw_full
 		p_flip.Add(s.Points[0], &AffineOrderTwoPoint_axtw)
 		good_subgroup := s.Points[0].IsInSubgroup() || p_flip.IsInSubgroup()
 
+		// Call recoverYFromXAffine with both legendreCheckX set and unset.
 		yRecChecked, errChecked := recoverYFromXAffine(&x, true)
 		yRecUnchecked, errUnchecked := recoverYFromXAffine(&x, false)
+
+		// Since we skipped NaP instances above, we are guaranteed that the x coo corresponds to a curve point.
+		if errors.Is(errChecked, ErrXNotOnCurve) || errors.Is(errUnchecked, ErrXNotOnCurve) {
+			t.Fatalf("RecoverYFromAffineX reports ErrXNotOnCurve when it should not.")
+		}
+
+		// Due to that, for the case without Legendre check, we should never get an error
 		if errUnchecked != nil {
 			return false, "RecoverYFromAffineX reported unexpected error (without Legendre check)"
 		}
+
+		// For the Legendre-Checked case, we expect a ErrXNotInSubgroup error depending on good_subgroup
 		if !good_subgroup {
 			if !errors.Is(errChecked, ErrXNotInSubgroup) {
 				return false, "RecoverYFromXAffineX did not report expected error for X not in subgroup"
@@ -37,15 +58,19 @@ func TestRecoverYFromXAffine(t *testing.T) {
 				return false, "RecoverYFromAffineX reported unexpected error (with Legendre check)"
 			}
 		}
+
 		if ok, _ := yRecUnchecked.CmpAbs(&y); !ok {
 			return false, "RecoverYFromAffineX did not reproduce Y (up to sign)"
 		}
-		if ok, _ := yRecChecked.CmpAbs(&y); good_subgroup && !ok {
+		if ok, _ := yRecChecked.CmpAbs(&y); !ok {
 			return false, "RecoverYFromAffineX did not reproduce Y up to sign (with Legendre check)"
 		}
 		return true, "ok"
 	}
 	make_samples1_and_run_tests(t, checkfun_recover_y, "RecoverYFromXAffine not working for good x-coos", pointTypeAXTWFull, 500, PointFlagNAP)
+
+	// Consider x coos for points not on the curve as well. We do not have a good way of constructing them, so we will
+	// check that at least the statistics works out. We expect 1/2 not on curve, 1/4 not in subgroup 1/4 good.
 	var rng *rand.Rand = rand.New(rand.NewSource(500))
 	var num_good, num_notOnCurve, num_notOnSubgroup int
 	const iterations = 1000
@@ -53,14 +78,13 @@ func TestRecoverYFromXAffine(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		temp.SetRandomUnsafe(rng)
 		_, err := recoverYFromXAffine(&temp, true)
-		switch err {
-		case ErrXNotInSubgroup:
-			num_notOnSubgroup++
-		case ErrXNotOnCurve:
-			num_notOnCurve++
-		case nil:
+		if err == nil {
 			num_good++
-		default:
+		} else if errors.Is(err, ErrXNotOnCurve) {
+			num_notOnCurve++
+		} else if errors.Is(err, ErrXNotInSubgroup) {
+			num_notOnSubgroup++
+		} else {
 			err = fmt.Errorf("unexpected error returned by RecoverYFromXAffine: %w", err)
 			t.Fatal(err)
 		}
@@ -78,36 +102,52 @@ func TestRecoverYFromXAffine(t *testing.T) {
 	}
 }
 
+// Test for the recoverXFromYAffine functions
 func TestRecoverXFromYAffine(t *testing.T) {
+	// Like for TestRecoverYFromXAffine, we first check behaviour for Y coos where we know they correspond to a point.
 	var checkfun_recover_x checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		testutils.Assert(getPointType(s.Points[0]) == pointTypeAXTWFull)
+		testutils.Assert(getPointType(s.Points[0]) == pointTypeAXTWFull, "Test only meaningful for AXTW_full")
+		// We want to skip NaPs. There is no meaningful correct behaviour.
 		if s.AnyFlags().CheckFlag(PointFlagNAP) {
-			return true, "skipped"
+			panic("Cannot happen") // We omit those points via the testing framework's excludeFlags.
+			// return true, "skipped"
 		}
+
 		x, y := s.Points[0].XY_affine()
 
 		xRec, err := recoverXFromYAffine(&y)
+		// We know by construction that y corresponded to a valid curve point, so we expect no error.
 		if err != nil {
 			return false, "RecoverXFromAffineY reported error on valid y coordiate "
 		}
+		// must return either x or -x.
 		if ok, _ := xRec.CmpAbs(&x); !ok {
 			return false, "RecoverXFromAffineY did not reproduce X up to sign"
 		}
 		return true, "ok"
 	}
 	make_samples1_and_run_tests(t, checkfun_recover_x, "RecoverXFromYAffine not working for good y-coos", pointTypeAXTWFull, 500, PointFlagNAP)
-	var yAtInfinity FieldElement = squareRootDbyA_fe
-	yAtInfinity.InvEq() // sqrt(a/d)
 
-	_, err := recoverXFromYAffine(&yAtInfinity)
+	// Check special values for Y:
+
+	// These values correspond to the points at infinity (where the Y/Z value actually extends).
+	_, err := recoverXFromYAffine(&yAtInfinity_E1)
 	if err == nil {
 		t.Fatal("recoverXFromYAffine does not produce error for Y=sqrt(d/a)")
 	}
+	_, err = recoverXFromYAffine(&yAtInfinity_E2)
+	if err == nil {
+		t.Fatal("recoverXFromYAffine does not produce error for Y=-sqrt(d/a)")
+	}
+
+	// Y==0 does not correspond to a point.
 	_, err = recoverXFromYAffine(&fieldElementZero)
 	if err == nil {
 		t.Fatal("recoverXFromYAffine does not produce error for Y=0")
 	}
+
+	// Y==1 corresponds to the neutral element of the curve, so we expect X==0 and no error.
 	x, err := recoverXFromYAffine(&fieldElementOne)
 	if err != nil {
 		t.Fatal("recoverXFromYAffine reports error for y=1")
@@ -115,19 +155,21 @@ func TestRecoverXFromYAffine(t *testing.T) {
 	if !x.IsZero() {
 		t.Fatal("recoverXFromYAffine does not return 0 for y=1")
 	}
+
+	// We have no good way of checking the "correct" behaviour of this function other than the function itself,
+	// but we know that it should return an error in ~50% of cases.
 	var rng *rand.Rand = rand.New(rand.NewSource(500))
 	var num_good, num_notOnCurve int
-	const iterations = 1000
+	const iterations = 2000
 	var temp FieldElement
 	for i := 0; i < iterations; i++ {
 		temp.SetRandomUnsafe(rng)
 		_, err := recoverXFromYAffine(&temp)
-		switch err {
-		case ErrYNotOnCurve:
-			num_notOnCurve++
-		case nil:
+		if err == nil {
 			num_good++
-		default:
+		} else if errors.Is(err, ErrYNotOnCurve) {
+			num_notOnCurve++
+		} else {
 			err = fmt.Errorf("unexpected error returned by RecoverXFromYAffine: %w", err)
 			t.Fatal(err)
 		}
@@ -142,6 +184,14 @@ func TestRecoverXFromYAffine(t *testing.T) {
 	}
 }
 
+// TODO: Known answer tests?
+
+// TestMapToFieldElement tests some basic properties of MapToFieldElement
+//
+// We check:
+// - panic behaviour
+// - behaviour for special points
+// - invariance under +A
 func TestMapToFieldElement(t *testing.T) {
 	var checkfun_MapToFieldElement checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
@@ -157,8 +207,9 @@ func TestMapToFieldElement(t *testing.T) {
 			return false, "MapToFieldElement did not panic for infinite inputs"
 		}
 		if infinite || singular {
-			return true, ""
+			return true, "" // already handled. -- we expected and got a panic; nothing more to check.
 		}
+		// We only expect panic for infinite or singular points.
 		if didPanic {
 			return false, "MapToFieldElement unexpectedly panicked"
 		}

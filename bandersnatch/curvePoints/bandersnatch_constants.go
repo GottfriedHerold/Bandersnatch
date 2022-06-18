@@ -9,8 +9,7 @@ import (
 
 // This file collects the various constants that we use throughout the Bandersnatch implementations.
 //
-// Note: We might want to move FieldElement (field of definition) and/or Exponents (scalar fields) into
-// separate packages at some point. For that reason, the file is separated into "sections" according to that split.
+// This file is responsible for constant used in the package for the curve points.
 //
 // Constanst usually have a _suffix, which has some meaning; we often provide constant in several types.
 
@@ -30,6 +29,19 @@ const CurveOrder = common.CurveOrder
 
 var EndomorphismEigenvalue_Int = common.EndomorphismEigenvalue_Int // copies pointer
 var GroupOrder_Int = common.GroupOrder_Int                         // copies pointer
+
+// The affine y/z coordinate actually extends to the two points at infinity:
+// While both y==z==0 at the points at infinity, we can use y/z == xy/xz == tz/xz == t/x to get a meaningful result
+// that is neither 0 nor infinity.
+//
+// NOTE: Currently unused outside testing.
+var yAtInfinity_E1 FieldElement
+var yAtInfinity_E2 FieldElement
+
+func init() {
+	yAtInfinity_E1.Inv(&squareRootDbyA_fe)
+	yAtInfinity_E2.Neg(&yAtInfinity_E1)
+}
 
 // BaseFieldSize_untyped is the prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
 // Due to overflowing all standard types, this is only useful in constant expressions.
