@@ -435,7 +435,7 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 	testutils.Assert(returnedPointNilPointer.CanOnlyRepresentSubgroup() == subgroupOnly, "subgroupOnly parameter does not match type returned by given function")
 
 	Trusted_r := reflect.ValueOf(trustedInput)
-	Untrusted_r := reflect.ValueOf(trustedInput)
+	Untrusted_r := reflect.ValueOf(untrustedInput)
 
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
