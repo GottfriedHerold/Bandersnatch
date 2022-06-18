@@ -9,6 +9,7 @@ import (
 
 	. "github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // Tests for the recoverYFromXAffine function
@@ -232,7 +233,15 @@ func TestMapToFieldElement(t *testing.T) {
 	}
 }
 
+// This function tests rountripping for various CurvePointFrom<foo>_<subgroup|full> functions.
+// We use reflection to write this as a single function for multiple foo's and subgroup vs. full
+// cases.
 func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
+	// define some functions that map a curve point P to $Args, where the CurvePointFrom<foo>
+	// function is supposed to recover P when given $Args as inputs.
+	// Since the CurvePointFrom<foo>-functions take FieldElements by pointers,
+	// these functions also need to return pointers.
+
 	getArgsXYAffine := func(arg CurvePointPtrInterfaceRead) (x, y *FieldElement) {
 		x = new(FieldElement)
 		y = new(FieldElement)
@@ -285,6 +294,9 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 		return
 	}
 
+	// We now use the (reflection-heavy) make_checkfun_recoverPoint to create functions (of type checkfunction, i.e. taking TestSamples)
+	// by testing the appropriate getArgs defined above against CurvePointFrom<foo>_<bar>
+
 	checkfun_FullCurvePointFromXYAffine := make_checkfun_recoverPoint(CurvePointFromXYAffine_full, "FullCurvePointFromXYAffine", false, getArgsXYAffine, false)
 	checkfun_SubgroupCurvePointFromXYAffine := make_checkfun_recoverPoint(CurvePointFromXYAffine_subgroup, "SubgroupCurvePointFromXYAffine", true, getArgsXYAffine, false)
 	checkfun_FullCurvePointFromXAndSignY := make_checkfun_recoverPoint(CurvePointFromXAndSignY_full, "FullCurvePointFromXAndSignY", false, getArgsXAndSignY, false)
@@ -296,7 +308,9 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 
 	for _, pointType := range allTestPointTypes {
 		pointString := pointTypeToString(pointType)
+		// NOTE: checkfun_recoverXYAffine is defined directly in the global scope, without using make_checkfun_recoverPoint.
 		make_samples1_and_run_tests(t, checkfun_recoverFromXYAffine, "Failure to recover point from XYAffine for "+pointString, pointType, 200, excludeNoPoints)
+
 		make_samples1_and_run_tests(t, checkfun_FullCurvePointFromXYAffine, "Failure to recover point from FullCurveFromXYAffine for "+pointString, pointType, 200, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_SubgroupCurvePointFromXYAffine, "Failure to recover point from SubgroupCurveFromXYAffine for "+pointString, pointType, 200, excludeNoPoints)
 		make_samples1_and_run_tests(t, checkfun_FullCurvePointFromXAndSignY, "Failure to recover point from FullCurvePointFromXAndSignY for "+pointString, pointType, 200, excludeNoPoints)
@@ -308,18 +322,30 @@ func TestRoundTripDeserializeFromFieldElements(t *testing.T) {
 	}
 }
 
+// checks if P -> (x,y) -> P via XY_affine() and CurvePointFromXYAffine_<foo> roundtrips.
+//
+// Note: This is probably redundant with the result of make_checkfun_recoverPoint; it is retained as a prototype for that
+// function (which does essentially the same, just generically, with reflection)
 func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 	s.AssertNumberOfPoints(1)
+	// we skip NaPs and infinite points, because we cannot expect roundtrip behaviour for those.
 	singular := s.AnyFlags().CheckFlag(PointFlagNAP)
 	infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
-	subgroup := s.Points[0].IsInSubgroup()
 	if infinite {
 		return true, "skipped" // affine X,Y coos make no sense.
 	}
 	if singular {
 		return true, "skipped" // We can't reliably get coos from the point
 	}
+
+	// The correct behaviour of the _subgroup variant depends on whether the input point was in the subgroup or not.
+	subgroup := s.Points[0].IsInSubgroup()
+
+	// Get x and y
 	x, y := s.Points[0].XY_affine()
+
+	// We test the _full - variant first. This should always recover the original point.
+	// The trust parameter should not matter, because the input is always valid.
 	point, err := CurvePointFromXYAffine_full(&x, &y, trustedInput)
 	if err != nil {
 		return false, "FullCurvePointFromXYAffine reported unexpected error (TrustedInput)"
@@ -334,7 +360,10 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 	if !point.IsEqual(s.Points[0]) {
 		return false, "FullCurvePointFromXYAffine did not recover point (UntrustedInput)"
 	}
+
+	// _subgroup variant, untrusted input.
 	point_subgroup, err := CurvePointFromXYAffine_subgroup(&x, &y, untrustedInput)
+	// The expected answer for _subgroup and untrustedInput depends on whether the input point was in the subgroup or not
 	if !subgroup {
 		if err == nil {
 			return false, "SubgroupCurvePointFromXYAffine did not report subgroup error"
@@ -347,6 +376,9 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 			return false, "SubgroupCurvePointFromXYAffine did not recover point (UntrustedInput)"
 		}
 	}
+
+	// We only call the _subgroup variant with trustedInput if the input point was in the subgroup.
+	// (There is no defined behaviour if the input was not in the subgroup)
 	if subgroup {
 		point_subgroup, err = CurvePointFromXYAffine_subgroup(&x, &y, trustedInput)
 		if err != nil {
@@ -359,40 +391,93 @@ func checkfun_recoverFromXYAffine(s *TestSample) (bool, string) {
 	return true, ""
 }
 
+// make_checkfun_recoverPoint creates a checkfunction that verifies roundtrip capabilities of a CurvePointFrom<FOO>_<BAR> function.
+// We check rountrip P -> ARGS -> P via argGetter and recoveryFun.
+//
+// recoveryFun must be a function with singature assumed to be f(args..., trustLevel) -> (point, err)
+// where args are any number of arguments, point is returned as a value (not pointer) and err is either nil or satisfies error.
+//
+// name is a string intended to give the name of recoveryFun; this is only used for printing error messages. Note that as far as I know,
+// we cannot (as of Go1.18) retrieve that from recoveryFun without using the runtime package, which is both obscure and brittle (due to possible inlining).
+//
+// subgroupOnly denotes whether recoveryFun is intended for recovering only subgroup points.
+// NOTE: We could derive this from the type of point; -> added check for this rather than remove parameter.
+//
+// argGetter is a function that takes a point and returns args; it must match the signature of recoveryFun
+//
+// roundTripModuloA is a flag (which must only be set if subgroupOnly is also set) that indicates that the functions only roundtrip modulo A.
+// This also means that on the input side that we allow P to be not in the subgroup as long as P+A is.
 func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOnly bool, argGetter interface{}, roundTripModuloA bool) (returned_function checkfunction) {
 	recoveryFun_r := reflect.ValueOf(recoveryFun)
 	argGetter_r := reflect.ValueOf(argGetter)
-	testutils.Assert(recoveryFun_r.Kind() == reflect.Func)
-	testutils.Assert(argGetter_r.Kind() == reflect.Func)
+
+	// some basic checks on correct usage of make_checkfun_recoverPoint itself.
+	// Most of these would just cause panic later; the checks here are to get more meaningful error message.
+	// These checks are not intended to be exhaustive, as this is an internal function.
+	testutils.Assert(recoveryFun_r.Kind() == reflect.Func, "non-function passed to make_checkfun_recoverPoint in first argument")
+	testutils.Assert(argGetter_r.Kind() == reflect.Func, "non-function passed to make_checkfun_recoverPoint in 4th argument")
+
+	var recoveryFun_type reflect.Type = recoveryFun_r.Type()
+	var argGetter_type reflect.Type = argGetter_r.Type()
+	testutils.Assert(recoveryFun_type.NumOut() == 2, "function passed as first argument must return exactly two values")
+	// +1 comes from the trustLevel
+	testutils.Assert(recoveryFun_type.NumIn() == argGetter_type.NumOut()+1, "Number of arguments to recoveryFun does not match output of argGetter")
+
+	// types returned by recoveryFun
+	returnedPointType := recoveryFun_type.Out(0)
+	returnedErrorType := recoveryFun_type.Out(1)
+
+	testutils.Assert(returnedErrorType.AssignableTo(utils.TypeOfType[error]()), "2nd returned value from function passed as first argument is not an error")
+	testutils.Assert(returnedPointType.Kind() != reflect.Pointer, "function passed as first argument returns point as pointer")
+
+	// pointer to new value of the returned type. We check that that type matches the subgroupOnly parameter.
+	returnedPointNilPointer := reflect.New(returnedPointType).Interface().(CurvePointPtrInterfaceRead)
+	testutils.Assert(returnedPointNilPointer.CanOnlyRepresentSubgroup() == subgroupOnly, "subgroupOnly parameter does not match type returned by given function")
+
+	Trusted_r := reflect.ValueOf(trustedInput)
+	Untrusted_r := reflect.ValueOf(trustedInput)
+
 	returned_function = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
-		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
-		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
-		subgroup := s.Points[0].IsInSubgroup()
-		var pointPlusA Point_xtw_full // only used if roundTripModuloA is true
+
+		P := s.Points[0] // Note: Copies pointer, this is just to shorten the code-documentation.
+
+		// If roundTripModuloA is set, subgroup denotes whether one of P or P+A is in the subgroup
+		// If roundTripModuloA is not set, subgroup denotes whether P is in the subgroup
+		subgroup := P.IsInSubgroup()
+		var pointPlusA *Point_xtw_full // only used if roundTripModuloA is true
 		if roundTripModuloA {
+			pointPlusA = new(Point_xtw_full)
 			testutils.Assert(subgroupOnly)
-			pointPlusA.SetFrom(s.Points[0])
+			pointPlusA.SetFrom(P)
 			pointPlusA.AddEq(&AffineOrderTwoPoint_axtw)
 			subgroup = subgroup || pointPlusA.IsInSubgroup()
 		}
+
+		// skip checks for NaPs or infinite points. This would take too many special cases to work, if at all.
+		singular := s.AnyFlags().CheckFlag(PointFlagNAP)
+		infinite := s.AnyFlags().CheckFlag(PointFlag_infinite)
 		if infinite {
 			return true, "skipped" // affine X,Y coos make no sense.
 		}
 		if singular {
 			return true, "skipped" // We can't reliably get coos from the point
 		}
-		point_r := reflect.ValueOf(s.Points[0])
+
+		// Call argGetter on P to get e.g. X, Y and append UntrustedInput, then call the provided CurvePointFrom<ARGS> function on those
+		point_r := reflect.ValueOf(P)
 		var argGetterInput [1]reflect.Value = [1]reflect.Value{point_r}
 		args_r := argGetter_r.Call(argGetterInput[:])
-		Trusted_r := reflect.ValueOf(trustedInput)
-		Untrusted_r := reflect.ValueOf(trustedInput)
 		args_r = append(args_r, Untrusted_r)
 		res_r := recoveryFun_r.Call(args_r)
+
+		// We want to store the result of the call to CurvePointFrom<ARGS> in (point, err) of (non-reflection) types CurvePointPtrInterfaceRead and error.
 		// Voodoo to take the adress of the return value of a reflect.Call. We need a new variable of pointer type, allocate memory and copy.
 		pointPtr_r := reflect.New(res_r[0].Type())
 		pointPtr_r.Elem().Set(res_r[0])
 		point := pointPtr_r.Interface().(CurvePointPtrInterfaceRead)
+
+		// retrieve err.
 		var err error
 		res_r1 := res_r[1].Interface()
 		if res_r1 == nil {
@@ -400,28 +485,38 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 		} else {
 			err = res_r1.(error)
 		}
+
+		// We check whether the returned (point, err) is as we expected:
 		if subgroupOnly {
-			if subgroup && err != nil {
-				return false, "Unexpected error encountered when recovering point with " + name + " (UntrustedInput)"
+			if subgroup && err != nil { // P (resp. P+A) was in the subgroup; we expect no error
+				return false, fmt.Sprintf("Unexpected error encountered when recovering point with %v (UntrustedInput). Error was %v", name, err)
 			}
-			if !subgroup && err == nil {
+			if !subgroup && err == nil { // P (resp P+A) was not in the subgroup; we expect an error
 				return false, "Untrusted deserialization of non-subgroup input to subgroup point did not result in error for " + name
 			}
-		} else if err != nil {
-			return false, "Unexpected error reported when recovering point with " + name + " (UntrustedInput)"
+		} else if err != nil { // for the !subgroupOnly - case we never expect an error, since the input actually came from P.
+			return false, fmt.Sprintf("Unexpected error reported when recovering point with %v (UntrustedInput). Error was %v", name, err)
 		}
 
-		if !roundTripModuloA && err == nil && !point.IsEqual(s.Points[0]) {
+		// If err == nil and !roundTripModuloA, we expect to retrieve the orgininal point P
+		if !roundTripModuloA && err == nil && !point.IsEqual(P) {
 			return false, "Untrusted deserialization did not reproduce the original for " + name
 		}
+		// If err == nil and roundTripModuloA (and also if !roundTripModuloA, so no condition needed, even though it gives a redundant check to the above case),
+		// we expect to either retrieve P or P+A
 		if roundTripModuloA && err == nil {
-			if !point.IsEqual(s.Points[0]) && !point.IsEqual(&pointPlusA) {
+			if !point.IsEqual(P) && !point.IsEqual(pointPlusA) {
 				return false, "Untrusted deserialization did not reproduce the original modulo A for " + name
 			}
 		}
+
+		// We want to now call the same function with TrustedInput.
+		// If subgroupOnly is true and the point (or possibly P+A for roundTripModuloA) is not in the subgroup, we skip any further checks.
 		if subgroupOnly && !subgroup {
 			return true, ""
 		}
+
+		// Call recoveryFun again, but this time with TrustedInput, and record the results in (point, err) again, overwriting the previous values.
 		args_r[len(args_r)-1] = Trusted_r
 		res_r = recoveryFun_r.Call(args_r)
 		pointPtr_r = reflect.New(res_r[0].Type())
@@ -433,13 +528,17 @@ func make_checkfun_recoverPoint(recoveryFun interface{}, name string, subgroupOn
 		} else {
 			err = res_r1.(error)
 		}
+
+		// We expect no error
 		if err != nil {
-			return false, "Unexpected error reported when recovering point with " + name + " (TrustedInput)"
+			return false, fmt.Sprintf("Unexpected error reported when recovering point with %v (TrustedInput). Error was %v", name, err)
 		}
-		if !roundTripModuloA && !point.IsEqual(s.Points[0]) {
+
+		// depeding on roundTripModuloA we expect the returned point to either equal P or possibly P+A.
+		if !roundTripModuloA && !point.IsEqual(P) {
 			return false, "TrustedInput deserialization did not reproduce the original for " + name
 		}
-		if roundTripModuloA && !point.IsEqual(s.Points[0]) && !point.IsEqual(&pointPlusA) {
+		if roundTripModuloA && !point.IsEqual(P) && !point.IsEqual(pointPlusA) {
 			return false, "TrustedInput deserialization did not reproduce the original modulo A for " + name
 		}
 		return true, ""
