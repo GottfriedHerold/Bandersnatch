@@ -2,6 +2,13 @@ package common
 
 import "math/big"
 
+// This file contains common constants related to the Bandersnatch curve such
+// as the size of its defining field.
+// Due to cyclic import issues (the package for field elements imports this file),
+// constants of type FieldElement are not defined in this package.
+//
+// NOTE: Other packages typically define their own copies of these constants in order to shorten import paths.
+
 // BaseFieldSize_untyped is the prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
 // Due to overflowing all standard types, this is only useful in constant expressions.
 // In most case, you want to use BaseFieldSize_Int of type big.Int instead
@@ -67,10 +74,10 @@ const (
 	EndomorphismEigenvalue_string = "0x13b4f3dc4a39a493edf849562b38c72bcfc49db970a5056ed13d21408783df05"
 )
 
-// const endomorphismEigenvalueIsOdd = (EndomorphismEigenvalue%2 == 0) // we chose an odd representative above. This info is needed to get some test right.
-
 // EndomorphismEigenvalue_Int is a *big.Int, such that the the efficient degree-2 endomorphism of the Bandersnatch curve acts as multiplication by this constant on the p253-subgroup.
 var EndomorphismEigenvalue_Int *big.Int = InitIntFromString(EndomorphismEigenvalue_string)
+
+// TODO: Do we want to export this at all?
 
 // InitIntFromString initializes a big.Int from a given string similar to InitFieldElementFromString.
 // This internally uses big.Int's SetString and understands exactly those string formats.

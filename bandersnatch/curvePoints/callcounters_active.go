@@ -2,6 +2,10 @@
 
 package bandersnatch
 
+// This file contains the code that is selected if the callcounters build tag is set.
+// It enables callcounters for this module, allowing to count the number of invocations
+// of certain functions for the purpose of benchmarking.
+
 import (
 	"testing"
 

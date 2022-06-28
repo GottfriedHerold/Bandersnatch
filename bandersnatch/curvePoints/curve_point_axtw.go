@@ -4,6 +4,14 @@ import (
 	"math/rand"
 )
 
+// This file contains the implementation of the CurvePointPtrInterface by types
+// Point_axtw_subgroup and Point_axtw_full.
+// These represent points on the bandersnatch curve in *affine* (extended) coordinates.
+// The _subgroup resp. _full versions differ in whether they only store elements on the prime-order subgroup;
+//
+// NOTE: As of now, points at infinity cannot be stored by this (which is an issue only for the _full version, of course)
+// NOTE2: As of now, representations are non-unique
+
 // point_axtw_base is a struct holding x,y,t values that can be used to represent an elliptic curve point on the Bandersnatch curve.
 // Note that this is just a container for coordinates. It (or pointers to it) does not satisfy the CurvePointPtrInterface.
 // Indeed, there is the question how to interpret x,y,t coordinates as coos of a point and depending on context, we
@@ -23,11 +31,10 @@ type point_axtw_base struct {
 type Point_axtw_subgroup struct {
 	thisCurvePointCanOnlyRepresentSubgroup
 	// This stores x,y,t coordinate.
-	// IMPORTANT:
 	point_axtw_base
 }
 
-// Point_axtw_full describes a non-inifinite rational point of the Bandersnatch elliptic curve in affine extended twisted Edwards coordinates.
+// Point_axtw_full describes a non-infinite rational point of the Bandersnatch elliptic curve in affine extended twisted Edwards coordinates.
 // Extended means that we additionally store T with T = X*Y.
 // Note that, being a twisted Edwards curve, the neutral element is NOT at infinity.
 // The two rational points that cannot be represented are 2-torsion points outside the prime-order subgroup.

@@ -44,10 +44,11 @@ func (bh *BitHeader) GetBitHeader() BitHeader {
 }
 
 // SetBitHeader sets the BitHeader to the given prefixBits and prefixLen.
+// Only the prefixLen lsbs of prefixBits may be non-zero.
 // It panics if the input is invalid.
 //
 // Note: PrefixBits is based on uint8 == byte.
-// You are supposed to write bh.SetBitHeader(PrefixBits(0b101), 4)
+// You are supposed to write e.g. bh.SetBitHeader(PrefixBits(0b0101), 4)
 // with explicit type conversion to PrefixBits in order to not mess up the order of parameters.
 func (bh *BitHeader) SetBitHeader(prefixBits PrefixBits, prefixLen uint8) {
 	bh.prefixBits = prefixBits
@@ -56,10 +57,11 @@ func (bh *BitHeader) SetBitHeader(prefixBits PrefixBits, prefixLen uint8) {
 }
 
 // MakeBitHeader creates a new BitHeader with the given prefixBits and prefixLen.
+// Only the prefixLen lsbs of prefixBits may be non-zero.
 // It panics for invalid inputs.
 //
 // Note: PrefixBits is based on uint8 == byte.
-// You are supposed to write MakeBitHeader(PrefixBits(0b101), 4)
+// You are supposed to write e.g. MakeBitHeader(PrefixBits(0b0101), 4)
 // with explicit type conversion to PrefixBits in order to not mess up the order of parameters.
 func MakeBitHeader(prefixBits PrefixBits, prefixLen uint8) BitHeader {
 	var ret BitHeader = BitHeader{prefixBits: prefixBits, prefixLen: prefixLen}
@@ -84,7 +86,7 @@ func (bh *BitHeader) Validate() {
 	}
 	bitFilter := (1 << bh.prefixLen) - 1 // bitmask of the form 0b0..01..1 ending with prefixLen 1s
 	if bitFilter&int(bh.prefixBits) != int(bh.prefixBits) {
-		panic("bandersnatch / serialization: trying to set bitHeader with a prefix and length, where the prefix has bits set that are not among the length many least significant bits")
+		panic("bandersnatch / serialization: trying to set BitHeader with a prefix and length, where the prefix has bits set that are not among the length many least significant bits")
 	}
 }
 
