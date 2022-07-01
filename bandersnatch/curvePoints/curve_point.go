@@ -72,7 +72,7 @@ type CurvePointPtrInterfaceWrite interface {
 	EndoEq()                         // p.EndoEq() is shorthand for p.Endo(p)
 
 	SetFrom(CurvePointPtrInterfaceRead)                                        // p.SetFrom(q) sets p to (a copy of) the value of q. This is also used to convert between types. Note that it cannot be used to convert from types that store arbitrary curve points to types that only store points on the prime-order subgroup. Use SetFromSubgroupPoint for that.
-	SetFromSubgroupPoint(CurvePointPtrInterfaceRead, IsPointTrusted) (ok bool) // p.SetFromSubgroupPoint(q) ensures/assumes (depends on second argment) that q is inside the prime-order subgroup and sets p to a copy of q. If q is not in the subgroup and we check it, does not change p. This method works even if the types of p and q differ in whether they can represent curve points outside the prime-order subgroup.
+	SetFromSubgroupPoint(CurvePointPtrInterfaceRead, IsInputTrusted) (ok bool) // p.SetFromSubgroupPoint(q) ensures/assumes (depends on second argment) that q is inside the prime-order subgroup and sets p to a copy of q. If q is not in the subgroup and we check it, does not change p. This method works even if the types of p and q differ in whether they can represent curve points outside the prime-order subgroup.
 
 	// contained in both Write and Read interface
 	CanRepresentInfinity() bool     // returns true if the type can represent and distinguish the points at infinity. This can be called on nil receivers of a concrete (pointer) type.

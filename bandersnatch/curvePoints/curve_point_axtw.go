@@ -513,7 +513,7 @@ func (p Point_axtw_subgroup) String() (ret string) {
 // The return value indicates success. On failure, the receiver is unchanged.
 //
 // NOTE: Calling this checks for NaPs even for TrustedInput. Other than that, we make no guarantees whatsoever when calling it on points outside the subgroup with TrustedInput.
-func (p *Point_axtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+func (p *Point_axtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsInputTrusted) (ok bool) {
 	if input.IsNaP() {
 		napEncountered("Converting NaP point to affine subgroup point", false, input)
 		// *p = Point_axtw_subgroup{}
@@ -555,7 +555,7 @@ func (p *Point_axtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceR
 // The return value indicates success. On failure, the receiver is unchanged.
 //
 // NOTE: Calling this checks for NaPs even for TrustedInput. Other than that, we make no guarantees whatsoever when calling it on points outside the subgroup with TrustedInput.
-func (p *Point_axtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+func (p *Point_axtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsInputTrusted) (ok bool) {
 	if input.IsNaP() {
 		napEncountered("Converting NaP point to affine subgroup point", false, input)
 		// *p = Point_axtw_full{}

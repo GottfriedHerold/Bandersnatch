@@ -22,7 +22,7 @@ type curvePointDeserializer_basic interface {
 	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point. TrustLevel determines whether we trust the input to be a valid representation of a curve point.
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
 	// On error, outputPoint is kept unchanged.
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers withot serializers, it is an upper bound.
 
@@ -106,7 +106,7 @@ func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersn
 	return
 }
 
-func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	var X, Y bandersnatch.FieldElement
 	// var errPlain error
 	bytesRead, err, X, Y = s.DeserializeValues(input)
@@ -181,7 +181,7 @@ func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point b
 	return
 }
 
-func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	var X bandersnatch.FieldElement
 	var signBit bool
 	bytesRead, err, X, signBit = s.DeserializeValues(input)
@@ -266,7 +266,7 @@ func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point b
 	return
 }
 
-func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	var Y bandersnatch.FieldElement
 	var signBit bool
 	bytesRead, err, Y, signBit = s.DeserializeValues(input)
@@ -373,7 +373,7 @@ func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point
 	return
 }
 
-func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	var XSignY bandersnatch.FieldElement
 	bytesRead, err, XSignY = s.DeserializeValues(input)
 	if err != nil {
@@ -438,7 +438,7 @@ func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, poin
 	return
 }
 
-func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsPointTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	var XSignY, YSignY bandersnatch.FieldElement
 	bytesRead, err, YSignY, XSignY = s.DeserializeValues(input)
 	if err != nil {

@@ -19,7 +19,7 @@ var CurveOrder_Int = common.CurveOrder_Int                         // Note: Copi
 // EndomorphismEigenvalue is only defined modulo GroupOrder.
 // We chose an odd representative. This info is needed to get some tests
 // and assertions right.
-const endomorphismEigenvalueIsOdd = (EndomorphismEigenvalue%2 == 0) // == true
+const endomorphismEigenvalueIsOdd bool = (EndomorphismEigenvalue%2 == 0) // == true
 
 const (
 	curveExponent_0 = (CurveExponent >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
@@ -42,7 +42,7 @@ const (
 	groupOrder_3
 )
 
-var twoTo128_Int *big.Int = common.common.InitIntFromString("0x1_00000000_00000000_00000000_00000000")
+var twoTo128_Int *big.Int = common.InitIntFromString("0x1_00000000_00000000_00000000_00000000")
 
 // (p253-1)/2. We can represent Z/p253 by numbers from -halfGroupOrder, ... , + halfGroupOrder. This is used in the GLV decomposition algorithm.
 const (
@@ -50,4 +50,5 @@ const (
 	halfGroupOrder_string = "6554484396890773809930967563523245729654577946720285125893201653364843836400"
 )
 
-var halfGroupOrder_Int = common.common.InitIntFromString(halfGroupOrder_string)
+// (p253-1)/2
+var halfGroupOrder_Int = common.InitIntFromString(halfGroupOrder_string)

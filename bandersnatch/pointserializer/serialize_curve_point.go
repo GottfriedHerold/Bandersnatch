@@ -11,7 +11,7 @@ import (
 )
 
 type CurvePointDeserializer interface {
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
 	IsSubgroupOnly() bool                             // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32                              // returns the length in bytes that this serializer will try at most to read per curve point.
 	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try at most to read if deserializing a slice of numPoints many points.
@@ -21,7 +21,7 @@ type CurvePointDeserializer interface {
 	Verifier // TODO: Remove
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
-	DeserializeBatch(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
+	DeserializeBatch(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 
 	// Matches SerializeSlice
 	// DeserializeSlice(inputStream io.Reader) (outputPoints bandersnatch.CurvePointSlice, bytesRead int, err bandersnatchErrors.BatchSerializationError)
@@ -37,7 +37,7 @@ type CurvePointSerializer interface {
 
 	// similar to curvePointSerializer_basic
 
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
 	IsSubgroupOnly() bool                             // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32                              // returns the length in bytes that this serializer will try to read/write per curve point.
 	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try to read/write if serializing a slice of numPoints many points.
@@ -169,7 +169,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName stri
 	}
 }
 
-func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	return BasicPtr(&md.basicDeserializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 }
 
@@ -177,7 +177,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoint(outputStrea
 	return BasicPtr(&md.basicSerializer).SerializeCurvePoint(outputStream, inputPoint)
 }
 
-func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsPointTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
 	return BasicPtr(&md.basicSerializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 }
 

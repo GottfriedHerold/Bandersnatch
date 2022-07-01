@@ -4,8 +4,8 @@ import "math/big"
 
 // This file contains common constants related to the Bandersnatch curve such
 // as the size of its defining field.
-// Due to cyclic import issues (the package for field elements imports this file),
-// constants of type FieldElement are not defined in this package.
+// Due to cyclic import issues (namely, the package for field elements imports this file),
+// constants of type FieldElement related to the Bandersnatch curve are not defined in this package.
 //
 // NOTE: Other packages typically define their own copies of these constants in order to shorten import paths.
 
@@ -95,25 +95,23 @@ func InitIntFromString(input string) *big.Int {
 	return t
 }
 
-// TODO: Rename to InputTrusted?
-
 // The point here is to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
 // in order to have better understandable semantics
 // Golang does not have enum types, sadly, so we need to use structs: declaring a "type InPointTrusted bool" would cause Deserialze(..., true, ...)  to actually work due to implicit conversion.
 
-// IsPointTrusted is a struct encapsulating a bool controlling whether some input is trusted or not.
+// IsInputTrusted is a struct encapsulating a bool controlling whether some input is trusted or not.
 // This is used to enforce better readable semantics in arguments.
 // Users should use the predefined values TrustedInput and UntrustedInput of this type.
-type IsPointTrusted struct {
+type IsInputTrusted struct {
 	v bool
 }
 
-func (b IsPointTrusted) Bool() bool { return b.v }
+func (b IsInputTrusted) Bool() bool { return b.v }
 
 // TrustedInput and UntrustedInput are used as arguments to Deserialization routines and in ToSubgroup.
 var (
-	TrustedInput   IsPointTrusted = IsPointTrusted{v: true}
-	UntrustedInput IsPointTrusted = IsPointTrusted{v: false}
+	TrustedInput   IsInputTrusted = IsInputTrusted{v: true}
+	UntrustedInput IsInputTrusted = IsInputTrusted{v: false}
 )
 
 // utility constants

@@ -2,12 +2,12 @@ package bandersnatch
 
 import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElement"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
 )
 
-type FieldElement = fieldElement.FieldElement
+type FieldElement = fieldElements.FieldElement
 
-type IsPointTrusted = common.IsPointTrusted
+type IsInputTrusted = common.IsInputTrusted
 
 var (
 	TrustedInput   = common.TrustedInput

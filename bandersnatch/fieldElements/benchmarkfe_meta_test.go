@@ -20,7 +20,8 @@ import (
 
 // The concrete functionality provided is this:
 //
-// We provide global variables that the benchmarked functions write their result to. (This is to avoid the compiler from outsmarting us -- writing to a global constant forces the compiler to actually do the computation)
+// We provide global variables that the benchmarked functions write their result to.
+// (This is to avoid the compiler from outsmarting us -- writing to a global constant forces the compiler to actually do the computation)
 // We provide a facility to sample slices of random-looking field elements.
 // We provide a setup function that ensures call counters are handled correctly.
 
@@ -32,13 +33,11 @@ const dumpSizeBench_fe = 1 << 8
 // based on the fact that they are never read from within the module
 //
 // [*] in non-test builds this file is ignored anyway
-var DumpBools_fe [dumpSizeBench_fe]bool // the _fe is because we use a separate global variable for benchmarking curve operations. We could use the same, but this way the code for field element and curve point benchmark is separate.
+var DumpBools_fe [dumpSizeBench_fe]bool // the _fe is because we use a separate global variable for benchmarking curve operations.
+// We could use the same name, but this way the code for field element and curve point benchmark is separate (package seperation or not is still unsure).
+
 var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_64
 var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
-
-// Note: We have versions of prepareBenchmark, postProcessBenchmark and resetBenchmark for field elements and CurvePoints.
-// At the moment, these are identical.
-// The reason is that we might eventually move everything field element-related to a sub-module. -- DONE
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
 // Note that it resets all counters.
@@ -79,6 +78,7 @@ type (
 )
 
 // TODO: Add mutexes
+// Question: Unify this using generics (we use this pattern multiple times)?
 
 // cachedPseudoRandomFieldElements_64 resp. _8 hold per-seed caches (the map key) of pseudo-random field elements.
 var (

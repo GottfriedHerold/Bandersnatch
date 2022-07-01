@@ -55,7 +55,7 @@ func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHead
 	var errPlain error
 
 	var buf []byte = make([]byte, 32)
-	byteOrder.PutUInt256(buf, low_endian_words)
+	byteOrder.PutUint256(buf, low_endian_words)
 	bytes_written, errPlain = output.Write(buf)
 	err = errorsWithData.IncludeDataInError(errPlain, &struct{ PartialWrite bool }{bytes_written != 0 && bytes_written != 32})
 	return
@@ -88,7 +88,7 @@ func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLengt
 	}
 
 	// This writes to z in non-Montgomery form (including the prefix, which we will remove subsequently)
-	z.words = byteOrder.UInt256(buf)
+	z.words = byteOrder.Uint256(buf)
 
 	// read out the top prefixLength many bits.
 	prefix = common.PrefixBits(z.words[3] >> (64 - prefixLength))
@@ -131,7 +131,7 @@ func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefi
 	expectedPrefixBits := expectedPrefix.PrefixBits()
 
 	// The case distinction is done to abort reading after 1 byte if the prefix did not match.
-	if byteOrder.IsBigEndian() {
+	if byteOrder.StartsWithMSB() {
 		bytesRead, errPlain = io.ReadFull(input, buf[0:1])
 		if errPlain != nil { // ioError (most likely EOF)
 			return
@@ -153,14 +153,14 @@ func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefi
 		}
 	}
 
-	little_endian_words = byteOrder.UInt256(buf[:])
+	little_endian_words = byteOrder.Uint256(buf[:])
 
 	// endianness and IO no longer play a role. We have everything in little_endian_words now.
 	// Note that for BigEndian, we actually check the prefix twice.
 
 	readPrefixBits := common.PrefixBits(little_endian_words[3] >> (64 - expectedPrefixLength))
 	if readPrefixBits != expectedPrefixBits {
-		testutils.Assert(!byteOrder.IsBigEndian()) // We already checked the prefix above and should not have come this far.
+		testutils.Assert(!byteOrder.StartsWithMSB()) // We already checked the prefix above and should not have come this far.
 		errPlain = ErrPrefixMismatch
 		return
 	}

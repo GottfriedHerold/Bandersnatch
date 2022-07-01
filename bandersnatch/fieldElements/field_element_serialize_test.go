@@ -13,8 +13,9 @@ import (
 func TestSerializeFieldElements(t *testing.T) {
 	const iterations = 100
 	var drng *rand.Rand = rand.New(rand.NewSource(87))
-	var err error // fe.Serialize and fe.Deserialize each give types extending error, but they are incompatible.
-	// Declared upfront, because using := would create local err of wrong type in tuple assignment shadowing err of type error.
+	var err error // fe.Serialize and fe.Deserialize each give types extending error, but they are incompatible; we cannot use := for this reason.
+
+	// Declared upfront as well for the above reason. Using := in a tuple assignment <foo>, err := ... would create a new err in the local scope of wrong type shadowing err of type error.
 	var bytes_written int
 	var bytes_read int
 

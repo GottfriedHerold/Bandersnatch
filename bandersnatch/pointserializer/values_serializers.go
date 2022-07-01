@@ -8,7 +8,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 )
 
-type FieldElementEndianess = common.FieldElementEndianness
+type FieldElementEndianness = common.FieldElementEndianness
 
 // Due to insufficency of generics, we separate our serializers depending on whether the internal object that actually gets serialized consists of
 // a field element, two field element, field element+bit etc.

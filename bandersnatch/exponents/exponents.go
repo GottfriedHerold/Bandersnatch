@@ -204,6 +204,8 @@ func (z *Exponent) Sub(x *Exponent, y *Exponent) {
 	}
 }
 
+// This is not very efficient
+
 // Mul performs multiplication of exponents
 //
 // Use z.Mul(&x, &y) to compute z = x * y (modulo 2*p253)

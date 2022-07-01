@@ -251,7 +251,6 @@ func IncludeGuaranteedParametersInErrorFromMap[StructType any](err error, parame
 	return NewErrorWithGuaranteedParametersFromMap[StructType](err, "", parameters)
 }
 
-// Special case for StructType == struct{}
 
 // NewErrorWithParameters is identical to NewErrorWithGuaranteedParameters except for the guarantee about containing data.
 func NewErrorWithParameters(baseError error, overrideMessage string, parameters ...any) ErrorWithParameters {

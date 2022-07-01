@@ -31,7 +31,7 @@ const MaxLengthPrefixBits = 8
 // Plain assignment works just fine.
 func (bh *BitHeader) SetBitHeaderFromBitHeader(newBitHeader BitHeader) {
 	*bh = newBitHeader
-	bh.Validate() // not needed, technically. newBitHeader is guaranteed to satisfy this in the first place.
+	bh.validate() // not needed, technically. newBitHeader is guaranteed to satisfy this in the first place.
 }
 
 // GetBitHeader returns a copy of the given BitHeader.
@@ -53,7 +53,7 @@ func (bh *BitHeader) GetBitHeader() BitHeader {
 func (bh *BitHeader) SetBitHeader(prefixBits PrefixBits, prefixLen uint8) {
 	bh.prefixBits = prefixBits
 	bh.prefixLen = prefixLen
-	bh.Validate()
+	bh.validate()
 }
 
 // MakeBitHeader creates a new BitHeader with the given prefixBits and prefixLen.
@@ -65,7 +65,7 @@ func (bh *BitHeader) SetBitHeader(prefixBits PrefixBits, prefixLen uint8) {
 // with explicit type conversion to PrefixBits in order to not mess up the order of parameters.
 func MakeBitHeader(prefixBits PrefixBits, prefixLen uint8) BitHeader {
 	var ret BitHeader = BitHeader{prefixBits: prefixBits, prefixLen: prefixLen}
-	ret.Validate()
+	ret.validate()
 	return ret
 }
 
@@ -79,8 +79,8 @@ func (bh *BitHeader) PrefixLen() uint8 {
 	return bh.prefixLen
 }
 
-// Validate ensures the BitHeader is valid. It panics if not.
-func (bh *BitHeader) Validate() {
+// validate ensures the BitHeader is valid. It panics if not.
+func (bh *BitHeader) validate() {
 	if bh.prefixLen > MaxLengthPrefixBits {
 		panic("bandersnatch / serialization: trying to set bit-prefix of length > 8")
 	}

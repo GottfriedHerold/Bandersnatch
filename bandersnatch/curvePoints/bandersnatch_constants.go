@@ -9,12 +9,14 @@ import (
 
 // This file collects the various constants that we use throughout the Bandersnatch implementations.
 //
-// This file is responsible for constant used in the package for the curve points.
+// This file is responsible for constant useds in the package for the curve points.
 //
-// Constanst usually have a _suffix, which has some meaning; we often provide constant in several types.
+// Constants usually have a _suffix, which has some meaning; we often provide constant in several types.
+
+// forward typedefs, to simplify things.
 
 type FieldElement = fieldElements.FieldElement
-type IsPointTrusted = common.IsPointTrusted
+type IsInputTrusted = common.IsInputTrusted
 
 // These are COPIES and unexported by design.
 var fieldElementZero = fieldElements.FieldElementZero

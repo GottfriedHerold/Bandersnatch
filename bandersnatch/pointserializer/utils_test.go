@@ -2,26 +2,15 @@ package pointserializer
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"io"
 	"math"
 	"runtime/debug"
-	"strings"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
-
-// keys in the global serializerParams act case-insensitve, which is implemented via normalization to lowercase. So the entries in the map must be lowercase.
-func TestParamsLowercase(t *testing.T) {
-	for key := range serializerParams {
-		if key != strings.ToLower(key) {
-			t.Fatalf("serializerParams has non-lowercased key %v", key)
-		}
-	}
-}
 
 func TestConsumeExpectRead(t *testing.T) {
 	var buf bytes.Buffer
@@ -54,9 +43,10 @@ func TestConsumeExpectRead(t *testing.T) {
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("consumeExpectRead on empty read did not report EOF. Got %v instead", err)
 	}
-	// in particular, this checks that err.Data is non-nil
-	if len(err.Data) != 0 {
-		t.Fatalf("consumderExpectRead on empty read did not report empty read values on error. Got %v instead", err.Data)
+	errData := err.GetData()
+
+	if errData.BytesRead != 0 || len(errData.ActuallyRead) != 0 || errData.PartialRead {
+		t.Fatalf("consumderExpectRead on empty read did reported unexpected metadata %v", errData)
 	}
 	buf.Reset()
 	buf.Write(data[0:3])
@@ -67,13 +57,12 @@ func TestConsumeExpectRead(t *testing.T) {
 	if !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("consumeExpectRead on too short reader did not report io.ErrUnexpectedEOF. Got %v instead", err)
 	}
-	// bytes.Equal would treat nil as empty slice.
-	if err.Data == nil {
-		t.Fatalf("consumeExpectRead on too short reader reported nil err.Data")
+
+	errData = err.GetData()
+	if !bytes.Equal(errData.ActuallyRead, data[0:3]) || !errData.PartialRead {
+		t.Fatalf("consumeExpectRead on too short reader reported unexpected metadata. Got %v", errData)
 	}
-	if !bytes.Equal(err.Data, data[0:3]) {
-		t.Fatalf("consumeExpectRead on too short reader reported from data in err.Data. Got %v instead", err.Data)
-	}
+
 	data2 := []byte{1, 2, 3, 5, 6}
 	buf.Reset()
 	buf.Write(data)
@@ -84,12 +73,12 @@ func TestConsumeExpectRead(t *testing.T) {
 	if !errors.Is(err, bandersnatchErrors.ErrDidNotReadExpectedString) {
 		t.Fatalf("consumeExpectRead on mismatched data did not report expected error. Got %v instead", err)
 	}
-	if err.Data == nil {
-		t.Fatalf("consumeExpectRead on mismatched data returned nil in err.Data")
+
+	errData = err.GetData()
+	if !bytes.Equal(errData.ActuallyRead, data[0:5]) || !bytes.Equal(errData.ExpectedToRead, data2) {
+		t.Fatalf("consumeExpectRead on mismatched data did not return expected metadata. Got %v instead", errData)
 	}
-	if !bytes.Equal(err.Data, data[0:5]) {
-		t.Fatalf("consumeExpectRead on mismatched data did not return expected err.Data. Got %v instead", err.Data)
-	}
+
 	bytes_read, err = consumeExpectRead(nil, []byte{})
 	if err != nil {
 		t.Fatalf("consumeExpectRead of empty slice failed for nil reader with error %v", err)
@@ -107,44 +96,6 @@ func TestConsumeExpectRead(t *testing.T) {
 	}
 	if !testutils.CheckPanic(consumeExpectRead, &buf, []byte(nil)) {
 		t.Fatalf("consumeExpectRead on nil expectToRead did not panic")
-	}
-}
-
-type dummyGetterOnly struct{}
-
-func (*dummyGetterOnly) GetEndianness() binary.ByteOrder { return binary.LittleEndian }
-
-type dummySetterOnly struct{}
-
-func (*dummySetterOnly) SetEndianness(b binary.ByteOrder) {}
-
-type dummyGetterAndSetter struct {
-	dummyGetterOnly
-	dummySetterOnly
-}
-
-func TestHasParameters(t *testing.T) {
-	var nilEndianness *fieldElementEndianness = nil
-	if !testutils.CheckPanic(hasParameter[fieldElementEndianness], nilEndianness, "invalidParameter") {
-		t.Fatalf("hasParameter did not panic on unrecognized parameter")
-	}
-	if hasParameter(nilEndianness, "SubgroupOnly") {
-		t.Fatalf("hasParameter returned true when it should not")
-	}
-	if !hasParameter(nilEndianness, "endianness") {
-		t.Fatalf("hasParameter returned false when it should not")
-	}
-	var getterOnly *dummyGetterOnly = nil
-	var setterOnly *dummySetterOnly = nil
-	var setterAndGetter *dummyGetterAndSetter = nil
-	if hasParameter(getterOnly, "endianness") {
-		t.Fatalf("hasParameter returned true for struct with getter only")
-	}
-	if hasParameter(setterOnly, "endianness") {
-		t.Fatalf("hasParameter returned true for struct with setter only")
-	}
-	if !hasParameter(setterAndGetter, "endianness") {
-		t.Fatalf("hasParamter returned false for struct with both getter and setter")
 	}
 }
 

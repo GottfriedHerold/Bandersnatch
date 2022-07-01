@@ -73,6 +73,11 @@ func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
 	*z = result
 }
 
+// MultiInversionErrorData is the struct type that holds the additional information
+// if a Multi-Inversion of field elements goes wrong due to division by zero.
+//
+// In this case, the returned error satisfies the errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] interface.
+// in particular, the returned error has a method with signature GetData() MultiInversionErrorData.
 type MultiInversionErrorData struct {
 	ZeroIndices         []bool
 	NumberOfZeroIndices int
@@ -85,8 +90,8 @@ type MultiInversionErrorData struct {
 //
 // NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
 //
-// The returned error satisfies the interface MultiInversionError, which extends error
-// by allowing to retrieve which and how many args were 0.
+// If non-nil, the returned error satisfies the interface MultiInversionError and wraps ErrDivisionByZero.
+// The MultiInversionError extends error by allowing to retrieve which and how many args were 0.
 func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	L := len(args)
 
@@ -153,8 +158,8 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 // MultiInvertEq replaces every element in args by its multiplicative inverse.
 // If any arguments are zero, returns a non-nil error without modifying any of the args.
 //
-// The returned error satisfies the interface MultiInversionError, which extends error
-// by allowing to retrieve which and how many args were 0.
+// If non-nil, the returned error satisfies the interface MultiInversionError and wraps ErrDivisionByZero.
+// The MultiInversionError extends error by allowing to retrieve which and how many args were 0.
 func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 	L := len(args)
 	// special case L==0, L==1 to allow optimizing the initial cases

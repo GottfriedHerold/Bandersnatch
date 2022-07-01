@@ -4,6 +4,8 @@ import (
 	"errors"
 )
 
+// TODO: Move these definitions around?
+
 var ErrWillNotSerializePointOutsideSubgroup = errors.New("bandersnatch / point serialization: trying to serialize point outside subgroup while serializer is subgroup-only")
 
 // Note: If X/Z is not on the curve, we might get either a "not on curve" or "not in subgroup" error. Should we clarify the wording to reflect that?

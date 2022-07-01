@@ -7,6 +7,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
+// This file contains common code that is often needed to modify errors
+
 // UnexptectEOF turns an (error wrapping an) io.EOF error into an io.UnexpectedEOF or an error wrapping io.UnexpectedEOF.
 // io.UnexpectedEOF is commonly used by the standard library to indicate an EOF when reading multiple bytes from a stream and there was an EOF in the middle of reading.
 // By contrast, io.EOF is returned when there is an EOF at the beginning.

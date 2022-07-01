@@ -1068,7 +1068,7 @@ func (p *point_xtw_base) NegEq() {
 //
 // NOTE: Calling this checks for NaPs even for TrustedInput.
 // We make no guarantees whatsoever when calling it on points outside the subgroup with TrustedInput.
-func (p *Point_xtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+func (p *Point_xtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsInputTrusted) (ok bool) {
 	if input.IsNaP() {
 		napEncountered("Converting NaP to xtw via SetFromSubgroupPoint", false, input)
 		*p = Point_xtw_subgroup{}
@@ -1110,7 +1110,7 @@ func (p *Point_xtw_subgroup) SetFromSubgroupPoint(input CurvePointPtrInterfaceRe
 //
 // NOTE: Calling this checks for NaPs even for TrustedInput.
 // We make no guarantees whatsoever when calling it on points outside the subgroup with TrustedInput.
-func (p *Point_xtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsPointTrusted) (ok bool) {
+func (p *Point_xtw_full) SetFromSubgroupPoint(input CurvePointPtrInterfaceRead, trusted IsInputTrusted) (ok bool) {
 	if input.IsNaP() {
 		napEncountered("Converting NaP point to xtw subgroup point", false, input)
 		*p = Point_xtw_full{}

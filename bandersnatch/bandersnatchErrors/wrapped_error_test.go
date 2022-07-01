@@ -1,5 +1,7 @@
 package bandersnatchErrors
 
+// TODO: This test file will be removed, because the object it's testing is deprecated.
+
 import (
 	"errors"
 	"io"

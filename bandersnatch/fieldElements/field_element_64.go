@@ -140,6 +140,8 @@ var bsFieldElement_64_minusone bsFieldElement_64 = bsFieldElement_64{words: [4]u
 // The number 2^256 in Montgomery form.
 var bsFieldElement_64_r bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: rsquared_64_0, 1: rsquared_64_1, 2: rsquared_64_2, 3: rsquared_64_3}}
 
+// Benchmarking only:
+
 var _ = callcounters.CreateHierarchicalCallCounter("FieldOps", "Field Operations", "")
 var _ = callcounters.CreateHierarchicalCallCounter("AddSubFe", "Additions and Subtractions", "FieldOps")
 var _ = callcounters.CreateHierarchicalCallCounter("Multiplications", "", "FieldOps")

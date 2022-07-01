@@ -2,20 +2,72 @@ package exponents
 
 import (
 	"math/big"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 )
 
-// Data used to speed up exponentiation with the endomorphism:
-// Consider the lattice L consisting of vectors (u,v), s.t. u*P + v*psi(P) = neutral element for any elliptic curve point P in the subgroup and psi the endomorphism.
-// Because psi acts by multiplication by EndoEigenvalue==sqrt(-2) on the p253-subgroup, this is equivalent to u + v* EndoEigenvalue = 0 mod p253.
+// TODO: Doc is notationally not up-to-date
+
+// This file contains the code that is used to perform GLV decomposition.
+// This means that, given some t, we want to find a pair (u,v) such that
+// t*P = u*P + v*Endo(P) for any point P in the prime-order subgroup,
+// where Endo is the efficiently computable Endomorphism of the curve.
+//
+// In order for this to be useful, we want (u,v) to be small, of order approx. sqrt(p253)
+//
+// Finding such u,v helps to make exponentiation by t faster.
+// (Note that most of the benefit is reaped if P is not known in advance, since
+// the gains from P-based precomputation are in some sense shared)
+
+// Our algorithm makes use of some precomputed data:
+// Consider the lattice L consisting of vectors (a,b), s.t. a*P + b*Endo(P) = neutral element for any elliptic curve point P in the subgroup and Endo the endomorphism.
+// Because Endo acts by multiplication by EndoEigenvalue==sqrt(-2) on the p253-subgroup, this is equivalent to a + b* EndoEigenvalue = 0 mod p253.
+// Note that we treat a,b as integers (i.e. not modulo p253), to view this as a lattice.
 // Clearly, a basis for L is given by (p253,0) and (EndoEigenvalue, -1)
-// We use psi to speed up arbitrary exponentiations by exponent t by noting that for P in the subgroup, t*P = a*P + b*psi(P), where (a,b) - (t,0) is in L.
-// To find good, i.e. short (a,b), we need to solve a close(st) vector problem for the lattice L.
+// For arbitrary t, the problem can now be stated as finding (u,v) where (u,v) - (t,0) is in L:
+// The latter means (u*P + v*Endo(P)) - (t * P + 0*Endo(P)) is the neutral element, so u*P + v*Endo(P) = t*P.
+// To find good, i.e. short (u,v), we hence need to solve a close(st) vector problem for the lattice L.
 // Ideally, closest is for the infinity norm, but 2-norm would be good as well; we do not care about optimality too much anyway;
-// While we actually solve it optimally, this is mostly because a) we easily can do so in dimension 2 and b) it makes testing a bit easier.
+//
+// While we actually solve it optimally, this is mostly because
+// a) we easily can do so in dimension 2 and
+// b) providing the functionality for optimal output actually makes testing a bit easier.
 
-// LLL-reduced basis for lattice L (computed with SAGE) used in GLV reduction. The basis consists of the two vectors (lBasis_11, lBasis_12) and (lBasis_21, lBasis_22).
+// The lattice L defined above does not depend on the input t, so we perform some precomputations on it:
 
-// The Voronoi cell wrt infinity-norm looks like in voronoi.svg. The 6 Voronoi-relevant vectors (colored lattice points in the figure) are given by +/- lBasis_1, +/- lBasis 2 and +/-(lBasis_1 + lBasis_2).
+// We compute an LLL-reduced basis for lattice L (computed with SAGE).
+// The basis consists of the two vectors (lBasis_11, lBasis_12) and (lBasis_21, lBasis_22):
+const (
+
+	/*
+		lBasis_11 = 113482231691339203864511368254957623327
+		lBasis_12 = 10741319382058138887739339959866629956
+		lBasis_21 = -21482638764116277775478679919733259912
+		lBasis_22 = 113482231691339203864511368254957623327
+	*/
+
+	// Note: lBasis_11 == lBasis_22 and lBasis_21 = -2*lBasis_12. This special structure is due to EndoEigenvalue^2 == -2 mod p253:
+	// For any (u,v) is in L, we have (-2v, u) in L, which is short (and a candidate for a vector of a reduced basis) if (u,v) is short.
+	// Proof: Since u + v * \sqrt(2) = 0 mod p253, multiplying by \sqrt(2) gives \sqrt(2) * u - 2 v = 0 bmod p253, i.e .(-2v, u) is in L.
+	lBasis_11_string = "113482231691339203864511368254957623327"
+	lBasis_12_string = "10741319382058138887739339959866629956"
+	lBasis_21_string = "-21482638764116277775478679919733259912"
+	lBasis_22_string = "113482231691339203864511368254957623327"
+)
+
+// Since the dimension is only 2, we can even do a bit more and compute the full set of Voronoi-relevant vectors.
+// Note that at this point we might as well do that for the infinity norm;
+// Be aware that Voronoi cells for norms other than the 2-norm are generally non-convex
+// (and their "boundaries" need not even have the right dimension in degenerate cases, making things weird).
+// For the lattice under consideration, the Voronoi cell wrt infinity-norm looks roughly like in voronoi.svg.
+// The 6 Voronoi-relevant vectors (colored lattice points in the figure) are given by
+// +/- lBasis_1,
+// +/- lBasis 2 and
+// +/-(lBasis_1 + lBasis_2).
+//
+// Being Voronoi relevant means that if for any candidate solution (u,v),
+// if all (u,v) + \vec{vor}_i (which also are solutions) are at least as long as (u,v) for all 6 Voronoi relevant vectors \vec{vor}_i,
+// then (u,v) is actually an optimal solution.
 
 // Note that our notion of Voronoi cells and Voronoi-relevant vectors are wrt to the infinity-norm throughout, which means they look at bit more complicated (in particular, the Voronoi cells are not convex).
 const (
@@ -35,22 +87,22 @@ const (
 	// For any (u,v) is in L, we have (-2v, u) in L, which is short (and a candidate for a vector of a reduced basis) if (u,v) is short.
 	// Proof: Since u + v * \sqrt(2) = 0 mod p253, multiplying by \sqrt(2) gives \sqrt(2) * u - 2 v = 0 bmod p253, i.e .(-2v, u) is in L.
 
-	lBasis_11_string = "113482231691339203864511368254957623327"
-	lBasis_12_string = "10741319382058138887739339959866629956"
-	lBasis_21_string = "-21482638764116277775478679919733259912"
-	lBasis_22_string = "113482231691339203864511368254957623327"
+	// lBasis_11_string = "113482231691339203864511368254957623327"
+	// lBasis_12_string = "10741319382058138887739339959866629956"
+	// lBasis_21_string = "-21482638764116277775478679919733259912"
+	// lBasis_22_string = "113482231691339203864511368254957623327"
 
 	glvDecompositionMax_string = "62111775536698671376125354107412126641" // maximum absolute value for u or v that we return
 	// Note: The above number equals 0x2EBA4AF7_98A290F6_21F2A932_5DAF9BB1, having exactly 126 bit
 )
 
 var (
-	lBasis_11_Int = common.common.InitIntFromString(lBasis_11_string)
-	lBasis_12_Int = common.common.InitIntFromString(lBasis_12_string)
-	lBasis_21_Int = common.common.InitIntFromString(lBasis_21_string)
-	lBasis_22_Int = common.common.InitIntFromString(lBasis_22_string)
+	lBasis_11_Int = common.InitIntFromString(lBasis_11_string)
+	lBasis_12_Int = common.InitIntFromString(lBasis_12_string)
+	lBasis_21_Int = common.InitIntFromString(lBasis_21_string)
+	lBasis_22_Int = common.InitIntFromString(lBasis_22_string)
 
-	glvDecompositionMax_Int = common.common.InitIntFromString(glvDecompositionMax_string)
+	glvDecompositionMax_Int = common.InitIntFromString(glvDecompositionMax_string)
 )
 
 // infty_norm computes the max of the absolute values of x and y.
