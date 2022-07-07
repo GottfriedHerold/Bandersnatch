@@ -90,6 +90,12 @@ func (bh *BitHeader) validate() {
 	}
 }
 
+func (bh *BitHeader) Validate() {
+	// TODO: Either No-op (since it should be impossible to trigger an error for Validate) or
+	// copy&paste from validate() and change error messages.
+	bh.validate()
+}
+
 // implicit interface with methods SetSubgroupRestriction(bool) and IsSubgroupOnly() bool defined in tests only.
 // Since we use reflection, we don't need the explicit interface here.
 

@@ -2,7 +2,23 @@ package bandersnatchErrors
 
 import (
 	"errors"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
+
+type WriteErrorData struct {
+	PartialWrite bool
+	BytesWritten int
+}
+
+type ReadErrorData struct {
+	PartialRead  bool
+	BytesRead    int
+	ActuallyRead []byte // this may contain information about data that was read when the error occured. It may be nil.
+}
+
+type SerializationError = errorsWithData.ErrorWithGuaranteedParameters[WriteErrorData]
+type DeserializationError = errorsWithData.ErrorWithGuaranteedParameters[ReadErrorData]
 
 // TODO: Move these definitions around?
 

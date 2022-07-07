@@ -251,7 +251,6 @@ func IncludeGuaranteedParametersInErrorFromMap[StructType any](err error, parame
 	return NewErrorWithGuaranteedParametersFromMap[StructType](err, "", parameters)
 }
 
-
 // NewErrorWithParameters is identical to NewErrorWithGuaranteedParameters except for the guarantee about containing data.
 func NewErrorWithParameters(baseError error, overrideMessage string, parameters ...any) ErrorWithParameters {
 	return NewErrorWithGuaranteedParameters[struct{}](baseError, overrideMessage, parameters...)
@@ -270,6 +269,17 @@ func NewErrorWithParametersFromMap(baseError error, overrideMessage string, para
 // IncludeParametersInErrorsFromMap is identical to IncludeGuaranteedParametersInErrorFromMap except for the guaranteed about containing data.
 func IncludeParametersInErrorsFromMap(baseError error, parameters map[string]any) ErrorWithParameters {
 	return IncludeGuaranteedParametersInErrorFromMap[struct{}](baseError, parameters)
+}
+
+// AsErrorWithData[StructType](err) returns a copy of the error with a data type that guarantees that a struct of type StructType is contained in the data.
+// This is intended to "downcast" StructTypes to a sub-struct. Returns nil on nil input.
+//
+// NOTE: We make not guarantees about whether the returned error wraps the input error;
+func AsErrorWithData[StructType any](baseError error) ErrorWithGuaranteedParameters[StructType] {
+	if baseError == nil {
+		return nil
+	}
+	return NewErrorWithGuaranteedParameters[StructType](baseError, "%w")
 }
 
 // TODO: global rename after old usage is refactored, intended name NewErrorWithData currently clashes.
@@ -412,14 +422,15 @@ func formatError(formatString string, parameters map[string]any, baseError error
 	var suffix string = formatString // holds the remaining yet-unprocessed part of the input.
 
 	for { // annoying to write as a "usual" for loop, because both init and iteration would need to consist of 2 lines (due to ret.WriteString(prefix)).
+
+		// No := to define prefix and found, because that would create a local temporary suffix variable, shadowing the one from the outer scope.
+
 		var prefix string
 		var found bool
-		// No :=, because that would create a local temporary suffix variable, shadowing the one from the outer scope.
-
 		// look for first % appearing and split according to that.
 		prefix, suffix, found = strings.Cut(suffix, `%`)
 
-		// everything before the first % can just go to output; for the rest (now in suffix, we need to actually do some parsing)
+		// everything before the first % can just go to output; for the rest (now in suffix), we need to actually do some parsing
 		if output {
 			ret.WriteString(prefix)
 		}
@@ -458,7 +469,7 @@ func formatError(formatString string, parameters map[string]any, baseError error
 			default:
 				// Do nothing
 			}
-		} else {
+		} else { // In the output == false-case, we just consume %%, %m, %w
 			switch suffix[0] {
 			case '%', 'm', 'w':
 				suffix = suffix[1:]

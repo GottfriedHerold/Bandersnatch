@@ -26,3 +26,10 @@ func UnexpectEOF(errPtr *error) {
 		}
 	}
 }
+
+func UnexpectEOF2[StructType any](errPtr *errorsWithData.ErrorWithGuaranteedParameters[StructType]) {
+	if errors.Is(*errPtr, io.EOF) {
+		m := errorsWithData.GetAllParametersFromError(*errPtr)
+		*errPtr = errorsWithData.NewErrorWithGuaranteedParametersFromMap[StructType](io.ErrUnexpectedEOF, "", m)
+	}
+}

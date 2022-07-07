@@ -53,6 +53,7 @@ func (s FieldElementEndianness) SetEndianness(e binary.ByteOrder) {
 const onlyLittleAndBigEndianByteOrder = true
 
 // validate checks the FieldElementEndianness for Validity.
+// This is called internally be setters.
 func (s FieldElementEndianness) validate() {
 	if s.byteOrder == nil {
 		panic("bandersnatch / serialize: cannot set FieldElementEndianness to a nil binary.ByteOrder")
@@ -63,6 +64,14 @@ func (s FieldElementEndianness) validate() {
 	if s.byteOrder != binary.BigEndian && s.byteOrder != binary.LittleEndian {
 		panic("bandersnatch / serialize: we currently only support binary.BigEndian and binary.LittleEndian from the standard library as possible endianness")
 	}
+}
+
+// Validate is required to satisfy certain (internal) cross-package interfaces.
+func (s FieldElementEndianness) Validate() {
+	if s.byteOrder == nil {
+		panic("bandersnatch / serialize: uinitialized Field Element Endianness detected.")
+	}
+	s.validate() // actually, there ought to be no way to trigger an error from this.
 }
 
 // Note: Renamed from IsBigEndian to make it possible in theory to extend from only 2 possible endiannesses without breaking the API.

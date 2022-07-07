@@ -15,6 +15,7 @@ import (
 )
 
 const PARTIAL_READ = bandersnatchErrors.PARTIAL_READ
+const PARTIAL_WRITE = bandersnatchErrors.PARTIAL_WRITE
 
 const errordata_ACTUALLYREAD = "ActuallyRead"
 

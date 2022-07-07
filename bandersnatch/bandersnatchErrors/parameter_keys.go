@@ -11,3 +11,6 @@ package bandersnatchErrors
 
 const PARTIAL_WRITE = "PartialWrite"
 const PARTIAL_READ = "PartialRead"
+
+const BYTES_READ = "BytesRead"
+const BYTES_WRITTEN = "BytesWritten"

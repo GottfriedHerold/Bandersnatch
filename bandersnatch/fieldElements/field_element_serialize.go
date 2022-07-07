@@ -40,12 +40,12 @@ var (
 // On other (io-related) errors, we might perform (partial) writes to output.
 //
 // Possible errors: io errors and ErrPrefixDoesNotFit (all possibly wrapped)
-func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytes_written int, err errorsWithData.ErrorWithGuaranteedParameters[struct{ PartialWrite bool }]) {
+func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytes_written int, err bandersnatchErrors.SerializationError) {
 	var low_endian_words [4]uint64 = z.undoMontgomery() // words in low endian order in the "obvious" representation.
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(low_endian_words[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &struct{ PartialWrite bool }{false})
+		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
 		return
 	}
 
@@ -57,7 +57,7 @@ func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHead
 	var buf []byte = make([]byte, 32)
 	byteOrder.PutUint256(buf, low_endian_words)
 	bytes_written, errPlain = output.Write(buf)
-	err = errorsWithData.IncludeDataInError(errPlain, &struct{ PartialWrite bool }{bytes_written != 0 && bytes_written != 32})
+	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytes_written != 0 && bytes_written != 32, BytesWritten: bytes_written})
 	return
 }
 
@@ -73,9 +73,13 @@ func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHead
 // On all other errors, z is untouched.
 //
 // possible errors: errors wrapping ErrPrefixLengthInvalid, ErrInvalidByteOrder, ErrNonNormalizedDeserialization, io errors
-func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err errorsWithData.ErrorWithGuaranteedParameters[struct{ PartialRead bool }]) {
+func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &struct{ PartialRead bool }{false})
+		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
+			PartialRead:  false,
+			BytesRead:    0,
+			ActuallyRead: nil, // We do not even try to read
+		})
 		return
 	}
 	var errPlain error
@@ -83,7 +87,11 @@ func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLengt
 	buf := make([]byte, 32)
 	bytesRead, errPlain = io.ReadFull(input, buf)
 	if errPlain != nil {
-		err = errorsWithData.IncludeDataInError(errPlain, &struct{ PartialRead bool }{bytesRead != 0 && bytesRead != 32})
+		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.ReadErrorData{
+			PartialRead:  bytesRead != 0 && bytesRead != 32,
+			BytesRead:    bytesRead,
+			ActuallyRead: buf[0:bytesRead],
+		})
 		return
 	}
 
@@ -98,7 +106,11 @@ func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLengt
 	z.words[3] &= bitmask_remaining
 
 	if !z.isNormalized() {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &struct{ PartialRead bool }{false})
+		err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &bandersnatchErrors.ReadErrorData{
+			PartialRead:  false,
+			BytesRead:    bytesRead,
+			ActuallyRead: buf,
+		})
 
 		// We do not immediately return, because we put z in Montgomery form before, such that the output is what we read modulo BaseFieldSize, even though we have an error.
 	}
@@ -116,16 +128,20 @@ func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLengt
 // Note: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
 // For the little endian case, we always try to read 32 bytes.
 // This behaviour might change in the future. Do not rely on it and check the returned bytesRead.
-func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err errorsWithData.ErrorWithGuaranteedParameters[struct{ PartialRead bool }]) {
+func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 
 	// var fieldElementBuffer bsFieldElement_64
 	var little_endian_words [4]uint64 // we do not write to z directly, because we need to check for errors first.
 	var buf [32]byte                  // for receiving the input of io.ReadFull
 
-	var errPlain error // io error; we need to add PartialRead flag
+	var errPlain error // errors returned to this function;
 	// automatically fill err from errPlain at the end
 	defer func() {
-		err = errorsWithData.IncludeDataInError(errPlain, &struct{ PartialRead bool }{PartialRead: bytesRead != 0 && bytesRead != 32})
+		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.ReadErrorData{
+			PartialRead:  bytesRead != 0 && bytesRead != 32,
+			BytesRead:    bytesRead,
+			ActuallyRead: buf[0:bytesRead],
+		})
 	}()
 	expectedPrefixLength := expectedPrefix.PrefixLen()
 	expectedPrefixBits := expectedPrefix.PrefixBits()
@@ -189,16 +205,16 @@ func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefi
 // Other values for err are possible: in particular io errors from input.
 //
 // If any error other than ErrNonNormalizedDeserialization occurs, we keep z untouched.
-func (z *bsFieldElement_64) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err errorsWithData.ErrorWithGuaranteedParameters[struct{ PartialRead bool }]) {
-	bytesRead, _, err = z.DeserializeAndGetPrefix(input, 0, byteOrder) // _ == 0
+func (z *bsFieldElement_64) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	bytesRead, _, err = z.DeserializeAndGetPrefix(input, 0, byteOrder) // The ignored _ is guaranteed to be 0
 	return
 }
 
 // Serialize(output, byteOrder) serializes the received field element to output. It interprets the field element as a 32-byte number in 0<=.<BaseFieldSize (not in Montgomery Form) and tries to write
 // 32 bytes to output. byteOrder should be BigEndian or LittleEndian and refers to the ordering of bytes (not words) in output.
 // The return values are the actual number of bytes written and a potential error (such as io errors).
-// If no error happened, err == nil, in which case we are guaranteed that bytes_written == 32.
-func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err errorsWithData.ErrorWithGuaranteedParameters[struct{ PartialWrite bool }]) {
+// If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
+func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	bytesWritten, err = z.SerializeWithPrefix(output, BitHeader{}, byteOrder)
 	return
 }

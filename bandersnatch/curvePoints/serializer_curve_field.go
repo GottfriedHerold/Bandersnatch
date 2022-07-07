@@ -11,7 +11,7 @@ import (
 // This should be seen as part of serialization to byte streams: usually, we go curve points <-> field elements (+ some extra bits) <-> bye streams
 //
 // Note that the specific errors that functions in this file may output (wrapped) are not defined here, but
-// in the bandersnatchErrors package. The reason is that some of these errors are shared.
+// in the bandersnatchErrors package. The reason is that some of these errors are shared between the curvePoints and the field element packages.
 // panic error message are defined locally, however.
 
 // Bandersnatch-specific MapToFieldElement. We prefer this over more common choices such as X/Z or Y/Z, because
