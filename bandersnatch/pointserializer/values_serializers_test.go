@@ -7,8 +7,12 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
+
+var defaultEndianness = common.DefaultEndian
 
 type OutputLengthAware interface {
 	OutputLength() int32
@@ -22,23 +26,42 @@ var allValuesSerializers []OutputLengthAware = []OutputLengthAware{
 	&valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness},
 }
 
-func TestValueSerializersHasClonableAndVerify(t *testing.T) {
-	for _, basicSerializer := range allValuesSerializers {
-		serializerType := reflect.TypeOf(basicSerializer)
+var allValueSerializerTypes []reflect.Type = []reflect.Type{
+	utils.TypeOfType[valuesSerializerFe](),
+	utils.TypeOfType[valuesSerializerHeaderFe](),
+	utils.TypeOfType[valuesSerializerFeFe](),
+	utils.TypeOfType[valuesSerializerHeaderFeHeaderFe](),
+	utils.TypeOfType[valuesSerializerFeCompressedBit](),
+}
+
+// TODO: Check that this works with the oop.go - functions.
+
+// This tests that all value serializer types satisfy some constraints on the type such as having a Clone() - function.
+// Since the return type of Clone depends on the type of the value serializer itself, we need reflection to express that
+// (We could do it with generics, but then we could not write it as a loop over a global array that is shared across tests)
+func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
+	for _, serializerType := range allValueSerializerTypes {
 		ok, reason := testutils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{serializerType})
 		if !ok {
 			t.Error(reason)
 		}
-		ok, reason = testutils.DoesMethodExist(serializerType, "Verify", []reflect.Type{}, []reflect.Type{})
+		ok, reason = testutils.DoesMethodExist(serializerType, "Validate", []reflect.Type{}, []reflect.Type{})
 		if !ok {
 			t.Error(reason)
 		}
+		ok, reason = testutils.DoesMethodExist(serializerType, "OutputLength", []reflect.Type{}, []reflect.Type{utils.TypeOfType[int32]()})
+		if !ok {
+			t.Error(reason)
+		}
+		// NOTE: We might also check for SerializeValues and DeserializeValues here.
+		// Currently, this is done in the TestValuesSerializersRountrip test.
 	}
 }
 
-func TestAllValuesSerializersVerify(t *testing.T) {
+// This Test runs Validate on all values Serializers that we defined above.
+func TestAllValuesSerializersValidate(t *testing.T) {
 	for _, basicSerializer := range allValuesSerializers {
-		basicSerializer.(Verifier).Verify()
+		basicSerializer.(validater).Validate()
 	}
 }
 

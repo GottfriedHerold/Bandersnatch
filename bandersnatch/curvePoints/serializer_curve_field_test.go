@@ -1,4 +1,4 @@
-package bandersnatch
+package curvePoints
 
 import (
 	"errors"
@@ -77,8 +77,9 @@ func TestRecoverYFromXAffine(t *testing.T) {
 	const iterations = 1000
 	var temp FieldElement
 	for i := 0; i < iterations; i++ {
+		var err error
 		temp.SetRandomUnsafe(rng)
-		_, err := recoverYFromXAffine(&temp, true)
+		_, err = recoverYFromXAffine(&temp, true)
 		if err == nil {
 			num_good++
 		} else if errors.Is(err, ErrXNotOnCurve) {
@@ -105,6 +106,8 @@ func TestRecoverYFromXAffine(t *testing.T) {
 
 // Test for the recoverXFromYAffine functions
 func TestRecoverXFromYAffine(t *testing.T) {
+	var err error
+
 	// Like for TestRecoverYFromXAffine, we first check behaviour for Y coos where we know they correspond to a point.
 	var checkfun_recover_x checkfunction = func(s *TestSample) (bool, string) {
 		s.AssertNumberOfPoints(1)
@@ -133,7 +136,7 @@ func TestRecoverXFromYAffine(t *testing.T) {
 	// Check special values for Y:
 
 	// These values correspond to the points at infinity (where the Y/Z value actually extends).
-	_, err := recoverXFromYAffine(&yAtInfinity_E1)
+	_, err = recoverXFromYAffine(&yAtInfinity_E1)
 	if err == nil {
 		t.Fatal("recoverXFromYAffine does not produce error for Y=sqrt(d/a)")
 	}
@@ -165,7 +168,7 @@ func TestRecoverXFromYAffine(t *testing.T) {
 	var temp FieldElement
 	for i := 0; i < iterations; i++ {
 		temp.SetRandomUnsafe(rng)
-		_, err := recoverXFromYAffine(&temp)
+		_, err = recoverXFromYAffine(&temp)
 		if err == nil {
 			num_good++
 		} else if errors.Is(err, ErrYNotOnCurve) {

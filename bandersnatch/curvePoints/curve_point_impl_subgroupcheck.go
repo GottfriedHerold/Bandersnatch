@@ -1,4 +1,4 @@
-package bandersnatch
+package curvePoints
 
 // These functions perform subgroup checks.
 // They are defined not on curvepoints, but rather on coordinates, because

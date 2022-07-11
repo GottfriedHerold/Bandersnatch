@@ -2,7 +2,7 @@
 
 // TODO: merge into serializer_test.go
 
-package bandersnatch
+package curvePoints
 
 import (
 	"bytes"

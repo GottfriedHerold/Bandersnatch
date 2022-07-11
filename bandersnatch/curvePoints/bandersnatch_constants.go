@@ -1,4 +1,4 @@
-package bandersnatch
+package curvePoints
 
 import (
 	"math/big"

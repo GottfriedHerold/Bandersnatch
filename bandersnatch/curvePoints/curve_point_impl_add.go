@@ -1,4 +1,4 @@
-package bandersnatch
+package curvePoints
 
 // TODO: Exceptional cases not specified.
 

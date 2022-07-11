@@ -1,6 +1,6 @@
 //go:build ignore
 
-package bandersnatch
+package curvePoints
 
 import (
 	"testing"

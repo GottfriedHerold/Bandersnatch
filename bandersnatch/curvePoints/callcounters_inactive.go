@@ -4,7 +4,7 @@
 // functions. This file is selected if callcounters is not an active build tag
 // and ensures we have no overhead from these benchmark-utils.
 
-package bandersnatch
+package curvePoints
 
 import (
 	"testing"

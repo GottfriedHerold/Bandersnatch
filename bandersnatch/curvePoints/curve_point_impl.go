@@ -1,4 +1,4 @@
-package bandersnatch
+package curvePoints
 
 /*
 	Note: Suffixes like _ttt or _tta refer to the type of input point (with order output, input1 [,input2] )

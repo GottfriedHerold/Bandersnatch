@@ -1,4 +1,4 @@
-package bandersnatch
+package curvePoints
 
 // this file contains internal function that add 2-torsion points to given points.
 // This is mostly used in testing.

@@ -128,8 +128,8 @@ func makeCopyWithParams[SerializerType any, SerializerPtr interface {
 	// Any setter called above should, of course, validate whether the input is valid;
 	// however in some cases, there are constraints that cannot be handled by the setter
 	// (such as a setter from a struct-embedded type, where there are constraints imposed via the embedding type)
-	if verifiableClone, ok := any(clone).(validater); ok {
-		verifiableClone.Validate()
+	if validateableClone, ok := any(clone).(validater); ok {
+		validateableClone.Validate()
 	}
 	return *clone
 }

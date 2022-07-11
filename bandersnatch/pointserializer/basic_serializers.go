@@ -6,34 +6,34 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file is part of the serialization-for-curve-points package.
 // This package defines types that act as (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
-// (De)serializers then have methods that are called with the actual curve point(s) as arguments to serialize them.
-
-type errorWithPartialRead = bandersnatchErrors.ErrorWithData[bool]
+// (De)serializers then have methods that are called with the actual curve point(s) as arguments to (de)serialize them.
 
 // This file defines basic serializers that serialize and deserialize a single curve point.
 
 // curvePointDeserializer_basic is a deserializer for single curve points
 type curvePointDeserializer_basic interface {
-	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point. TrustLevel determines whether we trust the input to be a valid representation of a curve point.
+	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point.
+	// TrustLevel determines whether we trust the input to be a valid representation of a curve point.
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
 	// On error, outputPoint is kept unchanged.
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
-	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
-	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers withot serializers, it is an upper bound.
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type. This indicates whether the deserializer is only for subgroup points.
+	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers without serializers, it is an upper bound.
 
-	GetParameter(parameterName string) interface{} // obtains a parameter (such as endianness. parameterName is a case-insensitive.
-	GetEndianness() binary.ByteOrder               // returns the endianness used for field element serialization
-	Verifier
-
-	// additional required interface (checked and accessed via reflection, because Go's type system is too weak to express this)
-	// WithParameter(parameterName string, newParam any) SELF  // returns a (non-pointer) copy of the receiver with parameter paramName replaced by newParam.
-	// WithEndianness(binary.ByteOrder) SELF // returns a (non-pointer) copy of the receiver with the desired endianness for field element serialization. Only supports binary.LittleEndian and binary.BigEndian
+	GetParameter(parameterName string) any        // obtains a parameter (such as endianness. parameterName is a case-insensitive.
+	GetEndianness() common.FieldElementEndianness // returns the endianness used for field element serialization.
+	validater
 }
+
+// TODO: Rename
 
 type modifyableSerializer[SelfValue any] interface {
 	WithParameter(parameterName string, newParam any) SelfValue
@@ -49,7 +49,7 @@ type modifyableDeserializer_basic[SelfValue any] interface {
 // curvePointSerializer_basic is a serializer+deserializer for single curve points.
 type curvePointSerializer_basic interface {
 	curvePointDeserializer_basic
-	SerializeCurvePoint(outputStream io.Writer, inputPoint bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err *errorWithPartialRead)
+	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
 }
 
 type modifyableSerializer_basic[SelfValue any] interface {
@@ -59,13 +59,13 @@ type modifyableSerializer_basic[SelfValue any] interface {
 
 // TODO: Separate into separate checks?
 
-// checkPointSerializability verifies that the point is not a NaP or infinite. If subgroupCheck is set to true, also ensures that the point is in the p253-prime order subgroup.
+// checkPointSerializability verifies that the point is not a NaP or infinite. If performSubgroupCheck is set to true, also ensures that the point is in the p253-prime order subgroup.
 // If everything is fine, returns nil. These correspond to the points that we usually want to serialize.
 //
 // Note: This function is is typically called before serializing (not for deserializing), where we do not have a trustLevel argument.
 // This means that we always check whether the point is in the subgroup for any writes if the serializer is subgroup-only. Note for efficiency that this check is actually
 // trivial if the type of point can only represent subgroup elements; we assume that this is the most common usage scenario.
-func checkPointSerializability(point bandersnatch.CurvePointPtrInterfaceRead, subgroupCheck bool) (err error) {
+func checkPointSerializability(point curvePoints.CurvePointPtrInterfaceRead, performSubgroupCheck bool) (err error) {
 	if point.IsNaP() {
 		err = bandersnatchErrors.ErrCannotSerializeNaP
 		return
@@ -74,7 +74,7 @@ func checkPointSerializability(point bandersnatch.CurvePointPtrInterfaceRead, su
 		err = bandersnatchErrors.ErrCannotSerializePointAtInfinity
 		return
 	}
-	if subgroupCheck {
+	if performSubgroupCheck {
 		if !point.IsInSubgroup() {
 			err = bandersnatchErrors.ErrWillNotSerializePointOutsideSubgroup
 			return
@@ -82,6 +82,11 @@ func checkPointSerializability(point bandersnatch.CurvePointPtrInterfaceRead, su
 	}
 	return nil
 }
+
+// forward / type alias to non-exported type.
+
+type subgroupRestriction = common.SubgroupRestriction
+type subgroupOnly = common.SubgroupOnly
 
 // we now define some "basic" serializers, basic being in the sense that they only allow (de)serializing a single point.
 // They also do not allow headers (except possibly embedded)
@@ -95,10 +100,20 @@ type pointSerializerXY struct {
 	subgroupRestriction // wraps a bool
 }
 
-func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) {
-	err = checkPointSerializability(point, s.IsSubgroupOnly())
-	if err != nil {
-		bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
+func addErrorDataNoWrite(err error) bandersnatchErrors.SerializationError {
+	if err == nil {
+		return nil
+	}
+	return errorsWithData.NewErrorWithParametersFromData[bandersnatchErrors.WriteErrorData](err, "", &bandersnatchErrors.WriteErrorData{
+		PartialWrite: false,
+		BytesWritten: 0,
+	})
+}
+
+func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+	var errPlain error = checkPointSerializability(point, s.IsSubgroupOnly())
+	if errPlain != nil {
+		err = addErrorDataNoWrite(errPlain)
 		return
 	}
 	X, Y := point.XY_affine()
@@ -106,7 +121,7 @@ func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point bandersn
 	return
 }
 
-func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error) {
+func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	var X, Y bandersnatch.FieldElement
 	// var errPlain error
 	bytesRead, err, X, Y = s.DeserializeValues(input)
@@ -115,10 +130,16 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel ba
 	}
 	if s.IsSubgroupOnly() || point.CanOnlyRepresentSubgroup() {
 		// using a temporary P here to ensure P is unchanged on error
-		var P bandersnatch.Point_axtw_subgroup
-		P, err = bandersnatch.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
-		if err != nil {
-			bandersnatchErrors.IncludeParametersInError(&err, PARTIAL_READ_FLAG, false)
+		var P curvePoints.Point_axtw_subgroup
+		P, errPlain := curvePoints.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
+		if errPlain != nil {
+			err = errorsWithData.NewErrorWithParametersFromData[bandersnatchErrors.ReadErrorData](errPlain, "", &bandersnatchErrors.ReadErrorData{
+				PartialRead:  false,
+				BytesRead:    int(s.OutputLength()),
+				ActuallyRead: nil,
+			})
+			// TODO: Do that in CurvePointFromXYAffine_subgroup
+			// err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w. The coordinates read were x=%v{X}, y=%v{Y}","X",X, "Y",Y)
 			return
 		}
 		point.SetFrom(&P)

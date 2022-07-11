@@ -16,6 +16,8 @@ import "encoding/binary"
 // We have no idea what e.g. SetEndianness(MixedEndian) for some custom MixedEndian type satisfying binary.ByteOrder should do.
 // If FieldElementEndianness becomes an interface, this restriction is lifted.
 
+type byteOrder = binary.ByteOrder // type alias to allow private struct embedding
+
 // FieldElementEndianness is a struct satisfying binary.ByteOrder, extended to also allow (de)serializing
 // 256-bit numbers, as required to serialize field elements.
 //
@@ -25,20 +27,20 @@ import "encoding/binary"
 // The zero value of FieldElementEndianness is not a usable object.
 // We provide BigEndian, LittleEndian or DefaultEndian instances of this type.
 type FieldElementEndianness struct {
-	byteOrder binary.ByteOrder // we actually want to struct embed the interface, but without exporting it. Unfortunately, Go does not let us do this.
+	byteOrder
 }
 
-// GetEndianness unwraps FieldElementEndianness to binary.ByteOrder
-func (s FieldElementEndianness) GetEndianness() binary.ByteOrder {
-	return s.byteOrder
+// GetEndianness is a simple getter. This exists for the sake of struct-embedding.
+func (s FieldElementEndianness) GetEndianness() FieldElementEndianness {
+	return s
 }
 
 // SetEndianness sets FieldElementEndianess by wrapping e.
-// We only accept (literal) binary.LittleEndian or binary.BigEndian or any *FieldElementEndianness.
+// We only accept (literal) binary.LittleEndian or binary.BigEndian or any FieldElementEndianness.
 // Other values will cause a panic.
-func (s FieldElementEndianness) SetEndianness(e binary.ByteOrder) {
-	if wrapping, ok := e.(FieldElementEndianness); ok {
-		s.byteOrder = wrapping.byteOrder
+func (s *FieldElementEndianness) SetEndianness(e binary.ByteOrder) {
+	if e_fe, ok := e.(FieldElementEndianness); ok {
+		s.byteOrder = e_fe.byteOrder
 		s.validate()
 	} else {
 		s.byteOrder = e
@@ -83,44 +85,6 @@ func (s FieldElementEndianness) StartsWithMSB() bool {
 		panic("Needs to change")
 	}
 	return s.byteOrder == binary.BigEndian
-}
-
-// forward function from binary.ByteOrder, so FieldElementEndianness actually satisfies binary.ByteOrder
-
-// Uint64 is provided to satisfy binary.ByteOrder.
-func (s FieldElementEndianness) Uint64(in []byte) uint64 {
-	return s.byteOrder.Uint64(in)
-}
-
-// Uint32 is provided to satisfy binary.ByteOrder.
-func (s FieldElementEndianness) Uint32(in []byte) uint32 {
-	return s.byteOrder.Uint32(in)
-}
-
-// Uint16 is provided to satisfy binary.ByteOrder.
-func (s FieldElementEndianness) Uint16(in []byte) uint16 {
-	return s.byteOrder.Uint16(in)
-}
-
-// PutUint64 is provided to satisfy binary.ByteOrder.
-func (s FieldElementEndianness) PutUint64(out []byte, in uint64) {
-	s.byteOrder.PutUint64(out, in)
-}
-
-// PutUint32 is provided to satisfy binary.ByteOrder.
-func (s FieldElementEndianness) PutUint32(out []byte, in uint32) {
-	s.byteOrder.PutUint32(out, in)
-}
-
-// PutUint16 is provided to satisfy binary.ByteOrder.
-func (s FieldElementEndianness) PutUint16(out []byte, in uint16) {
-	s.byteOrder.PutUint16(out, in)
-}
-
-// String() is provided to satisfy binary.ByteOrder.
-// It just forwards to the underling binary.ByteOrder.
-func (s FieldElementEndianness) String() string {
-	return s.byteOrder.String()
 }
 
 // Annoying: I would want to write UInt256 rather than Uint256, but binary.ByteOrder used Uint64 etc.
