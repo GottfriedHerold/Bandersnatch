@@ -382,6 +382,11 @@ func DeleteParameterFromError(err error, parameterName string) unconstrainedErro
 	return &errorWithParameters_T[struct{}]{errorWithParameters_common: ret}
 }
 
+// WrapErrorWithParameters returns a new error based on baseError with error message given by message (which is subject to interpolation).
+func WrapErrorWithParameter[StructType any](baseError ErrorWithGuaranteedParameters[StructType], message string) ErrorWithGuaranteedParameters[StructType] {
+	return NewErrorWithGuaranteedParameters[StructType](baseError, message)
+}
+
 // Exported for cross-package testing. Will be removed/replaced by callback. Not part of the official interface
 var GetDataPanicOnNonExistentKeys = false
 

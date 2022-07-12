@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -92,7 +92,7 @@ func TestValuesSerializersRountrip(t *testing.T) {
 		for j := 0; j < numInputs; j++ {
 			inputTypes[j] = valuesSerializerFunType.In(j)
 		}
-		feType := reflect.TypeOf(&bandersnatch.FieldElement{})
+		feType := reflect.TypeOf(&fieldElements.FieldElement{})
 		boolType := reflect.TypeOf(bool(true))
 		const iterations = 20
 		var buf bytes.Buffer
@@ -102,7 +102,7 @@ func TestValuesSerializersRountrip(t *testing.T) {
 			for j := 1; j < numInputs; j++ {
 				switch inputTypes[j] {
 				case feType:
-					var fe bandersnatch.FieldElement
+					var fe fieldElements.FieldElement
 					fe.SetRandomUnsafe(drng)
 					inputs[j] = reflect.ValueOf(&fe)
 					expectedLen += 32
@@ -156,8 +156,8 @@ func TestValuesSerializersRountrip(t *testing.T) {
 			for j := 1; j < numInputs; j++ {
 				switch inputTypes[j] {
 				case feType:
-					var feIn *bandersnatch.FieldElement = inputs[j].Interface().(*bandersnatch.FieldElement)
-					var feGot bandersnatch.FieldElement = outputs[j+1].Interface().(bandersnatch.FieldElement)
+					var feIn *fieldElements.FieldElement = inputs[j].Interface().(*fieldElements.FieldElement)
+					var feGot fieldElements.FieldElement = outputs[j+1].Interface().(fieldElements.FieldElement)
 					if !feIn.IsEqual(&feGot) {
 						t.Fatalf("For %v, did not get back %v'th value (starting at 1) of type FieldElement via DeserializeValues that were serialized vie SerializeValues", typeName, j)
 					}

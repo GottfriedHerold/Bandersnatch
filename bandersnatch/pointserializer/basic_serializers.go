@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -24,7 +24,7 @@ type curvePointDeserializer_basic interface {
 	// TrustLevel determines whether we trust the input to be a valid representation of a curve point.
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
 	// On error, outputPoint is kept unchanged.
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type. This indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers without serializers, it is an upper bound.
 
@@ -121,8 +121,8 @@ func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoi
 	return
 }
 
-func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	var X, Y bandersnatch.FieldElement
+func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	var X, Y fieldElements.FieldElement
 	// var errPlain error
 	bytesRead, err, X, Y = s.DeserializeValues(input)
 	if err != nil {
@@ -212,8 +212,8 @@ func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point c
 	return
 }
 
-func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	var X bandersnatch.FieldElement
+func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	var X fieldElements.FieldElement
 	var signBit bool
 	bytesRead, err, X, signBit = s.DeserializeValues(input)
 	if err != nil {
@@ -279,7 +279,7 @@ func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder
 
 func (s *pointSerializerXAndSignY) OutputLength() int32 { return 32 }
 
-func (s *pointSerializerXAndSignY) GetParam(parameterName string) interface{} {
+func (s *pointSerializerXAndSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
@@ -312,8 +312,8 @@ func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point c
 	return
 }
 
-func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	var Y bandersnatch.FieldElement
+func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	var Y fieldElements.FieldElement
 	var signBit bool
 	bytesRead, err, Y, signBit = s.DeserializeValues(input)
 	if err != nil {
@@ -367,7 +367,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 
 		// Special case for Y = +/-1: We have X=0. In that case, we only accept signBit = false, as that's what we write when serializing.
 		{
-			var X bandersnatch.FieldElement = P.X_decaf_affine()
+			var X fieldElements.FieldElement = P.X_decaf_affine()
 			if X.IsZero() && signBit {
 				err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrUnexpectedNegativeZero, "", utils.AddressOfCopy(errData))
 				if trustLevel.Bool() {
@@ -399,7 +399,7 @@ func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder
 
 func (s *pointSerializerYAndSignX) OutputLength() int32 { return 32 }
 
-func (s *pointSerializerYAndSignX) GetParam(parameterName string) interface{} {
+func (s *pointSerializerYAndSignX) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
@@ -433,8 +433,8 @@ func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point
 	return
 }
 
-func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	var XSignY bandersnatch.FieldElement
+func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	var XSignY fieldElements.FieldElement
 	bytesRead, err, XSignY = s.DeserializeValues(input)
 	if err != nil {
 		return
@@ -471,7 +471,7 @@ func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrd
 
 func (s *pointSerializerXTimesSignY) OutputLength() int32 { return 32 }
 
-func (s *pointSerializerXTimesSignY) GetParam(parameterName string) interface{} {
+func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
@@ -506,8 +506,8 @@ func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, poin
 	return
 }
 
-func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel bandersnatch.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	var XSignY, YSignY bandersnatch.FieldElement
+func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	var XSignY, YSignY fieldElements.FieldElement
 	bytesRead, err, YSignY, XSignY = s.DeserializeValues(input)
 	if err != nil {
 		return
@@ -557,7 +557,7 @@ func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOr
 
 func (s *pointSerializerYXTimesSignY) OutputLength() int32 { return 64 }
 
-func (s *pointSerializerYXTimesSignY) GetParam(parameterName string) interface{} {
+func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 

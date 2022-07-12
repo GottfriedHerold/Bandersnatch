@@ -173,4 +173,3 @@ func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, p
 	retValue := getterMethod.Call([]reflect.Value{})[0] // Note: If the getter method returns an interface, retValue.Type() is actually this static interface type.
 	return retValue.Interface()
 }
-

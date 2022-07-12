@@ -1,3 +1,5 @@
+//go:build ignore
+
 package pointserializer
 
 import (
@@ -6,12 +8,14 @@ import (
 	"io"
 	"math"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
+	// "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 )
 
 type CurvePointDeserializer interface {
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoint bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err error)
 	IsSubgroupOnly() bool                             // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32                              // returns the length in bytes that this serializer will try at most to read per curve point.
 	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try at most to read if deserializing a slice of numPoints many points.
@@ -21,7 +25,7 @@ type CurvePointDeserializer interface {
 	Verifier // TODO: Remove
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
-	DeserializeBatch(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
+	DeserializeBatch(inputStream io.Reader, trustLevel bandersnatch.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 
 	// Matches SerializeSlice
 	// DeserializeSlice(inputStream io.Reader) (outputPoints bandersnatch.CurvePointSlice, bytesRead int, err bandersnatchErrors.BatchSerializationError)

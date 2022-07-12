@@ -135,3 +135,16 @@ func copyByteSlice(v []byte) (ret []byte) {
 	testutils.Assert(L == len(v))
 	return
 }
+
+// writeFull(output, data) wraps around output.Write(data) by adding error data.
+func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+	bytesWritten, errPlain := output.Write(data)
+	if errPlain != nil {
+		errPlain = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, "Error %w occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data.",
+			"Data", copyByteSlice(data),
+			"BytesWritten", bytesWritten,
+			"PartialWrite", bytesWritten != 0 && bytesWritten < len(data),
+		)
+	}
+	return
+}

@@ -10,9 +10,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 var _ curvePointDeserializer_basic = &pointSerializerXY{}
@@ -33,13 +35,13 @@ var _ modifyableSerializer[pointSerializerYAndSignX] = &pointSerializerYAndSignX
 var _ modifyableSerializer[pointSerializerXTimesSignY] = &pointSerializerXTimesSignY{}
 var _ modifyableSerializer[pointSerializerYXTimesSignY] = &pointSerializerYXTimesSignY{}
 
-var testBitHeader = bitHeader{prefixLen: 1, prefixBits: 0b1}
+var testBitHeader = common.MakeBitHeader(common.PrefixBits(0b1), 1)
 
-var ps_XY = pointSerializerXY{valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: testBitHeader}, subgroupRestriction{subgroupOnly: false}}
+var ps_XY = pointSerializerXY{valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: testBitHeader}, subgroupRestriction{}}
 var ps_XY_sub = ps_XY.WithParameter("SubgroupOnly", true)
-var ps_XSY = pointSerializerXAndSignY{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{subgroupOnly: false}}
+var ps_XSY = pointSerializerXAndSignY{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{}}
 var ps_XSY_sub = ps_XSY.WithParameter("SubgroupOnly", true)
-var ps_YSX = pointSerializerYAndSignX{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{subgroupOnly: false}}
+var ps_YSX = pointSerializerYAndSignX{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{}}
 var ps_YSX_sub = ps_YSX.WithParameter("SubgroupOnly", true)
 var ps_XxSY = basicBanderwagonShort
 var ps_XYxSY = basicBanderwagonLong
@@ -82,9 +84,8 @@ func TestBasicSerializersHaveWithParams(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
 		serializerNonPointerType := serializerType.Elem()
-		var arg1Type reflect.Type = reflect.TypeOf("abc")
-		var dummy *interface{}
-		var arg2Type reflect.Type = reflect.TypeOf(dummy).Elem()
+		var arg1Type reflect.Type = utils.TypeOfType[string]()
+		var arg2Type reflect.Type = utils.TypeOfType[any]()
 		ok, reason := testutils.DoesMethodExist(serializerType, "WithParameter", []reflect.Type{arg1Type, arg2Type}, []reflect.Type{serializerNonPointerType})
 		if !ok {
 			t.Error(reason)
@@ -94,7 +95,7 @@ func TestBasicSerializersHaveWithParams(t *testing.T) {
 
 // Mostly superseded by generics, but kept
 func TestBasicSerializerHasWithEndianness(t *testing.T) {
-	endiannessType := byteOrderType
+	endiannessType := utils.TypeOfType[binary.ByteOrder]()
 	_ = ps_XSY.WithEndianness(binary.BigEndian)
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
@@ -134,7 +135,7 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 func TestBasicSerializeNAPs(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		var typeName string = testutils.GetReflectName(reflect.TypeOf(basicSerializer))
-		var P bandersnatch.Point_xtw_subgroup
+		var P curvePoints.Point_xtw_subgroup
 		if !P.IsNaP() {
 			t.Fatalf("Uninitialized Point is no NAP. This is not supposed not happen") // well, it's not really a problem semantically, but the test here would not work.
 		}
@@ -161,14 +162,15 @@ func TestBasicSerializersRoundtrip(t *testing.T) {
 		outputLen := int(basicSerializer.OutputLength())
 		const iterations = 20
 		for i := 0; i < iterations+outputLen; i++ {
+			var err error
 			serializerName := testutils.GetReflectName(reflect.TypeOf(basicSerializer))
 			var subgroupOnly bool = basicSerializer.IsSubgroupOnly()
-			var inputPoint bandersnatch.CurvePointPtrInterface
+			var inputPoint curvePoints.CurvePointPtrInterface
 			if subgroupOnly {
-				var point bandersnatch.Point_xtw_subgroup = bandersnatch.MakeRandomPointUnsafe_xtw_subgroup(drng)
+				var point curvePoints.Point_xtw_subgroup = curvePoints.MakeRandomPointUnsafe_xtw_subgroup(drng)
 				inputPoint = &point
 			} else {
-				var point bandersnatch.Point_xtw_full = bandersnatch.MakeRandomPointUnsafe_xtw_full(drng)
+				var point curvePoints.Point_xtw_full = curvePoints.MakeRandomPointUnsafe_xtw_full(drng)
 				inputPoint = &point
 			}
 			var buf bytes.Buffer
@@ -191,14 +193,14 @@ func TestBasicSerializersRoundtrip(t *testing.T) {
 			}
 
 			// distinguish type to ensure subgroup checks are performed when reading from buf
-			var outputPoint bandersnatch.CurvePointPtrInterface
+			var outputPoint curvePoints.CurvePointPtrInterface
 			if subgroupOnly {
-				outputPoint = &bandersnatch.Point_xtw_subgroup{}
+				outputPoint = &curvePoints.Point_xtw_subgroup{}
 			} else {
-				outputPoint = &bandersnatch.Point_xtw_full{}
+				outputPoint = &curvePoints.Point_xtw_full{}
 			}
 
-			bytesRead, err := basicSerializer.DeserializeCurvePoint(&buf, bandersnatch.UntrustedInput, outputPoint)
+			bytesRead, err := basicSerializer.DeserializeCurvePoint(&buf, common.UntrustedInput, outputPoint)
 			if truncate {
 				if err == nil {
 					t.Fatalf("Deserializing on truncated buffer gave no error for %v when it should have", serializerName)
