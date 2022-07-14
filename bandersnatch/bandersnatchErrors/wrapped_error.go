@@ -1,3 +1,5 @@
+//go:build ignore
+
 package bandersnatchErrors
 
 // TODO: The errorsWithData package provides a superset of this functionality.

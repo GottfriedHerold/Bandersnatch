@@ -144,7 +144,7 @@ func (s FieldElementEndianness) Uint256(in []byte) (little_endian_ret [4]uint64)
 }
 
 // DefaultEndian is the default setting, we use in our serializers unless overridden.
-// NOTE: You must not modify DefaultEndian; if you want to deviate from the default, create a new serializer with modified endianness.
+// NOTE: Users should not modify DefaultEndian; if you want to deviate from the default, create a new serializer with modified endianness.
 var DefaultEndian FieldElementEndianness = FieldElementEndianness{byteOrder: binary.LittleEndian}
 var LittleEndian FieldElementEndianness = FieldElementEndianness{byteOrder: binary.LittleEndian}
 var BigEndian FieldElementEndianness = FieldElementEndianness{byteOrder: binary.BigEndian}

@@ -7,7 +7,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
-// This file contains common code that is often needed to modify errors
+// This file contains common code that is often needed to modify errors. This will be moved to internal utils at some point, I guess.
 
 // UnexptectEOF turns an (error wrapping an) io.EOF error into an io.UnexpectedEOF or an error wrapping io.UnexpectedEOF.
 // io.UnexpectedEOF is commonly used by the standard library to indicate an EOF when reading multiple bytes from a stream and there was an EOF in the middle of reading.
@@ -27,6 +27,7 @@ func UnexpectEOF(errPtr *error) {
 	}
 }
 
+// UnexpectEOF2 does the same as UnexpectEOF, except that it preserves the compile-time information about the StructType in ErrorWithGuaranteedParameters[StructType]
 func UnexpectEOF2[StructType any](errPtr *errorsWithData.ErrorWithGuaranteedParameters[StructType]) {
 	if errors.Is(*errPtr, io.EOF) {
 		m := errorsWithData.GetAllParametersFromError(*errPtr)

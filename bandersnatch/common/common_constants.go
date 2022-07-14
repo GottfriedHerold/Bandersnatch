@@ -97,10 +97,11 @@ func InitIntFromString(input string) *big.Int {
 
 // The point here is to force users to write Deserialize(..., TrustedInput, ...) rather than Deserialize(..., true, ...)
 // in order to have better understandable semantics
-// Golang does not have enum types, sadly, so we need to use structs: declaring a "type InPointTrusted bool" would cause Deserialze(..., true, ...)  to actually work due to implicit conversion.
+// Golang does not have enum types, sadly, so we need to use structs: declaring a "type InPointTrusted bool" would cause Deserialize(..., true, ...)  to actually work due to implicit conversion.
 
 // IsInputTrusted is a struct encapsulating a bool controlling whether some input is trusted or not.
 // This is used to enforce better readable semantics in arguments.
+//
 // Users should use the predefined values TrustedInput and UntrustedInput of this type.
 type IsInputTrusted struct {
 	v bool
@@ -113,6 +114,10 @@ var (
 	TrustedInput   IsInputTrusted = IsInputTrusted{v: true}
 	UntrustedInput IsInputTrusted = IsInputTrusted{v: false}
 )
+
+func BoolToInputTrust(v bool) IsInputTrusted {
+	return IsInputTrusted{v: v}
+}
 
 // utility constants
 

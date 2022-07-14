@@ -8,7 +8,39 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+func TestCheckParamsForStruct(t *testing.T) {
+	type EmptyStruct struct{}
+	type T1 struct {
+		Name1 int
+		Name2 string
+		Name3 error // NOTE: interface type
+	}
+	type NestedT1 struct {
+		T1
+		Name1 uint // shadows T2.name1
+		Name4 byte
+	}
+
+	var EmptyList []string = []string{}
+	var T1List []string = []string{"Name1", "Name3", "Name2"} // intentionally different order than in T1
+	var NestedT1List []string = []string{"Name1", "Name3", "Name4", "Name2"}
+	CheckParamsForStruct[EmptyStruct](EmptyList)
+	CheckParamsForStruct[T1](T1List)
+	CheckParamsForStruct[NestedT1](NestedT1List)
+
+	if !testutils.CheckPanic(CheckParamsForStruct[T1], NestedT1List) {
+		t.Fatalf("T1")
+	}
+	if !testutils.CheckPanic(CheckParamsForStruct[NestedT1], T1List) {
+		t.Fatalf("T2")
+	}
+
+}
+
 func TestGetStructMapConversionLookup(t *testing.T) {
+
+	// Note: go-staticcheck may wrongly complain about unused types here. This was reported and confirmed as a bug of staticcheck.
+
 	type EmptyStruct struct{}
 	type T1 struct {
 		Name1 int

@@ -8,6 +8,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// this file contains functionality used for translating maps[string]any <-> struct{...}
+
 // lookupStructMapConversion is a lookup table (only depending of T) that contains the
 // relevant data for converting an instance of a struct T to a map[string]any.
 type lookupStructMapConversion = []reflect.StructField
@@ -22,21 +24,30 @@ var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[re
 func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConversion) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.
-	// (Note sure whether this is needed and this is probably true anyway, but not guaranteed by the spec of reflect.VisibleFields otherwise)
+	// (Note sure whether this is needed and this is probably true anyway, but it is not guaranteed by the spec of reflect.VisibleFields otherwise)
+
+	// Check if we the table is cached.
 	enforcedDataTypeMapMutex.RLock()
 	ret, ok := enforcedDataTypeMap[tType]
 	enforcedDataTypeMapMutex.RUnlock()
 	if ok {
 		return
 	}
+	// We get here if we did not find it in the cache.
+
+	// Make some sanity checks: This function only makes sense for struct types.
 	if tType == nil {
 		panic(errorPrefix + "called getStructMapConversionLookup with nil argment")
 	}
 	if tType.Kind() != reflect.Struct {
 		panic(errorPrefix + "using getStructMapConversionLookup with non-struct type")
 	}
+
+	// The intended result will be a subset of allVisibleFields
 	allVisibleFields := reflect.VisibleFields(tType)
 	ret = make(lookupStructMapConversion, 0, len(allVisibleFields))
+
+	// ensure everything is exported and filter out embedded fields
 	for _, visibleField := range allVisibleFields {
 		if !visibleField.IsExported() {
 			panic(errorPrefix + "using errorWithEnsuredParameters with struct type containing unexported fields")
@@ -49,8 +60,11 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 		}
 		ret = append(ret, visibleField)
 	}
+
+	// Write ret into the cache. We RW-lock the cache for this.
 	enforcedDataTypeMapMutex.Lock()
 	defer enforcedDataTypeMapMutex.Unlock()
+	// We need to check if some other goroutine already filled the cache in the meantime.
 	_, ok = enforcedDataTypeMap[tType]
 	if ok {
 		ret = enforcedDataTypeMap[tType]
@@ -58,6 +72,31 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 		enforcedDataTypeMap[tType] = ret
 	}
 	return
+}
+
+// CheckParamsForStruct[StructType](fieldNames) checks whether the name of the (exported) fields coincides with
+// the slice of fieldNames. This is intented to be used in init-routines or tests accompanying places in the code
+// where we assume that a certain struct has exactly a given set of field names.
+// The purpose is to create guards in the code.
+func CheckParamsForStruct[StructType any](fieldNames []string) {
+	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
+	for _, expectedField := range allExpectedFields {
+		expectedFieldName := expectedField.Name
+		found := false
+		for _, givenFieldName := range fieldNames {
+			if expectedFieldName == givenFieldName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			panic(fmt.Errorf(errorPrefix+"Field named %v required is not contained among the given list", expectedFieldName))
+		}
+	}
+	// We intentionally make that check *after* the above checks.
+	if len(allExpectedFields) != len(fieldNames) {
+		panic(fmt.Errorf(errorPrefix + "list of given field names contains more field names than required"))
+	}
 }
 
 // canMakeStructFromParametersInError checks whether e actually contains data for all fields of a struct of type StructType.
@@ -115,11 +154,11 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 // makeStructFromMap constructs a struct of type T from a map m of type map[string]any by
 // setting all visible fields (possibly from embedded anonymous structs) in T according to m.
 // The map must contain an entry for every such field of T and T must not not contain non-exported fields.
-// m is allowed to contain entries that are not required for T.
+// m is allowed to contain additional entries that are not required/used for T.
 //
 // Returns an error if m does not contain data for some struct fields or data of invalid type;
 // On error, the value for the returned struct ret is the zero value of the struct.
-// We ask that data has exaclty matching type except for interface types in the struct or nil values in the map.
+// We ask that data has exaclty matching type except for interface types in the struct or nil values (of type any) in the map.
 // m == nil is treated like an empty map. Using an invalid T causes panic.
 func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err error) {
 	reflectedStructType := utils.TypeOfType[StructType]() // could do reflect.TypeOf(ret), but this gives better errors in case someone wrongly sets T to an interface type.
@@ -180,8 +219,10 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 
 // fillMapFromStruct converts a struct of type StructType into a map[string]any
 // by adding an entry to the provided (existing) map m for each visible field of StructType (including from embedded structs).
-// This modifies m, treating a nil map as an empty map. StructType must contain only exported fields.
-// preexisting entries of m that do not correspond to a field of the struct are left unchanged.
+// This modifies m, treating a nil map as an empty map.
+//
+// StructType must contain only exported fields. If m points to something inside s (or similar shenanigans), the behaviour is undefined.
+// Preexisting entries of m that do not correspond to a field of the struct are left unchanged.
 func fillMapFromStruct[StructType any](s *StructType, m *map[string]any) {
 	if *m == nil {
 		*m = make(map[string]any)
