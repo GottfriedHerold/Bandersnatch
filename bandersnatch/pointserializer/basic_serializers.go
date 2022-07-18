@@ -83,7 +83,7 @@ func checkPointSerializability(point curvePoints.CurvePointPtrInterfaceRead, per
 	return nil
 }
 
-// forward / type alias to non-exported type.
+// type alias to non-exported type for struct embedding
 
 type subgroupRestriction = common.SubgroupRestriction
 type subgroupOnly = common.SubgroupOnly
@@ -92,7 +92,7 @@ func addErrorDataNoWrite(err error) bandersnatchErrors.SerializationError {
 	if err == nil {
 		return nil
 	}
-	return errorsWithData.NewErrorWithParametersFromData[bandersnatchErrors.WriteErrorData](err, "", &bandersnatchErrors.WriteErrorData{
+	return errorsWithData.NewErrorWithParametersFromData(err, "", &bandersnatchErrors.WriteErrorData{
 		PartialWrite: false,
 		BytesWritten: 0,
 	})
@@ -133,7 +133,7 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 		var P curvePoints.Point_axtw_subgroup
 		P, errPlain := curvePoints.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
 		if errPlain != nil {
-			err = errorsWithData.NewErrorWithParametersFromData[bandersnatchErrors.ReadErrorData](errPlain, "", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithParametersFromData(errPlain, "", &bandersnatchErrors.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -198,8 +198,7 @@ type pointSerializerXAndSignY struct {
 }
 
 func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	var errPlain error
-	errPlain = checkPointSerializability(point, s.IsSubgroupOnly())
+	var errPlain error = checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
 		bytesWritten = 0
 		err = addErrorDataNoWrite(errPlain)
@@ -490,7 +489,7 @@ func (s *pointSerializerYXTimesSignY) Validate() {
 
 func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	errPlain := checkPointSerializability(point, true)
-	if err != nil {
+	if errPlain != nil {
 		err = addErrorDataNoWrite(errPlain)
 		bytesWritten = 0
 		return

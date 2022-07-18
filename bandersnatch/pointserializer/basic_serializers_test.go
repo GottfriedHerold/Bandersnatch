@@ -95,12 +95,11 @@ func TestBasicSerializersHaveWithParams(t *testing.T) {
 
 // Mostly superseded by generics, but kept
 func TestBasicSerializerHasWithEndianness(t *testing.T) {
-	endiannessType := utils.TypeOfType[binary.ByteOrder]()
 	_ = ps_XSY.WithEndianness(binary.BigEndian)
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
 		serializerValueType := serializerType.Elem()
-		ok, reason := testutils.DoesMethodExist(serializerType, "WithEndianness", []reflect.Type{endiannessType}, []reflect.Type{serializerValueType})
+		ok, reason := testutils.DoesMethodExist(serializerType, "WithEndianness", []reflect.Type{utils.TypeOfType[binary.ByteOrder]()}, []reflect.Type{serializerValueType})
 		if !ok {
 			t.Error(reason)
 		}

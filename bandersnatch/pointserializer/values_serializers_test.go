@@ -41,6 +41,8 @@ var allValueSerializerTypes []reflect.Type = []reflect.Type{
 // (We could do it with generics, but then we could not write it as a loop over a global array that is shared across tests)
 func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	for _, serializerType := range allValueSerializerTypes {
+		// methods are defined on the pointer types
+		serializerType = reflect.PtrTo(serializerType)
 		ok, reason := testutils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{serializerType})
 		if !ok {
 			t.Error(reason)
