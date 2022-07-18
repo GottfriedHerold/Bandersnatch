@@ -35,15 +35,15 @@ type curvePointDeserializer_basic interface {
 
 // TODO: Rename
 
-type modifyableSerializer[SelfValue any] interface {
+type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
 	WithParameter(parameterName string, newParam any) SelfValue
 	WithEndianness(newEndianness binary.ByteOrder) SelfValue
-	utils.Clonable[*SelfValue]
+	utils.Clonable[SelfPtr]
 }
 
-type modifyableDeserializer_basic[SelfValue any] interface {
+type modifyableDeserializer_basic[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
 	curvePointDeserializer_basic
-	modifyableSerializer[SelfValue]
+	modifyableSerializer[SelfValue, SelfPtr]
 }
 
 // curvePointSerializer_basic is a serializer+deserializer for single curve points.
@@ -52,9 +52,9 @@ type curvePointSerializer_basic interface {
 	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
 }
 
-type modifyableSerializer_basic[SelfValue any] interface {
+type modifyableSerializer_basic[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
 	curvePointSerializer_basic
-	modifyableSerializer[SelfValue]
+	modifyableSerializer[SelfValue, SelfPtr]
 }
 
 // TODO: Separate into separate checks?

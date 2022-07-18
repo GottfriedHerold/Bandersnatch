@@ -29,11 +29,11 @@ var _ curvePointSerializer_basic = &pointSerializerYAndSignX{}
 var _ curvePointSerializer_basic = &pointSerializerXTimesSignY{}
 var _ curvePointSerializer_basic = &pointSerializerYXTimesSignY{}
 
-var _ modifyableSerializer[pointSerializerXY] = &pointSerializerXY{}
-var _ modifyableSerializer[pointSerializerXAndSignY] = &pointSerializerXAndSignY{}
-var _ modifyableSerializer[pointSerializerYAndSignX] = &pointSerializerYAndSignX{}
-var _ modifyableSerializer[pointSerializerXTimesSignY] = &pointSerializerXTimesSignY{}
-var _ modifyableSerializer[pointSerializerYXTimesSignY] = &pointSerializerYXTimesSignY{}
+var _ modifyableSerializer[pointSerializerXY, *pointSerializerXY] = &pointSerializerXY{}
+var _ modifyableSerializer[pointSerializerXAndSignY, *pointSerializerXAndSignY] = &pointSerializerXAndSignY{}
+var _ modifyableSerializer[pointSerializerYAndSignX, *pointSerializerYAndSignX] = &pointSerializerYAndSignX{}
+var _ modifyableSerializer[pointSerializerXTimesSignY, *pointSerializerXTimesSignY] = &pointSerializerXTimesSignY{}
+var _ modifyableSerializer[pointSerializerYXTimesSignY, *pointSerializerYXTimesSignY] = &pointSerializerYXTimesSignY{}
 
 var testBitHeader = common.MakeBitHeader(common.PrefixBits(0b1), 1)
 
