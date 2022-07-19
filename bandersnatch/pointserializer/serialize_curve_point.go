@@ -12,6 +12,79 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
+// *** PURPOSE OF THIS PACAKGE ***:
+// This package contains interfaces/methods/struct/functions used to (de)serialize bandersnatch curve points.
+// Generally, we define structs/interfaces that define some (de)serializer (named, say s)
+// s holds all the metadata (such as e.g. endianness) needed to define the serialization format.
+// Modifying such metadata contained in a (de)serializer is done by making a copy with modified parameters.
+// the (de)serializers themselves are considered (shallowly) immutable.
+// To actually serialize a curve point, the user calls some appropropriate (de)serialization method, e.g.
+// s.SomeSerializeMethod(outputStream io.Writer, curvePoint ...) (bytesWritten int, err SomeErrorInterfaceType)
+//
+//
+// Note here that io targets are io.Writer or io.Reader, not []byte.
+// Deserialization function also typically have a trustLevel argument to distinguish trusted input from untrusted input.
+// Serializers and Deserializers are separate types:
+// This is annoying, but the reason is that some methods have slightly differnt signatures:
+// While Every Serializer actually also "is" a deserializer that allows to read back in what was written,
+// a deserializer might support several serialization formats. In this case, the deserializer does not have serialization routines at all,
+// but we rather have several serializers and one compatible deserializer.
+// Unfortunately, Serializers are not an interface extension of Deserializers.
+// (<rant>The sole reason being that method signatures to make copies of serializers need to either return a serializer or a deserializer --
+// and interfaces in Go have no co- or contravariance, meaing that even if interface A extends B, a method Foo() B does not satisfy an interface containing Foo() A.
+// Note that there is basically no good reason for this behaviour in Go and it outright invalidates several good coding paradigms (be generous in what you accept and restrictive in what you return)
+// The main argument why this was not implemented in Go is efficiency;
+// while that is true, note, however, that this mostly applies for the similar case where B is a struct satisfying interface A.
+// In this case, Go's implicit interface design would require a worst-case call overhead and passing everything as interfaces, which would indeed by a massive performance killer.
+// This is the case usually discussed and encountered by people who want to assign a slice of B's to a slice of A's.
+// If both A and B are already interfaces, the argument does not really apply and this is mostly a choice between simplicity for the compiler writers and a type system that sucks a little bit less.
+// </rant>)
+
+// *** STRUCTURE OF THIS PACKAGE ***
+//
+// --SerializeCurvePoints: (this file)
+//   |--SerializeHeaders (headerSerializer.go)
+//   |--SerializeSinglePoints (basic_serializers.go)
+//      |--Translate Points from/into sequences of sign bits / field elements [using appropriate functions from curvePoints package] (basic_serializers.go)
+//      |--Serialize those values (values_serializers.go)
+// --general helper functions (utils.go)
+// --helper functions to pass parameter setting up/down this hierarchical structure (oop.go)
+//
+// The user is provided with an interface type for serializers of single curve points or multiple curve points; this an an implementation is defined in this file.
+// The implementation splits this task into a serializer for headers (which includes slice size for serializing multiple points) and serializing single curve points.
+// The former is what we call headerSerializers, the latter is called basic_serializers.
+// basic_serializers in turn split their task into translating a curve point to a sequence of values (sign or field elements)
+// the latter are then serialized by a so-called values serializer.
+// Note that we have multiple basic_serializers, depending on what the point is split into (e.g. pointSerializerXY for X and Y coo vs. pointSerializerXAndSignY for X and sign(Y))
+// We also have separate appropriate values serializers (e.g. a values serializer for a pair of field elements vs. one for a (field element, sign bit)-pair).
+
+// *** THIS FILE ***
+// This file contains the actual serializers that we export to users.
+// The user only sees that interface for (De)serializers, providing an API for
+// -(De)serializing individual curve points or slices of curve points
+// -Creating new (de)serializers by changing parameters (such as Headers or Endianness)
+//
+// The way the actual implementation works is that we have a (generic, parameterized by the curve point (de)serializer) struct type that combines
+// a (de)serializer for single curve points with a (de)serializer for headers.
+// Parameter modifications are forwarded to the appropriate part (point (de)serializer / header (de)serializer)
+
+// Since we do not know which parameters these parts might have and different choices result in actually different parameters,
+// we cannot put those in the interface definition unless we know the parameter exists for all instantiations.
+// So we use a unified API for parameter changes in the form of a WithParameter(parameterName string, newParam any) method
+// Its return type is an interface and this actually creates a new (De)Serializer without modifying the receiver:
+// To make life simpler and less error-prone, we make (De)serializers (shallowly) immutable objects.
+//
+// To implement parameter modification itself, we could work with a map[string]any holding all parameters or we translate parameterNames -> properties and use reflection.
+// Since the parameters we can set are fairly limited, we opt for the latter;
+// this has some serious downsides, but it allows (or rather enforces, actually) setters and getters.
+// Notably, we have a global translation map parameterName -> Name of Setter/Getter (and possibly argument type) and use reflection to call those getters/setters by name;
+// the advantage is that this composes with struct embedding and actually makes use of getter/setters.
+// The point here is that those getters/setters are ususally non-trivial:
+// We have validity restrictions on some parameters and immutability means that when setting/getter e.g. a header of type []byte,
+// we actually need to make a copy inside the setter and getter.
+
+// TODO: Rename this vs. *Modifyable
+
 type CurvePointDeserializer interface {
 	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	IsSubgroupOnly() bool                             // Can be called on nil pointers of concrete type, indicates whether the deserializer is only for subgroup points.
