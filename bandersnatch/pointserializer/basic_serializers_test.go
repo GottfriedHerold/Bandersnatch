@@ -152,6 +152,25 @@ func TestBasicSerializeNAPs(t *testing.T) {
 	}
 }
 
+func TestBasicSerializersNonSubgroup(t *testing.T) {
+	for _, basicSerializer := range allSubgroupOnlySerializers {
+		var typeName string = testutils.GetReflectName(reflect.TypeOf(basicSerializer))
+		var P curvePoints.Point_xtw_full
+		P.SetAffineTwoTorsion() // not in subgroup
+		var buf bytes.Buffer
+		bytesWritten, err := basicSerializer.SerializeCurvePoint(&buf, &P)
+		if err == nil {
+			t.Fatalf("Serializing point outside subgroup gave no error for %v", typeName)
+		}
+		if !errors.Is(err, bandersnatchErrors.ErrWillNotSerializePointOutsideSubgroup) {
+			t.Fatalf("Serializing point outside subgroup gave wrong error for %v. Error gotten was %v", typeName, err)
+		}
+		if bytesWritten != 0 {
+			t.Fatalf("Serializing point outside subgroup actually wrote something for %v", typeName)
+		}
+	}
+}
+
 // Test Roundtrip for basic serialializers.
 // We also check correct error behaviour on reading EOF / unexpected EOF.
 

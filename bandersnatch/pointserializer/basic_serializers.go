@@ -33,8 +33,6 @@ type curvePointDeserializer_basic interface {
 	validater
 }
 
-// TODO: Rename
-
 type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
 	WithParameter(parameterName string, newParam any) SelfValue
 	WithEndianness(newEndianness binary.ByteOrder) SelfValue

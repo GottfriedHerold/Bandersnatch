@@ -70,6 +70,17 @@ type simpleHeaderSerializer struct {
 	simpleHeaderDeserializer
 }
 
+var (
+	basicSimpleHeaderDeserializer simpleHeaderDeserializer = simpleHeaderDeserializer{sliceSizeEndianness: binary.LittleEndian}
+	basicSimpleHeaderSerializer   simpleHeaderSerializer   = simpleHeaderSerializer{simpleHeaderDeserializer: *basicSimpleHeaderDeserializer.Clone()}
+)
+
+// this changes nil entries to empty []byte
+func init() {
+	basicSimpleHeaderDeserializer.Validate()
+	basicSimpleHeaderSerializer.Validate()
+}
+
 func (shd *simpleHeaderDeserializer) Clone() *simpleHeaderDeserializer {
 	var ret simpleHeaderDeserializer
 	ret.headerSlice = copyByteSlice(shd.headerSlice)

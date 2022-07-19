@@ -1,11 +1,11 @@
 package pointserializer
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
 
-	// "github.com/GottfriedHerold/Bandersnatch/bandersnatch"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
@@ -30,9 +30,14 @@ type CurvePointDeserializer interface {
 	// DeserializeSliceToBuffer(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, pointsRead int32, err bandersnatchErrors.BatchSerializationError)
 }
 
-type CurvePointDeserializerModifyable[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
+// Note: WithParameter, WithEndianness and Clone "forget" their types.
+// The reason is these interfaces are exported and the user should not need to care about the type.
+
+type CurvePointDeserializerModifyable interface {
 	CurvePointDeserializer
-	modifyableSerializer[SelfValue, SelfPtr]
+	WithParameter(parameterName string, newParam any) CurvePointDeserializerModifyable
+	WithEndianness(newEndianness binary.ByteOrder) CurvePointDeserializerModifyable
+	Clone() CurvePointDeserializerModifyable
 }
 
 type CurvePointSerializer interface {
@@ -60,10 +65,20 @@ type CurvePointSerializer interface {
 	// SerializeBatch(outputStream io.Writer, inputPoints ...bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) // SerializePoints(os, &x1, &x2, ...) is equivalent (if not error occurs, at least) to Serialize(os, &x1), Serialize(os, &x1), ... NOTE: Using SerializePoints(os, points...) with ...-notation might not work due to the need to convert []concrete Point type to []CurvePointPtrInterface. Use SerializeBatch to avoid this.
 	// SerializeSlice(outputStream io.Writer, inputSlice bandersnatch.CurvePointSlice) (bytesWritten int, err bandersnatchErrors.BatchSerializationError)   // SerializeSlice(os, points) serializes a slice of points to outputStream. As opposed to SerializeBatch and SerializePoints, the number of points written is stored in the output stream and can NOT be read back individually, but only by DeserializeSlice
 }
-type CurvePointSerializerModifyable[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
+
+// Note: WithParameter, WithEndianness and Clone "forget" their types.
+// The reason is these interfaces are exported and the user should not need to care about the type.
+
+type CurvePointSerializerModifyable interface {
 	CurvePointSerializer
-	modifyableSerializer[SelfValue, SelfPtr]
+	// modifyableSerializer[SelfValue, SelfPtr]
+	WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable
+	WithEndianness(newEndianness binary.ByteOrder) CurvePointSerializerModifyable
+	Clone() CurvePointSerializerModifyable
 }
+
+// this definition crashes staticcheck (my linter) -- bug reported
+// unfortunately, expanding the generics does not help. The issue seems to be with interface{*BasicValue; something refering to BasicValue in function signatures} in general.
 
 type multiDeserializer[BasicValue any, BasicPtr interface {
 	*BasicValue
@@ -121,19 +136,19 @@ func (md *multiSerializer[BasicValue, BasicPtr]) Validate() {
 	}
 }
 
-func (md *multiDeserializer[BasicValue, BasicPtr]) Clone() CurvePointDeserializer {
+func (md *multiDeserializer[BasicValue, BasicPtr]) Clone() CurvePointDeserializerModifyable {
 	mdCopy := md.makeCopy()
 	return &mdCopy
 }
 
-func (md *multiSerializer[BasicValue, BasicPtr]) Clone() CurvePointSerializer {
+func (md *multiSerializer[BasicValue, BasicPtr]) Clone() CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	return &mdCopy
 }
 
 // WithParameter and GetParameter are complicated by the fact that we cannot struct-embed generic type parameters.
 
-func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointDeserializer {
+func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointDeserializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicDeserializationPtr = BasicPtr(&mdCopy.basicDeserializer)
 	if hasParameter(basicDeserializationPtr, parameterName) {
@@ -145,7 +160,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName s
 	return &mdCopy
 }
 
-func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointSerializer {
+func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicSerializationPtr = BasicPtr(&mdCopy.basicSerializer)
 	if hasParameter(basicSerializationPtr, parameterName) {
@@ -173,6 +188,20 @@ func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName stri
 	} else {
 		return getSerializerParam(&md.headerSerializer, parameterName)
 	}
+}
+
+func (md *multiDeserializer[BasicValue, BasicPtr]) WithEndianness(newEndianness binary.ByteOrder) CurvePointDeserializerModifyable {
+	mdcopy := md.makeCopy()
+	mdcopy.basicDeserializer = BasicPtr(&mdcopy.basicDeserializer).WithEndianness(newEndianness)
+	mdcopy.Validate()
+	return &mdcopy
+}
+
+func (md *multiSerializer[BasicValue, BasicPtr]) WithEndianness(newEndianness binary.ByteOrder) CurvePointSerializerModifyable {
+	mdcopy := md.makeCopy()
+	mdcopy.basicSerializer = BasicPtr(&mdcopy.basicSerializer).WithEndianness(newEndianness)
+	mdcopy.Validate()
+	return &mdcopy
 }
 
 func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
