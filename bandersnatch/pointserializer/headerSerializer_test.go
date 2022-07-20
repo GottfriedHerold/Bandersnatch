@@ -90,5 +90,96 @@ func TestSettersAndGetters(t *testing.T) {
 		}
 
 	}
+}
+
+var testSimpleHeaderSerializer simpleHeaderSerializer
+
+func init() {
+	testSimpleHeaderSerializer.sliceSizeEndianness = binary.LittleEndian
+	for _, paramName := range headerSerializerParams {
+		testSimpleHeaderSerializer = makeCopyWithParams(&testSimpleHeaderSerializer, paramName, []byte(paramName))
+	}
+	testSimpleHeaderSerializer.Validate()
+}
+
+func TestSerializeHeaders(t *testing.T) {
+	var buf bytes.Buffer
+	const size = 121
+	var err error
+	w1, err := testSimpleHeaderSerializer.serializeGlobalSliceHeader(&buf, size)
+	if err != nil {
+		t.Fatalf("Error when writing Global header: %v", err)
+	}
+	w2, err := testSimpleHeaderSerializer.serializePerPointHeader(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing per point header: %v", err)
+	}
+	w3, err := testSimpleHeaderSerializer.serializePerPointFooter(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing per point footer: %v", err)
+	}
+	w4, err := testSimpleHeaderSerializer.serializeGlobalSliceFooter(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing global footer: %v", err)
+	}
+	w5, err := testSimpleHeaderSerializer.serializeSinglePointHeader(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing sp header: %v", err)
+	}
+	w6, err := testSimpleHeaderSerializer.serializeSinglePointFooter(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing sp footer: %v", err)
+	}
+
+	// read back:
+
+	r1, sr, err := testSimpleHeaderSerializer.deserializeGlobalSliceHeader(&buf)
+	if err != nil {
+		t.Fatalf("Error when reading Global header: %v", err)
+	}
+	if r1 != w1 {
+		t.Fatalf("Bytes Read != Bytes Written for Global Slice Header")
+	}
+	if sr != size {
+		t.Fatalf("Could not read back slice size")
+	}
+
+	r2, err := testSimpleHeaderSerializer.deserializePerPointHeader(&buf)
+	if err != nil {
+		t.Fatalf("Error when reading per point header: %v", err)
+	}
+	if r2 != w2 {
+		t.Fatalf("BytesRead mismatches BytesWritten (2)")
+	}
+	r3, err := testSimpleHeaderSerializer.deserializePerPointFooter(&buf)
+	if err != nil {
+		t.Fatalf("Error when reading per point footer: %v", err)
+	}
+	if r3 != w3 {
+		t.Fatalf("BytesRead mismatches BytesWritten (3)")
+	}
+	r4, err := testSimpleHeaderSerializer.deserializeGlobalSliceFooter(&buf)
+	if err != nil {
+		t.Fatalf("Error when reading global footer: %v", err)
+	}
+	if r4 != w4 {
+		t.Fatalf("BytesRead mismatches BytesWritten (4)")
+	}
+
+	r5, err := testSimpleHeaderSerializer.deserializeSinglePointHeader(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing sp header: %v", err)
+	}
+	if r5 != w5 {
+		t.Fatalf("BytesRead mismatches BytesWritten (5)")
+	}
+
+	r6, err := testSimpleHeaderSerializer.deserializeSinglePointFooter(&buf)
+	if err != nil {
+		t.Fatalf("Error when writing sp footer: %v", err)
+	}
+	if r6 != w6 {
+		t.Fatalf("BytesRead mismatches BytesWritten (6)")
+	}
 
 }
