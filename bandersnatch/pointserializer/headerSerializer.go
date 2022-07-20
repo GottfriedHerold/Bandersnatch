@@ -10,8 +10,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
-// TODO: Should header errors be data-carrying wrappers?
-
 // headerDeserializer and headerSerializer are abstractions used to (de)serialize headers / footers for multiple points.
 //
 // When (de)serializing a single point, we call
@@ -39,6 +37,8 @@ type headerDeserializer interface {
 	SinglePointHeaderOverhead() int32                                         // returns the size taken up by headers and footers for single-point
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 }
+
+var headerSerializerParams = []string{"GlobalSliceHeader", "GlobalSliceFooter", "SinglePointHeader", "SinglePointFooter", "PerPointHeader", "PerPointFooter"}
 
 // headerSerializer extends headerDeserializer by also providing serialization routines.
 type headerSerializer interface {
@@ -75,7 +75,7 @@ var (
 	basicSimpleHeaderSerializer   simpleHeaderSerializer   = simpleHeaderSerializer{simpleHeaderDeserializer: *basicSimpleHeaderDeserializer.Clone()}
 )
 
-// this changes nil entries to empty []byte
+// this also changes nil entries to empty []byte
 func init() {
 	basicSimpleHeaderDeserializer.Validate()
 	basicSimpleHeaderSerializer.Validate()
@@ -114,6 +114,9 @@ func (shd *simpleHeaderDeserializer) fixNilEntries() {
 // Validate fixes any nil entries (replacing them by length-0 slices) and ensures that
 // relevant overhead lengths fit into int32's
 func (shd *simpleHeaderDeserializer) Validate() {
+	if shd.sliceSizeEndianness == nil {
+		panic(ErrorPrefix + "serializer does not have endianness set to serialize the length of slices")
+	}
 	shd.fixNilEntries()
 	l1 := len(shd.headerSingleCurvePoint)
 	l2 := len(shd.footerSingleCurvePoint)

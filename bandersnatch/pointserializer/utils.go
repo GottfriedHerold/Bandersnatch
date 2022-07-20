@@ -106,7 +106,7 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 			returnedError = errorsWithData.NewErrorWithParametersFromData(err, "", &returnedErrorData)
 			return
 		}
-		panic("This is unreachable")
+
 	}
 	if !bytes.Equal(expectToRead, buf) {
 		// Note: We deep-copy the contents of expectToRead. The reason is that the caller might later modify the backing array otherwise.

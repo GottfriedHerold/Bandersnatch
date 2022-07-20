@@ -17,7 +17,7 @@ import (
 // The actual values of these parameters may have some validity constraints and also require some non-trivial code to correctly (deep!-)copy
 // (thank you, Go, for not allowing to overload assignment).
 // Now, we have actually several serializer types that share parameters, so the "Go way" of doing this forces us to basically Copy&Paste all that parameter assigment
-// for every combination. This is doubly bad, because that boilerplate is actually non-trivial due to error handling code and a nightmare to maintain consistently if spread around.
+// for every combination. This is doubly bad, because that boilerplate is actually non-trivial due to error handling code and a nightmare to maintain consistently if spread around the code base.
 // The problem is not solvable by struct embedding the configurable parameters, because the user-facing API contains methods/functions with semantics
 //  "Create a copy of this serializer with parameter bar set to foo". This cannot be defined on the parameter,
 // because methods called on embedded structs by design (The Go language designers bascially do not trust their programmers to know when/how to use OOP, so they forbid it outright)
@@ -34,10 +34,16 @@ var serializerParams = map[string]struct {
 	vartype reflect.Type
 }{
 	// Note: We use utils.TypeOfType rather than reflect.TypeOf, since this also works with interface types such as binary.ByteOrder.
-	"endianness":   {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
-	"bitheader":    {getter: "GetBitHeader", setter: "SetBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
-	"bitheader2":   {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
-	"subgrouponly": {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
+	"endianness":        {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
+	"bitheader":         {getter: "GetBitHeader", setter: "SetBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
+	"bitheader2":        {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
+	"subgrouponly":      {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
+	"globalsliceheader": {getter: "GetGlobalSliceHeader", setter: "SetGlobalSliceHeader", vartype: utils.TypeOfType[[]byte]()},
+	"globalslicefooter": {getter: "GetGlobalSliceFooter", setter: "SetGlobalSliceFooter", vartype: utils.TypeOfType[[]byte]()},
+	"perpointheader":    {getter: "GetPerPointHeader", setter: "SetPerPointHeader", vartype: utils.TypeOfType[[]byte]()},
+	"perpointfooter":    {getter: "GetPerPointFooter", setter: "SetPerPointFooter", vartype: utils.TypeOfType[[]byte]()},
+	"singlepointheader": {getter: "GetSinglePointHeader", setter: "SetSinglePointHeader", vartype: utils.TypeOfType[[]byte]()},
+	"singlepointfooter": {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
 }
 
 // hasParameter(serializer, parameterName) checks whether the type of serializer has setter and getter methods for the given parameter.
@@ -66,6 +72,9 @@ func hasParameter[ValueType any, PtrType *ValueType](serializer PtrType, paramet
 	return getterMethod.IsValid()
 }
 
+// TODO: We might not need this if we just make Validate() a hard requirement for all components of our serializer parts.
+
+// validater is an interface used for type-asserting/checking whether some type has a Validate() method
 type validater interface {
 	Validate() // panics on failure, so no return value
 }
@@ -109,6 +118,7 @@ func makeCopyWithParams[SerializerType any, SerializerPtr interface {
 	if numOutputs := setterMethod.Type().NumOut(); numOutputs != 0 {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v whose parameter setter %v returns a non-zero number %v of return values", typeName, paramInfo.setter, numOutputs))
 	}
+	
 	// Not really needed, since this would cause a panic from setterMethod.Call later, but we prefer a more meaningful error message.
 	if numInputs := setterMethod.Type().NumIn(); numInputs != 1 {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v whose parameter setter %v takes %v rather than 1 input argument ", typeName, paramInfo.setter, numInputs))
