@@ -1,4 +1,4 @@
-package bandersnatch
+package playground
 
 /*
 func getCofactors(P *Point_xtw) (tN, tA, t1, t2 FieldElement) {

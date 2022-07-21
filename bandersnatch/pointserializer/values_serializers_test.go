@@ -14,16 +14,46 @@ import (
 
 var defaultEndianness = common.DefaultEndian
 
-type OutputLengthAware interface {
-	OutputLength() int32
-}
-
-var allValuesSerializers []OutputLengthAware = []OutputLengthAware{
+var allValuesSerializers []valuesSerializer = []valuesSerializer{
 	&valuesSerializerFeFe{fieldElementEndianness: defaultEndianness},
 	&valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness},
 	&valuesSerializerFe{fieldElementEndianness: defaultEndianness},
 	&valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness},
 	&valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness},
+}
+
+// for debugging reflect issues with unexported stuff. Currently unused:
+type ValuesSerializerFeFe struct {
+	valuesSerializerFeFe
+}
+
+// for debugging reflect issues with unexported stuff. Currently unused:
+type ValuesSerializerHeaderFeHeaderFe struct {
+	valuesSerializerHeaderFeHeaderFe
+}
+
+// for debugging reflect issues with unexported stuff. Currently unused:
+type ValuesSerializerFe struct {
+	valuesSerializerFe
+}
+
+// for debugging reflect issues with unexported stuff. Currently unused:
+type ValuesSerializerFeCompressedBit struct {
+	valuesSerializerFeCompressedBit
+}
+
+// for debugging reflect issues with unexported stuff. Currently unused:
+type ValuesSerializerHeaderFe struct {
+	valuesSerializerHeaderFe
+}
+
+// for debugging reflect issues with unexported stuff. Currently unused:
+var allValuesSerializersExported []valuesSerializer = []valuesSerializer{
+	&ValuesSerializerFeFe{valuesSerializerFeFe{fieldElementEndianness: defaultEndianness}},
+	&ValuesSerializerHeaderFeHeaderFe{valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness}},
+	&ValuesSerializerFe{valuesSerializerFe{fieldElementEndianness: defaultEndianness}},
+	&ValuesSerializerFeCompressedBit{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}},
+	&ValuesSerializerHeaderFe{valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness}},
 }
 
 var allValueSerializerTypes []reflect.Type = []reflect.Type{
@@ -40,18 +70,10 @@ var allValueSerializerTypes []reflect.Type = []reflect.Type{
 // Since the return type of Clone depends on the type of the value serializer itself, we need reflection to express that
 // (We could do it with generics, but then we could not write it as a loop over a global array that is shared across tests)
 func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
-	for _, serializerType := range allValueSerializerTypes {
+	for _, valueSerializerType := range allValueSerializerTypes {
 		// methods are defined on the pointer types
-		serializerType = reflect.PtrTo(serializerType)
-		ok, reason := testutils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{serializerType})
-		if !ok {
-			t.Error(reason)
-		}
-		ok, reason = testutils.DoesMethodExist(serializerType, "Validate", []reflect.Type{}, []reflect.Type{})
-		if !ok {
-			t.Error(reason)
-		}
-		ok, reason = testutils.DoesMethodExist(serializerType, "OutputLength", []reflect.Type{}, []reflect.Type{utils.TypeOfType[int32]()})
+		valueSerializerType = reflect.PtrTo(valueSerializerType)
+		ok, reason := testutils.DoesMethodExist(valueSerializerType, "Clone", []reflect.Type{}, []reflect.Type{valueSerializerType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -60,10 +82,50 @@ func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	}
 }
 
+// This tests whether OutputLength and RecognizedParameters can be called on nil pointers of the appropriate type
+func TestQueryFunctionsCallableOnNil(t *testing.T) {
+	for _, valueSerializerType := range allValueSerializerTypes {
+		valueSerializerType = reflect.PtrTo(valueSerializerType)
+		zeroValue := reflect.Zero(valueSerializerType).Interface().(valuesSerializer)
+		_ = zeroValue.OutputLength()
+		_ = zeroValue.RecognizedParameters()
+	}
+}
+
 // This Test runs Validate on all values Serializers that we defined above.
 func TestAllValuesSerializersValidate(t *testing.T) {
-	for _, basicSerializer := range allValuesSerializers {
-		basicSerializer.(validater).Validate()
+	for _, valueSerializer := range allValuesSerializers {
+		valueSerializer.(validater).Validate()
+	}
+}
+
+func TestAllValuesSerializersClonable(t *testing.T) {
+	for _, valueSerializer := range allValuesSerializers {
+		// TestValuesSerializersSatisfyImplicitInterface takes care about whether a Clone method exists with the correct type.
+		// (It is even more restrictive than this test).
+		// The purpose here is to actually CALL the Clone method and Validate the result.
+		clone := testutils.CallMethodByName(valueSerializer, "Clone")[0]
+		if clone == nil {
+			t.Fatalf("Clone returned nil")
+		}
+		cloneSerializer, ok := clone.(valuesSerializer)
+		if !ok {
+			t.Fatalf("Cloning a valuesSerializer did not work. See output of TestValuesSerializersSatisfyImplicitInterface.")
+		}
+		cloneSerializer.Validate()
+	}
+}
+
+func TestParameterSettings(t *testing.T) {
+	for _, valueSerializer := range allValuesSerializers {
+		name := testutils.GetReflectName(reflect.TypeOf(valueSerializer)) // name of the type of the serialzer. Used for error reporting.
+		var params []string = valueSerializer.RecognizedParameters()
+		for _, param := range params {
+			if !hasParameter(valueSerializer, param) {
+				t.Errorf("%v does not have parameter named %v as claimed", name, param)
+			}
+
+		}
 	}
 }
 

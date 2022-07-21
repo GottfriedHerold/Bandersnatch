@@ -83,7 +83,8 @@ loop2:
 // parameterName is case-insensitive
 //
 // Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
-func hasParameter[ValueType any, PtrType *ValueType](serializer PtrType, parameterName string) bool {
+// This functions does work for PtrType being an interface type itself.
+func hasParameter[PtrType any](serializer PtrType, parameterName string) bool {
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
 	paramInfo, ok := serializerParams[parameterName]
 
@@ -94,14 +95,14 @@ func hasParameter[ValueType any, PtrType *ValueType](serializer PtrType, paramet
 		panic(ErrorPrefix + "hasParameter called with unrecognized parameter name")
 	}
 
-	serializerValue := reflect.ValueOf(serializer)
+	serializerType := reflect.TypeOf(serializer)
 	// serializerType := reflect.TypeOf(serializer)
-	setterMethod := serializerValue.MethodByName(paramInfo.setter)
-	if !setterMethod.IsValid() {
+	_, ok = serializerType.MethodByName(paramInfo.getter)
+	if !ok {
 		return false
 	}
-	getterMethod := serializerValue.MethodByName(paramInfo.getter)
-	return getterMethod.IsValid()
+	_, ok = serializerType.MethodByName(paramInfo.setter)
+	return ok
 }
 
 // TODO: We might not need this if we just make Validate() a hard requirement for all components of our serializer parts.
@@ -196,7 +197,7 @@ func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, p
 	serializerValue := reflect.ValueOf(serializer)
 	getterMethod := serializerValue.MethodByName(getterName)
 	if !getterMethod.IsValid() {
-		panic(fmt.Errorf("bandersnatch / serialization: getSerializeParam called on %v with parameter %v, but that type does not have a %v method", receiverName, parameterName, getterName))
+		panic(fmt.Errorf("bandersnatch / serialization: getSerializerParam called on %v with parameter %v, but that type does not have a %v method", receiverName, parameterName, getterName))
 	}
 	getterType := getterMethod.Type()
 	if numIn := getterType.NumIn(); numIn != 0 {
