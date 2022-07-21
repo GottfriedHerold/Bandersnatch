@@ -46,9 +46,36 @@ var serializerParams = map[string]struct {
 	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
 }
 
+var ParameterAware interface {
+	RecognizedParameters() []string // returns a slice of strings of all parameters that are recognized by this particular serializer.
+}
+
 // normalizeParameter is called on all parameter name arguments to make them case-insensitive.
 func normalizeParameter(arg string) string {
 	return strings.ToLower(arg)
+}
+
+func concatParameterList(list1, list2 []string) []string {
+	var ret []string = make([]string, 0, len(list1)+len(list2))
+loop1:
+	for _, val := range list1 {
+		for _, alreadyIn := range ret {
+			if normalizeParameter(alreadyIn) == normalizeParameter(val) {
+				continue loop1
+			}
+		}
+		ret = append(ret, val)
+	}
+loop2:
+	for _, val := range list2 {
+		for _, alreadyIn := range ret {
+			if normalizeParameter(alreadyIn) == normalizeParameter(val) {
+				continue loop2
+			}
+		}
+		ret = append(ret, val)
+	}
+	return ret
 }
 
 // hasParameter(serializer, parameterName) checks whether the type of serializer has setter and getter methods for the given parameter.
@@ -84,14 +111,14 @@ type validater interface {
 	Validate() // panics on failure, so no return value
 }
 
-// makeCopyWithParams(serializer, parameterName, newParam) takes a serializer (anything with a Clone-method, really) and returns an
+// makeCopyWithParameters(serializer, parameterName, newParam) takes a serializer (anything with a Clone-method, really) and returns an
 // independent copy (create via Clone() with the parameter given by parameterName replaced by newParam.
 //
 // We then call (if defined) serializer.Validate()
 // The serializer argument is a pointer, but the returned value is not.
 // parameterName is looked up in the global serializerParams map to obtain getter/setter method names.
 // The function panics on failure.
-func makeCopyWithParams[SerializerType any, SerializerPtr interface {
+func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	utils.Clonable[SerializerPtr]
 	Validate() // will be removed, kept for until refactoring is done

@@ -225,9 +225,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName s
 	mdCopy := md.makeCopy()
 	var basicDeserializationPtr = BasicPtr(&mdCopy.basicDeserializer)
 	if hasParameter(basicDeserializationPtr, parameterName) {
-		mdCopy.basicDeserializer = makeCopyWithParams(basicDeserializationPtr, parameterName, newParam)
+		mdCopy.basicDeserializer = makeCopyWithParameters(basicDeserializationPtr, parameterName, newParam)
 	} else {
-		mdCopy.headerDeserializer = makeCopyWithParams(&mdCopy.headerDeserializer, parameterName, newParam)
+		mdCopy.headerDeserializer = makeCopyWithParameters(&mdCopy.headerDeserializer, parameterName, newParam)
 	}
 	mdCopy.Validate()
 	return &mdCopy
@@ -237,9 +237,9 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName str
 	mdCopy := md.makeCopy()
 	var basicSerializationPtr = BasicPtr(&mdCopy.basicSerializer)
 	if hasParameter(basicSerializationPtr, parameterName) {
-		mdCopy.basicSerializer = makeCopyWithParams(basicSerializationPtr, parameterName, newParam)
+		mdCopy.basicSerializer = makeCopyWithParameters(basicSerializationPtr, parameterName, newParam)
 	} else {
-		mdCopy.headerSerializer = makeCopyWithParams(&mdCopy.headerSerializer, parameterName, newParam)
+		mdCopy.headerSerializer = makeCopyWithParameters(&mdCopy.headerSerializer, parameterName, newParam)
 	}
 	mdCopy.Validate()
 	return &mdCopy

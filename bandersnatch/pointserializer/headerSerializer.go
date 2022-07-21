@@ -38,6 +38,7 @@ type headerDeserializer interface {
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 }
 
+// these are the parameter names accepted by simpleHeaderDeserializer. This list is actually used for testing.
 var headerSerializerParams = []string{"GlobalSliceHeader", "GlobalSliceFooter", "SinglePointHeader", "SinglePointFooter", "PerPointHeader", "PerPointFooter"}
 
 // headerSerializer extends headerDeserializer by also providing serialization routines.
@@ -54,6 +55,8 @@ type headerSerializer interface {
 const simpleHeaderSliceLengthOverhead = 4 // size taken up in bytes for serializing slice lengths.
 
 // simpleHeaderDeserializer is a headerDeserializer where all headers are just constant []byte's and the size of slices is written into 4 bytes after the slice header.
+//
+// Note that the zero value is invalid and does not pass Validate() due to sliceSizeEndianness being nil.
 type simpleHeaderDeserializer struct {
 	headerSlice            []byte
 	headerPerCurvePoint    []byte
@@ -66,6 +69,8 @@ type simpleHeaderDeserializer struct {
 }
 
 // simpleHeaderSerializer extends simpleHeaderDeserializer by also providing write methods.
+//
+// As with simpleHeaderDeserializer, the zero value of this type is invalid.
 type simpleHeaderSerializer struct {
 	simpleHeaderDeserializer
 }
@@ -81,18 +86,26 @@ func init() {
 	basicSimpleHeaderSerializer.Validate()
 }
 
+// Clone returns an independent copy of the receivedHeaderDeserializer (as a pointer)
 func (shd *simpleHeaderDeserializer) Clone() *simpleHeaderDeserializer {
 	var ret simpleHeaderDeserializer
+
+	// We copy the byte slices to avoid aliasing. This is actually not needed, since headerDeserializers are immutable.
+	// While Clone is used internally to create modified copies (by first cloning and then changing parameters), the latter change
+	// does not modify the existing slice.
 	ret.headerSlice = copyByteSlice(shd.headerSlice)
 	ret.headerPerCurvePoint = copyByteSlice(shd.headerPerCurvePoint)
 	ret.headerSingleCurvePoint = copyByteSlice(shd.headerSingleCurvePoint)
 	ret.footerSlice = copyByteSlice(shd.footerSlice)
 	ret.footerPerCurvePoint = copyByteSlice(shd.footerPerCurvePoint)
 	ret.footerSingleCurvePoint = copyByteSlice(shd.footerSingleCurvePoint)
+
+	// Copy the endianness. While this is an interface possibly holding a pointer, we do not expect this to be modifyable.
 	ret.sliceSizeEndianness = shd.sliceSizeEndianness
 	return &ret
 }
 
+// Clone returns an independent copy of the receivedHeaderSerializer (as a pointer)
 func (shs *simpleHeaderSerializer) Clone() *simpleHeaderSerializer {
 	var ret simpleHeaderSerializer
 	ret.simpleHeaderDeserializer = *shs.simpleHeaderDeserializer.Clone()
@@ -159,6 +172,8 @@ func (shd *simpleHeaderDeserializer) Validate() {
 // NOTE: Getters return a copy, by design. This is because all serializers are read-only.
 // The only way for users to modify a serializer is to create a modified copy.
 // Returning the contained slice would break that.
+//
+// Similarly, Setters put a copy of the slice in the
 
 func (shd *simpleHeaderDeserializer) SetGlobalSliceHeader(v []byte) {
 	shd.headerSlice = copyByteSlice(v)

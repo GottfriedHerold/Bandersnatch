@@ -68,7 +68,7 @@ func TestSettersAndGetters(t *testing.T) {
 
 	for _, paramName := range headerSerializerParams {
 		m[paramName] = []byte(paramName)
-		shd = makeCopyWithParams(&shd, paramName, m[paramName])
+		shd = makeCopyWithParameters(&shd, paramName, m[paramName])
 	}
 	for _, paramName := range headerSerializerParams {
 		arg := getSerializerParam(&shd, paramName).([]byte)
@@ -97,7 +97,7 @@ var testSimpleHeaderSerializer simpleHeaderSerializer
 func init() {
 	testSimpleHeaderSerializer.sliceSizeEndianness = binary.LittleEndian
 	for _, paramName := range headerSerializerParams {
-		testSimpleHeaderSerializer = makeCopyWithParams(&testSimpleHeaderSerializer, paramName, []byte(paramName))
+		testSimpleHeaderSerializer = makeCopyWithParameters(&testSimpleHeaderSerializer, paramName, []byte(paramName))
 	}
 	testSimpleHeaderSerializer.Validate()
 }

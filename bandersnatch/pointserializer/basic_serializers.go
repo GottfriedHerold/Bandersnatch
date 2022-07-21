@@ -44,6 +44,7 @@ type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interf
 	WithParameter(parameterName string, newParam any) SelfValue // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
 	WithEndianness(newEndianness binary.ByteOrder) SelfValue    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
 	utils.Clonable[SelfPtr]                                     // gives a Clone() SelfPtr function to make copies of itself
+	// RecognizedParameters() []string                             // gives a list of recognized parameters
 }
 
 // modifyableDeserializer_basic is the interface for deserializer of single curve points that allow parameter modifications.
@@ -205,9 +206,9 @@ func (s *pointSerializerXY) Clone() (ret *pointSerializerXY) {
 // WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
 // Invalid inputs cause a panic.
 //
-// Recognized params are: "Endianness", "SubgroupOnly"
+// Recognized params are: "Endianness", "SubgroupOnly", "BitHeader", "BitHeader2"
 func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXY) {
-	return makeCopyWithParams(s, param, newParam)
+	return makeCopyWithParameters(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
@@ -225,7 +226,7 @@ func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 
 // GetParameter returns the value of the internal parameter determined by parameterName
 //
-// recognized parameterNames are: "Endianness", "SubgroupOnly".
+// recognized parameterNames are: "Endianness", "SubgroupOnly"., "BitHeader", "BitHeader2"
 func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
@@ -326,7 +327,7 @@ func (s *pointSerializerXAndSignY) Clone() (ret *pointSerializerXAndSignY) {
 //
 // Recognized params are: "Endianness", "SubgroupOnly"
 func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXAndSignY) {
-	return makeCopyWithParams(s, param, newParam)
+	return makeCopyWithParameters(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
@@ -484,7 +485,7 @@ func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 //
 // Recognized params are: "Endianness", "SubgroupOnly"
 func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYAndSignX) {
-	return makeCopyWithParams(s, param, newParam)
+	return makeCopyWithParameters(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
@@ -587,7 +588,7 @@ func (s *pointSerializerXTimesSignY) Clone() (ret *pointSerializerXTimesSignY) {
 // Recognized params are: "Endianness", "SubgroupOnly"
 // Note that "SubgroupOnly" only accepts true.
 func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXTimesSignY) {
-	return makeCopyWithParams(s, param, newParam)
+	return makeCopyWithParameters(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
@@ -704,7 +705,7 @@ func (s *pointSerializerYXTimesSignY) Clone() (ret *pointSerializerYXTimesSignY)
 // Recognized params are: "Endianness", "SubgroupOnly"
 // Note that SubgroupOnly only accepts true.
 func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYXTimesSignY) {
-	return makeCopyWithParams(s, param, newParam)
+	return makeCopyWithParameters(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
