@@ -84,7 +84,7 @@ loop2:
 //
 // Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
 // This functions does work for PtrType being an interface type itself.
-func hasParameter[PtrType any](serializer PtrType, parameterName string) bool {
+func hasParameter(serializer any, parameterName string) bool {
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
 	paramInfo, ok := serializerParams[parameterName]
 

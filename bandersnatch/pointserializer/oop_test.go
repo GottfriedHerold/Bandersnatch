@@ -31,7 +31,7 @@ type dummyGetterAndSetter struct {
 
 func TestHasParameters(t *testing.T) {
 	var nilEndianness *FieldElementEndianness = nil
-	if !testutils.CheckPanic(hasParameter[*FieldElementEndianness], nilEndianness, "invalidParameter") {
+	if !testutils.CheckPanic(hasParameter, nilEndianness, "invalidParameter") {
 		t.Fatalf("hasParameter did not panic on unrecognized parameter")
 	}
 	if hasParameter(nilEndianness, "SubgroupOnly") {
