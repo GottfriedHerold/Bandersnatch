@@ -34,16 +34,21 @@ var serializerParams = map[string]struct {
 	vartype reflect.Type
 }{
 	// Note: We use utils.TypeOfType rather than reflect.TypeOf, since this also works with interface types such as binary.ByteOrder.
-	"endianness":        {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
-	"bitheader":         {getter: "GetBitHeader", setter: "SetBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
-	"bitheader2":        {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
-	"subgrouponly":      {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
-	"globalsliceheader": {getter: "GetGlobalSliceHeader", setter: "SetGlobalSliceHeader", vartype: utils.TypeOfType[[]byte]()},
-	"globalslicefooter": {getter: "GetGlobalSliceFooter", setter: "SetGlobalSliceFooter", vartype: utils.TypeOfType[[]byte]()},
-	"perpointheader":    {getter: "GetPerPointHeader", setter: "SetPerPointHeader", vartype: utils.TypeOfType[[]byte]()},
-	"perpointfooter":    {getter: "GetPerPointFooter", setter: "SetPerPointFooter", vartype: utils.TypeOfType[[]byte]()},
-	"singlepointheader": {getter: "GetSinglePointHeader", setter: "SetSinglePointHeader", vartype: utils.TypeOfType[[]byte]()},
-	"singlepointfooter": {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("Endianness"):        {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
+	normalizeParameter("BitHeader"):         {getter: "GetBitHeader", setter: "SetBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
+	normalizeParameter("BitHeader2"):        {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
+	normalizeParameter("SubgroupOnly"):      {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
+	normalizeParameter("GlobalSliceHeader"): {getter: "GetGlobalSliceHeader", setter: "SetGlobalSliceHeader", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("GlobalSliceFooter"): {getter: "GetGlobalSliceFooter", setter: "SetGlobalSliceFooter", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("PerPointHeader"):    {getter: "GetPerPointHeader", setter: "SetPerPointHeader", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("PerPointFooter"):    {getter: "GetPerPointFooter", setter: "SetPerPointFooter", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("SinglePointHeader"): {getter: "GetSinglePointHeader", setter: "SetSinglePointHeader", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
+}
+
+// normalizeParameter is called on all parameter name arguments to make them case-insensitive.
+func normalizeParameter(arg string) string {
+	return strings.ToLower(arg)
 }
 
 // hasParameter(serializer, parameterName) checks whether the type of serializer has setter and getter methods for the given parameter.
@@ -52,7 +57,7 @@ var serializerParams = map[string]struct {
 //
 // Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
 func hasParameter[ValueType any, PtrType *ValueType](serializer PtrType, parameterName string) bool {
-	parameterName = strings.ToLower(parameterName) // make parameterName case-insensitive
+	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
 	paramInfo, ok := serializerParams[parameterName]
 
 	// Technically, we could just meaningfully return false if parameterName is not found in serializerParams.
@@ -94,7 +99,7 @@ func makeCopyWithParams[SerializerType any, SerializerPtr interface {
 ](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
 
 	// Retrieve method name from parameterName
-	parameterName = strings.ToLower(parameterName) // make parameterName case-insensitive. The map keys are all lower-case
+	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive. The map keys are all normalized
 	paramInfo, ok := serializerParams[parameterName]
 	if !ok {
 		panic(ErrorPrefix + "makeCopyWithParams called with unrecognized parameter name")
@@ -118,7 +123,7 @@ func makeCopyWithParams[SerializerType any, SerializerPtr interface {
 	if numOutputs := setterMethod.Type().NumOut(); numOutputs != 0 {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v whose parameter setter %v returns a non-zero number %v of return values", typeName, paramInfo.setter, numOutputs))
 	}
-	
+
 	// Not really needed, since this would cause a panic from setterMethod.Call later, but we prefer a more meaningful error message.
 	if numInputs := setterMethod.Type().NumIn(); numInputs != 1 {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v whose parameter setter %v takes %v rather than 1 input argument ", typeName, paramInfo.setter, numInputs))

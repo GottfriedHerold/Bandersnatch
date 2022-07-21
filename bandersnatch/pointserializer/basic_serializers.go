@@ -18,7 +18,12 @@ import (
 
 // This file defines basic serializers that serialize and deserialize a single curve point.
 
+// TODO: Allow serializing points at infinity.
+
 // curvePointDeserializer_basic is a deserializer for single curve points
+//
+// Note that methods for parameter modification are contained in the generic modifyableSerializer interface.
+// This is done in order to have the non-generic interface separate.
 type curvePointDeserializer_basic interface {
 	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point.
 	// TrustLevel determines whether we trust the input to be a valid representation of a curve point.
@@ -30,15 +35,18 @@ type curvePointDeserializer_basic interface {
 
 	GetParameter(parameterName string) any        // obtains a parameter (such as endianness. parameterName is a case-insensitive.
 	GetEndianness() common.FieldElementEndianness // returns the endianness used for field element serialization.
-	validater
+	Validate()                                    // internal self-check of parameters; this is exported because of reflect usage
 }
 
+// modifyableSerializer is the interface part contains the generic methods used to modify parameters.
+// The relevant methods return a modified copy, whose type depends on the original, hence the need for generics.
 type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
-	WithParameter(parameterName string, newParam any) SelfValue
-	WithEndianness(newEndianness binary.ByteOrder) SelfValue
-	utils.Clonable[SelfPtr]
+	WithParameter(parameterName string, newParam any) SelfValue // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
+	WithEndianness(newEndianness binary.ByteOrder) SelfValue    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
+	utils.Clonable[SelfPtr]                                     // gives a Clone() SelfPtr function to make copies of itself
 }
 
+// modifyableDeserializer_basic is the interface for deserializer of single curve points that allow parameter modifications.
 type modifyableDeserializer_basic[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
 	curvePointDeserializer_basic
 	modifyableSerializer[SelfValue, SelfPtr]
@@ -50,19 +58,21 @@ type curvePointSerializer_basic interface {
 	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
 }
 
+// modifyableDeserializer_basic is the interface for a serializer+deserializer of single curve points that allow parameter modifications.
 type modifyableSerializer_basic[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
 	curvePointSerializer_basic
 	modifyableSerializer[SelfValue, SelfPtr]
 }
 
-// TODO: Separate into separate checks?
+// Q: Separate into separate checks?
 
 // checkPointSerializability verifies that the point is not a NaP or infinite. If performSubgroupCheck is set to true, also ensures that the point is in the p253-prime order subgroup.
 // If everything is fine, returns nil. These correspond to the points that we usually want to serialize.
 //
 // Note: This function is is typically called before serializing (not for deserializing), where we do not have a trustLevel argument.
-// This means that we always check whether the point is in the subgroup for any writes if the serializer is subgroup-only. Note for efficiency that this check is actually
-// trivial if the type of point can only represent subgroup elements; we assume that this is the most common usage scenario.
+// This means that we always check whether the point is in the subgroup for any writes if the serializer is subgroup-only.
+// Note for efficiency that this check is actually trivial if the type of point can only represent subgroup elements;
+// we assume that this is the most common usage scenario.
 func checkPointSerializability(point curvePoints.CurvePointPtrInterfaceRead, performSubgroupCheck bool) (err error) {
 	if point.IsNaP() {
 		err = bandersnatchErrors.ErrCannotSerializeNaP
@@ -86,6 +96,8 @@ func checkPointSerializability(point curvePoints.CurvePointPtrInterfaceRead, per
 type subgroupRestriction = common.SubgroupRestriction
 type subgroupOnly = common.SubgroupOnly
 
+// addErrorDataNoWrite turns an arbitrary error into a SerializationError; the additional data added is trivial.
+// this is supposed to be used if serialization fails before any io is even attempted.
 func addErrorDataNoWrite(err error) bandersnatchErrors.SerializationError {
 	if err == nil {
 		return nil
@@ -108,6 +120,10 @@ type pointSerializerXY struct {
 	subgroupRestriction // wraps a bool
 }
 
+// SerializeCurvePoint writes a single curve point to the given output.
+// Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
+//
+// The format is X||Y for affine X and Y coordinates.
 func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	var errPlain error = checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
@@ -119,6 +135,10 @@ func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoi
 	return
 }
 
+// DeserializeCurvePoint reads from input, interprets it and overwrites point.
+// On error, point is untouched.
+//
+// The format is X||Y for affine X and Y coordinates.
 func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	var X, Y fieldElements.FieldElement
 	// var errPlain error
@@ -162,27 +182,50 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 	return
 }
 
+// Validate perfoms a self-check of the internal parameters stored for the given serializer.
+// It panics on failure.
+//
+// Note that users are not expected to call this; this is provided for internal usage to unify parameter setting functions.
+// It is exported for cross-package/reflect usage.
 func (s *pointSerializerXY) Validate() {
 	s.valuesSerializerHeaderFeHeaderFe.Validate()
 	s.subgroupRestriction.Validate()
 }
 
+// Clone creates an independent copy of the received serializer, returning a pointer.
+//
+// Note that since serializers are immutable, library users should never need to call this;
+// this is an internal function that is exported due to cross-package and reflect usage.
 func (s *pointSerializerXY) Clone() (ret *pointSerializerXY) {
 	var sCopy pointSerializerXY = *s
 	ret = &sCopy
 	return
 }
 
+// WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
+// Invalid inputs cause a panic.
+//
+// Recognized params are: "Endianness", "SubgroupOnly"
 func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXY) {
 	return makeCopyWithParams(s, param, newParam)
 }
 
+// WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
+// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
+//
+// Invalid inputs cause a panic.
 func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXY {
-	return s.WithParameter("endianness", newEndianness)
+	return s.WithParameter("Endianness", newEndianness)
 }
 
+// OutputLength returns the number of bytes read/written per curve point.
+//
+// It returns 64 for this serializer type.
 func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 
+// GetParameter returns the value of the internal parameter determined by parameterName
+//
+// recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
@@ -195,6 +238,10 @@ type pointSerializerXAndSignY struct {
 	subgroupRestriction
 }
 
+// SerializeCurvePoint writes a single curve point to the given output.
+// Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
+//
+// The format written is Sign(Y)||X, with the sign bit (1 for negative, 0 for positive) embedded in the msb of X to save space.
 func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	var errPlain error = checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
@@ -209,6 +256,10 @@ func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point c
 	return
 }
 
+// DeserializeCurvePoint reads from input, interprets it and overwrites point.
+// On error, point is untouched.
+//
+// The format expected is Sign(Y)||X, with the sign bit (1 for negative, 0 for positive) embedded in the msb of X.
 func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	var X fieldElements.FieldElement
 	var signBit bool
@@ -260,26 +311,52 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 	return
 }
 
+// Clone creates an independent copy of the received serializer, returning a pointer.
+//
+// Note that since serializers are immutable, library users should never need to call this;
+// this is an internal function that is exported due to cross-package and reflect usage.
 func (s *pointSerializerXAndSignY) Clone() (ret *pointSerializerXAndSignY) {
 	var sCopy pointSerializerXAndSignY = *s
 	ret = &sCopy
 	return
 }
 
+// WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
+// Invalid input cause a panic.
+//
+// Recognized params are: "Endianness", "SubgroupOnly"
 func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXAndSignY) {
 	return makeCopyWithParams(s, param, newParam)
 }
 
+// WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
+// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
+//
+// Invalid inputs cause a panic.
 func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXAndSignY {
 	return s.WithParameter("endianness", newEndianness)
 }
 
+// OutputLength returns the number of bytes read/written per curve point.
+//
+// It returns 32 for this serializer type.
 func (s *pointSerializerXAndSignY) OutputLength() int32 { return 32 }
 
+// GetParameter returns the value of the internal parameter determined by parameterName
+//
+// recognized parameterNames are: "Endianness", "SubgroupOnly".
+// GetParameter returns the value of the given parameterName.
+//
+// Accepted values for parameterName are "Endiannness", "SubgroupOnly"
 func (s *pointSerializerXAndSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
+// Validate perfoms a self-check of the internal parameters stored for the given serializer.
+// It panics on failure.
+//
+// Note that users are not expected to call this; this is provided for internal usage to unify parameter setting functions.
+// It is exported for cross-package/reflect usage.
 func (s *pointSerializerXAndSignY) Validate() {
 	s.valuesSerializerFeCompressedBit.Validate()
 	s.fieldElementEndianness.Validate()
@@ -291,11 +368,20 @@ type pointSerializerYAndSignX struct {
 	subgroupRestriction
 }
 
+// Validate perfoms a self-check of the internal parameters stored for the given serializer.
+// It panics on failure.
+//
+// Note that users are not expected to call this; this is provided for internal usage to unify parameter setting functions.
+// It is exported for cross-package/reflect usage.
 func (s *pointSerializerYAndSignX) Validate() {
 	s.valuesSerializerFeCompressedBit.Validate()
 	s.subgroupRestriction.Validate()
 }
 
+// SerializeCurvePoint writes a single curve point to the given output.
+// Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
+//
+// The output format is Sign(X)||Y, where Sign(X) is a bit (set iff X<0) stored inside the msb of Y for compression.
 func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	errPlain := checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
@@ -309,6 +395,10 @@ func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point c
 	return
 }
 
+// DeserializeCurvePoint reads from input, interprets it and overwrites point.
+// On error, point is untouched.
+//
+// The format expected is Sign(X)||Y, where Sign(X) is a bit (0b1 iff X<0) stored inside the msb of Y for compression.
 func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	var Y fieldElements.FieldElement
 	var signBit bool
@@ -378,6 +468,10 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 	return
 }
 
+// Clone creates an independent copy of the received serializer, returning a pointer.
+//
+// Note that since serializers are immutable, library users should never need to call this;
+// this is an internal function that is exported due to cross-package and reflect usage.
 func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 	var sCopy pointSerializerYAndSignX
 	sCopy.fieldElementEndianness = s.fieldElementEndianness
@@ -386,16 +480,29 @@ func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 	return
 }
 
+// WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
+//
+// Recognized params are: "Endianness", "SubgroupOnly"
 func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYAndSignX) {
 	return makeCopyWithParams(s, param, newParam)
 }
 
+// WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
+// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
+//
+// Invalid inputs cause a panic.
 func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYAndSignX {
 	return s.WithParameter("endianness", newEndianness)
 }
 
+// OutputLength returns the number of bytes read/written per curve point.
+//
+// It returns 32 for this serializer type.
 func (s *pointSerializerYAndSignX) OutputLength() int32 { return 32 }
 
+// GetParameter returns the value of the internal parameter determined by parameterName
+//
+// recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerYAndSignX) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
@@ -408,11 +515,20 @@ type pointSerializerXTimesSignY struct {
 	subgroupOnly
 }
 
+// Validate perfoms a self-check of the internal parameters stored for the given serializer.
+// It panics on failure.
+//
+// Note that users are not expected to call this; this is provided for internal usage to unify parameter setting functions.
+// It is exported for cross-package/reflect usage.
 func (s *pointSerializerXTimesSignY) Validate() {
 	s.valuesSerializerHeaderFe.Validate()
 	s.subgroupOnly.Validate()
 }
 
+// SerializeCurvePoint writes a single curve point to the given output.
+// Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
+//
+// The format written is X*Sign(Y), where Sign(Y) is +1 or -1.
 func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	errPlain := checkPointSerializability(point, true)
 	if errPlain != nil {
@@ -430,6 +546,10 @@ func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point
 	return
 }
 
+// DeserializeCurvePoint reads from input, interprets it and overwrites point.
+// On error, point is untouched.
+//
+// The format expected is X*Sign(Y), where Sign(Y) is +1 or -1.
 func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	var XSignY fieldElements.FieldElement
 	bytesRead, err, XSignY = s.DeserializeValues(input)
@@ -453,21 +573,39 @@ func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trus
 	return
 }
 
+// Clone creates an independent copy of the received serializer, returning a pointer.
+//
+// Note that since serializers are immutable, library users should never need to call this;
+// this is an internal function that is exported due to cross-package and reflect usage.
 func (s *pointSerializerXTimesSignY) Clone() (ret *pointSerializerXTimesSignY) {
 	var sCopy pointSerializerXTimesSignY = *s
 	return &sCopy
 }
 
+// WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
+//
+// Recognized params are: "Endianness", "SubgroupOnly"
+// Note that "SubgroupOnly" only accepts true.
 func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXTimesSignY) {
 	return makeCopyWithParams(s, param, newParam)
 }
 
+// WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
+// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
+//
+// Invalid inputs cause a panic.
 func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXTimesSignY {
 	return s.WithParameter("endianness", newEndianness)
 }
 
+// OutputLength returns the number of bytes read/written per curve point.
+//
+// It returns 32 for this serializer type.
 func (s *pointSerializerXTimesSignY) OutputLength() int32 { return 32 }
 
+// GetParameter returns the value of the internal parameter determined by parameterName
+//
+// recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
@@ -480,11 +618,20 @@ type pointSerializerYXTimesSignY struct {
 	subgroupOnly
 }
 
+// Validate perfoms a self-check of the internal parameters stored for the given serializer.
+// It panics on failure.
+//
+// Note that users are not expected to call this; this is provided for internal usage to unify parameter setting functions.
+// It is exported for cross-package/reflect usage.
 func (s *pointSerializerYXTimesSignY) Validate() {
 	s.valuesSerializerHeaderFeHeaderFe.Validate()
 	s.subgroupOnly.Validate()
 }
 
+// SerializeCurvePoint writes a single curve point to the given output.
+// Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
+//
+// The format written is Y*Sign(Y)||X*Sign(Y), where  Sign(Y) = +1 or -1
 func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	errPlain := checkPointSerializability(point, true)
 	if errPlain != nil {
@@ -503,6 +650,10 @@ func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, poin
 	return
 }
 
+// DeserializeCurvePoint reads from input, interprets it and overwrites point.
+// On error, point is untouched.
+//
+// The format expected is Y*Sign(Y)||X*Sign(Y), with Sign(Y)=+1 or -1.
 func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	var XSignY, YSignY fieldElements.FieldElement
 	bytesRead, err, YSignY, XSignY = s.DeserializeValues(input)
@@ -538,22 +689,40 @@ func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, tru
 	return
 }
 
+// Clone creates an independent copy of the received serializer, returning a pointer.
+//
+// Note that since serializers are immutable, library users should never need to call this;
+// this is an internal function that is exported due to cross-package and reflect usage.
 func (s *pointSerializerYXTimesSignY) Clone() (ret *pointSerializerYXTimesSignY) {
 	var sCopy pointSerializerYXTimesSignY = *s
 	ret = &sCopy
 	return
 }
 
+// WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
+//
+// Recognized params are: "Endianness", "SubgroupOnly"
+// Note that SubgroupOnly only accepts true.
 func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYXTimesSignY) {
 	return makeCopyWithParams(s, param, newParam)
 }
 
+// WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
+// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
+//
+// Invalid inputs cause a panic.
 func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYXTimesSignY {
 	return s.WithParameter("endianness", newEndianness)
 }
 
+// OutputLength returns the number of bytes read/written per curve point.
+//
+// It returns 64 for this serializer type.
 func (s *pointSerializerYXTimesSignY) OutputLength() int32 { return 64 }
 
+// GetParameter returns the value of the internal parameter determined by parameterName
+//
+// recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }

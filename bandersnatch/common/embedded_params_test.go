@@ -9,6 +9,7 @@ import (
 type subgroupRestrictionInterface interface {
 	SetSubgroupRestriction(bool)
 	IsSubgroupOnly() bool
+	Validate()
 }
 
 var _ subgroupRestrictionInterface = &SubgroupRestriction{}

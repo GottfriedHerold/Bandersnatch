@@ -2,7 +2,6 @@ package pointserializer
 
 import (
 	"encoding/binary"
-	"strings"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
@@ -11,7 +10,7 @@ import (
 // keys in the global serializerParams act case-insensitve, which is implemented via normalization to lowercase. So the entries in the map must be lowercase.
 func TestParamsLowercase(t *testing.T) {
 	for key := range serializerParams {
-		if key != strings.ToLower(key) {
+		if key != normalizeParameter(key) {
 			t.Fatalf("serializerParams has non-lowercased key %v", key)
 		}
 	}
