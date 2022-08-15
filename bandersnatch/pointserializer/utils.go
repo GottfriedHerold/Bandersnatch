@@ -10,7 +10,6 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -131,8 +130,7 @@ func copyByteSlice(v []byte) (ret []byte) {
 		return
 	}
 	ret = make([]byte, len(v))
-	L := copy(ret, v)
-	testutils.Assert(L == len(v))
+	copy(ret, v)
 	return
 }
 

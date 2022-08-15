@@ -82,6 +82,15 @@ func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	}
 }
 
+func TestRegognizedParameters(t *testing.T) {
+	for _, valueSerializer := range allValuesSerializers {
+		recognizedParams := valueSerializer.RecognizedParameters()
+		for _, recognizedParam := range recognizedParams {
+			_ = getSerializerParam(&valueSerializer, recognizedParam)
+		}
+	}
+}
+
 // This tests whether OutputLength and RecognizedParameters can be called on nil pointers of the appropriate type
 func TestQueryFunctionsCallableOnNil(t *testing.T) {
 	for _, valueSerializerType := range allValueSerializerTypes {
