@@ -53,3 +53,24 @@ func TestHasParameters(t *testing.T) {
 		t.Fatalf("hasParamter returned false for struct with both getter and setter")
 	}
 }
+
+func TestConcatParameterList(t *testing.T) {
+	emptyList := []string{}
+	emptyListSum := concatParameterList(emptyList, emptyList)
+	if len(emptyListSum) != 0 {
+		t.Fatalf("Concatenatio of empty lists non-empty")
+	}
+	list1 := []string{"A", "AB", "A", "DUP", "B"}
+	list2 := []string{"B", "C", "DUP", "D"}
+	concat := concatParameterList(list1, list2)
+	expectedconcat := []string{"A", "AB", "DUP", "B", "C", "D"}
+	if len(concat) != len(expectedconcat) {
+		t.Fatalf("List concatentation has unexpected length")
+	}
+	for i, v := range concat {
+		if v != expectedconcat[i] {
+			t.Fatalf("List concatenation not as expected")
+		}
+	}
+
+}

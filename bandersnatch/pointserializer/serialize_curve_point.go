@@ -26,7 +26,7 @@ import (
 // Deserialization function also typically have a trustLevel argument to distinguish trusted input from untrusted input.
 // Serializers and Deserializers are separate types:
 // This is annoying, but the reason is that some methods have slightly differnt signatures:
-// While Every Serializer actually also "is" a deserializer that allows to read back in what was written,
+// While every Serializer actually also "is" a deserializer that allows to read back in what was written,
 // a deserializer might support several serialization formats. In this case, the deserializer does not have serialization routines at all,
 // but we rather have several serializers and one compatible deserializer.
 // Unfortunately, Serializers are not an interface extension of Deserializers.

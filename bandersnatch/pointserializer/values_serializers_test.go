@@ -115,7 +115,6 @@ func TestAllValuesSerializersClonable(t *testing.T) {
 		cloneSerializer.Validate()
 	}
 }
-
 func TestParameterSettings(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
 		name := testutils.GetReflectName(reflect.TypeOf(valueSerializer)) // name of the type of the serialzer. Used for error reporting.
@@ -124,7 +123,6 @@ func TestParameterSettings(t *testing.T) {
 			if !hasParameter(valueSerializer, param) {
 				t.Errorf("%v does not have parameter named %v as claimed", name, param)
 			}
-
 		}
 	}
 }

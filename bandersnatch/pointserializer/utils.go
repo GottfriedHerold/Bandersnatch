@@ -28,7 +28,7 @@ type headerRead struct {
 }
 
 // PARTIAL_READ and errordata_ACTUALLYREAD must coincide with field names.
-// This is just to guard against refactorings renaming
+// This is just to guard against refactorings renaming things
 func init() {
 	fields := reflect.VisibleFields(utils.TypeOfType[headerRead]())
 	if fields[0].Name != PARTIAL_READ {

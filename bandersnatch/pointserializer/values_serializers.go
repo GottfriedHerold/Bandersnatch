@@ -154,7 +154,7 @@ func (s *valuesSerializerFeFe) OutputLength() int32 { return 64 }
 // RecognizedParameters outputs a slice of strings listing valid parameters that can be queried/set via
 // the hasParameter / makeCopyWithParameters generic methods.
 //
-// For a valuesSerializerFeFe, constains "Endianness" (the endianness used to (de)serialize FieldElements)
+// For a valuesSerializerFeFe, contains "Endianness" (the endianness used to (de)serialize FieldElements)
 func (s *valuesSerializerFeFe) RecognizedParameters() []string {
 	return []string{"Endianness"}
 }
