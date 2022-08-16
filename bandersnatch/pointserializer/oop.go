@@ -46,7 +46,7 @@ var serializerParams = map[string]struct {
 	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
 }
 
-var ParameterAware interface {
+type ParameterAware interface {
 	RecognizedParameters() []string // returns a slice of strings of all parameters that are recognized by this particular serializer.
 }
 
@@ -128,14 +128,32 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	// utils.Clonable[SerializerPtr] OR utils.Clonable[SerializerType]
 	Validate() // will be removed, kept for until refactoring is done
+	ParameterAware
 },
 ](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
+
+	// Obtain string representations of parameter type. This is only used for better error messages.
+	var typeName string = testutils.GetReflectName(utils.TypeOfType[SerializerType]())
 
 	// Retrieve method name from parameterName
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive. The map keys are all normalized
 	paramInfo, ok := serializerParams[parameterName]
 	if !ok {
 		panic(ErrorPrefix + "makeCopyWithParams called with unrecognized parameter name")
+	}
+
+	// check whether parameterName is in the serializer.RecognizedParameters() list (modulo normalizeParameters)
+	parameterName = normalizeParameter(parameterName)
+	paramList := serializer.RecognizedParameters()
+	ok = false
+	for _, recognizedParam := range paramList {
+		if normalizeParameter(recognizedParam) == parameterName {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v (normalized) that is not among the list of recognized parameters for this type", typeName, parameterName))
 	}
 
 	// Make a copy of the serializer. Note that Clone() returns a copy.
@@ -156,9 +174,6 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	clonePtrValue := reflect.ValueOf(clonePtr)
 
 	// cloneValue := reflect.ValueOf(clone)
-
-	// Obtain string representations of parameter type. This is only used for better error messages.
-	var typeName string = testutils.GetReflectName(utils.TypeOfType[SerializerType]())
 
 	// Get setter method (as a reflect.Value of function Kind) and make some basic checks.
 	// Note that users can actually trigger these panics when trying to modify a parameter for a serializer that does not have it.
@@ -202,27 +217,45 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 //
 // Note that we should pass a pointer to this function, since we reflect-call a function with it as receiver.
 // We also accept pointer-to-interface, in which case, we dereference once.
-func getSerializerParam[ValueType any, PtrType *ValueType](serializer PtrType, parameterName string) interface{} {
+func getSerializerParam(serializer ParameterAware, parameterName string) interface{} {
 
-	receiverName := utils.NameOfType[ValueType]() // used for diagnostics.
+	// receiverName := utils.NameOfType[ValueType]() // used for diagnostics.
+	receiverType := reflect.TypeOf(serializer)
+	receiverName := testutils.GetReflectName(receiverType)
+
+	// check whether parameterName is in the serializer.RecognizedParameters() list (modulo normalizeParameters)
+	parameterName = normalizeParameter(parameterName)
+	paramList := serializer.RecognizedParameters()
+	var ok bool = false
+	for _, recognizedParam := range paramList {
+		if normalizeParameter(recognizedParam) == parameterName {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v (normalized) that is not among the list of recognized parameters for this type", receiverName, parameterName))
+	}
 
 	// Obtain getter method string
-	parameterName = strings.ToLower(parameterName) // parameterName is case-insensitive
 	paramInfo, ok := serializerParams[parameterName]
 	if !ok {
-		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with unrecognized parameter name %v (lowercased)", receiverName, parameterName))
+		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with unrecognized parameter name %v (normalized)", receiverName, parameterName))
 	}
 
 	getterName := paramInfo.getter
 	expectedReturnType := paramInfo.vartype // Note: If this an interface type, it's OK if the getter returns a realization.
 
 	// Obtain getter and check parameters
-	var serializerValue reflect.Value
-	if utils.TypeOfType[ValueType]().Kind() == reflect.Interface {
-		serializerValue = reflect.ValueOf(*serializer)
-	} else {
-		serializerValue = reflect.ValueOf(serializer)
-	}
+	/*
+		var serializerValue reflect.Value
+		if utils.TypeOfType[ValueType]().Kind() == reflect.Interface {
+			serializerValue = reflect.ValueOf(*serializer)
+		} else {
+			serializerValue = reflect.ValueOf(serializer)
+		}
+	*/
+	serializerValue := reflect.ValueOf(serializer)
 
 	getterMethod := serializerValue.MethodByName(getterName)
 	if !getterMethod.IsValid() {

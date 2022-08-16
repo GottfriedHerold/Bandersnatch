@@ -36,9 +36,10 @@ type headerDeserializer interface {
 	deserializePerPointFooter(input io.Reader) (bytes_read int, err bandersnatchErrors.DeserializationError)
 	SinglePointHeaderOverhead() int32                                         // returns the size taken up by headers and footers for single-point
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
+	RecognizedParameters() []string
 }
 
-// these are the parameter names accepted by simpleHeaderDeserializer. This list is actually used for testing.
+// these are the parameter names accepted by simpleHeaderDeserializer. This is returned by RecognizedParameters()
 var headerSerializerParams = []string{"GlobalSliceHeader", "GlobalSliceFooter", "SinglePointHeader", "SinglePointFooter", "PerPointHeader", "PerPointFooter"}
 
 // headerSerializer extends headerDeserializer by also providing serialization routines.
@@ -76,14 +77,21 @@ type simpleHeaderSerializer struct {
 }
 
 var (
+	// basicSimpleHeaderDeserializer is a valid simpleHeaderDeserializer with trivial headers/footers. Note that nil []byte-slices are changed by init() below
 	basicSimpleHeaderDeserializer simpleHeaderDeserializer = simpleHeaderDeserializer{sliceSizeEndianness: binary.LittleEndian}
-	basicSimpleHeaderSerializer   simpleHeaderSerializer   = simpleHeaderSerializer{simpleHeaderDeserializer: *basicSimpleHeaderDeserializer.Clone()}
+	// basicSimpleHeaderSerializer is a valid simpleHeaderSerializer with trivial headers/footers. Note that nil []byte-slices are changed by init() below
+	basicSimpleHeaderSerializer simpleHeaderSerializer = simpleHeaderSerializer{simpleHeaderDeserializer: *basicSimpleHeaderDeserializer.Clone()}
 )
 
-// this also changes nil entries to empty []byte
+// Validate the above; this also changes nil entries to empty []byte
 func init() {
 	basicSimpleHeaderDeserializer.Validate()
 	basicSimpleHeaderSerializer.Validate()
+}
+
+// RecognizedParameters returns a list of all parameter names that header (de)serializers support for querying and modifying.
+func (*simpleHeaderDeserializer) RecognizedParameters() []string {
+	return headerSerializerParams // defined above. Note that this is essentiall a global constant not supposed to be modified.
 }
 
 // Clone returns an independent copy of the receivedHeaderDeserializer (as a pointer)

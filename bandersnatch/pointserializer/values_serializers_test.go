@@ -86,7 +86,7 @@ func TestRegognizedParameters(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
 		recognizedParams := valueSerializer.RecognizedParameters()
 		for _, recognizedParam := range recognizedParams {
-			_ = getSerializerParam(&valueSerializer, recognizedParam)
+			_ = getSerializerParam(valueSerializer, recognizedParam)
 		}
 	}
 }

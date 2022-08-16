@@ -117,6 +117,10 @@ func (sr *SubgroupRestriction) IsSubgroupOnly() bool {
 
 func (sr *SubgroupRestriction) Validate() {}
 
+func (sr *SubgroupRestriction) RecognizedParameters() []string {
+	return []string{"SubgroupOnly"}
+}
+
 // SubgroupOnly is a type wrapping a bool constant true that indicates that the serializer only works for subgroup elements. Used as embedded struct to forward setter and getter methods to reflect.
 type SubgroupOnly struct {
 }
@@ -132,3 +136,7 @@ func (sr *SubgroupOnly) SetSubgroupRestriction(restrict bool) {
 }
 
 func (sr *SubgroupOnly) Validate() {}
+
+func (sr *SubgroupOnly) RecognizedParameters() []string {
+	return []string{"SubgroupOnly"}
+}

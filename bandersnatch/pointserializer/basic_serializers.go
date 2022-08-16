@@ -33,9 +33,10 @@ type curvePointDeserializer_basic interface {
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type. This indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers without serializers, it is an upper bound.
 
-	GetParameter(parameterName string) any        // obtains a parameter (such as endianness. parameterName is a case-insensitive.
+	GetParameter(parameterName string) any        // obtains a parameter (such as endianness. parameterName is case-insensitive.
 	GetEndianness() common.FieldElementEndianness // returns the endianness used for field element serialization.
 	Validate()                                    // internal self-check of parameters; this is exported because of reflect usage
+	RecognizedParameters() []string               // gives a list of recognized parameters
 }
 
 // modifyableSerializer is the interface part contains the generic methods used to modify parameters.
@@ -44,7 +45,7 @@ type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interf
 	WithParameter(parameterName string, newParam any) SelfValue // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
 	WithEndianness(newEndianness binary.ByteOrder) SelfValue    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
 	utils.Clonable[SelfPtr]                                     // gives a Clone() SelfPtr function to make copies of itself
-	// RecognizedParameters() []string                             // gives a list of recognized parameters
+
 }
 
 // modifyableDeserializer_basic is the interface for deserializer of single curve points that allow parameter modifications.
@@ -108,6 +109,8 @@ func addErrorDataNoWrite(err error) bandersnatchErrors.SerializationError {
 		BytesWritten: 0,
 	})
 }
+
+// ***********************************************************************************************************************************************************
 
 // we now define some "basic" serializers, basic being in the sense that they only allow (de)serializing a single point.
 // They also do not allow headers (except possibly embedded)
@@ -230,6 +233,12 @@ func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
+
+func (s *pointSerializerXY) RecognizedParameters() []string {
+	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+}
+
+// ***********************************************************************************************************************************************************
 
 // pointSerializerXAndSignY is a Serialializer that serializes the affine X coordinate and the sign of the Y coordinate. (Note that the latter is never 0)
 //
@@ -362,6 +371,12 @@ func (s *pointSerializerXAndSignY) Validate() {
 	s.valuesSerializerFeCompressedBit.Validate()
 	s.fieldElementEndianness.Validate()
 }
+
+func (s *pointSerializerXAndSignY) RecognizedParameters() []string {
+	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+}
+
+// ***********************************************************************************************************************************************************
 
 // pointSerializerYAndSignX serializes a point via its Y coordinate and the sign of X. (For X==0, we do not set the sign bit)
 type pointSerializerYAndSignX struct {
@@ -508,6 +523,12 @@ func (s *pointSerializerYAndSignX) GetParameter(parameterName string) interface{
 	return getSerializerParam(s, parameterName)
 }
 
+func (s *pointSerializerYAndSignX) RecognizedParameters() []string {
+	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+}
+
+// ***********************************************************************************************************************************************************
+
 // pointSerializerXTimesSignY is a basic serializer that serializes via X * Sign(Y).
 // Note that this only works for points in the subgroup, as the information of being in the subgroup
 // is needed to deserialize uniquely.
@@ -610,6 +631,12 @@ func (s *pointSerializerXTimesSignY) OutputLength() int32 { return 32 }
 func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
+
+func (s *pointSerializerXTimesSignY) RecognizedParameters() []string {
+	return concatParameterList(s.valuesSerializerHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
+}
+
+// ***********************************************************************************************************************************************************
 
 // pointSerializerYXTimesSignY is a serializer that uses X*Sign(Y), Y*Sign(Y).
 // This serializer only works for subgroup elements:
@@ -727,6 +754,12 @@ func (s *pointSerializerYXTimesSignY) OutputLength() int32 { return 64 }
 func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
+
+func (s *pointSerializerYXTimesSignY) RecognizedParameters() []string {
+	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
+}
+
+// ***********************************************************************************************************************************************************
 
 // Note: This selection of bitHeaders is not the original spec, but this has the advantage that an all-zeroes input actually causes an error (rather than be interpreted as the neutral element)
 

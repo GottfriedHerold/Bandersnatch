@@ -95,6 +95,8 @@ type CurvePointDeserializer interface {
 	GetFieldElementEndianness() common.FieldElementEndianness
 	Validate() // internal self-check function. Users need not call this.
 
+	RecognizedParameters() []string
+
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 	// DeserializeBatch(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
 
@@ -126,6 +128,8 @@ type CurvePointSerializer interface {
 	GetFieldElementEndianness() common.FieldElementEndianness
 	Validate() // internal self-check function. Users need not call this.
 
+	RecognizedParameters() []string
+
 	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
@@ -150,9 +154,6 @@ type CurvePointSerializerModifyable interface {
 	Clone() CurvePointSerializerModifyable
 }
 
-// this definition crashes staticcheck (my linter) -- bug reported
-// unfortunately, expanding the generics does not help. The issue seems to be with interface{*BasicValue; something refering to BasicValue in function signatures} in general.
-
 type multiDeserializer[BasicValue any, BasicPtr interface {
 	*BasicValue
 	modifyableDeserializer_basic[BasicValue, BasicPtr]
@@ -168,6 +169,8 @@ type multiSerializer[BasicValue any, BasicPtr interface {
 	basicSerializer  BasicValue
 	headerSerializer simpleHeaderSerializer // we could do struct embeding here (well, not with generics...), but some methods are defined on both members, so we prefer explicit forwarding for clarity.
 }
+
+// ***********************************************************************************************************************************************************
 
 // makeCopy is basically a variant of Clone() that returns a non-pointer and does not throw away the concrete struct type.
 func (md *multiDeserializer[BasicValue, BasicPtr]) makeCopy() multiDeserializer[BasicValue, BasicPtr] {
@@ -217,6 +220,18 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) Clone() CurvePointDeserialize
 func (md *multiSerializer[BasicValue, BasicPtr]) Clone() CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	return &mdCopy
+}
+
+func (md *multiDeserializer[BasicValue, BasicPtr]) RecognizedParameters() []string {
+	list1 := BasicPtr(&md.basicDeserializer).RecognizedParameters()
+	list2 := md.headerDeserializer.RecognizedParameters()
+	return concatParameterList(list1, list2)
+}
+
+func (md *multiSerializer[BasicValue, BasicPtr]) RecognizedParameters() []string {
+	list1 := BasicPtr(&md.basicSerializer).RecognizedParameters()
+	list2 := md.headerSerializer.RecognizedParameters()
+	return concatParameterList(list1, list2)
 }
 
 // WithParameter and GetParameter are complicated by the fact that we cannot struct-embed generic type parameters.
