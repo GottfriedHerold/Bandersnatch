@@ -158,7 +158,7 @@ type multiDeserializer[BasicValue any, BasicPtr interface {
 	*BasicValue
 	modifyableDeserializer_basic[BasicValue, BasicPtr]
 }] struct {
-	basicDeserializer  BasicValue
+	basicDeserializer  BasicValue               // Due to immutability, having a pointer would be fine as well.
 	headerDeserializer simpleHeaderDeserializer // we could do struct embeding here (well, not with generics...), but some methods are defined on both members, so we prefer explicit forwarding for clarity.
 }
 
@@ -166,13 +166,16 @@ type multiSerializer[BasicValue any, BasicPtr interface {
 	*BasicValue
 	modifyableSerializer_basic[BasicValue, BasicPtr]
 }] struct {
-	basicSerializer  BasicValue
+	basicSerializer  BasicValue             // Due to immutability, having a pointer would be fine as well.
 	headerSerializer simpleHeaderSerializer // we could do struct embeding here (well, not with generics...), but some methods are defined on both members, so we prefer explicit forwarding for clarity.
 }
 
 // ***********************************************************************************************************************************************************
 
 // makeCopy is basically a variant of Clone() that returns a non-pointer and does not throw away the concrete struct type.
+//
+// This distinction is made here, because here Clone() actually returns an interface (as opposed to essentially everywhere else).
+// The latter is done to avoid users having to see our generics.
 func (md *multiDeserializer[BasicValue, BasicPtr]) makeCopy() multiDeserializer[BasicValue, BasicPtr] {
 	var ret multiDeserializer[BasicValue, BasicPtr]
 	ret.basicDeserializer = *BasicPtr(&md.basicDeserializer).Clone()
@@ -181,6 +184,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) makeCopy() multiDeserializer[
 }
 
 // makeCopy is basically a variant of Clone() that returns a non-pointer and does not throw away the concrete struct type.
+//
+// This distinction is made here, because here Clone() actually returns an interface (as opposed to essentially everywhere else).
+// The latter is done to avoid users having to see our generics.
 func (md *multiSerializer[BasicValue, BasicPtr]) makeCopy() multiSerializer[BasicValue, BasicPtr] {
 	var ret multiSerializer[BasicValue, BasicPtr]
 	ret.basicSerializer = *BasicPtr(&md.basicSerializer).Clone()
@@ -188,10 +194,24 @@ func (md *multiSerializer[BasicValue, BasicPtr]) makeCopy() multiSerializer[Basi
 	return ret
 }
 
+// Validate checks the internal data of the deserializer for validity.
 func (md *multiDeserializer[BasicValue, BasicPtr]) Validate() {
 	basicDeserializerPtr := BasicPtr(&md.basicDeserializer) // required to tell Go to use the interface constraints for BasicPtr
 	basicDeserializerPtr.Validate()
 	md.headerDeserializer.Validate()
+
+	// We check that the return values of RecognizedParameters are distinct.
+	paramsSerializer := basicDeserializerPtr.RecognizedParameters()
+	paramsHeader := md.headerDeserializer.RecognizedParameters()
+	for _, param1 := range paramsSerializer {
+		param1 = normalizeParameter(param1)
+		for _, param2 := range paramsHeader {
+			if param1 == normalizeParameter(param2) {
+				panic(fmt.Errorf(ErrorPrefix+"Parameter %v (normalized) appears in both header deserializer and basic deserializer", param1))
+			}
+		}
+
+	}
 
 	// overflow check for output length:
 	var singleOutputLength64 int64 = int64(md.headerDeserializer.SinglePointHeaderOverhead()) + int64(basicDeserializerPtr.OutputLength())
@@ -200,10 +220,26 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) Validate() {
 	}
 }
 
+// Validate checks the internal data of the serializer for validity.
+//
+// It panics on error
 func (md *multiSerializer[BasicValue, BasicPtr]) Validate() {
 	basicSerializerPtr := BasicPtr(&md.basicSerializer)
 	basicSerializerPtr.Validate()
 	md.headerSerializer.Validate()
+
+	// We check that the return values of RecognizedParameters are distinct.
+	paramsSerializer := basicSerializerPtr.RecognizedParameters()
+	paramsHeader := md.headerSerializer.RecognizedParameters()
+	for _, param1 := range paramsSerializer {
+		param1 = normalizeParameter(param1)
+		for _, param2 := range paramsHeader {
+			if param1 == normalizeParameter(param2) {
+				panic(fmt.Errorf(ErrorPrefix+"Parameter %v (normalized) appears in both header serializer and basic serializer", param1))
+			}
+		}
+
+	}
 
 	// overflow check for output length:
 	var singleOutputLength64 int64 = int64(md.headerSerializer.SinglePointHeaderOverhead()) + int64(basicSerializerPtr.OutputLength())
@@ -212,23 +248,35 @@ func (md *multiSerializer[BasicValue, BasicPtr]) Validate() {
 	}
 }
 
+// Clone() returns a copy of itself (as a pointer inside an interface)
+//
+// Note that for the sake of simplicity (to avoid exporting a generic type), Clone throws away the concrete type here.
 func (md *multiDeserializer[BasicValue, BasicPtr]) Clone() CurvePointDeserializerModifyable {
 	mdCopy := md.makeCopy()
 	return &mdCopy
 }
 
+// Clone() returns a copy of itself (as a pointer inside an interface)
+//
+// Note that for the sake of simplicity (to avoid exporting a generic type), Clone throws away the concrete type here.
 func (md *multiSerializer[BasicValue, BasicPtr]) Clone() CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	return &mdCopy
 }
 
+// RecognizedParameters returns a list of parameters that can be queried/modified via WithParameter / GetParameter
 func (md *multiDeserializer[BasicValue, BasicPtr]) RecognizedParameters() []string {
+
+	// return the union of parameters from its components
 	list1 := BasicPtr(&md.basicDeserializer).RecognizedParameters()
 	list2 := md.headerDeserializer.RecognizedParameters()
 	return concatParameterList(list1, list2)
 }
 
+// RecognizedParameters returns a list of parameters that can be queried/modified via WithParameter / GetParameter
 func (md *multiSerializer[BasicValue, BasicPtr]) RecognizedParameters() []string {
+
+	// return the union of parameters from its components
 	list1 := BasicPtr(&md.basicSerializer).RecognizedParameters()
 	list2 := md.headerSerializer.RecognizedParameters()
 	return concatParameterList(list1, list2)
@@ -236,9 +284,18 @@ func (md *multiSerializer[BasicValue, BasicPtr]) RecognizedParameters() []string
 
 // WithParameter and GetParameter are complicated by the fact that we cannot struct-embed generic type parameters.
 
+// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParam.
+//
+// Note: This function will panic if the parameter does not exists or the new deserializer would have invalid parameters.
 func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointDeserializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicDeserializationPtr = BasicPtr(&mdCopy.basicDeserializer)
+
+	
+	
+	// Check which one of the components has a parameter with the given parameterName and change it.
+	//
+	// TODO: This assumes that a parameter is not settable for both.
 	if hasParameter(basicDeserializationPtr, parameterName) {
 		mdCopy.basicDeserializer = makeCopyWithParameters(basicDeserializationPtr, parameterName, newParam)
 	} else {
@@ -248,6 +305,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName s
 	return &mdCopy
 }
 
+// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParam.
+//
+// Note: This function will panic if the parameter does not exists or the new deserializer would have invalid parameters.
 func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicSerializationPtr = BasicPtr(&mdCopy.basicSerializer)
