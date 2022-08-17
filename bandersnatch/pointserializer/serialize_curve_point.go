@@ -10,6 +10,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // *** PURPOSE OF THIS PACAKGE ***:
@@ -96,6 +97,7 @@ type CurvePointDeserializer interface {
 	Validate() // internal self-check function. Users need not call this.
 
 	RecognizedParameters() []string
+	HasParameter(parameterName string) bool
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 	// DeserializeBatch(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
@@ -201,16 +203,12 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) Validate() {
 	md.headerDeserializer.Validate()
 
 	// We check that the return values of RecognizedParameters are distinct.
-	paramsSerializer := basicDeserializerPtr.RecognizedParameters()
+	paramsDeserializer := basicDeserializerPtr.RecognizedParameters()
 	paramsHeader := md.headerDeserializer.RecognizedParameters()
-	for _, param1 := range paramsSerializer {
-		param1 = normalizeParameter(param1)
-		for _, param2 := range paramsHeader {
-			if param1 == normalizeParameter(param2) {
-				panic(fmt.Errorf(ErrorPrefix+"Parameter %v (normalized) appears in both header deserializer and basic deserializer", param1))
-			}
+	for _, paramDeserializer := range paramsDeserializer {
+		if utils.ElementInList(paramDeserializer, paramsHeader, normalizeParameter) {
+			panic(fmt.Errorf(ErrorPrefix+"Parameter %v appears in both header deserializer and basic deserializer", paramDeserializer))
 		}
-
 	}
 
 	// overflow check for output length:
@@ -231,14 +229,10 @@ func (md *multiSerializer[BasicValue, BasicPtr]) Validate() {
 	// We check that the return values of RecognizedParameters are distinct.
 	paramsSerializer := basicSerializerPtr.RecognizedParameters()
 	paramsHeader := md.headerSerializer.RecognizedParameters()
-	for _, param1 := range paramsSerializer {
-		param1 = normalizeParameter(param1)
-		for _, param2 := range paramsHeader {
-			if param1 == normalizeParameter(param2) {
-				panic(fmt.Errorf(ErrorPrefix+"Parameter %v (normalized) appears in both header serializer and basic serializer", param1))
-			}
+	for _, paramSerializer := range paramsSerializer {
+		if utils.ElementInList(paramSerializer, paramsHeader, normalizeParameter) {
+			panic(fmt.Errorf(ErrorPrefix+"Parameter %v appears in both header serializer and basic serializer", paramSerializer))
 		}
-
 	}
 
 	// overflow check for output length:
@@ -282,6 +276,16 @@ func (md *multiSerializer[BasicValue, BasicPtr]) RecognizedParameters() []string
 	return concatParameterList(list1, list2)
 }
 
+// HasParameter tells whether a given parameterName is the name of a valid parameter for this deserializer.
+func (md *multiDeserializer[BasicValue, BasicPtr]) HasParameter(parameterName string) bool {
+	return BasicPtr(&md.basicDeserializer).HasParameter(parameterName) || md.headerDeserializer.HasParameter(parameterName)
+}
+
+// HasParameter tells whether a given parameterName is the name of a valid parameter for this serializer.
+func (md *multiSerializer[BasicValue, BasicPtr]) HasParameter(parameterName string) bool {
+	return BasicPtr(&md.basicSerializer).HasParameter(parameterName) || md.headerSerializer.HasParameter(parameterName)
+}
+
 // WithParameter and GetParameter are complicated by the fact that we cannot struct-embed generic type parameters.
 
 // WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParam.
@@ -291,12 +295,12 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName s
 	mdCopy := md.makeCopy()
 	var basicDeserializationPtr = BasicPtr(&mdCopy.basicDeserializer)
 
-	
-	
 	// Check which one of the components has a parameter with the given parameterName and change it.
 	//
-	// TODO: This assumes that a parameter is not settable for both.
-	if hasParameter(basicDeserializationPtr, parameterName) {
+	// NOTE: Validate asserts that a parameter is not settable for both.
+	// NOTE2: makeCopyWithParameters rechecks that parameterName is contained in RecognizedParameters(),
+	// so we don't need a check in the else-branch here.
+	if basicDeserializationPtr.HasParameter(parameterName) {
 		mdCopy.basicDeserializer = makeCopyWithParameters(basicDeserializationPtr, parameterName, newParam)
 	} else {
 		mdCopy.headerDeserializer = makeCopyWithParameters(&mdCopy.headerDeserializer, parameterName, newParam)
@@ -311,7 +315,13 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName s
 func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicSerializationPtr = BasicPtr(&mdCopy.basicSerializer)
-	if hasParameter(basicSerializationPtr, parameterName) {
+
+	// Check which one of the components has a parameter with the given parameterName and change it.
+	//
+	// NOTE: Validate asserts that a parameter is not settable for both.
+	// NOTE2: makeCopyWithParameters rechecks that parameterName is contained in RecognizedParameters(),
+	// so we don't need a check in the else-branch here.
+	if basicSerializationPtr.HasParameter(parameterName) {
 		mdCopy.basicSerializer = makeCopyWithParameters(basicSerializationPtr, parameterName, newParam)
 	} else {
 		mdCopy.headerSerializer = makeCopyWithParameters(&mdCopy.headerSerializer, parameterName, newParam)
@@ -320,6 +330,9 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName str
 	return &mdCopy
 }
 
+// GetParameter returns the value stored under the given parameterName for this deserializer.
+//
+// Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
 func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicDeserializer)
 	if hasParameter(basicPointer, parameterName) {
@@ -329,6 +342,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName st
 	}
 }
 
+// GetParameter returns the value stored under the given parameterName for this serializer.
+//
+// Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
 func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicSerializer)
 	if hasParameter(basicPointer, parameterName) {
@@ -338,6 +354,10 @@ func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName stri
 	}
 }
 
+// WithEndianness returns a copy of the given deserializer with the endianness used for field element (de)serialization changed.
+//
+// NOTE: The endianness for (de)serialization of slice size headers is NOT affected by this method.
+// NOTE2: newEndianness must be either literal binary.BigEndian, binary.LittleEndian or a common.FieldElementEndianness. In particular it must be non-nil. Failure to do so will panic.
 func (md *multiDeserializer[BasicValue, BasicPtr]) WithEndianness(newEndianness binary.ByteOrder) CurvePointDeserializerModifyable {
 	mdcopy := md.makeCopy()
 	mdcopy.basicDeserializer = BasicPtr(&mdcopy.basicDeserializer).WithEndianness(newEndianness)
@@ -345,6 +365,10 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithEndianness(newEndianness 
 	return &mdcopy
 }
 
+// WithEndianness returns a copy of the given serializer with the endianness used for field element (de)serialization changed.
+//
+// NOTE: The endianness for (de)serialization of slice size headers is NOT affected by this method.
+// NOTE2: newEndianness must be either literal binary.BigEndian, binary.LittleEndian or a common.FieldElementEndianness. In particular it must be non-nil. Failure to do so will panic.
 func (md *multiSerializer[BasicValue, BasicPtr]) WithEndianness(newEndianness binary.ByteOrder) CurvePointSerializerModifyable {
 	mdcopy := md.makeCopy()
 	mdcopy.basicSerializer = BasicPtr(&mdcopy.basicSerializer).WithEndianness(newEndianness)
@@ -352,88 +376,133 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithEndianness(newEndianness bi
 	return &mdcopy
 }
 
+// DeserializeCurvePoint deserializes a single curve point from input stream, (over-)writing to ouputPoint.
+// trustLevel indicates whether the input is to be trusted that the data represents any (subgroup)point at all.
+//
+// On error, outputPoint is unchanged.
 func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	return BasicPtr(&md.basicDeserializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 }
 
+// SerializeCurvePoint serializes the given input point to the outputStream.
 func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	return BasicPtr(&md.basicSerializer).SerializeCurvePoint(outputStream, inputPoint)
 }
 
+// DeserializeCurvePoint deserializes a single curve point from input stream, (over-)writing to ouputPoint.
+// trustLevel indicates whether the input is to be trusted that the data represents any (subgroup)point at all.
+//
+// On error, outputPoint is unchanged.
 func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	return BasicPtr(&md.basicSerializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 }
 
+// GetFieldElementEndianness returns the endianness this deserializer used to (de)serialize field elements.
+//
+// Note that the value is returned as a common.FieldElementEndianness, which is an interface extending binary.ByteOrder.
 func (md *multiDeserializer[BasicValue, BasicPtr]) GetFieldElementEndianness() common.FieldElementEndianness {
 	return BasicPtr(&md.basicDeserializer).GetEndianness()
 }
 
+// GetFieldElementEndianness returns the endianness this serializer used to (de)serialize field elements.
+//
+// Note that the value is returned as a common.FieldElementEndianness, which is an interface extending binary.ByteOrder.
 func (md *multiSerializer[BasicValue, BasicPtr]) GetFieldElementEndianness() common.FieldElementEndianness {
 	return BasicPtr(&md.basicSerializer).GetEndianness()
 }
 
+// IsSubgroupOnly returns whether this deserializer only works for subgroup elements.
 func (md *multiDeserializer[BasicValue, BasicPtr]) IsSubgroupOnly() bool {
 	return BasicPtr(&md.basicDeserializer).IsSubgroupOnly()
 }
 
+// IsSubgroupOnly returns whether this serializer only works for subgroup elements.
 func (md *multiSerializer[BasicValue, BasicPtr]) IsSubgroupOnly() bool {
 	return BasicPtr(&md.basicSerializer).IsSubgroupOnly()
 }
 
+// OutputLength returns an upper bound on the size (in bytes) that this deserializer will read when deserializing a single curve point.
+//
+// Note: We can only hope to get an upper bound, because a deserializer that is *not* also a serializer might work (and autodetect) multiple serialization formats;
+// these different formats may have different lengths.
 func (md *multiDeserializer[BasicValue, BasicPtr]) OutputLength() int32 {
 	// Validate ensures this does not overflow
 	return md.headerDeserializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicDeserializer).OutputLength()
 }
 
+// OutputLength returns the size (in bytes) that this serializer will read or write when (de)serializing a single curve point.
 func (md *multiSerializer[BasicValue, BasicPtr]) OutputLength() int32 {
 	// Validate ensures this does not overflow
 	return md.headerSerializer.SinglePointHeaderOverhead() + BasicPtr(&md.basicSerializer).OutputLength()
 }
 
-// SliceOutputLength returns the length in bytes that this deserializer will try to read if deserializing a slice of numPoints many points.
+// SliceOutputLength returns the length in bytes that this deserializer will try to read at most if deserializing a slice of numPoints many points.
+// Note that this is an upper bound (for the same reason as with OutputLength)
 // error is set on int32 overflow.
 func (md *multiDeserializer[BasicValue, BasicPtr]) SliceOutputLength(numPoints int32) (int32, error) {
 	basicPtr := BasicPtr(&md.basicDeserializer)
-	var pointCost64 int64 = int64(numPoints) * int64(basicPtr.OutputLength())
-	overhead, errOverhead := md.headerDeserializer.MultiPointHeaderOverhead(numPoints)
+	// Get size used by the actual points (upper bound) and for the headers:
+	var pointCost64 int64 = int64(numPoints) * int64(basicPtr.OutputLength())          // guaranteed to not overflow
+	overhead, errOverhead := md.headerDeserializer.MultiPointHeaderOverhead(numPoints) // overhead is what is used by the headers, including the size written in-band.
+
+	var err error // returned error value by this method
+
+	// MultiPointHeaderOverhead return an error on overflow. Handle that:
 	if errOverhead != nil {
-		OverheadSize, OverheadSizeExists := errorsWithData.GetParameterFromError(errOverhead, "Size") // the error might (in fact, does) contain the actual size in a non-int32. We give better error messages then.
+
+		// TODO: Guarantee Size parameter via the type system to make that check obsolete?
+
+		OverheadSizeExists := errorsWithData.HasParameter(errOverhead, "Size") // Check whether the error has an embedded "Size" datum (which is an int64 containing the true non-overflown value)
 		if OverheadSizeExists {
-			err := fmt.Errorf(ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v, actual points would use another %v", OverheadSize, pointCost64)
-			return 0, err
+			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
+			err = errorsWithData.DeleteParameterFromError(err, "Size") // Delete parameter, because it only relates to the header size.
+			// TODO: Update with "Size" + pointCost64?
 		} else {
-			err := fmt.Errorf(ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v", pointCost64)
-			return 0, err
+			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
 		}
+		return -1, err
+
 	}
 	var ret64 int64 = int64(overhead) + pointCost64 // Cannot overflow, because it is bounded by MaxInt32^2 + MaxInt32
 	if ret64 > math.MaxInt32 {
-		err := errorsWithData.NewErrorWithParameters(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
-		return 0, err
+		err = errorsWithData.NewErrorWithParameters(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
+		return -1, err
 	}
 	return int32(ret64), nil
 }
 
-// SliceOutputLength returns the length in bytes that this Deserializer will try to read at most if deserializing a slice of numPoints many points.
+// SliceOutputLength returns the length in bytes that this Deserializer will (try to) read/write if deserializing a slice of numPoints many points.
 // error is set on int32 overflow.
 func (md *multiSerializer[BasicValue, BasicPtr]) SliceOutputLength(numPoints int32) (int32, error) {
 	basicPtr := BasicPtr(&md.basicSerializer)
-	var pointCost64 int64 = int64(numPoints) * int64(basicPtr.OutputLength())
-	overhead, errOverhead := md.headerSerializer.MultiPointHeaderOverhead(numPoints)
+
+	// Get size used by the actual points (upper bound) and for the headers:
+	var pointCost64 int64 = int64(numPoints) * int64(basicPtr.OutputLength())        // guaranteed to not overflow
+	overhead, errOverhead := md.headerSerializer.MultiPointHeaderOverhead(numPoints) // overhead is what is used by the headers, including the size written in-band.
+
+	var err error // returned error value
+
+	// MultiPointHeaderOverhead return an error on overflow. Handle that:
 	if errOverhead != nil {
-		OverheadSize, OverheadSizeExists := errorsWithData.GetParameterFromError(errOverhead, "Size") // the error might (in fact, does) contain the actual size in a non-int32. We give better error messages then.
+
+		// TODO: Guarantee Size parameter via the type system to make that check obsolete?
+
+		OverheadSizeExists := errorsWithData.HasParameter(errOverhead, "Size") // Check whether the error has an embedded "Size" datum (which is an int64 containing the true non-overflown value)
 		if OverheadSizeExists {
-			err := fmt.Errorf(ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v, actual points would use another %v", OverheadSize, pointCost64)
-			return 0, err
+			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
+			err = errorsWithData.DeleteParameterFromError(err, "Size") // Delete parameter, because it only relates to the header size.
+			// TODO: Update with "Size" + pointCost64?
 		} else {
-			err := fmt.Errorf(ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v", pointCost64)
-			return 0, err
+			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
 		}
+		return -1, err
+
 	}
+
 	var ret64 int64 = int64(overhead) + pointCost64 // Cannot overflow, because it is bounded by MaxInt32^2 + MaxInt32
 	if ret64 > math.MaxInt32 {
-		err := errorsWithData.NewErrorWithParameters(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
-		return 0, err
+		err = errorsWithData.NewErrorWithParameters(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
+		return -1, err
 	}
 	return int32(ret64), nil
 }

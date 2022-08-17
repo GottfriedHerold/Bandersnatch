@@ -37,6 +37,7 @@ type curvePointDeserializer_basic interface {
 	GetEndianness() common.FieldElementEndianness // returns the endianness used for field element serialization.
 	Validate()                                    // internal self-check of parameters; this is exported because of reflect usage
 	RecognizedParameters() []string               // gives a list of recognized parameters
+	HasParameter(parameterName string) bool       // checks whether a given parameter is recognized
 }
 
 // modifyableSerializer is the interface part contains the generic methods used to modify parameters.
@@ -238,6 +239,10 @@ func (s *pointSerializerXY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
 }
 
+func (s *pointSerializerXY) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
 // ***********************************************************************************************************************************************************
 
 // pointSerializerXAndSignY is a Serialializer that serializes the affine X coordinate and the sign of the Y coordinate. (Note that the latter is never 0)
@@ -374,6 +379,10 @@ func (s *pointSerializerXAndSignY) Validate() {
 
 func (s *pointSerializerXAndSignY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+}
+
+func (s *pointSerializerXAndSignY) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -527,6 +536,10 @@ func (s *pointSerializerYAndSignX) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
 }
 
+func (s *pointSerializerYAndSignX) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
 // ***********************************************************************************************************************************************************
 
 // pointSerializerXTimesSignY is a basic serializer that serializes via X * Sign(Y).
@@ -634,6 +647,10 @@ func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interfac
 
 func (s *pointSerializerXTimesSignY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
+}
+
+func (s *pointSerializerXTimesSignY) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -757,6 +774,10 @@ func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interfa
 
 func (s *pointSerializerYXTimesSignY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
+}
+
+func (s *pointSerializerYXTimesSignY) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************

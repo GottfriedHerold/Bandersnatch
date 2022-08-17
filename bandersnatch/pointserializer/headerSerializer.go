@@ -8,6 +8,7 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // headerDeserializer and headerSerializer are abstractions used to (de)serialize headers / footers for multiple points.
@@ -37,6 +38,7 @@ type headerDeserializer interface {
 	SinglePointHeaderOverhead() int32                                         // returns the size taken up by headers and footers for single-point
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 	RecognizedParameters() []string
+	HasParameter(parameterName string) bool
 }
 
 // these are the parameter names accepted by simpleHeaderDeserializer. This is returned by RecognizedParameters()
@@ -92,6 +94,11 @@ func init() {
 // RecognizedParameters returns a list of all parameter names that header (de)serializers support for querying and modifying.
 func (*simpleHeaderDeserializer) RecognizedParameters() []string {
 	return headerSerializerParams // defined above. Note that this is essentiall a global constant not supposed to be modified.
+}
+
+// HasParameter checks whether a given parameter is supported for this type
+func (shd *simpleHeaderDeserializer) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, headerSerializerParams, normalizeParameter)
 }
 
 // Clone returns an independent copy of the receivedHeaderDeserializer (as a pointer)

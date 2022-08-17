@@ -7,6 +7,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file contains the serializers that are responsible for (de)serializing (uninterpreted) sequences of field elements, bits and sub-byte headers.
@@ -43,6 +44,7 @@ type bitHeader = common.BitHeader
 type valuesSerializer interface {
 	Validate()
 	RecognizedParameters() []string
+	HasParameter(parameterName string) bool
 	OutputLength() int32
 }
 
@@ -159,6 +161,10 @@ func (s *valuesSerializerFeFe) RecognizedParameters() []string {
 	return []string{"Endianness"}
 }
 
+func (s *valuesSerializerFeFe) HasParameter(parameterName string) bool {
+	return normalizeParameter(parameterName) == normalizeParameter("Endianness")
+}
+
 //*******************************************************************************************************************************
 
 // valuesSerializerHeaderFeHeaderFe is a serializer for a pair of field elements, where each of the two field elements has a prefix (of sub-byte length) contained in the
@@ -241,6 +247,10 @@ func (s *valuesSerializerHeaderFeHeaderFe) RecognizedParameters() []string {
 	return []string{"Endianness", "BitHeader", "BitHeader2"}
 }
 
+func (s *valuesSerializerHeaderFeHeaderFe) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
 //
 // For valuesSerializerHeaderFeHeaderFe, it always outputs 64
@@ -300,6 +310,10 @@ func (s *valuesSerializerFe) RecognizedParameters() []string {
 	return []string{"Endianness"}
 }
 
+func (s *valuesSerializerFe) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
 //*******************************************************************************************************************************
 
 // valuesSerializerHeaderFe is a simple serializer for a single field element with sub-byte header
@@ -351,6 +365,10 @@ func (s *valuesSerializerHeaderFe) OutputLength() int32 { return 32 }
 // For a valuesSerializerHeaderFe, the list contains "Endianness" (the endianness used to (de)serialize FieldElements) and "BitHeader" (the sub-byte header)
 func (s *valuesSerializerHeaderFe) RecognizedParameters() []string {
 	return []string{"Endianness", "BitHeader"}
+}
+
+func (s *valuesSerializerHeaderFe) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
 
 //*******************************************************************************************************************************
@@ -411,4 +429,8 @@ func (s *valuesSerializerFeCompressedBit) OutputLength() int32 { return 32 }
 // For a valuesSerializerFeCompressedBit, the list contains "Endianness" (the endianness used to (de)serialize FieldElements)
 func (s *valuesSerializerFeCompressedBit) RecognizedParameters() []string {
 	return []string{"Endianness"}
+}
+
+func (s *valuesSerializerFeCompressedBit) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }

@@ -55,34 +55,8 @@ func normalizeParameter(arg string) string {
 	return strings.ToLower(arg)
 }
 
-// concatParameterList takes two lists of strings and creates a new list of the union of elements, with duplicates (modulo normalizeParameter) removed.
-func concatParameterList(list1, list2 []string) []string {
-	// Not terribly efficient. This has O(N^2), when N is the length of the input lists.
-	// It's fine for our purpose, though.
-
-	var ret []string = make([]string, 0, len(list1)+len(list2))
-
-	// naive implementation: Just checks for every elemenet from list1 if it already appears; if not, append it.
-	// Then repeat with list2.
-loop1:
-	for _, val := range list1 {
-		for _, alreadyIn := range ret {
-			if normalizeParameter(alreadyIn) == normalizeParameter(val) {
-				continue loop1
-			}
-		}
-		ret = append(ret, val)
-	}
-loop2:
-	for _, val := range list2 {
-		for _, alreadyIn := range ret {
-			if normalizeParameter(alreadyIn) == normalizeParameter(val) {
-				continue loop2
-			}
-		}
-		ret = append(ret, val)
-	}
-	return ret
+func concatParameterList(list1 []string, list2 []string) []string {
+	return utils.ConcatenateListsWithoutDuplicates(list1, list2, normalizeParameter)
 }
 
 // hasParameter(serializer, parameterName) checks whether the (dynamic) type of serializer has setter and getter methods for the given parameter.
@@ -90,6 +64,8 @@ loop2:
 // parameterName is case-insensitive
 //
 // Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
+//
+// Note: This internal function does NOT look at RecognizedParameters()
 func hasParameter(serializer any, parameterName string) bool {
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
 	paramInfo, ok := serializerParams[parameterName]
@@ -127,7 +103,7 @@ type validater interface {
 func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	// utils.Clonable[SerializerPtr] OR utils.Clonable[SerializerType]
-	Validate() // will be removed, kept for until refactoring is done
+	Validate()
 	ParameterAware
 },
 ](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
@@ -145,20 +121,11 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	// check whether parameterName is in the serializer.RecognizedParameters() list (modulo normalizeParameters)
 	parameterName = normalizeParameter(parameterName)
 	paramList := serializer.RecognizedParameters()
-	ok = false
-	for _, recognizedParam := range paramList {
-		if normalizeParameter(recognizedParam) == parameterName {
-			ok = true
-			break
-		}
-	}
-	if !ok {
+	if !utils.ElementInList(parameterName, paramList, normalizeParameter) {
 		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v (normalized) that is not among the list of recognized parameters for this type", typeName, parameterName))
 	}
 
 	// Make a copy of the serializer. Note that Clone() returns a copy.
-
-	// var clonePtr SerializerPtr = serializer.Clone()
 
 	var clonePtr SerializerPtr
 	switch clonable := any(serializer).(type) {
@@ -168,12 +135,10 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 		nonPointerClone := clonable.Clone()
 		clonePtr = &nonPointerClone
 	default:
-		panic(ErrorPrefix + " called makeCopyWithParameters on type that has no Clone() method")
+		panic(ErrorPrefix + " called makeCopyWithParameters on type that has no appropriate Clone() method")
 	}
 
 	clonePtrValue := reflect.ValueOf(clonePtr)
-
-	// cloneValue := reflect.ValueOf(clone)
 
 	// Get setter method (as a reflect.Value of function Kind) and make some basic checks.
 	// Note that users can actually trigger these panics when trying to modify a parameter for a serializer that does not have it.
@@ -205,9 +170,8 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	// Any setter called above should, of course, validate whether the input is valid;
 	// however in some cases, there are constraints that cannot be handled by the setter
 	// (such as a setter from a struct-embedded type, where there are constraints imposed via the embedding type)
-	if validateableClone, ok := any(clonePtr).(validater); ok {
-		validateableClone.Validate()
-	}
+	clonePtr.Validate()
+
 	return *clonePtr
 }
 
@@ -224,18 +188,12 @@ func getSerializerParam(serializer ParameterAware, parameterName string) interfa
 	receiverName := testutils.GetReflectName(receiverType)
 
 	// check whether parameterName is in the serializer.RecognizedParameters() list (modulo normalizeParameters)
+	if !utils.ElementInList(parameterName, serializer.RecognizedParameters(), normalizeParameter) {
+		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v that is not among the list of recognized parameters for this type", receiverName, parameterName))
+	}
+
+	// Normalize parameterName
 	parameterName = normalizeParameter(parameterName)
-	paramList := serializer.RecognizedParameters()
-	var ok bool = false
-	for _, recognizedParam := range paramList {
-		if normalizeParameter(recognizedParam) == parameterName {
-			ok = true
-			break
-		}
-	}
-	if !ok {
-		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v (normalized) that is not among the list of recognized parameters for this type", receiverName, parameterName))
-	}
 
 	// Obtain getter method string
 	paramInfo, ok := serializerParams[parameterName]
