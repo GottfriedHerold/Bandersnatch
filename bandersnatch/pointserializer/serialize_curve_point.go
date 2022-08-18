@@ -540,7 +540,3 @@ func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeBatch(inputStream io
 }
 
 */
-
-// TODO: Overwrite GetParam and GetEndianness
-
-// func (md *multiDeserializer) DeseriaizePoints()

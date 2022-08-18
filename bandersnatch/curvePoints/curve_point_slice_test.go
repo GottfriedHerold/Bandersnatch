@@ -64,6 +64,13 @@ func BenchmarkCurvePointSliceAccess(bOuter *testing.B) {
 			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(generic.GetByIndexTyped(n % size))
 		}
 	}
+	fun_GenericWrapperTypeErased := func(bInner *testing.B) {
+		var generic CurvePointSlice = AsCurvePointSlice(A1[:])
+		prepareBenchmarkCurvePoints(bInner)
+		for n := 0; n < bInner.N; n++ {
+			DumpAXTW_subgroup[n%dumpSizeBench_curve].SetFrom(generic.GetByIndex(n % size))
+		}
+	}
 
 	/*
 		Generic := func(bInner *testing.B) {
@@ -82,6 +89,8 @@ func BenchmarkCurvePointSliceAccess(bOuter *testing.B) {
 	bOuter.Run("SetFrom via AsCurvePointSlice", fun_GenericWrapper)
 	bOuter.Run("SetFrom via AsCurvePointSlice with type assertion", fun_GenericWrapper2)
 	bOuter.Run("SetFrom via AsCurvePointSlice with typed getter", fun_GenericWrapperTyped)
+	bOuter.Run("SetFrom via AsCurvePointSlice (concrete type erased)", fun_GenericWrapperTypeErased)
+
 	// bOuter.Run("SetFrom via Generic", Generic)
 }
 
