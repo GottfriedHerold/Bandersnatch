@@ -1,0 +1,81 @@
+unning tool: /snap/go/current/bin/go test -benchmem -run=^$ -coverprofile=/tmp/vscode-goLKUAh0/go-code-cover -bench ^(BenchmarkEnsureBuildFlags|BenchmarkDummyRead_64|BenchmarkDummyReadStore_64|BenchmarkAdd_64|BenchmarkAddEq_64|BenchmarkSub_64|BenchmarkSubEq_64|BenchmarkMul_64|BenchmarkMulEq_64|BenchmarkMultiplyByFive_64|BenchmarkMultiplyByFiveNaive_64|BenchmarkSquare_64|BenchmarkSquareEq_64|BenchmarkInv_64|BenchmarkInvEq_64|BenchmarkDivide_64|BenchmarkDivideEq_64|BenchmarkIsEqual_64|BenchmarkNeg_64|BenchmarkNegEq_64|BenchmarkSign_64|BenchmarkJacobi_64|BenchmarkSquareRoot_64|BenchmarkMultiInverseion)$ github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements -v
+
+goos: linux
+goarch: amd64
+pkg: github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements
+cpu: AMD Ryzen 5 1600X Six-Core Processor
+BenchmarkEnsureBuildFlags
+--- SKIP: BenchmarkEnsureBuildFlags
+BenchmarkDummyRead_64
+BenchmarkDummyRead_64-12              	1000000000	         0.5318 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDummyReadStore_64
+BenchmarkDummyReadStore_64-12         	881105185	         1.398 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdd_64
+BenchmarkAdd_64-12                    	156301129	         7.669 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAddEq_64
+BenchmarkAddEq_64-12                  	129656872	         9.176 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSub_64
+BenchmarkSub_64-12                    	139716680	         8.590 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSubEq_64
+BenchmarkSubEq_64-12                  	137464984	         8.506 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMul_64
+BenchmarkMul_64-12                    	17744427	        57.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMulEq_64
+BenchmarkMulEq_64-12                  	18602547	        58.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMultiplyByFive_64
+BenchmarkMultiplyByFive_64-12         	73483605	        14.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMultiplyByFiveNaive_64
+BenchmarkMultiplyByFiveNaive_64-12    	52160587	        23.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare_64
+BenchmarkSquare_64-12                 	18292730	        60.49 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquareEq_64
+BenchmarkSquareEq_64-12               	18599631	        59.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInv_64
+BenchmarkInv_64-12                    	  227794	      4403 ns/op	     944 B/op	      19 allocs/op
+BenchmarkInvEq_64
+BenchmarkInvEq_64-12                  	  278592	      4411 ns/op	     944 B/op	      19 allocs/op
+BenchmarkDivide_64
+BenchmarkDivide_64-12                 	  268317	      4493 ns/op	     944 B/op	      19 allocs/op
+BenchmarkDivideEq_64
+BenchmarkDivideEq_64-12               	  223894	      4572 ns/op	     944 B/op	      19 allocs/op
+BenchmarkIsEqual_64
+BenchmarkIsEqual_64-12                	179516456	         6.698 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNeg_64
+BenchmarkNeg_64-12                    	346523306	         3.469 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNegEq_64
+BenchmarkNegEq_64-12                  	282253950	         4.381 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSign_64
+BenchmarkSign_64-12                   	24786901	        42.94 ns/op	       0 B/op	       0 allocs/op
+BenchmarkJacobi_64
+BenchmarkJacobi_64-12                 	   58041	     20268 ns/op	    1153 B/op	      98 allocs/op
+BenchmarkSquareRoot_64
+BenchmarkSquareRoot_64-12             	    3906	    315431 ns/op	   62230 B/op	     810 allocs/op
+BenchmarkMultiInverseion
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_1
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_1-12         	  226276	      4645 ns/op	     944 B/op	      19 allocs/op
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_2
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_2-12         	  254094	      4853 ns/op	     976 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_4
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_4-12         	  256120	      5273 ns/op	    1040 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_16
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_16-12        	  150469	      7429 ns/op	    1424 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_64
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_64-12        	   65812	     17683 ns/op	    2993 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_256
+BenchmarkMultiInverseion/MultiInvertEqSlice_of_size_256-12       	   20913	     58282 ns/op	    9140 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEq_of_size_1
+BenchmarkMultiInverseion/MultiInvertEq_of_size_1-12              	  257067	      4683 ns/op	     944 B/op	      19 allocs/op
+BenchmarkMultiInverseion/MultiInvertEq_of_size_2
+BenchmarkMultiInverseion/MultiInvertEq_of_size_2-12              	  242815	      4791 ns/op	     976 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEq_of_size_4
+BenchmarkMultiInverseion/MultiInvertEq_of_size_4-12              	  208864	      5266 ns/op	    1040 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEq_of_size_16
+BenchmarkMultiInverseion/MultiInvertEq_of_size_16-12             	  162934	      7628 ns/op	    1424 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEq_of_size_64
+BenchmarkMultiInverseion/MultiInvertEq_of_size_64-12             	   67414	     17998 ns/op	    2993 B/op	      20 allocs/op
+BenchmarkMultiInverseion/MultiInvertEq_of_size_256
+BenchmarkMultiInverseion/MultiInvertEq_of_size_256-12            	   19246	     62182 ns/op	    9140 B/op	      20 allocs/op
+PASS
+coverage: 46.7% of statements
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements	49.014s
+
