@@ -208,6 +208,28 @@ func TestMultiInvert(t *testing.T) {
 		t.Fatalf("MultiInvertEq modified elements on error")
 	}
 
+	// Test SkipZeros variants:
+	list1 = MultiInvertEqSliceSkipZeros(numsArray[:])
+	if !utils.CompareSlices(list1, ExpectedZeroIndices) {
+		t.Fatalf("MultiInvertEqSliceSkipZeros did not report zero indices correctly")
+	}
+	for i := 0; i < MAXSIZE; i++ {
+		if !numsArray[i].IsEqual(&numsArrayInv[i]) {
+			t.Fatalf("MultiplyEqSliceSkipZeros did not modify args as expected")
+		}
+	}
+	numsArray = numsArrayCopy
+	list2 = MultiInvertEqSkipZeros(ArrPtrs[:]...)
+
+	if !utils.CompareSlices(list2, ExpectedZeroIndices) {
+		t.Fatalf("MultiInvertEqSkipZeros did not report zero indices correctly")
+	}
+	for i := 0; i < MAXSIZE; i++ {
+		if !ArrPtrs[i].IsEqual(&numsArrayInv[i]) {
+			t.Fatalf("MultiplyEqSkipZeros did not modify args as expected")
+		}
+	}
+
 }
 
 func TestSummationSlice(t *testing.T) {

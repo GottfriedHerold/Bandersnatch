@@ -35,7 +35,12 @@ type MultiInversionErrorData struct {
 // It is used to indicate errors in multiinversion algorithms.
 type MultiInversionError = errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData]
 
-func generateMultiDivisionByZeroError(fieldElements []*bsFieldElement_64, prefixForError string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
+// GenerateMultiDivisionByZeroError creates an error indicating which of the provided field elements were zero. This is used to create errors for the Multi-Inversion functions.
+// prefixForErrors is prefixed to the error string created.
+// If none of the fieldElements are zero, returns nil
+//
+// NOTE: This is an internal function that is exported for cross-package usage.
+func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_64, prefixForError string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
 	var errorData MultiInversionErrorData
 	errorData.ZeroIndices = make([]int, 0)
 	for i, fe := range fieldElements {

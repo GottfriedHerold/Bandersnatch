@@ -15,6 +15,8 @@ import (
 
 // forward typedefs, to simplify things.
 
+const ErrorPrefix = "bandersnatch / curve points: "
+
 type FieldElement = fieldElements.FieldElement
 type IsInputTrusted = common.IsInputTrusted
 

@@ -1,6 +1,10 @@
 package curvePoints
 
-import "github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
+import (
+	"errors"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
+)
 
 // normalizeAffineZ normalizes the internal representation of a slice of Point_xtw_full with an equivalent one with Z==1.
 //
@@ -9,6 +13,7 @@ func (points CurvePointSlice_xtw_full) normalizeAffineZ() {
 	L := len(points)
 	// We bulk-invert all the points[i].z's.
 	// For efficiency, we skip all the ones.
+
 	var Ones []bool = make([]bool, L) // boolean array with One[i] being true if points[i] already has z==1
 	var numOnes int = 0               // number of elements encountered that already had z==1
 	var Inversions []*FieldElement = make([]*FieldElement, L)
@@ -21,38 +26,20 @@ func (points CurvePointSlice_xtw_full) normalizeAffineZ() {
 		Inversions[i-numOnes] = &points[i].z
 	}
 
-	// TODO: Redo!!!
-
-	/*
-
-		// We catch panics due to division by zero here. The reason is that that the error message we would get by default is misleading:
-		// Due to skipping the ones, the indices are wrong. Further, we want to distinguish NaPs from infinite points.
-		defer func() {
-			err := recover()
-			if err != nil {
-				switch err := err.(type) {
-				case *errMultiInversionEncounteredZero:
-					err.s += "\nNOTE: For this call site, indices in MultiInvertEq skip curve points with z==1"
-					for i := 0; i < L; i++ {
-						if points[i].IsNaP() {
-							panic(fmt.Errorf("bandersnatch / curve Points: trying to bulk-convert multiple points to affine coordinates, out of which some were invalid: The first error was at index %v, which was a NAP", i))
-						}
-						if points[i].IsAtInfinity() {
-							panic(fmt.Errorf("bandersnatch / curve Points: trying to bulk-convert multiple points to affine coordinates, out of which some were invalid: The first error was at index %v, which was a point at infinity", i))
-						}
-					}
-				default:
-					// This should not happen.
-					panic(err)
-				}
-
-			}
-		}()
-
-	*/
-
 	Inversions = Inversions[0 : L-numOnes]
-	fieldElements.MultiInvertEq(Inversions...)
+	var err error = fieldElements.MultiInvertEq(Inversions...) // decay returned error type to plain error
+	if err != nil {
+		if !errors.Is(err, fieldElements.ErrDivisionByZero) {
+			panic(ErrorPrefix + "fieldElements.MultiInvertEq returned error of unexpected type")
+		}
+		// Reset Inversions without the Ones skipped. This is needed to get a correct error message (the error refers to indices, which would be wrong if we skip the ones)
+		Inversions = Inversions[0:L]
+		for i := 0; i < L; i++ {
+			Inversions[i] = &points[i].z
+		}
+		err = fieldElements.GenerateMultiDivisionByZeroError(Inversions, ErrorPrefix+"bulk normalization of Z-coordinate to 1 failed, because some Z-coordinates were 0.")
+		panic(err)
+	}
 	for i := 0; i < L; i++ {
 		if Ones[i] {
 			continue
@@ -84,37 +71,21 @@ func (points CurvePointSlice_xtw_subgroup) normalizeAffineZ() {
 		Inversions[i-numOnes] = &points[i].z
 	}
 
-	// TODO!
-
-	/*
-
-		// We catch panics due to division by zero here. The reason is that that the error message we would get by default is misleading:
-		// Due to skipping the ones, the indices are wrong. Further, we want to distinguish NaPs from infinite points.
-		defer func() {
-			err := recover()
-			if err != nil {
-				switch err := err.(type) {
-				case *errMultiInversionEncounteredZero:
-					err.s += "\nNOTE: For this call site, indices in MultiInvertEq skip curve points with z==1"
-					for i := 0; i < L; i++ {
-						if points[i].IsNaP() {
-							panic(fmt.Errorf("bandersnatch / curve Points: trying to bulk-convert multiple points to affine coordinates, out of which some were invalid: The first error was at index %v, which was a NAP", i))
-						}
-						if points[i].IsAtInfinity() {
-							panic(fmt.Errorf("bandersnatch / curve Points: trying to bulk-convert multiple points to affine coordinates, out of which some were invalid: The first error was at index %v, which was a point at infinity", i))
-						}
-					}
-				default:
-					// This should not happen.
-					panic(err)
-				}
-
-			}
-		}()
-
-	*/
 	Inversions = Inversions[0 : L-numOnes]
-	fieldElements.MultiInvertEq(Inversions...)
+	var err error = fieldElements.MultiInvertEq(Inversions...) // decay returned error type to plain error
+	if err != nil {
+		if !errors.Is(err, fieldElements.ErrDivisionByZero) {
+			panic(ErrorPrefix + "fieldElements.MultiInvertEq returned error of unexpected type")
+		}
+		// Reset Inversions without the Ones skipped. This is needed to get a correct error message (the error refers to indices, which would be wrong if we skip the ones)
+		Inversions = Inversions[0:L]
+		for i := 0; i < L; i++ {
+			Inversions[i] = &points[i].z
+		}
+		err = fieldElements.GenerateMultiDivisionByZeroError(Inversions, ErrorPrefix+"bulk normalization of Z-coordinate to 1 failed, because some Z-coordinates were 0.")
+		panic(err)
+	}
+
 	for i := 0; i < L; i++ {
 		if Ones[i] {
 			continue

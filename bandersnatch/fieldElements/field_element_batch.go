@@ -92,7 +92,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	}
 	if L == 1 {
 		if args[0].IsZero() {
-			err = generateMultiDivisionByZeroError(args, ErrorPrefix+"Division by zero when calling MultiInvertEq on single element")
+			err = GenerateMultiDivisionByZeroError(args, ErrorPrefix+"Division by zero when calling MultiInvertEq on single element")
 			return
 		}
 		args[0].InvEq()
@@ -119,7 +119,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	// productOfFirstN[L-2] is the products of all inputs.
 	// We can check whether any input was zero by just looking at that value.
 	if productOfFirstN[L-2].IsZero() {
-		err = generateMultiDivisionByZeroError(args, ErrorPrefix+"Division by zero when calling MultiInvertEq")
+		err = GenerateMultiDivisionByZeroError(args, ErrorPrefix+"Division by zero when calling MultiInvertEq")
 		return
 	}
 
@@ -159,7 +159,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 	}
 	if L == 1 {
 		if args[0].IsZero() {
-			err = generateMultiDivisionByZeroError([]*bsFieldElement_64{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
+			err = GenerateMultiDivisionByZeroError([]*bsFieldElement_64{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
 			return
 		}
 
@@ -183,7 +183,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 		for i := 0; i < L; i++ {
 			argPtrs[i] = &args[i]
 		}
-		err = generateMultiDivisionByZeroError(argPtrs, "bandersnatch / field elements: Division by zero when calling MultiInvertEq")
+		err = GenerateMultiDivisionByZeroError(argPtrs, "bandersnatch / field elements: Division by zero when calling MultiInvertEq")
 		return
 	}
 
@@ -207,6 +207,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 // Any zero field element is left unchanged.
 //
 // If no field element among args was zero, zeroIndices is nil; otherwise, zeroIndices is a list of (0-based) indices of all field elements that were zero.
+// NOTE2: This also skips Ones. If you suspect your args has many ones, this is more efficient than the non-SkipZeros variant.
 func MultiInvertEqSliceSkipZeros(args []bsFieldElement_64) (zeroIndices []int) {
 	L := len(args)
 
@@ -229,6 +230,9 @@ func MultiInvertEqSliceSkipZeros(args []bsFieldElement_64) (zeroIndices []int) {
 			zeroIndices = append(zeroIndices, i)
 			continue
 		}
+		if Ptr.IsOne() {
+			continue
+		}
 		Ptrs[InsertionPos] = Ptr
 		InsertionPos++
 	}
@@ -245,6 +249,7 @@ func MultiInvertEqSliceSkipZeros(args []bsFieldElement_64) (zeroIndices []int) {
 // The returned zeroIndices is nil if none of the args were zero. Otherwise, it is a slice of 0-based indices indicating which args were zero.
 //
 // NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
+// NOTE2: This also skips Ones. If you suspect your args has many ones, this is more efficient than the non-SkipZeros variant.
 func MultiInvertEqSkipZeros(args ...*bsFieldElement_64) (zeroIndices []int) {
 
 	// Almost identical to the above. Note that we could avoid copying pointers by just swapping pointer-to-zero args to the end and undoing that after inversion.
@@ -269,6 +274,9 @@ func MultiInvertEqSkipZeros(args ...*bsFieldElement_64) (zeroIndices []int) {
 				continue
 			}
 			zeroIndices = append(zeroIndices, i)
+			continue
+		}
+		if Ptr.IsOne() {
 			continue
 		}
 		Ptrs[InsertionPos] = Ptr
