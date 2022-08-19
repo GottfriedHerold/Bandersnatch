@@ -3,7 +3,6 @@ package fieldElements
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
@@ -22,107 +21,48 @@ var (
 	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )
 
+// MultiInversionErrorData is the struct type that holds the additional information
+// if a Multi-Inversion of field elements goes wrong due to division by zero.
+//
+// In this case, the returned error satisfies the errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] interface.
+// in particular, the returned error has a method with signature GetData() MultiInversionErrorData.
+type MultiInversionErrorData struct {
+	ZeroIndices         []int
+	NumberOfZeroIndices int
+}
+
 // MultiInversionError is an interface extending error.
 // It is used to indicate errors in multiinversion algorithms.
 type MultiInversionError = errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData]
 
-// IMPORTANT NOTE: Some callers in the bandersnatch package actually recover the panic and rely on the fact that no changes to args are made on panic.
-
-// TODO: Base on ErrorWithData; this is a separate class for historic reasons.
-// Needs to be redone anyway;
-
-// errMultiInversionEncounteredZero is a (stateful) error either returned by or provided as argument to panic by functions that perform
-// simultaneous inversion of multiple field elements.
-//
-// It contains information about which elements were zero.
-//
-// Satisfies the ErrorWithGuaranteedData[MultiInversionErrorData] interface
-type errMultiInversionEncounteredZero struct {
-	ZeroIndices         []bool // indices (starting from 0) of the field elements that were zero, i.e. in a call (ignoring argument types) MultiInvertEq(0, 1, 2, 0, 0), we would have ZeroIndices = [0, 3, 4]
-	NumberOfZeroIndices int    // number of field elements that were zero when multi-inversion was requested. In the above example, would be 3
-	s                   string // internal: (static) error string that is to be displayed by Error(). Note that Error() also outputs additional information about ZeroIndices etc.
-}
-
-// Just for IDE; this must correspond to field names of errMultiInversionEncounteredZero.
-const argNameZeroIndices = "ZeroIndices"
-const argNameNumberOfZeroIndices = "NumberOfZeroIndices"
-
-func (err *errMultiInversionEncounteredZero) Unwrap() error {
-	return ErrDivisionByZero
-}
-
-func (err *errMultiInversionEncounteredZero) GetParameter(parameterName string) (value any, wasPresent bool) {
-	switch parameterName {
-	case argNameZeroIndices:
-		return err.ZeroIndices, true
-	case argNameNumberOfZeroIndices:
-		return err.NumberOfZeroIndices, true
-	default:
-		return nil, false
-	}
-}
-
-func (err *errMultiInversionEncounteredZero) HasParameter(parameterName string) bool {
-	switch parameterName {
-	case argNameNumberOfZeroIndices, argNameZeroIndices:
-		return true
-	default:
-		return false
-	}
-}
-
-func (err *errMultiInversionEncounteredZero) GetData() MultiInversionErrorData {
-	return MultiInversionErrorData{ZeroIndices: err.ZeroIndices, NumberOfZeroIndices: err.NumberOfZeroIndices}
-}
-
-func (err *errMultiInversionEncounteredZero) GetAllParameters() map[string]any {
-	return map[string]any{argNameNumberOfZeroIndices: err.NumberOfZeroIndices, argNameZeroIndices: err.ZeroIndices}
-}
-
-// Error is provided to satisfy the error interface (for pointer receivers). We report the stored string s together with information about ZeroIndices.
-func (err *errMultiInversionEncounteredZero) Error() string {
-	var b strings.Builder
-	b.WriteString(err.s)
-	if err.NumberOfZeroIndices <= 0 {
-		fmt.Fprintf(&b, "\nThe number of zero indices stored as metadata is %v <= 0. This should only occur if you are creating uninitialized ErrMultiInversionEncounteredZero errors manually.", err.NumberOfZeroIndices)
-		return b.String()
-	}
-	if err.NumberOfZeroIndices == 1 {
-		for i := 0; i < len(err.ZeroIndices); i++ {
-			if err.ZeroIndices[i] {
-				fmt.Fprintf(&b, "\nThe %v'th argument (counting from 0) was the only one that was zero.", i)
-				return b.String()
-			}
-		}
-		fmt.Fprintf(&b, "\nInternal bug: the number of zero indices stored as metadata is 1, but no zero index was contained in the metadata.")
-		return b.String()
-	}
-	var indices []int = make([]int, 0, err.NumberOfZeroIndices)
-	for i := 0; i < len(err.ZeroIndices); i++ {
-		if err.ZeroIndices[i] {
-			indices = append(indices, i)
-		}
-	}
-	if len(indices) != err.NumberOfZeroIndices {
-		fmt.Fprintf(&b, "\nInternal bug: the number of zero indices stored as metadata does not match the number of field elements that were reported as zero. Error reporting may be unreliable.")
-	}
-	fmt.Fprintf(&b, "\nThere were %v numbers (starting indexing with 0) that were 0 in the call. Those are:\n %v", err.NumberOfZeroIndices, indices)
-	return b.String()
-}
-
-// generateMultiDivisionByZeroPanic is a helper function for MultiInvertEq and MultiInvertSliceEq.
-//
-// It creates the actual non-nil error that includes diagnostics which field Elements were zero.
-func generateMultiDivisionByZeroPanic(fieldElements []*bsFieldElement_64, s string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
-	var err errMultiInversionEncounteredZero
-	err.s = s
-	err.NumberOfZeroIndices = 0
-	err.ZeroIndices = make([]bool, len(fieldElements))
+func generateMultiDivisionByZeroError(fieldElements []*bsFieldElement_64, prefixForError string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
+	var errorData MultiInversionErrorData
+	errorData.ZeroIndices = make([]int, 0)
 	for i, fe := range fieldElements {
 		if fe.IsZero() {
-			err.ZeroIndices[i] = true
-			err.NumberOfZeroIndices++
+			errorData.NumberOfZeroIndices++
+			errorData.ZeroIndices = append(errorData.ZeroIndices, i)
 		}
 	}
-	return &err
+	if errorData.NumberOfZeroIndices == 0 {
+		return nil
+	}
+
+	if len(errorData.ZeroIndices) != errorData.NumberOfZeroIndices {
+		panic(ErrorPrefix + " internal error: number of zero indices and lenght of corresponding slice differ. This is not supposed to be possible")
+	}
+
+	var errorString string
+
+	// Format error message depending on the number of zeros encountered.
+	if errorData.NumberOfZeroIndices == 1 {
+		errorString = fmt.Sprintf("%v\nThe %v'th argument (counting from 0) was the only one that was zero.", prefixForError, errorData.ZeroIndices[0])
+	} else if errorData.NumberOfZeroIndices < 10 {
+		errorString = prefixForError + "\nThere were %v{NumberOfZeroIndices} many arguments that were zero: Those were given at indices (starting from 0) %v{ZeroIndices}."
+	} else {
+		// Note: %%v becomes %v, which is handled by errorsWithData's processing.
+		errorString = fmt.Sprintf("%v\nThere were %%v{NumberOfZeroIndices} many arguments that were zero. The first ten were at indices (starting from 0) %v", prefixForError, errorData.ZeroIndices[0:10])
+	}
+
+	return errorsWithData.NewErrorWithParametersFromData(ErrDivisionByZero, errorString, &errorData)
 }

@@ -73,16 +73,6 @@ func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
 	*z = result
 }
 
-// MultiInversionErrorData is the struct type that holds the additional information
-// if a Multi-Inversion of field elements goes wrong due to division by zero.
-//
-// In this case, the returned error satisfies the errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] interface.
-// in particular, the returned error has a method with signature GetData() MultiInversionErrorData.
-type MultiInversionErrorData struct {
-	ZeroIndices         []bool
-	NumberOfZeroIndices int
-}
-
 // MultiInvertEq replaces every argument by its multiplicative inverse.
 // If any arguments are zero, returns an error satisfying MultiInversionError without modifying any of the args.
 //
@@ -102,7 +92,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	}
 	if L == 1 {
 		if args[0].IsZero() {
-			err = generateMultiDivisionByZeroPanic(args, ErrorPrefix+"Division by zero when calling MultiInvertEq on single element")
+			err = generateMultiDivisionByZeroError(args, ErrorPrefix+"Division by zero when calling MultiInvertEq on single element")
 			return
 		}
 		args[0].InvEq()
@@ -129,7 +119,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	// productOfFirstN[L-2] is the products of all inputs.
 	// We can check whether any input was zero by just looking at that value.
 	if productOfFirstN[L-2].IsZero() {
-		err = generateMultiDivisionByZeroPanic(args, ErrorPrefix+"Division by zero when calling MultiInvertEq")
+		err = generateMultiDivisionByZeroError(args, ErrorPrefix+"Division by zero when calling MultiInvertEq")
 		return
 	}
 
@@ -169,7 +159,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 	}
 	if L == 1 {
 		if args[0].IsZero() {
-			err = generateMultiDivisionByZeroPanic([]*bsFieldElement_64{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
+			err = generateMultiDivisionByZeroError([]*bsFieldElement_64{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
 			return
 		}
 
@@ -183,17 +173,17 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 
 	// Set productOfFirstN[i] == args[0] * args[1] * ... * args[i+1]
 	productOfFirstN[0].Mul(&args[0], &args[1])
-	for i := 1; i < len(args)-1; i++ {
+	for i := 1; i < L-1; i++ {
 		productOfFirstN[i].Mul(&productOfFirstN[i-1], &args[i+1])
 	}
 
 	// check if product of all args is zero. If yes, we need to handle some errors.
 	if productOfFirstN[L-2].IsZero() {
 		var argPtrs []*bsFieldElement_64 = make([]*bsFieldElement_64, len(args))
-		for i := 0; i < len(args); i++ {
+		for i := 0; i < L; i++ {
 			argPtrs[i] = &args[i]
 		}
-		err = generateMultiDivisionByZeroPanic(argPtrs, "bandersnatch / field elements: Division by zero when calling MultiInvertEq")
+		err = generateMultiDivisionByZeroError(argPtrs, "bandersnatch / field elements: Division by zero when calling MultiInvertEq")
 		return
 	}
 
@@ -211,4 +201,82 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 	args[0].Mul(&temp1, &args[1])
 	args[1] = temp2
 	return nil // no error
+}
+
+// MultiInvertEqSliceSkipZeros bulk-replaces every field element in args by its multiplicative inverse.
+// Any zero field element is left unchanged.
+//
+// If no field element among args was zero, zeroIndices is nil; otherwise, zeroIndices is a list of (0-based) indices of all field elements that were zero.
+func MultiInvertEqSliceSkipZeros(args []bsFieldElement_64) (zeroIndices []int) {
+	L := len(args)
+
+	// We build a list of pointers to all elements that need inverting (i.e. all that are non-zero)
+	// We may also optionally skip all +/- 1 entries (for efficiency)
+	Ptrs := make([]*FieldElement, L)
+
+	// Build Ptrs InsertionPos is the index for Ptrs, i is the index for args.
+	InsertionPos := 0
+	// We always increment i in the loop, but not always InsertionPos
+	for i := 0; i < L; i++ {
+		Ptr := &args[i]
+		if Ptr.IsZero() {
+
+			if zeroIndices == nil {
+				zeroIndices = make([]int, 1, L)
+				zeroIndices[0] = i
+				continue
+			}
+			zeroIndices = append(zeroIndices, i)
+			continue
+		}
+		Ptrs[InsertionPos] = Ptr
+		InsertionPos++
+	}
+	err := MultiInvertEq(Ptrs[0:InsertionPos]...)
+	if err != nil {
+		panic(ErrorPrefix + " Internal error: Division by zero, even though zero field elements were supposed to be skipped. This is supposed to be impossible to happen.")
+	}
+	return
+}
+
+// MultiInvertEqSkipZeros replaces every non-zero argument by its multiplicative inverse.
+// zero arguments are unmodified.
+//
+// The returned zeroIndices is nil if none of the args were zero. Otherwise, it is a slice of 0-based indices indicating which args were zero.
+//
+// NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
+func MultiInvertEqSkipZeros(args ...*bsFieldElement_64) (zeroIndices []int) {
+
+	// Almost identical to the above. Note that we could avoid copying pointers by just swapping pointer-to-zero args to the end and undoing that after inversion.
+	// However, that's error-prone (due to the need to get zeroIndices right for indices that were swapped from the end)
+
+	L := len(args)
+
+	// We build a list of pointers to all elements that need inverting (i.e. all that are non-zero)
+	// We may also optionally skip all +/- 1 entries (for efficiency)
+	Ptrs := make([]*FieldElement, L)
+
+	// Build Ptrs InsertionPos is the index for Ptrs, i is the index for args.
+	InsertionPos := 0
+	// We always increment i in the loop, but not always InsertionPos
+	for i := 0; i < L; i++ {
+		Ptr := args[i]
+		if Ptr.IsZero() {
+
+			if zeroIndices == nil {
+				zeroIndices = make([]int, 1, L)
+				zeroIndices[0] = i
+				continue
+			}
+			zeroIndices = append(zeroIndices, i)
+			continue
+		}
+		Ptrs[InsertionPos] = Ptr
+		InsertionPos++
+	}
+	err := MultiInvertEq(Ptrs[0:InsertionPos]...)
+	if err != nil {
+		panic(ErrorPrefix + " Internal error: Division by zero, even though zero field elements were supposed to be skipped. This is supposed to be impossible to happen.")
+	}
+	return
 }

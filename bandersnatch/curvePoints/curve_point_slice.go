@@ -1,9 +1,5 @@
 package curvePoints
 
-import "reflect"
-
-// TODO: This file might go away since Go has generics as of Go1.18
-
 // CurvePointSlice is a joint interface for slices of CurvePoints or pointers to CurvePoints.
 //
 // This interface is needed (due to inadequacies of Go's type system) to make certain functions work with slices of concrete point types.
@@ -22,32 +18,168 @@ func (v GenericPointSlice) Len() int {
 	return len(v)
 }
 
-type CurvePointSliceWrapper[PointType any, PointTypePtr interface {
+type curvePointSliceWrapper[PointType any, PointTypePtr interface {
 	*PointType
 	CurvePointPtrInterface
 }] struct {
 	v []PointType
 }
 
-func (w CurvePointSliceWrapper[PointType, PointTypePtr]) Len() int {
+func (w curvePointSliceWrapper[PointType, PointTypePtr]) Len() int {
 	return len(w.v)
 }
 
-func (w CurvePointSliceWrapper[PointType, PointTypePtr]) GetByIndex(n int) CurvePointPtrInterface {
+func (w curvePointSliceWrapper[PointType, PointTypePtr]) GetByIndex(n int) CurvePointPtrInterface {
 	return PointTypePtr(&w.v[n])
 }
 
-func (w CurvePointSliceWrapper[PointType, PointTypePtr]) GetByIndexTyped(n int) PointTypePtr {
+func (w curvePointSliceWrapper[PointType, PointTypePtr]) GetByIndexTyped(n int) PointTypePtr {
 	return PointTypePtr(&w.v[n])
+}
+
+type curvePointPtrSliceWrapper[PointTypePtr CurvePointPtrInterface] struct {
+	v []PointTypePtr
+}
+
+func (w curvePointPtrSliceWrapper[PointTypePtr]) Len() int {
+	return len(w.v)
+}
+
+func (w curvePointPtrSliceWrapper[PointTypePtr]) GetByIndex(n int) CurvePointPtrInterface {
+	return w.v[n]
+}
+
+func (w curvePointPtrSliceWrapper[PointTypePtr]) GetByIndexTyped(n int) PointTypePtr {
+	return w.v[n]
 }
 
 func AsCurvePointSlice[PointType any, PointTypePtr interface {
 	*PointType
 	CurvePointPtrInterface
-}](v []PointType) (ret CurvePointSliceWrapper[PointType, PointTypePtr]) {
+}](v []PointType) CurvePointSlice {
+
+	// We need to special-case certain choices of types to optimize for bulk-operations.
+	// We have two options here: Either dispatch to separate types or
+	// special case operations in curvePointSliceWrapper.
+	// Both are annyoning.
+
+	// switching on a generic parameter is not (yet?) possible in Go1.18
+	// So we workaround by tons of completely stupid type-assertions.
+	switch any(v).(type) {
+	case []Point_axtw_full:
+		return CurvePointSlice_axtw_full(any(v).([]Point_axtw_full))
+	case []Point_axtw_subgroup:
+		return CurvePointSlice_axtw_subgroup(any(v).([]Point_axtw_subgroup))
+	case []Point_xtw_full:
+		return CurvePointSlice_xtw_full(any(v).([]Point_xtw_full))
+	case []Point_xtw_subgroup:
+		return CurvePointSlice_xtw_subgroup(any(v).([]Point_xtw_subgroup))
+	case []Point_efgh_full:
+		return CurvePointSlice_efgh_full(any(v).([]Point_efgh_full))
+	case []Point_efgh_subgroup:
+		return CurvePointSlice_efgh_subgroup(any(v).([]Point_efgh_subgroup))
+	default:
+		return curvePointSliceWrapper[PointType, PointTypePtr]{v: v}
+	}
+
+}
+
+func AsCurvePointPtrSlice[PointTypePtr CurvePointPtrInterface](v []PointTypePtr) (ret curvePointPtrSliceWrapper[PointTypePtr]) {
+	// We might special-case here as well.
 	ret.v = v
 	return
 }
+
+// **************************************************************************************
+
+type CurvePointSlice_axtw_full []Point_axtw_full
+type CurvePointSlice_axtw_subgroup []Point_axtw_subgroup
+
+func (v CurvePointSlice_axtw_subgroup) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_axtw_full) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_axtw_subgroup) GetByIndexTyped(n int) *Point_axtw_subgroup {
+	return &v[n]
+}
+
+func (v CurvePointSlice_axtw_full) GetByIndexTyped(n int) *Point_axtw_full {
+	return &v[n]
+}
+
+func (v CurvePointSlice_axtw_subgroup) Len() int {
+	return len(v)
+}
+
+func (v CurvePointSlice_axtw_full) Len() int {
+	return len(v)
+}
+
+// **************************************************************************************
+
+type CurvePointSlice_xtw_subgroup []Point_xtw_subgroup
+type CurvePointSlice_xtw_full []Point_xtw_full
+
+func (v CurvePointSlice_xtw_subgroup) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_xtw_full) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_xtw_subgroup) Len() int {
+	return len(v)
+}
+
+func (v CurvePointSlice_xtw_full) Len() int {
+	return len(v)
+}
+
+func (v CurvePointSlice_xtw_subgroup) GetByIndexTyped(n int) *Point_xtw_subgroup {
+	return &v[n]
+}
+
+func (v CurvePointSlice_xtw_full) GetByIndexTyped(n int) *Point_xtw_full {
+	return &v[n]
+}
+
+// **************************************************************************************
+
+type CurvePointSlice_efgh_subgroup []Point_efgh_subgroup
+type CurvePointSlice_efgh_full []Point_efgh_full
+
+func (v CurvePointSlice_efgh_subgroup) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_efgh_full) GetByIndex(n int) CurvePointPtrInterface {
+	return &v[n]
+}
+
+func (v CurvePointSlice_efgh_subgroup) GetByIndexTyped(n int) *Point_efgh_subgroup {
+	return &v[n]
+}
+
+func (v CurvePointSlice_efgh_full) GetByIndexTyped(n int) *Point_efgh_full {
+	return &v[n]
+}
+
+func (v CurvePointSlice_efgh_subgroup) Len() int {
+	return len(v)
+}
+
+func (v CurvePointSlice_efgh_full) Len() int {
+	return len(v)
+}
+
+////////////// OLD CODE:
+
+/*
 
 // This function takes a slice v of curve points and returns a pointer to v[n] as CurvePointPtrInterface. It also is a testament to why Go's type system really needs generics.
 
@@ -117,3 +249,4 @@ func getElementFromCurvePointSliceGeneral(v interface{}, n int) CurvePointPtrInt
 		panic("elements of Slice/array passed to getElemFromCurvePointSlice is not struct, pointer or interface")
 	}
 }
+*/

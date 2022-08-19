@@ -13,44 +13,95 @@ func TestMultiInvert(t *testing.T) {
 	const MAXSIZE = 20
 	var drng *rand.Rand = rand.New(rand.NewSource(87))
 	empty := make([]bsFieldElement_64, 0)
+
+	// Test on empty lists / slices
 	MultiInvertEq()
 	MultiInvertEqSlice(empty)
+	MultiInvertEqSliceSkipZeros(empty)
+	MultiInvertEqSkipZeros()
+
+	// prepare random non-zero elements and individually invert them (for testing)
 	var numsArray, numsArrayInv [MAXSIZE]bsFieldElement_64
 	for i := 0; i < MAXSIZE; i++ {
 		numsArray[i].SetRandomUnsafeNonZero(drng)
 		numsArrayInv[i].Inv(&numsArray[i])
 	}
+
+	// Set some elements to 1. This is becauce we might have special code that skips ones.
+	testutils.Assert(MAXSIZE > 5)
+	numsArray[4].SetOne()
+	numsArray[5].SetOne()
+	numsArrayInv[4].SetOne()
+	numsArrayInv[5].SetOne()
+
+	// Test whether MultiInvertEqSlice matches individual inversion results
+	// NOTE: We check this for every sub-slice [0:size] for 0<=size < MAXSIZE
 	for size := 0; size < MAXSIZE; size++ {
-		var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray
+		var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray // deep copy, because this is array, not slice!
 		err := MultiInvertEqSlice(numsArrayCopy[0:size])
 		if err != nil {
 			t.Fatalf("Error during Multi-Invert (Slice): %v", err)
 		}
 		for i := 0; i < size; i++ {
 			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
-				t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+				t.Fatal("Multi-Inversion does not give the same result as individual inversion")
+			}
+		}
+		// redo check with MultiInvertEqSlice
+		numsArrayCopy = numsArray
+		MultiInvertEqSliceSkipZeros(numsArrayCopy[0:size])
+		for i := 0; i < size; i++ {
+			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
+				t.Fatal("Multi-Inversion (with Skipped zeros) does not give the same result as individual inversion")
 			}
 		}
 	}
+
+	// Same test with MultiInvertEq and MultiInvertEqSkipZeros.
 	for size := 0; size < MAXSIZE; size++ {
 		var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray
+		// We need to make a slice of Pointer first to work with the variadic functions.
 		Ptrs := make([]*bsFieldElement_64, size)
 		for i := 0; i < size; i++ {
 			Ptrs[i] = &numsArrayCopy[i]
 		}
+
 		err := MultiInvertEq(Ptrs...)
 		if err != nil {
 			t.Fatalf("Error during MultiInvert: %v", err)
 		}
 		for i := 0; i < size; i++ {
 			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
-				t.Fatal("Multi-Inversion does not give the same result as indivdual inversion")
+				t.Fatal("Multi-Inversion (variadic) does not give the same result as individual inversion")
+			}
+		}
+		// redo check with MultiInvertEqSkipZeros
+		numsArrayCopy = numsArray
+
+		// NOTE: No need to reset Ptrs
+		if size > 0 {
+			testutils.Assert(Ptrs[0] == &numsArrayCopy[0])
+		}
+
+		MultiInvertEqSkipZeros(Ptrs...)
+		for i := 0; i < size; i++ {
+			if !numsArrayCopy[i].IsEqual(&numsArrayInv[i]) {
+				t.Fatal("Multi-Inversion (skipped zeros, variadic) does not give the same result as individual inversion")
 			}
 		}
 	}
+
+	// Check behaviour on single zero element:
 	var zero bsFieldElement_64 = FieldElementZero
+	SizeOneZeroSlice := []bsFieldElement_64{zero}
 	err := MultiInvertEq(&zero)
-	err2 := MultiInvertEqSlice([]bsFieldElement_64{zero})
+	err2 := MultiInvertEqSlice(SizeOneZeroSlice)
+	if !zero.IsZero() {
+		t.Fatalf("Inverting zero changed the element")
+	}
+	if !SizeOneZeroSlice[0].IsZero() {
+		t.Fatalf("Inverting zero changed the element")
+	}
 	if err == nil || err2 == nil {
 		t.Fatalf("Inverting Zero did not produce error")
 	}
@@ -69,27 +120,59 @@ func TestMultiInvert(t *testing.T) {
 		t.Fatalf("Wrong data reported when inverting single 0")
 	}
 
-	if !utils.CompareSlices(data.ZeroIndices, []bool{true}) {
+	if !utils.CompareSlices(data.ZeroIndices, []int{0}) {
 		t.Fatalf("Wrong data reported when inverting single 0")
 	}
-	if !utils.CompareSlices(data2.ZeroIndices, []bool{true}) {
+	if !utils.CompareSlices(data2.ZeroIndices, []int{0}) {
 		t.Fatalf("Wrong data reported when inverting single 0")
 	}
 	if !zero.IsZero() {
 		t.Fatalf("Inverting single zero did not leave values untouched.")
 	}
 
-	var numsArrayCopy [MAXSIZE]bsFieldElement_64
+	// Test SkipZero alternatives for single zero element:
+	list1 := MultiInvertEqSkipZeros(&zero)
+	list2 := MultiInvertEqSliceSkipZeros(SizeOneZeroSlice)
+	if !zero.IsZero() {
+		t.Fatalf("Inverting zero changed the element (zero-skipped version)")
+	}
+	if !SizeOneZeroSlice[0].IsZero() {
+		t.Fatalf("Inverting zero changed the element (zero-skipped, slice version)")
+	}
+	if list1 == nil {
+		t.Fatalf("MultiInvertEqSkipZeros returned nil on 1 zero element")
+	}
+	if list2 == nil {
+		t.Fatalf("MultiInvertEqSliceSkipZeros returned nil 1 zero element")
+	}
+	if !utils.CompareSlices(list1, []int{0}) {
+		t.Fatalf("MultiInverEqSkipZeros unexpectedly retuned %v", list1)
+	}
+	if !utils.CompareSlices(list2, []int{0}) {
+		t.Fatalf("MultiInverEqSliceSkipZeros unexpectedly retuned %v", list2)
+	}
+
+	// Make slice where every second element is 0
+	var ExpectedZeroIndices []int = make([]int, 0)
 	for i := 0; i < MAXSIZE; i++ {
 		numsArray[i].SetRandomUnsafeNonZero(drng)
 		switch i % 2 {
 		case 0:
-			numsArrayCopy[i].SetZero() // not needed, but for clarity
+			numsArray[i].SetZero()
+			numsArrayInv[i].SetZero()
+			ExpectedZeroIndices = append(ExpectedZeroIndices, i)
 		case 1:
-			numsArrayCopy[i] = numsArray[i]
+			numsArrayInv[i].Inv(&numsArray[i])
 		}
 	}
-	err = MultiInvertEqSlice(numsArrayCopy[:])
+	// make sure some element is 1
+	numsArray[5].SetOne()
+	numsArrayInv[5].SetOne()
+
+	// make a copy of the above
+	var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray
+
+	err = MultiInvertEqSlice(numsArray[:])
 	if err == nil {
 		t.Fatalf("Inverting slice with 0s did not report error")
 	}
@@ -97,30 +180,18 @@ func TestMultiInvert(t *testing.T) {
 	if data.NumberOfZeroIndices != (MAXSIZE+1)/2 {
 		t.Fatalf("Reported error had number of 0 indices wrong")
 	}
-	for i := 0; i < MAXSIZE; i++ {
-		// Check that MultiInvertEqSlice did not modify the slice.
-		switch i % 2 {
-		case 0:
-			if !numsArrayCopy[i].IsZero() {
-				t.Fatalf("MultiInvertEqSlice modified args on error")
-			}
-			if !data.ZeroIndices[i] {
-				t.Fatalf("MultiInvertEqSlice's error did not correctly report 0 indices")
-			}
-		case 1:
-			if numsArrayCopy[i] != numsArray[i] {
-				t.Fatalf("MultiInvertEqSlice modified args on error")
-			}
-			if data.ZeroIndices[i] {
-				t.Fatalf("MultiInvertEqSlice's error did not correctly report 0 indices")
-			}
-		default:
-			panic("Cannot happen")
-		}
+	if !utils.CompareSlices(data.ZeroIndices, ExpectedZeroIndices) {
+		t.Fatalf("MultiInvertEqSlice reported unexpected zero indices: %v", data.ZeroIndices)
 	}
+
+	// NOTE: This assuments that on error, we do not make any normalizations.
+	if numsArray != numsArrayCopy {
+		t.Fatalf("MultiInvertEqSlice modified data on error")
+	}
+
 	var ArrPtrs [MAXSIZE]*bsFieldElement_64
 	for i := 0; i < MAXSIZE; i++ {
-		ArrPtrs[i] = &numsArrayCopy[i]
+		ArrPtrs[i] = &numsArray[i]
 	}
 	err2 = MultiInvertEq(ArrPtrs[:]...)
 	if err2 == nil {
@@ -132,6 +203,9 @@ func TestMultiInvert(t *testing.T) {
 	}
 	if !utils.CompareSlices(data.ZeroIndices, data2.ZeroIndices) {
 		t.Fatalf("MultiInvertEq did not report same error as MultiInvertEqSlice")
+	}
+	if numsArrayCopy != numsArray {
+		t.Fatalf("MultiInvertEq modified elements on error")
 	}
 
 }
