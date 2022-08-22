@@ -35,6 +35,12 @@ type MultiInversionErrorData struct {
 // It is used to indicate errors in multiinversion algorithms.
 type MultiInversionError = errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData]
 
+// Canary: This will panic if we refactor field names. The reason is that some functions below use %v{FieldName} - syntax, which depends on these particular names.
+func init() {
+	errorsWithData.CheckParameterForStruct[MultiInversionErrorData]("ZeroIndices")
+	errorsWithData.CheckParameterForStruct[MultiInversionErrorData]("NumberOfZeroIndices")
+}
+
 // GenerateMultiDivisionByZeroError creates an error indicating which of the provided field elements were zero. This is used to create errors for the Multi-Inversion functions.
 // prefixForErrors is prefixed to the error string created.
 // If none of the fieldElements are zero, returns nil

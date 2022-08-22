@@ -235,10 +235,12 @@ func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
 	return getSerializerParam(s, parameterName)
 }
 
+// RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
 }
 
+// HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXY) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
@@ -349,7 +351,7 @@ func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interfac
 //
 // Invalid inputs cause a panic.
 func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXAndSignY {
-	return s.WithParameter("endianness", newEndianness)
+	return s.WithParameter("Endianness", newEndianness)
 }
 
 // OutputLength returns the number of bytes read/written per curve point.
@@ -377,10 +379,12 @@ func (s *pointSerializerXAndSignY) Validate() {
 	s.fieldElementEndianness.Validate()
 }
 
+// RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXAndSignY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
 }
 
+// HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXAndSignY) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
@@ -466,7 +470,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		}
 
 		point.SetFrom(&P)
-	} else {
+	} else { // No subgroup check, we deserialize a point from the whole group.
 		var P curvePoints.Point_axtw_full
 		P, errConvertToPoint := curvePoints.CurvePointFromYAndSignX_full(&Y, signInt, trustLevel)
 		if errConvertToPoint != nil {
@@ -517,7 +521,7 @@ func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interfac
 //
 // Invalid inputs cause a panic.
 func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYAndSignX {
-	return s.WithParameter("endianness", newEndianness)
+	return s.WithParameter("Endianness", newEndianness)
 }
 
 // OutputLength returns the number of bytes read/written per curve point.
@@ -532,10 +536,12 @@ func (s *pointSerializerYAndSignX) GetParameter(parameterName string) interface{
 	return getSerializerParam(s, parameterName)
 }
 
+// RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerYAndSignX) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
 }
 
+// HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerYAndSignX) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
@@ -630,7 +636,7 @@ func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interf
 //
 // Invalid inputs cause a panic.
 func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXTimesSignY {
-	return s.WithParameter("endianness", newEndianness)
+	return s.WithParameter("Endianness", newEndianness)
 }
 
 // OutputLength returns the number of bytes read/written per curve point.
@@ -645,10 +651,12 @@ func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interfac
 	return getSerializerParam(s, parameterName)
 }
 
+// RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXTimesSignY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
 }
 
+// HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXTimesSignY) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
@@ -757,7 +765,7 @@ func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam inter
 //
 // Invalid inputs cause a panic.
 func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYXTimesSignY {
-	return s.WithParameter("endianness", newEndianness)
+	return s.WithParameter("Endianness", newEndianness)
 }
 
 // OutputLength returns the number of bytes read/written per curve point.
@@ -772,10 +780,12 @@ func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interfa
 	return getSerializerParam(s, parameterName)
 }
 
+// RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerYXTimesSignY) RecognizedParameters() []string {
 	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
 }
 
+// HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerYXTimesSignY) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }

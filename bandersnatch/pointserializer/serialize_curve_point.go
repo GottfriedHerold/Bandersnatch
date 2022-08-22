@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -103,7 +105,7 @@ type CurvePointDeserializer interface {
 	// DeserializeBatch(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
 
 	// Matches SerializeSlice
-	// DeserializeSlice(inputStream io.Reader) (outputPoints bandersnatch.CurvePointSlice, bytesRead int, err bandersnatchErrors.BatchSerializationError)
+	// DeserializeSlice(inputStream io.Reader) (outputPoints any, bytesRead int, err bandersnatchErrors.BatchSerializationError)
 	// DeserializeSliceToBuffer(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, pointsRead int32, err bandersnatchErrors.BatchSerializationError)
 }
 
@@ -171,6 +173,19 @@ type multiSerializer[BasicValue any, BasicPtr interface {
 	basicSerializer  BasicValue             // Due to immutability, having a pointer would be fine as well.
 	headerSerializer simpleHeaderSerializer // we could do struct embeding here (well, not with generics...), but some methods are defined on both members, so we prefer explicit forwarding for clarity.
 }
+
+type BatchSerializationErrorData struct {
+	bandersnatchErrors.WriteErrorData
+	PointsSerialized int
+}
+
+type BatchDeserializationErrorData struct {
+	bandersnatchErrors.ReadErrorData
+	PointDeserialized int
+}
+
+type BatchSerializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchSerializationErrorData]
+type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchDeserializationErrorData]
 
 // ***********************************************************************************************************************************************************
 
@@ -505,6 +520,123 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SliceOutputLength(numPoints int
 		return -1, err
 	}
 	return int32(ret64), nil
+}
+
+// DeserializeBatch(inputStream, trustLevel, outputPoints...) will deserialize from inputStream and write to the output points in order.
+// If no error occurs, DeserializeBatch(inputStream, trustLevel, outputPoint1, outputPoint2, ...) is equivalent to calling Deserialize(inputStream, trustLevel, ouputPoint1), Deserialize(inputStream, trustLevel, outputPoint2,), ... in order.
+//
+// DeserializeBatch will always try to deserialize L := len(outputPoints) many points or until the first error. L times OutputLenght() must fit into an int32, else we panic.
+// On error, the BatchDeserialization error contains (among others) as data PointsDeserialized and PartialRead.
+//
+// PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints). If we read from the inputStream, but do not write because the read data fails a subgroup check, this read is not reflected in PointsDeserialized.
+// PartialRead is set to true if we encountered a read error that is not aligned with data encoding points.
+//
+// NOTE: Due the way Go's interfaces work (and methods cannot be generic in Go1.19, so we can't work around this), you cannot pass a variable x of type []T with x... for any T satisfying CurvePointPtrInterfaceWrite, unless T *is* CurvePointPtrInterfaceWrite.
+// Use DeserializeSlice instead in this case, which is usually more efficient anyway. A minor difference is that for DeserializeBatch, the outputPoints (which are pointers) ARE allowed to alias.
+//
+// NOTE2: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream, you need to check that the error wraps either io.EOF/io.UnexpectedEOF and PartialRead is false.
+//
+/*
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeBatch(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err BatchDeserializationError) {
+	L := len(outputPoints)
+	if L > math.MaxInt32 {
+		panic(ErrorPrefix + "trying to batch-deserialize more than MaxInt32 points with DeserializeBatch")
+	}
+
+}
+*/
+// DeserializeBatch(deserializer, inputStream, trustLevel, outputPoints...) will deserialize from inputStream and write to the output points in order.
+// We assume that the outputPoints all point to disinct adresses. Otherwise, the behaviour is undefined.
+// If no error occurs, DeserializeBatch(deserializer, inputStream, trustLevel, outputPoint1, outputPoint2, ...) is equivalent to calling
+// deserializer.DeserializePoint(inputStream, trustLevel, ouputPoint1), deserializer.DeserializePoint(inputStream, trustLevel, outputPoint2,), ... in order.
+//
+// DeserializeBatch will always try to deserialize L := len(outputPoints) many points or until the first error. L times OutputLenght() must fit into an int32, else we panic.
+// On error, the BatchDeserialization error contains (among others) as data PointsDeserialized and PartialRead.
+//
+// PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints). If we read from the inputStream, but do not write because the read data fails a subgroup check, this read is not reflected in PointsDeserialized.
+// PartialRead is set to true if we encountered a read error that is not aligned with data encoding points.
+//
+// NOTE2: When using this method to deserialize AT MOST L points into a buffer, but don't know in advance how many points are in the stream, you need to check that the error wraps either io.EOF or io.UnexpectedEOF and PartialRead is false.
+/*
+func DeserializeBatch_Variadic[PtrType curvePoints.CurvePointPtrInterfaceWrite](deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...PtrType) (bytesRead int, err BatchSerializationError) {
+	L := len(outputPoints)
+	if L > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v, which is more than MaxInt32 points with DeserializeBatch", L))
+	}
+	if int64(L)*int64(deserializer.OutputLength()) > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, each reading potentially %v bytes. The total number of bytes read might exceed MaxInt32. Bailing out.", L, deserializer.OutputLength()))
+	}
+	for i, outputPoint := range outputPoints {
+		bytesJustRead, errSingle := deserializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+		bytesRead += bytesJustRead
+		if errSingle != nil {
+
+		}
+	}
+
+}
+*/
+
+func DeserializeBatch_Variadic[PtrType curvePoints.CurvePointPtrInterface](deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...PtrType) (bytesRead int, err BatchDeserializationError) {
+	return DeserializeBatch(deserializer, inputStream, trustLevel, curvePoints.AsCurvePointPtrSlice(outputPoints))
+}
+
+func DeserializeBatch(deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
+	L := outputPoints.Len()
+	if L > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v, which is more than MaxInt32 points with DeserializeBatch", L))
+	}
+	if int64(L)*int64(deserializer.OutputLength()) > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, each reading potentially %v bytes. The total number of bytes read might exceed MaxInt32. Bailing out", L, deserializer.OutputLength()))
+	}
+	for i := 0; i < L; i++ {
+		outputPoint := outputPoints.GetByIndex(i) // returns pointer, wrapped in interface
+		bytesJustRead, errSingle := deserializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+		bytesRead += bytesJustRead
+		if errSingle != nil {
+			// Turns an EOF into an UnexpectedEOF if i != 0.
+			if i != 0 {
+				bandersnatchErrors.UnexpectEOF2(&errSingle)
+			}
+
+			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errSingle, ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w", "PointsDeserialized", i)
+			return
+		}
+	}
+	return
+}
+
+var curvePointPtrType reflect.Type = utils.TypeOfType[curvePoints.CurvePointPtrInterface]() // reflect.Type of CurvePointPtrInterface
+
+type reflectedPointSlice struct {
+	Slice reflect.Value
+	L     int
+}
+
+func (rps reflectedPointSlice) GetByIndex(n int) curvePoints.CurvePointPtrInterface {
+	return rps.Slice.Index(n).Addr().Interface().(curvePoints.CurvePointPtrInterface)
+}
+
+func (rps reflectedPointSlice) Len() int {
+	return rps.L
+}
+
+func makePointSlice(pointType reflect.Type, size int) (asCurvePointSlice curvePoints.CurvePointSlice, asInterface any) {
+
+	// TODO: Special case common reflect.Types: The following is the generic "default", which is horribly inefficient, thanks to Go.
+
+	if pointType.Kind() == reflect.Interface {
+		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a reflect.Type for the type %v, which is an interface type. The provided type must be a concrete type", testutils.GetReflectName(pointType)))
+	}
+
+	var PtrType reflect.Type = reflect.PointerTo(pointType)
+	if !PtrType.Implements(curvePointPtrType) {
+		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a type %v, where %v does not satisfy the CurvePointPtrInterface interface", pointType, PtrType))
+	}
+
+	var sliceValue reflect.Value = reflect.MakeSlice(reflect.SliceOf(pointType), size, size)
+	return reflectedPointSlice{Slice: sliceValue, L: size}, sliceValue.Interface()
 }
 
 /*

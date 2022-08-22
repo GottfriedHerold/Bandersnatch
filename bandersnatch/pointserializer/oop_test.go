@@ -11,7 +11,7 @@ import (
 func TestParamsLowercase(t *testing.T) {
 	for key := range serializerParams {
 		if key != normalizeParameter(key) {
-			t.Fatalf("serializerParams has non-lowercased key %v", key)
+			t.Fatalf("serializerParams has non-normalized key %v", key)
 		}
 	}
 }
@@ -37,19 +37,19 @@ func TestHasParameters(t *testing.T) {
 	if hasParameter(nilEndianness, "SubgroupOnly") {
 		t.Fatalf("hasParameter returned true when it should not")
 	}
-	if !hasParameter(nilEndianness, "endianness") {
+	if !hasParameter(nilEndianness, "Endianness") {
 		t.Fatalf("hasParameter returned false when it should not")
 	}
 	var getterOnly *dummyGetterOnly = nil
 	var setterOnly *dummySetterOnly = nil
 	var setterAndGetter *dummyGetterAndSetter = nil
-	if hasParameter(getterOnly, "endianness") {
+	if hasParameter(getterOnly, "Endianness") {
 		t.Fatalf("hasParameter returned true for struct with getter only")
 	}
-	if hasParameter(setterOnly, "endianness") {
+	if hasParameter(setterOnly, "Endianness") {
 		t.Fatalf("hasParameter returned true for struct with setter only")
 	}
-	if !hasParameter(setterAndGetter, "endianness") {
+	if !hasParameter(setterAndGetter, "Endianness") {
 		t.Fatalf("hasParamter returned false for struct with both getter and setter")
 	}
 }

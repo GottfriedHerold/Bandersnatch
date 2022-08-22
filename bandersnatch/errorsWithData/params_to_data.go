@@ -74,11 +74,11 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 	return
 }
 
-// CheckParamsForStruct[StructType](fieldNames) checks whether the name of the (exported) fields coincides with
+// CheckParametersForStruct[StructType](fieldNames) checks whether the name of the (exported) fields coincides with
 // the slice of fieldNames. This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct has exactly a given set of field names.
-// The purpose is to create guards in the code.
-func CheckParamsForStruct[StructType any](fieldNames []string) {
+// The purpose is to create guards in the code. It panics on failure.
+func CheckParametersForStruct[StructType any](fieldNames []string) {
 	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	for _, expectedField := range allExpectedFields {
 		expectedFieldName := expectedField.Name
@@ -97,6 +97,20 @@ func CheckParamsForStruct[StructType any](fieldNames []string) {
 	if len(allExpectedFields) != len(fieldNames) {
 		panic(fmt.Errorf(errorPrefix + "list of given field names contains more field names than required"))
 	}
+}
+
+// CheckParameterForStruct[StructType](fieldNames) checks whether the name of the (exported) fields contains the given
+// fieldName. This is intented to be used in init-routines or tests accompanying places in the code
+// where we assume that a certain struct contains a field of a given name.
+// The purpose is to create guards in the code. It panics on failuer.
+func CheckParameterForStruct[StructType any](fieldName string) {
+	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
+	for _, expectedField := range allExpectedFields {
+		if expectedField.Name == fieldName {
+			return
+		}
+	}
+	panic(fmt.Errorf(errorPrefix+"The given struct does not contain an exported field named %v", fieldName))
 }
 
 // canMakeStructFromParametersInError checks whether e actually contains data for all fields of a struct of type StructType.

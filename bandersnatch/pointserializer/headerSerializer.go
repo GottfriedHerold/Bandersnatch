@@ -203,7 +203,7 @@ func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reade
 	// var err error // might need to declare, because := in consumeExpectRead gives more powerful interface
 	bytesRead, errCER := consumeExpectRead(input, shd.headerSlice[:])
 	if errCER != nil {
-		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errCER, PARTIAL_READ, bytesRead != 0)
+		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errCER, FIELDNAME_PARTIAL_READ, bytesRead != 0)
 		return
 	}
 	var buf [simpleHeaderSliceLengthOverhead]byte
@@ -211,7 +211,7 @@ func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reade
 	bytesRead += bytesJustRead // Validate ensures this fits into int32
 	if errPlain != nil {
 		bandersnatchErrors.UnexpectEOF(&errPlain) // turn io.EOF into io.ErrUnexpectedEOF
-		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errPlain, PARTIAL_READ, bytesJustRead != simpleHeaderSliceLengthOverhead, errordata_ACTUALLYREAD, buf[:])
+		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errPlain, FIELDNAME_PARTIAL_READ, bytesJustRead != simpleHeaderSliceLengthOverhead, FIELDNAME_ACTUALLY_READ, buf[:])
 		return
 	}
 

@@ -69,8 +69,8 @@ func updateReadError(errPtr *bandersnatchErrors.DeserializationError, bytesReadP
 	if *errPtr != nil {
 		bytesRead := *bytesReadPtr
 		*errPtr = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](*errPtr,
-			PARTIAL_READ, bytesRead != 0 && bytesRead != expectToRead,
-			bandersnatchErrors.BYTES_READ, bytesRead, // NOTE: This might change
+			FIELDNAME_PARTIAL_READ, bytesRead != 0 && bytesRead != expectToRead,
+			// bandersnatchErrors.BYTES_READ, bytesRead, // NOTE: This might change
 		)
 	}
 }
@@ -82,8 +82,8 @@ func updateWriteError(errPtr *bandersnatchErrors.SerializationError, bytesWritte
 	if *errPtr != nil {
 		bytesWritten := *bytesWrittenPtr
 		*errPtr = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.WriteErrorData](*errPtr,
-			PARTIAL_WRITE, bytesWritten != 0 && bytesWritten != expectToWrite,
-			bandersnatchErrors.BYTES_WRITTEN, bytesWritten,
+			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten != expectToWrite,
+			// bandersnatchErrors.BYTES_WRITTEN, bytesWritten,
 		)
 	}
 }

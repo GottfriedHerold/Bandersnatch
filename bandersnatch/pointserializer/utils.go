@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"reflect"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-const PARTIAL_READ = bandersnatchErrors.PARTIAL_READ
-const PARTIAL_WRITE = bandersnatchErrors.PARTIAL_WRITE
-
-const errordata_ACTUALLYREAD = "ActuallyRead"
+const FIELDNAME_PARTIAL_READ = bandersnatchErrors.FIELDNAME_PARTIAL_READ
+const FIELDNAME_PARTIAL_WRITE = bandersnatchErrors.FIELDNAME_PARTIAL_WRITE
+const FIELDNAME_ACTUALLY_READ = bandersnatchErrors.FIELDNAME_ACTUALLY_READ
 
 // additional data contained in errors returned by consumeExpectRead
 type headerRead struct {
@@ -26,21 +23,23 @@ type headerRead struct {
 	BytesRead      int
 }
 
-// PARTIAL_READ and errordata_ACTUALLYREAD must coincide with field names.
-// This is just to guard against refactorings renaming things
-func init() {
-	fields := reflect.VisibleFields(utils.TypeOfType[headerRead]())
-	if fields[0].Name != PARTIAL_READ {
-		panic(0)
-	}
-	if fields[1].Name != errordata_ACTUALLYREAD {
-		panic(1)
-	}
-}
-
 const ErrorPrefix = "bandersnatch / serialization: "
 
 var ErrDidNotReadExpectedString = bandersnatchErrors.ErrDidNotReadExpectedString
+
+// Our code below makes use of formatting in the form %v{FieldName}. If we ever refactor field names, this would break.
+// This init - routine panics if we change field names to alert to this.
+func init() {
+	errorsWithData.CheckParameterForStruct[bandersnatchErrors.ReadErrorData]("PartialRead")
+	errorsWithData.CheckParameterForStruct[bandersnatchErrors.ReadErrorData]("BytesRead")
+	errorsWithData.CheckParameterForStruct[bandersnatchErrors.ReadErrorData]("ActuallyRead")
+	errorsWithData.CheckParameterForStruct[bandersnatchErrors.WriteErrorData]("BytesWritten")
+	errorsWithData.CheckParameterForStruct[bandersnatchErrors.WriteErrorData]("PartialWrite")
+	errorsWithData.CheckParameterForStruct[headerRead]("ExpectedToRead")
+	errorsWithData.CheckParameterForStruct[headerRead]("PartialRead")
+	errorsWithData.CheckParameterForStruct[headerRead]("ActuallyRead")
+	errorsWithData.CheckParameterForStruct[headerRead]("BytesRead")
+}
 
 // consumeExpectRead reads and consumes len(expectToRead) bytes from input and reports an error if the read bytes differ from expectToRead.
 // This is intended to read headers. Remember to use errors.Is to check the returned errors rather than == due to error wrapping.
@@ -135,13 +134,15 @@ func copyByteSlice(v []byte) (ret []byte) {
 }
 
 // writeFull(output, data) wraps around output.Write(data) by adding error data.
+//
+// One error, the returned error has an extra data field in addition to WriteErrorData (accessible via errorsWithData) called "Data" that holds a deepcopy of the data that we tried to write.
 func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	bytesWritten, errPlain := output.Write(data)
 	if errPlain != nil {
 		errPlain = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, "Error %w occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data.",
 			"Data", copyByteSlice(data),
-			"BytesWritten", bytesWritten,
-			"PartialWrite", bytesWritten != 0 && bytesWritten < len(data),
+			bandersnatchErrors.FIELDNAME_BYTES_WRITTEN, bytesWritten,
+			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten < len(data),
 		)
 	}
 	return

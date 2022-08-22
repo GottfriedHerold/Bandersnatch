@@ -8,7 +8,7 @@ import (
 )
 
 // This file contains routines that map curve points to field elements and allow reconstructing them from field elements.
-// This should be seen as part of serialization to byte streams: usually, we go curve points <-> field elements (+ some extra bits) <-> bye streams
+// This should be seen as part of serialization to byte streams: usually, we go curve points <-> field elements (+ some extra bits) <-> byte streams
 //
 // Note that the specific errors that functions in this file may output (wrapped) are not defined here, but
 // in the bandersnatchErrors package. The reason is that some of these errors are shared between the curvePoints and the field element packages.
