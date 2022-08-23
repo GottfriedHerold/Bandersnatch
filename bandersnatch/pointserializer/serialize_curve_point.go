@@ -396,12 +396,18 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithEndianness(newEndianness bi
 //
 // On error, outputPoint is unchanged.
 func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	return BasicPtr(&md.basicDeserializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
-}
-
-// SerializeCurvePoint serializes the given input point to the outputStream.
-func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	return BasicPtr(&md.basicSerializer).SerializeCurvePoint(outputStream, inputPoint)
+	bytesRead, err = md.headerDeserializer.deserializeSinglePointHeader(inputStream)
+	if err != nil {
+		return
+	}
+	bytesJustRead, err := BasicPtr(&md.basicDeserializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+	bytesRead += bytesJustRead
+	if err != nil {
+		return
+	}
+	bytesJustRead, err = md.headerDeserializer.deserializeSinglePointFooter(inputStream)
+	bytesRead += bytesJustRead
+	return
 }
 
 // DeserializeCurvePoint deserializes a single curve point from input stream, (over-)writing to ouputPoint.
@@ -409,7 +415,34 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoint(outputStrea
 //
 // On error, outputPoint is unchanged.
 func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	return BasicPtr(&md.basicSerializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+	bytesRead, err = md.headerSerializer.deserializeSinglePointHeader(inputStream)
+	if err != nil {
+		return
+	}
+	bytesJustRead, err := BasicPtr(&md.basicSerializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+	bytesRead += bytesJustRead
+	if err != nil {
+		return
+	}
+	bytesJustRead, err = md.headerSerializer.deserializeSinglePointFooter(inputStream)
+	bytesRead += bytesJustRead
+	return
+}
+
+// SerializeCurvePoint serializes the given input point to the outputStream.
+func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+	bytesWritten, err = md.headerSerializer.serializeSinglePointHeader(outputStream)
+	if err != nil {
+		return
+	}
+	bytesJustWritten, err := BasicPtr(&md.basicSerializer).SerializeCurvePoint(outputStream, inputPoint)
+	bytesWritten += bytesJustWritten
+	if err != nil {
+		return
+	}
+	bytesJustWritten, err = md.headerSerializer.serializeSinglePointFooter(outputStream)
+	bytesWritten += bytesJustWritten
+	return
 }
 
 // GetFieldElementEndianness returns the endianness this deserializer used to (de)serialize field elements.
@@ -637,6 +670,10 @@ func makePointSlice(pointType reflect.Type, size int) (asCurvePointSlice curvePo
 
 	var sliceValue reflect.Value = reflect.MakeSlice(reflect.SliceOf(pointType), size, size)
 	return reflectedPointSlice{Slice: sliceValue, L: size}, sliceValue.Interface()
+}
+
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, pointType reflect.Type) (outputPoints any, err BatchDeserializationError) {
+
 }
 
 /*
