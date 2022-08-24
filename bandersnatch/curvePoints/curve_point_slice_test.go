@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 var _ CurvePointSlice = GenericPointSlice{}
@@ -156,6 +157,27 @@ func BenchmarkCurvePointSliceAccess(bOuter *testing.B) {
 	bOuter.Run("SetFrom via AsCurvePointSlice (concrete type erased)", fun_GenericWrapperTypeErased)
 
 	// bOuter.Run("SetFrom via Generic", Generic)
+}
+
+var _ CurvePointSlice = reflectedPointSlice{}
+
+func TestMakeCurvePointSlice(t *testing.T) {
+	const size = 31
+	pointTypeAXTW_Full := utils.TypeOfType[Point_axtw_full]()
+	someSlice, sliceInInterface := makePointSlice(pointTypeAXTW_Full, size)
+	real := sliceInInterface.([]Point_axtw_full)
+
+	if len(real) != size {
+		t.Fatalf("Size of interface is wrong")
+	}
+	if someSlice.Len() != size {
+		t.Fatalf("Size of CurvePointSlice is wrong")
+	}
+	for i := 0; i < size; i++ {
+		if &real[i] != someSlice.GetByIndex(i) {
+			t.Fatalf("someSlice does not refer to the actual slice")
+		}
+	}
 }
 
 /// OLD CODE :

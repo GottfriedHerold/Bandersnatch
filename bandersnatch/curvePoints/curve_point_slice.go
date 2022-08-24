@@ -1,5 +1,13 @@
 package curvePoints
 
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
+)
+
 // CurvePointSlice is a joint interface for slices of CurvePoints or pointers to CurvePoints.
 //
 // This interface is needed (due to inadequacies of Go's type system) to make certain functions work with slices of concrete point types.
@@ -88,6 +96,41 @@ func AsCurvePointPtrSlice[PointTypePtr CurvePointPtrInterface](v []PointTypePtr)
 	// We might special-case here as well.
 	ret.v = v
 	return
+}
+
+// ***************************************************************************************
+// Generic version that takes a reflect.Type as input. Moved here from old version of DeserializeSlice
+
+var curvePointPtrInterfaceType reflect.Type = utils.TypeOfType[CurvePointPtrInterface]() // reflect.Type of CurvePointPtrInterface
+
+type reflectedPointSlice struct {
+	Slice reflect.Value
+	L     int
+}
+
+func (rps reflectedPointSlice) GetByIndex(n int) CurvePointPtrInterface {
+	return rps.Slice.Index(n).Addr().Interface().(CurvePointPtrInterface)
+}
+
+func (rps reflectedPointSlice) Len() int {
+	return rps.L
+}
+
+func makePointSlice(pointType reflect.Type, size int) (asCurvePointSlice CurvePointSlice, asInterface any) {
+
+	// TODO: Special case common reflect.Types: The following is the generic "default", which is horribly inefficient, thanks to Go.
+
+	if pointType.Kind() == reflect.Interface {
+		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a reflect.Type for the type %v, which is an interface type. The provided type must be a concrete type", testutils.GetReflectName(pointType)))
+	}
+
+	var PtrType reflect.Type = reflect.PointerTo(pointType)
+	if !PtrType.Implements(curvePointPtrInterfaceType) {
+		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a type %v, where %v does not satisfy the CurvePointPtrInterface interface", pointType, PtrType))
+	}
+
+	var sliceValue reflect.Value = reflect.MakeSlice(reflect.SliceOf(pointType), size, size)
+	return reflectedPointSlice{Slice: sliceValue, L: size}, sliceValue.Interface()
 }
 
 // **************************************************************************************

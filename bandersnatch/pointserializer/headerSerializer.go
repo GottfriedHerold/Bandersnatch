@@ -26,15 +26,15 @@ import (
 //    -- (de)serializePerPointFooter
 // - (de)serializeGlobalSliceFooter
 //
-// NOTE: While the return type is int (for consistency with the standard library), we promise that all bytes_read / bytes_written fit into an int32.
+// NOTE: While the return type is int (for consistency with the standard library), we promise that all bytesRead / bytesWritten fit into an int32.
 // Too big reads/write will panic. This is to ensure consistency for 32-bit and 64-bit users.
 type headerDeserializer interface {
-	deserializeGlobalSliceHeader(input io.Reader) (bytes_read int, size int32, err bandersnatchErrors.DeserializationError)
-	deserializeGlobalSliceFooter(input io.Reader) (bytes_read int, err bandersnatchErrors.DeserializationError)
-	deserializeSinglePointHeader(input io.Reader) (bytes_read int, err bandersnatchErrors.DeserializationError)
-	deserializeSinglePointFooter(input io.Reader) (bytes_read int, err bandersnatchErrors.DeserializationError)
-	deserializePerPointHeader(input io.Reader) (bytes_read int, err bandersnatchErrors.DeserializationError)
-	deserializePerPointFooter(input io.Reader) (bytes_read int, err bandersnatchErrors.DeserializationError)
+	deserializeGlobalSliceHeader(input io.Reader) (bytesRead int, size int32, err bandersnatchErrors.DeserializationError)
+	deserializeGlobalSliceFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	deserializeSinglePointHeader(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	deserializeSinglePointFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	deserializePerPointHeader(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	deserializePerPointFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	SinglePointHeaderOverhead() int32                                         // returns the size taken up by headers and footers for single-point
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 	RecognizedParameters() []string
@@ -47,12 +47,12 @@ var headerSerializerParams = []string{"GlobalSliceHeader", "GlobalSliceFooter", 
 // headerSerializer extends headerDeserializer by also providing serialization routines.
 type headerSerializer interface {
 	headerDeserializer
-	serializeGlobalSliceHeader(output io.Writer, size int32) (bytes_written int, err bandersnatchErrors.SerializationError)
-	serializeGlobalSliceFooter(output io.Writer) (bytes_written int, err bandersnatchErrors.SerializationError)
-	serializeSinglePointHeader(output io.Writer) (bytes_written int, err bandersnatchErrors.SerializationError)
-	serializeSinglePointFooter(output io.Writer) (bytes_written int, err bandersnatchErrors.SerializationError)
-	serializePerPointHeader(output io.Writer) (bytes_written int, err bandersnatchErrors.SerializationError)
-	serializePerPointFooter(output io.Writer) (bytes_written int, err bandersnatchErrors.SerializationError)
+	serializeGlobalSliceHeader(output io.Writer, size int32) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	serializeGlobalSliceFooter(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	serializeSinglePointHeader(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	serializeSinglePointFooter(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	serializePerPointHeader(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	serializePerPointFooter(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)
 }
 
 const simpleHeaderSliceLengthOverhead = 4 // size taken up in bytes for serializing slice lengths.
@@ -200,7 +200,6 @@ func (shd *simpleHeaderDeserializer) GetGlobalSliceHeader() []byte {
 }
 
 func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reader) (bytesRead int, size int32, err bandersnatchErrors.DeserializationError) {
-	// var err error // might need to declare, because := in consumeExpectRead gives more powerful interface
 	bytesRead, errCER := consumeExpectRead(input, shd.headerSlice[:])
 	if errCER != nil {
 		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errCER, FIELDNAME_PARTIAL_READ, bytesRead != 0)

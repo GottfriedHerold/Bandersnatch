@@ -2,16 +2,15 @@ package pointserializer
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
-	"reflect"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -86,7 +85,7 @@ import (
 // We have validity restrictions on some parameters and immutability means that when setting/getter e.g. a header of type []byte,
 // we actually need to make a copy inside the setter and getter.
 
-// TODO: Rename this vs. *Modifyable
+// TODO: Rename this vs. the *_Modifyable variants?
 
 type CurvePointDeserializer interface {
 	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
@@ -100,6 +99,8 @@ type CurvePointDeserializer interface {
 
 	RecognizedParameters() []string
 	HasParameter(parameterName string) bool
+
+	DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError)
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 	// DeserializeBatch(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
@@ -135,6 +136,8 @@ type CurvePointSerializer interface {
 	RecognizedParameters() []string
 
 	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
+
+	DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError)
 
 	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
 	// DeserializeBatch(inputStream io.Reader, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
@@ -181,11 +184,32 @@ type BatchSerializationErrorData struct {
 
 type BatchDeserializationErrorData struct {
 	bandersnatchErrors.ReadErrorData
-	PointDeserialized int
+	PointsDeserialized int
+}
+
+const FIELDNAME_POINTSDESERIALIZED = "PointsDeserialized"
+const FIELDNAME_POINTSSERIALIZED = "PointsSerialized"
+
+func init() {
+	errorsWithData.CheckParameterForStruct[BatchDeserializationErrorData](FIELDNAME_POINTSDESERIALIZED)
+	errorsWithData.CheckParameterForStruct[BatchSerializationErrorData](FIELDNAME_POINTSSERIALIZED)
+	errorsWithData.CheckParameterForStruct[BatchDeserializationErrorData]("PointsDeserialized")
+	errorsWithData.CheckParameterForStruct[BatchSerializationErrorData]("PointsSerialized")
 }
 
 type BatchSerializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchSerializationErrorData]
 type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchDeserializationErrorData]
+
+// ErrInsufficientBufferForDeserialization is the (base) error output when DeserializeSliceToBuffer is called with a buffer of insufficient size.
+//
+// Note that the actual error returned wraps this error (and the error message reports the actual sizes)
+var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWithData.NewErrorWithParametersFromData(nil,
+	ErrorPrefix+"The provided buffer is too small to store the curve point slice.",
+	&BatchDeserializationErrorData{
+		PointsDeserialized: 0,
+		ReadErrorData: bandersnatchErrors.ReadErrorData{
+			PartialRead: true,
+		}})
 
 // ***********************************************************************************************************************************************************
 
@@ -555,76 +579,40 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SliceOutputLength(numPoints int
 	return int32(ret64), nil
 }
 
-// DeserializeBatch(inputStream, trustLevel, outputPoints...) will deserialize from inputStream and write to the output points in order.
-// If no error occurs, DeserializeBatch(inputStream, trustLevel, outputPoint1, outputPoint2, ...) is equivalent to calling Deserialize(inputStream, trustLevel, ouputPoint1), Deserialize(inputStream, trustLevel, outputPoint2,), ... in order.
+// *******************************************************************************
 //
-// DeserializeBatch will always try to deserialize L := len(outputPoints) many points or until the first error. L times OutputLenght() must fit into an int32, else we panic.
-// On error, the BatchDeserialization error contains (among others) as data PointsDeserialized and PartialRead.
+// Multi-IO routines
 //
-// PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints). If we read from the inputStream, but do not write because the read data fails a subgroup check, this read is not reflected in PointsDeserialized.
+// ********************************************************************************
+
+// DeserializeCurvePoints(inputStream, trustLevel, outputPoints...) will deserialize from inputStream and write to the output points in order.
+// If no error occurs, DeserializeCurvePoints(inputStream, trustLevel, outputPoint1, outputPoint2, ...) is equivalent to calling
+// DeserializeCurvePoint(inputStream, trustLevel, ouputPoint1), DeserializeCurvePoint(inputStream, trustLevel, outputPoint2,), ... in order.
+//
+// DeserializeCurvePoints will always try to deserialize L := outputPoints.Len() many points or until the first error. L times deserializer.OutputLenght() must fit into an int32, else we panic.
+// On error, the BatchDeserialization error contains (among other data) via the errorsWithData framework fields PointsDeserialized and PartialRead.
+//
+// PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints).
+// If we read from the inputStream, but do not write because the read data fails a subgroup check, this is not counted in PointsDeserialized.
 // PartialRead is set to true if we encountered a read error that is not aligned with data encoding points.
 //
-// NOTE: Due the way Go's interfaces work (and methods cannot be generic in Go1.19, so we can't work around this), you cannot pass a variable x of type []T with x... for any T satisfying CurvePointPtrInterfaceWrite, unless T *is* CurvePointPtrInterfaceWrite.
-// Use DeserializeSlice instead in this case, which is usually more efficient anyway. A minor difference is that for DeserializeBatch, the outputPoints (which are pointers) ARE allowed to alias.
+// NOTE: If you have a slice buf of type []PointType to hold the output, call this with curvePoints.AsCurvePointSlice(buf) to create a view of the appropriate type.
+// Be aware that whether PointType is restricted to points in the subgroup or not may control whether we perform subgroup checks on deserialization!
 //
-// NOTE2: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream, you need to check that the error wraps either io.EOF/io.UnexpectedEOF and PartialRead is false.
-//
-/*
-func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeBatch(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err BatchDeserializationError) {
-	L := len(outputPoints)
-	if L > math.MaxInt32 {
-		panic(ErrorPrefix + "trying to batch-deserialize more than MaxInt32 points with DeserializeBatch")
-	}
-
-}
-*/
-// DeserializeBatch(deserializer, inputStream, trustLevel, outputPoints...) will deserialize from inputStream and write to the output points in order.
-// We assume that the outputPoints all point to disinct adresses. Otherwise, the behaviour is undefined.
-// If no error occurs, DeserializeBatch(deserializer, inputStream, trustLevel, outputPoint1, outputPoint2, ...) is equivalent to calling
-// deserializer.DeserializePoint(inputStream, trustLevel, ouputPoint1), deserializer.DeserializePoint(inputStream, trustLevel, outputPoint2,), ... in order.
-//
-// DeserializeBatch will always try to deserialize L := len(outputPoints) many points or until the first error. L times OutputLenght() must fit into an int32, else we panic.
-// On error, the BatchDeserialization error contains (among others) as data PointsDeserialized and PartialRead.
-//
-// PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints). If we read from the inputStream, but do not write because the read data fails a subgroup check, this read is not reflected in PointsDeserialized.
-// PartialRead is set to true if we encountered a read error that is not aligned with data encoding points.
-//
-// NOTE2: When using this method to deserialize AT MOST L points into a buffer, but don't know in advance how many points are in the stream, you need to check that the error wraps either io.EOF or io.UnexpectedEOF and PartialRead is false.
-/*
-func DeserializeBatch_Variadic[PtrType curvePoints.CurvePointPtrInterfaceWrite](deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...PtrType) (bytesRead int, err BatchSerializationError) {
-	L := len(outputPoints)
-	if L > math.MaxInt32 {
-		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v, which is more than MaxInt32 points with DeserializeBatch", L))
-	}
-	if int64(L)*int64(deserializer.OutputLength()) > math.MaxInt32 {
-		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, each reading potentially %v bytes. The total number of bytes read might exceed MaxInt32. Bailing out.", L, deserializer.OutputLength()))
-	}
-	for i, outputPoint := range outputPoints {
-		bytesJustRead, errSingle := deserializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
-		bytesRead += bytesJustRead
-		if errSingle != nil {
-
-		}
-	}
-
-}
-*/
-
-func DeserializeBatch_Variadic[PtrType curvePoints.CurvePointPtrInterface](deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...PtrType) (bytesRead int, err BatchDeserializationError) {
-	return DeserializeBatch(deserializer, inputStream, trustLevel, curvePoints.AsCurvePointPtrSlice(outputPoints))
-}
-
-func DeserializeBatch(deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
+// NOTE: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream, you need to check that the error wraps either io.EOF/io.UnexpectedEOF and PartialRead is false.
+// We provide a convenience function DeserializeCurvePoints_Bounded that handles this case.
+// We also provide a convenience variadic version DeserialiveCurvePoints_Variadic. These functions are both functions, not methods.
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
 	L := outputPoints.Len()
 	if L > math.MaxInt32 {
 		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v, which is more than MaxInt32 points with DeserializeBatch", L))
 	}
-	if int64(L)*int64(deserializer.OutputLength()) > math.MaxInt32 {
-		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, each reading potentially %v bytes. The total number of bytes read might exceed MaxInt32. Bailing out", L, deserializer.OutputLength()))
+	if int64(L)*int64(md.OutputLength()) > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, each reading potentially %v bytes. The total number of bytes read might exceed MaxInt32. Bailing out", L, md.OutputLength()))
 	}
 	for i := 0; i < L; i++ {
 		outputPoint := outputPoints.GetByIndex(i) // returns pointer, wrapped in interface
-		bytesJustRead, errSingle := deserializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+		bytesJustRead, errSingle := md.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 		bytesRead += bytesJustRead
 		if errSingle != nil {
 			// Turns an EOF into an UnexpectedEOF if i != 0.
@@ -640,41 +628,332 @@ func DeserializeBatch(deserializer CurvePointDeserializer, inputStream io.Reader
 	return
 }
 
-var curvePointPtrType reflect.Type = utils.TypeOfType[curvePoints.CurvePointPtrInterface]() // reflect.Type of CurvePointPtrInterface
+// DeserializeCurvePoints(inputStream, trustLevel, outputPoints...) will deserialize from inputStream and write to the output points in order.
+// If no error occurs, DeserializeCurvePoints(inputStream, trustLevel, outputPoint1, outputPoint2, ...) is equivalent to calling
+// DeserializeCurvePoint(inputStream, trustLevel, ouputPoint1), DeserializeCurvePoint(inputStream, trustLevel, outputPoint2,), ... in order.
+//
+// DeserializeCurvePoints will always try to deserialize L := outputPoints.Len() many points or until the first error. L times deserializer.OutputLenght() must fit into an int32, else we panic.
+// On error, the BatchDeserialization error contains (among other data) via the errorsWithData framework fields PointsDeserialized and PartialRead.
+//
+// PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints).
+// If we read from the inputStream, but do not write because the read data fails a subgroup check, this is not counted in PointsDeserialized.
+// PartialRead is set to true if we encountered a read error that is not aligned with data encoding points.
+//
+// NOTE: If you have a slice buf of type []PointType to hold the output, call this with curvePoints.AsCurvePointSlice(buf) to create a view of the appropriate type.
+// Be aware that whether PointType is restricted to points in the subgroup or not may control whether we perform subgroup checks on deserialization!
+//
+// NOTE: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream, you need to check that the error wraps either io.EOF/io.UnexpectedEOF and PartialRead is false.
+// We provide a convenience function DeserializeCurvePoints_Bounded that handles this case.
+// We also provide a convenience variadic version DeserialiveCurvePoints_Variadic. These functions are both functions, not methods.
+func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
+	L := outputPoints.Len()
+	if L > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v, which is more than MaxInt32 points with DeserializeBatch", L))
+	}
+	if int64(L)*int64(md.OutputLength()) > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, each reading potentially %v bytes. The total number of bytes read might exceed MaxInt32. Bailing out", L, md.OutputLength()))
+	}
+	for i := 0; i < L; i++ {
+		outputPoint := outputPoints.GetByIndex(i) // returns pointer, wrapped in interface
+		bytesJustRead, errSingle := md.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
+		bytesRead += bytesJustRead
+		if errSingle != nil {
+			// Turns an EOF into an UnexpectedEOF if i != 0.
+			if i != 0 {
+				bandersnatchErrors.UnexpectEOF2(&errSingle)
+			}
 
-type reflectedPointSlice struct {
-	Slice reflect.Value
-	L     int
+			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errSingle, ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w", "PointsDeserialized", i)
+			return
+		}
+	}
+	return
 }
 
-func (rps reflectedPointSlice) GetByIndex(n int) curvePoints.CurvePointPtrInterface {
-	return rps.Slice.Index(n).Addr().Interface().(curvePoints.CurvePointPtrInterface)
+// DeserializeCurvePoints_Bounded is a variant of the DeserializeCurvePoints method of our (de)serializers.
+//
+// While the DeserializeCurvePoints method will always try to deserialize exactly outputPoints.Len() many points and report and error if it could not,
+// this version will report no error if fewer points were present in the inputStream (and no other error occurred).
+// It reports the number of points actually written to outputPoints.
+func DeserializeCurvePoints_Bounded(deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, pointsWritten int, err BatchDeserializationError) {
+	bytesRead, err = deserializer.DeserializeCurvePoints(inputStream, trustLevel, outputPoints)
+	if err == nil {
+		pointsWritten = outputPoints.Len()
+		return
+	}
+	errData := err.GetData()
+	pointsWritten = errData.PointsDeserialized
+	if errData.PartialRead {
+		return
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		err = nil
+	}
+	return
 }
 
-func (rps reflectedPointSlice) Len() int {
-	return rps.L
+// DeserializeCurvePoints_Variadic is a variadic version of the DeserializeCurvePoints method of our (de)serializers.
+//
+// Usage: DeserializeCurvePoints_Variadic(deserializer, inputStream, trustLevel, &point_1, &point_2, ...)
+// Here point_i are the points to be written to. They must all have the same type. There is no need to use curvePoints.AsCurvePointsSlice.
+func DeserializeCurvePoints_Variadic[PtrType curvePoints.CurvePointPtrInterface](deserializer CurvePointDeserializer, inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints ...PtrType) (bytesRead int, err BatchDeserializationError) {
+	return deserializer.DeserializeCurvePoints(inputStream, trustLevel, curvePoints.AsCurvePointPtrSlice(outputPoints))
 }
 
-func makePointSlice(pointType reflect.Type, size int) (asCurvePointSlice curvePoints.CurvePointSlice, asInterface any) {
+func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputTrusted, targetSlice curvePoints.CurvePointSlice, deserializer_header headerDeserializer, deserializer_point curvePointDeserializer_basic, size32 int32) (bytesRead int, err BatchDeserializationError) {
+	var bytesJustRead int
+	var errNonBatch bandersnatchErrors.DeserializationError
+	size := int(size32) // i in the loop below should be int (because of type-unsafe inclusion in BatchDeserializationErrorData)
+	for i := 0; i < size; i++ {
+		// Read/consume per-point header
+		bytesJustRead, errNonBatch = deserializer_header.deserializePerPointHeader(inputStream)
+		bytesRead += bytesJustRead
+		if errNonBatch != nil {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed when reading per-point header after reading %v{PointsDeserialized} points. Errors was %w", "PointsDeserialized", i, FIELDNAME_PARTIAL_READ, true)
+			return
+		}
+		// Read/consume actual point:
+		bytesJustRead, errNonBatch = deserializer_point.DeserializeCurvePoint(inputStream, trustLevel, targetSlice.GetByIndex(i))
+		bytesRead += bytesJustRead
+		if errNonBatch != nil {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed after successfully reading %v{PointsDeserialized} points. The error was %w", "PointsDeserialized", i, FIELDNAME_PARTIAL_READ, true)
+			// NOTE: PartialRead is always set to true here.
+			// TODO: Fix that? We would need to know whether headerDeserializer has a 0-length footer
+			return
+		}
+		// Read/consume per-point footer. Note that PointsDeserialized is set to i+1.
+		bytesJustRead, errNonBatch = deserializer_header.deserializePerPointFooter(inputStream)
+		bytesRead += bytesJustRead
+		if errNonBatch != nil {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed when reading per-point footer after reading %v{PointsDeserialized} points. Errors was %w", "PointsDeserialized", i+1, FIELDNAME_PARTIAL_READ, true)
+			return
+		}
+	}
+	return
+}
 
-	// TODO: Special case common reflect.Types: The following is the generic "default", which is horribly inefficient, thanks to Go.
+// SliceCreater is the function type passed to DeserializeSlice and is used to determine where DeserializeSlice will write its output.
+//
+// Notably, DeserializeSlice will call the given function once with the requested length.
+// This length may be -1, indicating that DeserializeSlice has detected an error beforehand.
+// In this case, the slice and err return variable are ignored. We recommend setting output to a value of appropriate type,
+// so the caller of DeserializeSlice can always safely type-assert on output.
+//
+// Otherwise, length is non-negative. If the SliceCreater returns a non-nil err, DeserializeSlice will stop and return
+// an error wrapping this err.
+//
+// Otherwise, DeserializeSlice will forward output to the caller and (try to) write to slice.
+type SliceCreater = func(length int32) (output any, slice curvePoints.CurvePointSlice, err error)
 
-	if pointType.Kind() == reflect.Interface {
-		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a reflect.Type for the type %v, which is an interface type. The provided type must be a concrete type", testutils.GetReflectName(pointType)))
+// CreateNewSlice is a generic function, whose instantiations are of type SliceCreater.
+// Instantiations CreateNewSlice[PointType] are supposed to be used as arguments to DeserializeSlice to select the PointType holding the returned slice.
+// output is returned to the caller of DeserializeSlice and holds the actual slice of type []PointType.
+func CreateNewSlice[PointType any, PointTypePtr interface {
+	*PointType
+	curvePoints.CurvePointPtrInterface
+}](length int32) (output any, slice curvePoints.CurvePointSlice, err error) {
+	// length == -1 indicates there was an error in the caller beforehand. We just ensure the output has the correct type.
+	if length == -1 {
+		output = []PointType(nil)
+		return
+	}
+	var out []PointType = make([]PointType, length)
+	output = out
+	slice = curvePoints.AsCurvePointSlice[PointType, PointTypePtr](out)
+	err = nil
+	return
+}
+
+// UseExistingSlice(existingSlice) returns a function of type SliceCreater that is supposed to be used as argument to DeserializeSlice to use existingSlice as
+// a buffer to hold the output. output is returned to the caller of DeserializeSlice and holds the number of points that were written on success of type int.
+//
+// If the buffer is too small, we return an error and make no write attempts.
+// Note that if DeserializeSlice returns an error, output.(int) should be ignored.
+func UseExistingSlice[PointType any, PointTypePtr interface {
+	*PointType
+	curvePoints.CurvePointPtrInterface
+}](existingSlice []PointType) SliceCreater {
+	return func(length int32) (output any, slice curvePoints.CurvePointSlice, err error) {
+		// length == -1 indicates there was an error in the caller beforehand. We just ensure the output has the correct type.
+		if length == -1 {
+			output = int(0)
+			return
+		}
+		// ensure the provided existing slice is large enough. Note that we check for size, not capacity;
+		var targetSliceLen int = len(existingSlice)
+		if targetSliceLen < int(length) {
+			output = int(0)
+			// The error message depends on whether the capacity is too small as well.
+			if cap(existingSlice) < int(length) {
+				err = errorsWithData.IncludeGuaranteedParametersInError[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization, "%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}", "BufferSize", targetSliceLen, "ReadSliceLen", int(length), "BufferCapacity", cap(existingSlice))
+			} else {
+				err = errorsWithData.IncludeGuaranteedParametersInError[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization, "%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}. Note that the given buffer would have had sufficient capacity %v{BufferCapacity}", "BufferSize", targetSliceLen, "ReadSliceLen", int(length), "BufferCapacity", cap(existingSlice))
+			}
+			return
+		}
+		output = int(length)
+		err = nil
+		slice = curvePoints.AsCurvePointSlice[PointType, PointTypePtr](existingSlice[0:length])
+		return
+	}
+}
+
+// DeserializeSlice reads a slice of curve points from inputSteam. As opposed to DeserializeCurvePoints, the slice length is contained in-band and the slice is treated as a single (de)serialization object.
+//
+// the passes sliceCreater argument has type func(length int32) (output any, slice CurvePointSlice, err error) and is called exactly once an appropriate length.
+// The slice return value is where DeserializeSlice will write into. The output return value of sliceCreater is the output return value of DeserializeSlice.
+// Note that the type(s) contained in slice influence whether DeserializeSlice performs subgroup checks.
+// See the specification of SliceCreater for details.
+//
+// Use sliceCreater = CreateNewSlice[PointType] to have DeserializeSlice create a slice of points. output will have type []PointType.
+// Use sliceCreater = UseExistingSlice(existingSlice) to use existingSlice as a buffer to hold the result of deserialization. output will have type int and equals the number of points written on success.
+//
+// On error, at least for the two SliceCreaters above, output has the correct type, but is meaningless (possibly a nil slice).
+// error contains as data (accessible via errorsWithData) a PointsDeserialized field. This indicates how many points were successfully writen to slice.
+//
+// NOTE: CreateNewSlice and UseExistingSlice are generic functions. This is a workaround for the lack of generic methods in Go1.19.
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceCreater SliceCreater) (output any, bytesRead int, err BatchDeserializationError) {
+	var size int32                                          // size of the slice
+	var errNonBatch bandersnatchErrors.DeserializationError // error returned from individual deserialization routines
+
+	bytesRead, size, errNonBatch = md.headerDeserializer.deserializeGlobalSliceHeader(inputStream)
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+
+		output, _, _ = sliceCreater(-1)
+		return
+	}
+	_, overflowErr := md.SliceOutputLength(size)
+	if overflowErr != nil {
+		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		output, _, _ = sliceCreater(-1)
+		return
 	}
 
-	var PtrType reflect.Type = reflect.PointerTo(pointType)
-	if !PtrType.Implements(curvePointPtrType) {
-		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a type %v, where %v does not satisfy the CurvePointPtrInterface interface", pointType, PtrType))
+	var outputPointSlice curvePoints.CurvePointSlice
+	var errSliceCreate error
+	output, outputPointSlice, errSliceCreate = sliceCreater(size)
+	if errSliceCreate != nil {
+		err = errorsWithData.NewErrorWithParametersFromData(errSliceCreate, "%w", &BatchDeserializationErrorData{
+			ReadErrorData:      bandersnatchErrors.ReadErrorData{PartialRead: true},
+			PointsDeserialized: 0,
+		})
+		return
 	}
 
-	var sliceValue reflect.Value = reflect.MakeSlice(reflect.SliceOf(pointType), size, size)
-	return reflectedPointSlice{Slice: sliceValue, L: size}, sliceValue.Interface()
+	var bytesJustRead int
+	bytesJustRead, err = deserializeSlice_mainloop(inputStream, trustLevel, outputPointSlice, &md.headerDeserializer, BasicPtr(&md.basicDeserializer), size)
+	bytesRead += bytesJustRead
+	if err != nil {
+		return
+	}
+	bytesJustRead, errNonBatch = md.headerDeserializer.deserializeGlobalSliceFooter(inputStream)
+	bytesRead += bytesJustRead
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
+		return
+	}
+	return
 }
 
-func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, pointType reflect.Type) (outputPoints any, err BatchDeserializationError) {
+/*
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSliceToBuffer(inputStream io.Reader, trustLevel common.IsInputTrusted, targetSlice curvePoints.CurvePointSlice) (bytesRead int, pointsRead int, err BatchDeserializationError) {
+	targetSliceLen := targetSlice.Len()
+	var inputSliceLen int32                                 // size of the slice that is in the inputStream
+	var errNonBatch bandersnatchErrors.DeserializationError // error retuned from sub-calls
 
+	// Get size of slice contained in the inputStream
+	bytesRead, inputSliceLen, errNonBatch = md.headerDeserializer.deserializeGlobalSliceHeader(inputStream)
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+		return
+	}
+	// Make sure bytesRead won't overflow int32
+	_, overflowErr := md.SliceOutputLength(inputSliceLen)
+	if overflowErr != nil {
+		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		return
+	}
+
+	// Check whether the buffer that was provided by the caller is large enough.
+	if int(inputSliceLen) > targetSliceLen {
+		err = errorsWithData.IncludeGuaranteedParametersInError[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization, "%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}", "BufferSize", targetSliceLen, "ReadSliceLen", int(inputSliceLen))
+		return
+	}
+
+	// Actually deserialize the points
+	var bytesJustRead int
+	bytesJustRead, err = deserializeSlice_mainloop(inputStream, trustLevel, targetSlice, &md.headerDeserializer, BasicPtr(&md.basicDeserializer), inputSliceLen)
+	bytesRead += bytesJustRead
+	if err != nil {
+		pointsRead = err.GetData().PointsDeserialized
+		return
+	}
+	pointsRead = int(inputSliceLen)
+
+	// Deserialize/consume the footer
+	bytesJustRead, errNonBatch = md.headerDeserializer.deserializeGlobalSliceFooter(inputStream)
+	bytesRead += bytesJustRead
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(inputSliceLen))
+		return // For clarity
+	}
+
+	testutils.Assert(bytesRead <= math.MaxInt32) // should be guaranteed by the SliceOutputLength check.
+
+	// Done
+	return
 }
+
+func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeSliceToBuffer(inputStream io.Reader, trustLevel common.IsInputTrusted, targetSlice curvePoints.CurvePointSlice) (bytesRead int, pointsRead int, err BatchDeserializationError) {
+	targetSliceLen := targetSlice.Len()
+	var inputSliceLen int32                                 // size of the slice that is in the inputStream
+	var errNonBatch bandersnatchErrors.DeserializationError // error retuned from sub-calls
+
+	// Get size of slice contained in the inputStream
+	bytesRead, inputSliceLen, errNonBatch = md.headerSerializer.deserializeGlobalSliceHeader(inputStream)
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+		return
+	}
+	// Make sure bytesRead won't overflow int32
+	_, overflowErr := md.SliceOutputLength(inputSliceLen)
+	if overflowErr != nil {
+		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		return
+	}
+
+	// Check whether the buffer that was provided by the caller is large enough.
+	if int(inputSliceLen) > targetSliceLen {
+		err = errorsWithData.IncludeGuaranteedParametersInError[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization, "%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}", "BufferSize", targetSliceLen, "ReadSliceLen", int(inputSliceLen))
+		return
+	}
+
+	// Actually deserialize the points
+	var bytesJustRead int
+	bytesJustRead, err = deserializeSlice_mainloop(inputStream, trustLevel, targetSlice, &md.headerSerializer, BasicPtr(&md.basicSerializer), inputSliceLen)
+	bytesRead += bytesJustRead
+	if err != nil {
+		pointsRead = err.GetData().PointsDeserialized
+		return
+	}
+	pointsRead = int(inputSliceLen)
+
+	// Deserialize/consume the footer
+	bytesJustRead, errNonBatch = md.headerSerializer.deserializeGlobalSliceFooter(inputStream)
+	bytesRead += bytesJustRead
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(inputSliceLen))
+		return // For clarity
+	}
+
+	testutils.Assert(bytesRead <= math.MaxInt32) // should be guaranteed by the SliceOutputLength check.
+
+	// Done
+	return
+}
+*/
 
 /*
 DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
@@ -708,4 +987,71 @@ func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeBatch(inputStream io
 	return
 }
 
+*/
+
+/*
+func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, pointType reflect.Type) (outputPoints any, outputPointSlice curvePoints.CurvePointSlice, bytesRead int, err BatchDeserializationError) {
+	var size int32                                          // size of the slice
+	var errNonBatch bandersnatchErrors.DeserializationError // error returned from individual deserialization routines
+
+	bytesRead, size, errNonBatch = md.headerDeserializer.deserializeGlobalSliceHeader(inputStream)
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+		outputPointSlice, outputPoints = makePointSlice(pointType, 0) // create an empty slice. This is so that type-assertions by the caller won't fail.
+		return
+	}
+	_, overflowErr := md.SliceOutputLength(size)
+	if overflowErr != nil {
+		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		return
+	}
+
+	outputPointSlice, outputPoints = makePointSlice(pointType, int(size))
+	var bytesJustRead int
+	bytesJustRead, err = deserializeSlice_mainloop(inputStream, trustLevel, outputPointSlice, &md.headerDeserializer, BasicPtr(&md.basicDeserializer), size)
+	bytesRead += bytesJustRead
+	if err != nil {
+		return
+	}
+	bytesJustRead, errNonBatch = md.headerDeserializer.deserializeGlobalSliceFooter(inputStream)
+	bytesRead += bytesJustRead
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
+		return
+	}
+	return
+}
+
+func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, pointType reflect.Type) (outputPoints any, outputPointSlice curvePoints.CurvePointSlice, bytesRead int, err BatchDeserializationError) {
+	var size int32                                          // size of the slice
+	var errNonBatch bandersnatchErrors.DeserializationError // error returned from individual deserialization routines
+
+	bytesRead, size, errNonBatch = md.headerSerializer.deserializeGlobalSliceHeader(inputStream)
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+		outputPointSlice, outputPoints = makePointSlice(pointType, 0) // create an empty slice. This is so that type-assertions by the caller won't fail.
+		return
+	}
+
+	_, overflowErr := md.SliceOutputLength(size)
+	if overflowErr != nil {
+		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		return
+	}
+
+	outputPointSlice, outputPoints = makePointSlice(pointType, int(size))
+	var bytesJustRead int
+	bytesJustRead, err = deserializeSlice_mainloop(inputStream, trustLevel, outputPointSlice, &md.headerSerializer, BasicPtr(&md.basicSerializer), size)
+	bytesRead += bytesJustRead
+	if err != nil {
+		return
+	}
+	bytesJustRead, errNonBatch = md.headerSerializer.deserializeGlobalSliceFooter(inputStream)
+	bytesRead += bytesJustRead
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
+		return // For clarity
+	}
+	return
+}
 */
