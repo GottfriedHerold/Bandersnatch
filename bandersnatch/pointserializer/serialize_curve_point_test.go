@@ -1,6 +1,7 @@
 package pointserializer
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
@@ -54,5 +55,44 @@ func TestCreateNewSlice(t *testing.T) {
 }
 
 func TestUseExistingSlice(t *testing.T) {
-	
+	type Point = curvePoints.Point_axtw_subgroup
+	const Cap = 31
+	const size = 15
+	var arr [Cap]Point
+	var existingSlice []Point = arr[:]
+	var sliceMaker DeserializeSliceMaker = UseExistingSlice(existingSlice[0:size])
+	output, _, _ := sliceMaker(-1)
+	if _, ok := output.(int); !ok {
+		t.Fatalf("UseExistingSlice did not return int on caller error")
+	}
+
+	const targetLen = 9
+	output, slice, err := sliceMaker(targetLen)
+	outputReal := output.(int)
+	if err != nil {
+		t.Fatalf("UseExistingSlice returned unexpected error %v", err)
+	}
+	if outputReal != targetLen {
+		t.Fatalf("UseExistingSlice returned unexpected value %v,", outputReal)
+	}
+	if slice == nil {
+		t.Fatalf("UseExistingSlice returned nil slice")
+	}
+	if slice.Len() != targetLen {
+		t.Fatalf("UseExistingSlice returned CurvePointSlice with wrong Len")
+	}
+	if &arr[4] != slice.GetByIndex(4) {
+		t.Fatalf("UseExistingSlice returns wrong Slice")
+	}
+
+	const exceedingLen = 29
+	output, _, err = sliceMaker(exceedingLen)
+	_ = output.(int)
+	if err == nil {
+		t.Fatalf("UseExistingSlice did not return error on invalid slice length")
+	}
+	if !errors.Is(err, ErrInsufficientBufferForDeserialization) {
+		t.Fatalf("UseExistingSlice returned wrong error")
+	}
+
 }

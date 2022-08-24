@@ -906,9 +906,17 @@ func UseExistingSlice[PointType any, PointTypePtr interface {
 			output = int(0)
 			// The error message depends on whether the capacity is too small as well.
 			if cap(existingSlice) < int(length) {
-				err = errorsWithData.IncludeGuaranteedParametersInError[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization, "%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}", "BufferSize", targetSliceLen, "ReadSliceLen", int(length), "BufferCapacity", cap(existingSlice))
+				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
+					"%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}",
+					"BufferSize", targetSliceLen,
+					"ReadSliceLen", int(length),
+					"BufferCapacity", cap(existingSlice))
 			} else {
-				err = errorsWithData.IncludeGuaranteedParametersInError[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization, "%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}. Note that the given buffer would have had sufficient capacity %v{BufferCapacity}", "BufferSize", targetSliceLen, "ReadSliceLen", int(length), "BufferCapacity", cap(existingSlice))
+				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
+					"%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}. Note that the given buffer would have had sufficient capacity %v{BufferCapacity}",
+					"BufferSize", targetSliceLen,
+					"ReadSliceLen", int(length),
+					"BufferCapacity", cap(existingSlice))
 			}
 			return
 		}
