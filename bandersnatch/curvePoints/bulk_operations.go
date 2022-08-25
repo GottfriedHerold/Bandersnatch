@@ -1,99 +1,131 @@
 package curvePoints
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
 )
 
-// normalizeAffineZ normalizes the internal representation of a slice of Point_xtw_full with an equivalent one with Z==1.
+// NormalizeSlice normalizes the internal representation of a slice of Point_xtw_full with an equivalent one with Z==1.
 //
 // This is MUCH more efficient than calling normalizeAffineZ individually on each point.
-func (points CurvePointSlice_xtw_full) normalizeAffineZ() {
+//
+// If none of the points have Z-coordinate 0, return nil. Otherwise, we return a sorted list of indices of those elements which were 0.
+// Those points with Z-coordinate 0 are set to an appropriate standard representation.
+func (points CurvePointSlice_xtw_full) NormalizeSlice() (zeroIndices []int) {
 	L := len(points)
-	// We bulk-invert all the points[i].z's.
-	// For efficiency, we skip all the ones.
 
-	var Ones []bool = make([]bool, L) // boolean array with One[i] being true if points[i] already has z==1
-	var numOnes int = 0               // number of elements encountered that already had z==1
+	// We bulk-invert all the points[i].z's.
+	// For efficiency, we use the SkipZeros version (because that skip all the ones as well.)
 	var Inversions []*FieldElement = make([]*FieldElement, L)
 	for i := 0; i < L; i++ {
-		if points[i].z.IsOne() {
-			Ones[i] = true
-			numOnes++
-			continue
-		}
-		Inversions[i-numOnes] = &points[i].z
+		Inversions[i] = &points[i].z
+	}
+	zeroIndices = fieldElements.MultiInvertEqSkipZeros(Inversions...)
+
+	// nextZeroIndex is the first/next index where we need to treat the point specially.
+	nextZeroIndex := L
+	zeroIndicesProcessed := 0
+
+	if zeroIndices != nil {
+		nextZeroIndex = zeroIndices[0]
 	}
 
-	Inversions = Inversions[0 : L-numOnes]
-	var err error = fieldElements.MultiInvertEq(Inversions...) // decay returned error type to plain error
-	if err != nil {
-		if !errors.Is(err, fieldElements.ErrDivisionByZero) {
-			panic(ErrorPrefix + "fieldElements.MultiInvertEq returned error of unexpected type")
-		}
-		// Reset Inversions without the Ones skipped. This is needed to get a correct error message (the error refers to indices, which would be wrong if we skip the ones)
-		Inversions = Inversions[0:L]
-		for i := 0; i < L; i++ {
-			Inversions[i] = &points[i].z
-		}
-		err = fieldElements.GenerateMultiDivisionByZeroError(Inversions, ErrorPrefix+"bulk normalization of Z-coordinate to 1 failed, because some Z-coordinates were 0.")
-		panic(err)
-	}
 	for i := 0; i < L; i++ {
-		if Ones[i] {
-			continue
-		}
 		point := &points[i]
-		point.x.MulEq(&point.z)
-		point.y.MulEq(&point.z)
-		point.t.MulEq(&point.z)
-		point.z.SetOne()
+		if i != nextZeroIndex {
+			point.x.MulEq(&point.z)
+			point.y.MulEq(&point.z)
+			point.t.MulEq(&point.z)
+			point.z.SetOne()
+		} else {
+			// i is in zeroIndices. We need to treat these cases specially:
+
+			// Ensure next zero index is found:
+			zeroIndicesProcessed++
+			if zeroIndicesProcessed == len(zeroIndices) {
+				nextZeroIndex = L
+			} else {
+				nextZeroIndex = zeroIndices[zeroIndicesProcessed]
+			}
+
+			// We normalize points with Z==0:
+			// NaPs become standard (0:0:0:0)-NaPs
+			if point.IsNaP() {
+				napEncountered("NaP encountered when bulk-normalizing a slice of Point_xtw_full points", false, point)
+				*point = Point_xtw_full{} // standard-NAP
+				continue
+			}
+			// Points at infinity get replaced by default representations of the appropriate point at infinity:
+			if point.IsE1() {
+				point.SetE1()
+				continue
+			}
+			if point.IsE2() {
+				point.SetE2()
+				continue
+			}
+			panic(fmt.Errorf(ErrorPrefix+"Point with Z==0 encountered that was neither a NaP nor a point at inifity. This is not supposed to be possible. The Point in question was %v", *point))
+		}
 	}
+	return
 }
 
-// normalizeAffineZ normalizes the internal representation of a slice of Point_xtw_full with an equivalent one with Z==1.
+// NormalizeSlice normalizes the internal representation of a slice of Point_xtw_subgroup with an equivalent one with Z==1.
 //
 // This is MUCH more efficient than calling normalizeAffineZ individually on each point.
-func (points CurvePointSlice_xtw_subgroup) normalizeAffineZ() {
+//
+// If none of the points have Z-coordinate 0, return nil. Otherwise, we return a sorted list of indices of those elements which were 0.
+// Those points with Z-coordinate 0 are set to an appropriate standard representation.
+func (points CurvePointSlice_xtw_subgroup) NormalizeSlice() (zeroIndices []int) {
 	L := len(points)
+
 	// We bulk-invert all the points[i].z's.
-	// For efficiency, we skip all the ones.
-	var Ones []bool = make([]bool, L) // boolean array with One[i] being true if points[i] already has z==1
-	var numOnes int = 0               // number of elements encountered that already had z==1
+	// For efficiency, we use the SkipZeros version (because that skip all the ones as well.)
 	var Inversions []*FieldElement = make([]*FieldElement, L)
 	for i := 0; i < L; i++ {
-		if points[i].z.IsOne() {
-			Ones[i] = true
-			numOnes++
-			continue
-		}
-		Inversions[i-numOnes] = &points[i].z
+		Inversions[i] = &points[i].z
 	}
+	zeroIndices = fieldElements.MultiInvertEqSkipZeros(Inversions...)
 
-	Inversions = Inversions[0 : L-numOnes]
-	var err error = fieldElements.MultiInvertEq(Inversions...) // decay returned error type to plain error
-	if err != nil {
-		if !errors.Is(err, fieldElements.ErrDivisionByZero) {
-			panic(ErrorPrefix + "fieldElements.MultiInvertEq returned error of unexpected type")
-		}
-		// Reset Inversions without the Ones skipped. This is needed to get a correct error message (the error refers to indices, which would be wrong if we skip the ones)
-		Inversions = Inversions[0:L]
-		for i := 0; i < L; i++ {
-			Inversions[i] = &points[i].z
-		}
-		err = fieldElements.GenerateMultiDivisionByZeroError(Inversions, ErrorPrefix+"bulk normalization of Z-coordinate to 1 failed, because some Z-coordinates were 0.")
-		panic(err)
+	// nextZeroIndex is the first/next index where we need to treat the point specially.
+	nextZeroIndex := L
+	zeroIndicesProcessed := 0
+
+	if zeroIndices != nil {
+		nextZeroIndex = zeroIndices[0]
 	}
 
 	for i := 0; i < L; i++ {
-		if Ones[i] {
-			continue
-		}
 		point := &points[i]
-		point.x.MulEq(&point.z)
-		point.y.MulEq(&point.z)
-		point.t.MulEq(&point.z)
-		point.z.SetOne()
+		if i != nextZeroIndex {
+			point.x.MulEq(&point.z)
+			point.y.MulEq(&point.z)
+			point.t.MulEq(&point.z)
+			point.z.SetOne()
+		} else {
+			// i is in zeroIndices. We need to treat these cases specially:
+
+			// Ensure next zero index is found:
+			zeroIndicesProcessed++
+			if zeroIndicesProcessed == len(zeroIndices) {
+				nextZeroIndex = L
+			} else {
+				nextZeroIndex = zeroIndices[zeroIndicesProcessed]
+			}
+
+			// We normalize points with Z==0:
+			// NaPs become standard (0:0:0:0)-NaPs
+			if point.IsNaP() {
+				napEncountered("NaP encountered when bulk-normalizing a slice of Point_xtw_subgroup points", false, point)
+				*point = Point_xtw_subgroup{} // standard-NAP
+				continue
+			}
+
+			// Points at infinity are not possible for this point type!
+
+			panic(fmt.Errorf(ErrorPrefix+"Point with Z==0 encountered that was neither a NaP nor a point at inifity. This is not supposed to be possible. The Point in question was %v", *point))
+		}
 	}
+	return
 }

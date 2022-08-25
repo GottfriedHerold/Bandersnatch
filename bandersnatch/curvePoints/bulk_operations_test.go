@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-var _ bulkNormalizerAffineZ = CurvePointSlice_xtw_full{}
-var _ bulkNormalizerAffineZ = CurvePointSlice_xtw_subgroup{}
+var _ bulkNormalizer = CurvePointSlice_xtw_full{}
+var _ bulkNormalizer = CurvePointSlice_xtw_subgroup{}
 
-type bulkNormalizerAffineZ interface {
-	normalizeAffineZ()
+type bulkNormalizer interface {
+	NormalizeSlice() []int
 	CurvePointSlice
 }
 
@@ -17,14 +17,16 @@ type normalizerAffineZ interface {
 	normalizeAffineZ()
 }
 
-func testMultiAffineZWorks(t *testing.T, vec bulkNormalizerAffineZ) {
+// subroutine for testing NormalizeSlice: ensure that is works for a particular CurvePointSlice
+// We assert that each point has a normalizeAffineZ method and we compare against that.
+func testMultiAffineZWorks(t *testing.T, vec bulkNormalizer) {
 	L := vec.Len()
 	var vecCopy []CurvePointPtrInterface = make([]CurvePointPtrInterface, L)
 	for i := 0; i < L; i++ {
 		vecCopy[i] = vec.GetByIndex(i).Clone()
 	}
 
-	vec.normalizeAffineZ()
+	vec.NormalizeSlice()
 
 	// not merged with loop above because we want to give preference to panics in the vec-version.
 	for i := 0; i < L; i++ {
@@ -32,7 +34,7 @@ func testMultiAffineZWorks(t *testing.T, vec bulkNormalizerAffineZ) {
 	}
 	for i := 0; i < L; i++ {
 		if !vecCopy[i].IsEqual(vec.GetByIndex(i)) {
-			t.Fatal("Bulk-NormalizeAffineZ differs from NormalizeAffineZ")
+			t.Fatal("NormalizeSlice differs from NormalizeAffineZ")
 		}
 	}
 }

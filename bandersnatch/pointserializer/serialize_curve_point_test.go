@@ -94,5 +94,16 @@ func TestUseExistingSlice(t *testing.T) {
 	if !errors.Is(err, ErrInsufficientBufferForDeserialization) {
 		t.Fatalf("UseExistingSlice returned wrong error")
 	}
+	// fmt.Printf("%v\n", err)
+
+	output, _, err = sliceMaker(2 * exceedingLen)
+	_ = output.(int)
+	if err == nil {
+		t.Fatalf("UseExistingSlice did not return error on invalid slice length")
+	}
+	if !errors.Is(err, ErrInsufficientBufferForDeserialization) {
+		t.Fatalf("UseExistingSlice returned wrong error")
+	}
+	// fmt.Printf("%v\n", err)
 
 }

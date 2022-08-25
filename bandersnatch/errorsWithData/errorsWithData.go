@@ -541,5 +541,4 @@ func formatError(formatString string, parameters map[string]any, baseError error
 
 		continue // redundant
 	}
-
 }

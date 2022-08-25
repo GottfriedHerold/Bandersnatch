@@ -102,8 +102,7 @@ type CurvePointDeserializer interface {
 	HasParameter(parameterName string) bool
 
 	DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError)
-	DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceCreater DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError)
-	// DeserializeSliceToBuffer(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, pointsRead int32, err bandersnatchErrors.BatchSerializationError)
+	DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceMaker DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError)
 }
 
 // Note: WithParameter, WithEndianness and Clone "forget" their types.
@@ -134,13 +133,7 @@ type CurvePointSerializer interface {
 	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
 
 	DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError)
-	DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceCreater DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError)
-
-	// DeserializePoints(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
-	// DeserializeBatch(inputStream io.Reader, outputPoints ...bandersnatch.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.BatchSerializationError)
-
-	// DeserializeSlice(inputStream io.Reader) (outputPoints bandersnatch.CurvePointSlice, bytesRead int, err bandersnatchErrors.BatchSerializationError)
-	// DeserializeSliceToBuffer(inputStream io.Reader, outputPoints bandersnatch.CurvePointSlice) (bytesRead int, pointsRead int32, err bandersnatchErrors.BatchSerializationError)
+	DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceMaker DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError)
 
 	// SerializePoints(outputStream io.Writer, inputPoints bandersnatch.CurvePointSlice) (bytesWritten int, err bandersnatchErrors.BatchSerializationError) // SerializeBatch(os, points) is equivalent (if no error occurs) to calling Serialize(os, point[i]) for all i. NOTE: This provides the same functionality as SerializePoints, but with a different argument type.
 	// SerializeBatch(outputStream io.Writer, inputPoints ...bandersnatch.CurvePointPtrInterfaceRead) (bytesWritten int, err error) // SerializePoints(os, &x1, &x2, ...) is equivalent (if not error occurs, at least) to Serialize(os, &x1), Serialize(os, &x1), ... NOTE: Using SerializePoints(os, points...) with ...-notation might not work due to the need to convert []concrete Point type to []CurvePointPtrInterface. Use SerializeBatch to avoid this.
@@ -201,7 +194,7 @@ type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[Ba
 //
 // Note that the actual error returned wraps this error (and the error message reports the actual sizes)
 var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWithData.NewErrorWithParametersFromData(nil,
-	ErrorPrefix+"The provided buffer is too small to store the curve point slice.",
+	ErrorPrefix+"The provided buffer is too small to store the curve point slice",
 	&BatchDeserializationErrorData{
 		PointsDeserialized: 0,
 		ReadErrorData: bandersnatchErrors.ReadErrorData{
@@ -698,6 +691,8 @@ func DeserializeCurvePoints_Variadic[PtrType curvePoints.CurvePointPtrInterface]
 	return deserializer.DeserializeCurvePoints(inputStream, trustLevel, curvePoints.AsCurvePointPtrSlice(outputPoints))
 }
 
+// main loop of DeserializeSlice, separate function for historical reasons.
+
 func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputTrusted, targetSlice curvePoints.CurvePointSlice, deserializer_header headerDeserializer, deserializer_point curvePointDeserializer_basic, size32 int32) (bytesRead int, err BatchDeserializationError) {
 	var bytesJustRead int
 	var errNonBatch bandersnatchErrors.DeserializationError
@@ -907,13 +902,13 @@ func UseExistingSlice[PointType any, PointTypePtr interface {
 			// The error message depends on whether the capacity is too small as well.
 			if cap(existingSlice) < int(length) {
 				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
-					"%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}",
+					"%w: in UseExistingSlice, The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}",
 					"BufferSize", targetSliceLen,
 					"ReadSliceLen", int(length),
 					"BufferCapacity", cap(existingSlice))
 			} else {
 				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
-					"%w. The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}. Note that the given buffer would have had sufficient capacity %v{BufferCapacity}",
+					"%w: in UseExistingSlice, the length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}. Note that the given buffer would have had sufficient capacity %v{BufferCapacity}",
 					"BufferSize", targetSliceLen,
 					"ReadSliceLen", int(length),
 					"BufferCapacity", cap(existingSlice))
@@ -925,4 +920,9 @@ func UseExistingSlice[PointType any, PointTypePtr interface {
 		slice = curvePoints.AsCurvePointSlice[PointType, PointTypePtr](existingSlice[0:length])
 		return
 	}
+}
+
+func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoints(outputStream io.Writer, inputPoints curvePoints.CurvePointSlice) (bytesWritten int, err BatchSerializationError) {
+	panic(0)
+	// return
 }

@@ -220,7 +220,7 @@ func (v CurvePointSlice_efgh_full) Len() int {
 	return len(v)
 }
 
-////////////// OLD CODE:
+////////////// OLD CODE (from when Go did not have generics):
 
 /*
 
