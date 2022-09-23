@@ -2,6 +2,7 @@ package pointserializer
 
 import (
 	"bytes"
+	"errors"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -144,7 +145,7 @@ func TestParameterSettings(t *testing.T) {
 }
 
 // This tests that all valuesSerializer types have SerializeValues and DeserializeValues methods that actually roundtrip elements.
-func TestValuesSerializersRountrip(t *testing.T) {
+func TestValuesSerializersRoundtrip(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(1024))
 	for _, valuesSerializer := range allValuesSerializers {
 		serializerV := reflect.ValueOf(valuesSerializer)
@@ -250,7 +251,40 @@ func TestValuesSerializersRountrip(t *testing.T) {
 					panic("unrecognized type to be deserialized")
 				}
 			}
-		}
+			// Try behaviour with faulty buf:
+			designatedErr := errors.New("some error")
+			for faultPos := 0; faultPos < expectedLen; faultPos++ {
+				faultyBuf := testutils.NewFaultyBuffer(faultPos, designatedErr) // Note: faultyBuf is a pointer (buf above was not)
+				inputs[0] = reflect.ValueOf(faultyBuf)
+				outputs = valueSerializerFun.Call(inputs)
+				inputs[0] = reflect.ValueOf(&buf)
+				bytesWritten = outputs[0].Interface().(int)
+				if outputs[1].Interface() == nil {
+					t.Fatalf("For %v, writing to a faulty buffer did not result in an error", typeName)
+				}
+				err = outputs[1].Interface().(error)
+				if bytesWritten != faultPos {
+					t.Fatalf("Could not write to faulty buffer until error for %v", typeName)
+				}
+				if !errors.Is(err, designatedErr) {
+					t.Fatalf("Did not get expected designated error upon writing for %v", typeName)
+				}
 
+				// Read back:
+				outputs = valueDeserializerFun.Call([]reflect.Value{reflect.ValueOf(faultyBuf)})
+				bytesRead = outputs[0].Interface().(int)
+				if bytesRead != bytesWritten {
+					t.Fatalf("Did not read as much as written for faulty buffer for %v", typeName)
+				}
+				if outputs[1].Interface() == nil {
+					t.Fatalf("For %v, reading from faulty buf gave no error", typeName)
+				}
+				err = outputs[1].Interface().(error)
+				if !errors.Is(err, designatedErr) {
+					t.Fatalf("Did not get expceted designated error reading from faulty buffer for %v", typeName)
+				}
+
+			}
+		}
 	}
 }
