@@ -102,7 +102,7 @@ func CheckParametersForStruct[StructType any](fieldNames []string) {
 // CheckParameterForStruct[StructType](fieldNames) checks whether the name of the (exported) fields contains the given
 // fieldName. This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct contains a field of a given name.
-// The purpose is to create guards in the code. It panics on failuer.
+// The purpose is to create guards in the code. It panics on failure.
 func CheckParameterForStruct[StructType any](fieldName string) {
 	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	for _, expectedField := range allExpectedFields {
@@ -111,6 +111,16 @@ func CheckParameterForStruct[StructType any](fieldName string) {
 		}
 	}
 	panic(fmt.Errorf(errorPrefix+"The given struct does not contain an exported field named %v", fieldName))
+}
+
+// CheckIsSubtype checks that both StructType1 and StructType2 only contain exported names and those of StructType1 are a subset of those of StructType2.
+// Note that Struct embedding StructType1 in the definition of StructType2 may be preferred to this approach.
+// The purpose is to create guards in the code. It panics on failure.
+func CheckIsSubtype[StructType1 any, StructType2 any]() {
+	allExpectedFields1 := getStructMapConversionLookup(utils.TypeOfType[StructType1]())
+	for _, expectedField1 := range allExpectedFields1 {
+		CheckParameterForStruct[StructType2](expectedField1.Name)
+	}
 }
 
 // canMakeStructFromParametersInError checks whether e actually contains data for all fields of a struct of type StructType.

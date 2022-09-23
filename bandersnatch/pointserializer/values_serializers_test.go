@@ -87,8 +87,15 @@ func TestRegognizedParameters(t *testing.T) {
 		recognizedParams := valueSerializer.RecognizedParameters()
 		for _, recognizedParam := range recognizedParams {
 			_ = getSerializerParam(valueSerializer, recognizedParam)
+			if !valueSerializer.HasParameter(recognizedParam) {
+				t.Fatalf("Parameter not reported as recognized")
+			}
+		}
+		if valueSerializer.HasParameter("InvalidParameter") {
+			t.Fatalf("Invalid Parameter was recognized as value")
 		}
 	}
+
 }
 
 // This tests whether OutputLength and RecognizedParameters can be called on nil pointers of the appropriate type

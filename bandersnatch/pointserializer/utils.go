@@ -15,7 +15,7 @@ const FIELDNAME_PARTIAL_READ = bandersnatchErrors.FIELDNAME_PARTIAL_READ
 const FIELDNAME_PARTIAL_WRITE = bandersnatchErrors.FIELDNAME_PARTIAL_WRITE
 const FIELDNAME_ACTUALLY_READ = bandersnatchErrors.FIELDNAME_ACTUALLY_READ
 
-// additional data contained in errors returned by consumeExpectRead
+// additional data contained in errors returned by consumeExpectRead. Note that this "extends" bandersnatchErrors.ReadErrorData
 type headerRead struct {
 	PartialRead    bool
 	ActuallyRead   []byte

@@ -13,7 +13,7 @@ import (
 // This file contains the serializers that are responsible for (de)serializing (uninterpreted) sequences of field elements, bits and sub-byte headers.
 // We call these valuesSerializers, values referring to bits and field elements.
 
-// Note that sub-byte headers are fixed constants (stored in the serializer object) written/consumed upon serializing.
+// Note that sub-byte headers are fixed constants (stored in the serializer object) written/consumed upon (de)serializing.
 // They are not considered values and are invisible to the SerializeValues and DeserializeValues methods.
 
 type FieldElementEndianness = common.FieldElementEndianness
@@ -40,25 +40,16 @@ type bitHeader = common.BitHeader
 // (note that reflection is mostly used to unify the testing code -- the actual usage does not use reflection, since the code paths for the different
 // realisations of this "interface" are separate anyway)
 
+// TODO: Move this to *_test.go? I prefer it here for clarity.
+
 // valuesSerializer is the part of the interface satisfied by all valuesSerializer that is actually expressible via Go interfaces.
+// It is only used in testing.
 type valuesSerializer interface {
 	Validate()
 	RecognizedParameters() []string
 	HasParameter(parameterName string) bool
 	OutputLength() int32
 }
-
-// ValuesSerializers are serializers for field elements and bits. These have the following "interface", defined on pointer receivers
-//
-// DeserializeValues(input io.Reader) (bytesRead int, err error, ...)
-// SerializeValues(output io.Writer, ...) (bytesWritten int, err error)
-// Clone() receiver(pointer) [NOTE: Returned type is concrete, not interface type]
-// Validate()
-// RecognizedParameters() []string
-// OutputLength() int32
-//
-// The parameter types of DeserializeValues and SerializeValues need to match. The return type of Clone() is the same as the pointer receiver.
-// Go's interfaces cannot express this. We use reflection.
 
 // updateReadError and updateWriteError are helper functions to avoid code duplication:
 
