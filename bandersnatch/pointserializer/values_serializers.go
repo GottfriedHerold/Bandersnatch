@@ -206,6 +206,8 @@ func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fie
 	return
 }
 
+// TODO: SetBitHeader2 / GetBitHeader2 has a different interface that SetBitHeader and GetBitHeader
+
 // SetBitHeader2 is a setter for the second bitHeader. We cannot use struct embedding here, because we have 2 separate BitHeaders.
 func (s *valuesSerializerHeaderFeHeaderFe) SetBitHeader2(bh bitHeader) {
 	s.bitHeader2.SetBitHeaderFromBitHeader(bh)

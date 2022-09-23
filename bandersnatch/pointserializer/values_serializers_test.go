@@ -7,7 +7,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
@@ -269,6 +271,10 @@ func TestValuesSerializersRoundtrip(t *testing.T) {
 				if !errors.Is(err, designatedErr) {
 					t.Fatalf("Did not get expected designated error upon writing for %v", typeName)
 				}
+				Partial := errorsWithData.GetDataFromError[bandersnatchErrors.WriteErrorData](err).PartialWrite
+				if Partial != (faultPos != 0) {
+					t.Fatalf("Did not set PartialWrite correctly on error for %v", typeName)
+				}
 
 				// Read back:
 				outputs = valueDeserializerFun.Call([]reflect.Value{reflect.ValueOf(faultyBuf)})
@@ -282,6 +288,10 @@ func TestValuesSerializersRoundtrip(t *testing.T) {
 				err = outputs[1].Interface().(error)
 				if !errors.Is(err, designatedErr) {
 					t.Fatalf("Did not get expceted designated error reading from faulty buffer for %v", typeName)
+				}
+				Partial = errorsWithData.GetDataFromError[bandersnatchErrors.ReadErrorData](err).PartialRead
+				if Partial != (faultPos != 0) {
+					t.Fatalf("Did not set PartialRead correctly on error for %v", typeName)
 				}
 
 			}

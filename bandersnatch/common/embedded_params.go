@@ -92,7 +92,7 @@ func (bh *BitHeader) validate() {
 
 // Note: The exported Validate should actually never fail, because all Setters run the non-exported validate to ensure consistency; the zero value is valid.
 
-// Validate ensures the BitHeader is valid. This can actually never fail and is provided to satisfy (internal) interfaces.
+// Validate ensures the BitHeader is valid. This can actually never fail (because creating a failing instance would panic beforehand) and is provided to satisfy (internal) interfaces.
 func (bh *BitHeader) Validate() {
 	bh.validate() // just double-checking.
 }
