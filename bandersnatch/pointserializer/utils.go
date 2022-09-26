@@ -139,11 +139,11 @@ func copyByteSlice(v []byte) (ret []byte) {
 func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	bytesWritten, errPlain := output.Write(data)
 	if errPlain != nil {
-		errPlain = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, "Error %w occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data.",
+		err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, "Error %w occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data.",
 			"Data", copyByteSlice(data),
 			bandersnatchErrors.FIELDNAME_BYTES_WRITTEN, bytesWritten,
 			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten < len(data),
 		)
-	}
+	} // else err == nil
 	return
 }

@@ -3,9 +3,12 @@ package pointserializer
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -92,6 +95,7 @@ func TestSettersAndGetters(t *testing.T) {
 	}
 }
 
+// Serializer that writes a literal "GlobalSliceHeader" etc. as slice header
 var testSimpleHeaderSerializer simpleHeaderSerializer
 
 func init() {
@@ -180,6 +184,90 @@ func TestSerializeHeaders(t *testing.T) {
 	}
 	if r6 != w6 {
 		t.Fatalf("BytesRead mismatches BytesWritten (6)")
+	}
+}
+
+// Note: these are methods
+type ser_fun = func(io.Writer) (int, bandersnatchErrors.SerializationError)
+type deser_fun = func(io.Reader) (int, bandersnatchErrors.DeserializationError)
+
+// Note: these are unbound methods (i.e. functions)
+var hs_setter_funs = []func(*simpleHeaderDeserializer, []byte){(*simpleHeaderDeserializer).SetPerPointHeader, (*simpleHeaderDeserializer).SetPerPointFooter, (*simpleHeaderDeserializer).SetSinglePointHeader, (*simpleHeaderDeserializer).SetSinglePointFooter, (*simpleHeaderDeserializer).SetGlobalSliceFooter, (*simpleHeaderDeserializer).SetGlobalSliceHeader}
+var hs_getter_funs = []func(*simpleHeaderDeserializer) []byte{(*simpleHeaderDeserializer).GetPerPointHeader, (*simpleHeaderDeserializer).GetPerPointFooter, (*simpleHeaderDeserializer).GetSinglePointHeader, (*simpleHeaderDeserializer).GetSinglePointFooter, (*simpleHeaderDeserializer).GetGlobalSliceFooter, (*simpleHeaderDeserializer).GetGlobalSliceHeader}
+
+func get_ser_funs(serializer *simpleHeaderSerializer) []ser_fun {
+	return []ser_fun{serializer.serializePerPointHeader, serializer.serializePerPointFooter, serializer.serializeSinglePointHeader, serializer.serializeSinglePointFooter, serializer.serializeGlobalSliceFooter}
+}
+
+func get_deser_funs(serializer *simpleHeaderDeserializer) []deser_fun {
+	return []deser_fun{serializer.deserializePerPointHeader, serializer.deserializePerPointFooter, serializer.deserializeSinglePointHeader, serializer.deserializeSinglePointFooter, serializer.deserializeGlobalSliceFooter}
+}
+
+func TestHeaderDeserializationIOErrors(t *testing.T) {
+	MaxHeaderLength := 0
+	for _, getter := range hs_getter_funs {
+		newLen := len(getter(&testSimpleHeaderSerializer.simpleHeaderDeserializer))
+		// fmt.Printf("%s\n", getter(&testSimpleHeaderSerializer.simpleHeaderDeserializer))
+		if newLen > MaxHeaderLength {
+			MaxHeaderLength = newLen
+		}
+	}
+
+	// Note: MaxHeaderLength == 17 here
+
+	MaxHeaderLength += simpleHeaderSliceLengthOverhead // == 21
+
+	for i := 0; i < MaxHeaderLength; i++ {
+		designatedErr := errors.New("designated IO error")
+		faultyBuf := testutils.NewFaultyBuffer(i, designatedErr) // will fail after reading / writing i bytes
+		serializers := get_ser_funs(&testSimpleHeaderSerializer)
+		deserializers := get_deser_funs(&testSimpleHeaderSerializer.simpleHeaderDeserializer)
+		for j := 0; j < 5; j++ {
+			L := len(hs_getter_funs[j](&testSimpleHeaderSerializer.simpleHeaderDeserializer))
+			faultyBuf.Reset()
+			if i >= L {
+				bytesWritten, writeErr := serializers[j](faultyBuf)
+				if writeErr != nil {
+					t.Fatalf("Unexpected write error %v", j)
+				}
+				if bytesWritten != L {
+					// fmt.Println(bytesWritten)
+					// fmt.Println(L)
+					// fmt.Println(testSimpleHeaderSerializer.simpleHeaderDeserializer)
+					t.Fatalf("Unexpected number of bytes written @%v", j)
+				}
+				bytesRead, readErr := deserializers[j](faultyBuf)
+				if readErr != nil {
+					// fmt.Printf("%s", readErr.GetData().ActuallyRead)
+					t.Fatalf("Unexpected read error @ parameter %v, error was %v", j, readErr)
+				}
+				if bytesRead != bytesWritten {
+					t.Fatalf("Unexpected number of bytes read @%v", j)
+				}
+			} else { // we expect to get errors
+				bytesWritten, writeErr := serializers[j](faultyBuf)
+				if writeErr == nil {
+					t.Fatalf("Expected write error, but got nil @%v, fault threshold %v", j, i)
+				}
+				if !errors.Is(writeErr, designatedErr) {
+					t.Fatalf("Did not get designated error on write @%v", j)
+				}
+				if bytesWritten != i {
+					t.Fatalf("Did not read as far as it could @%v", j)
+				}
+				bytesRead, readErr := deserializers[j](faultyBuf)
+				if readErr == nil {
+					t.Fatalf("Expected read error, but got nil @%v", j)
+				}
+				if !errors.Is(readErr, designatedErr) {
+					t.Fatalf("Did not get designated error on read @%v", j)
+				}
+				if bytesRead != bytesWritten {
+					t.Fatalf("Did not read as much as written @%v", j)
+				}
+			}
+
+		}
 	}
 
 }
