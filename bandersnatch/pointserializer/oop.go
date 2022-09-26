@@ -65,7 +65,9 @@ func concatParameterList(list1 []string, list2 []string) []string {
 //
 // Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
 //
-// Note: This internal function does NOT look at RecognizedParameters()
+// Note: This internal function does NOT look at RecognizedParameters().
+// It instead uses reflection to check the presence of methods.
+// It panics if called on invalid parameter strings not in the serializerParams map.
 func hasParameter(serializer any, parameterName string) bool {
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
 	paramInfo, ok := serializerParams[parameterName]

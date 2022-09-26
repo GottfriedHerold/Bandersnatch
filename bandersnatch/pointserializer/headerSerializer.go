@@ -101,6 +101,18 @@ func (shd *simpleHeaderDeserializer) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, headerSerializerParams, normalizeParameter)
 }
 
+// These two methods need to be desclared for *simpleHeaderSerializer; struct-embedding panics for nil receivers.
+
+// RecognizedParameters returns a list of all parameter names that header (de)serializers support for querying and modifying.
+func (*simpleHeaderSerializer) RecognizedParameters() []string {
+	return headerSerializerParams // defined above. Note that this is essentiall a global constant not supposed to be modified.
+}
+
+// HasParameter checks whether a given parameter is supported for this type
+func (shd *simpleHeaderSerializer) HasParameter(parameterName string) bool {
+	return utils.ElementInList(parameterName, headerSerializerParams, normalizeParameter)
+}
+
 // Clone returns an independent copy of the receivedHeaderDeserializer (as a pointer)
 func (shd *simpleHeaderDeserializer) Clone() *simpleHeaderDeserializer {
 	var ret simpleHeaderDeserializer

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
@@ -33,12 +32,33 @@ func TestFixNilEntries(t *testing.T) {
 }
 
 func TestRecognizeParameterNames(t *testing.T) {
-	for _, arg := range headerSerializerParams {
-		arg = strings.ToLower(arg)
-		_, ok := serializerParams[arg]
+	var nilSimpleHeaderDeserializer *simpleHeaderDeserializer = nil
+	var nilSimpleHeaderSerializer *simpleHeaderSerializer = nil
+
+	allHeaderParams := nilSimpleHeaderDeserializer.RecognizedParameters()
+	allHeaderParams2 := nilSimpleHeaderSerializer.RecognizedParameters()
+	// Would not be a problem, but not what we expect.
+	if !utils.CompareSlices(allHeaderParams, allHeaderParams2) {
+		t.Fatalf("serializer parameter names and deserializer unexpectedly differ")
+	}
+	for _, arg := range allHeaderParams {
+		argNormalized := normalizeParameter(arg)
+		_, ok := serializerParams[argNormalized]
 		if !ok {
 			t.Fatalf("serializer parameter named %v not recognized by global parameter lookup table", arg)
 		}
+		if !nilSimpleHeaderDeserializer.HasParameter(arg) {
+			t.Fatalf("deserializer parameter %v not recognized by HasParameter", arg)
+		}
+		if !nilSimpleHeaderSerializer.HasParameter(arg) {
+			t.Fatalf("serializer parameter %v not recognized by HasParameter", arg)
+		}
+	}
+	if nilSimpleHeaderDeserializer.HasParameter("InvalidParamSAFASF") {
+		t.Fatalf("derserializer recognizes invalid parameter")
+	}
+	if nilSimpleHeaderSerializer.HasParameter("InvalidParamGAGAG") {
+		t.Fatalf("serializer recognizes invalid parameter")
 	}
 }
 
