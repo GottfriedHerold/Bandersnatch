@@ -222,11 +222,19 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 		faultyBuf := testutils.NewFaultyBuffer(i, designatedErr) // will fail after reading / writing i bytes
 		serializers := get_ser_funs(&testSimpleHeaderSerializer)
 		deserializers := get_deser_funs(&testSimpleHeaderSerializer.simpleHeaderDeserializer)
-		for j := 0; j < 5; j++ {
+		for j := 0; j < 6; j++ { // The last iteration j == 5 (GlobalSliceHeader) is special
 			L := len(hs_getter_funs[j](&testSimpleHeaderSerializer.simpleHeaderDeserializer))
 			faultyBuf.Reset()
-			if i >= L {
-				bytesWritten, writeErr := serializers[j](faultyBuf)
+			if ((i >= L) && (j < 5)) || ((i >= L+simpleHeaderSliceLengthOverhead) && (j == 5)) {
+				var bytesWritten int
+				var writeErr bandersnatchErrors.SerializationError
+
+				if j < 5 {
+					bytesWritten, writeErr = serializers[j](faultyBuf)
+				} else {
+					bytesWritten, writeErr = testSimpleHeaderSerializer.serializeGlobalSliceHeader(faultyBuf, 200)
+				}
+
 				if writeErr != nil {
 					t.Fatalf("Unexpected write error %v", j)
 				}
@@ -236,7 +244,19 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 					// fmt.Println(testSimpleHeaderSerializer.simpleHeaderDeserializer)
 					t.Fatalf("Unexpected number of bytes written @%v", j)
 				}
-				bytesRead, readErr := deserializers[j](faultyBuf)
+				var bytesRead int
+				var readErr bandersnatchErrors.DeserializationError
+				var sizeRead int32
+
+				if j < 5 {
+					bytesRead, readErr = deserializers[j](faultyBuf)
+				} else {
+					bytesRead, sizeRead, readErr = testSimpleHeaderSerializer.deserializeGlobalSliceHeader(faultyBuf)
+					if sizeRead != 200 {
+						t.Fatalf("Did not read back slice length")
+					}
+				}
+
 				if readErr != nil {
 					// fmt.Printf("%s", readErr.GetData().ActuallyRead)
 					t.Fatalf("Unexpected read error @ parameter %v, error was %v", j, readErr)
@@ -245,7 +265,15 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 					t.Fatalf("Unexpected number of bytes read @%v", j)
 				}
 			} else { // we expect to get errors
-				bytesWritten, writeErr := serializers[j](faultyBuf)
+				var bytesWritten int
+				var writeErr bandersnatchErrors.SerializationError
+
+				if j < 5 {
+					bytesWritten, writeErr = serializers[j](faultyBuf)
+				} else {
+					bytesWritten, writeErr = testSimpleHeaderSerializer.serializeGlobalSliceHeader(faultyBuf, 200)
+				}
+
 				if writeErr == nil {
 					t.Fatalf("Expected write error, but got nil @%v, fault threshold %v", j, i)
 				}
@@ -255,7 +283,17 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 				if bytesWritten != i {
 					t.Fatalf("Did not read as far as it could @%v", j)
 				}
-				bytesRead, readErr := deserializers[j](faultyBuf)
+
+				var bytesRead int
+				var readErr bandersnatchErrors.DeserializationError
+
+				if j < 5 {
+					bytesRead, readErr = deserializers[j](faultyBuf)
+				} else {
+					bytesRead, _, readErr = testSimpleHeaderSerializer.deserializeGlobalSliceHeader(faultyBuf)
+
+				}
+
 				if readErr == nil {
 					t.Fatalf("Expected read error, but got nil @%v", j)
 				}
@@ -266,8 +304,8 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 					t.Fatalf("Did not read as much as written @%v", j)
 				}
 			}
-
 		}
+
 	}
 
 }
