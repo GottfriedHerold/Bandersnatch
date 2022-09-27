@@ -24,57 +24,58 @@ type bitHeader = common.BitHeader
 
 // Due to insufficency of generics, we separate our serializers depending on whether the internal object that actually gets serialized consists of
 // a field element, two field element, field element+bit etc.
-// These (de)serializiers all have serializeValues and DeserializeValues methods, which differ in their arguments.
-
-// ValuesSerializers are serializers for field elements and bits. These have the following "interface", defined on pointer receivers
-//
-// DeserializeValues(input io.Reader) (bytesRead int, err error, ...)
-// SerializeValues(output io.Writer, ...) (bytesWritten int, err error)
-// Clone() receiver(pointer) [NOTE: Returned type is concrete, not interface type]
-// Validate()
-// RecognizedParameters() []string
-// OutputLength() int32
-//
-// The parameter types of DeserializeValues and SerializeValues need to match. The return type of Clone() is the same as the pointer receiver.
-// Go's interfaces cannot express this (even with generics). We use reflection to express this.
-// (note that reflection is mostly used to unify the testing code -- the actual usage does not use reflection, since the code paths for the different
-// realisations of this "interface" are separate anyway)
+// These (de)serializiers all have serializeValues and DeserializeValues methods, which differ in their arguments (including number of arguments)
 
 // TODO: Move this to *_test.go? I prefer it here for clarity.
 
 // valuesSerializer is the part of the interface satisfied by all valuesSerializer that is actually expressible via Go interfaces.
-// It is only used in testing.
+// It is only used in testing to unify some tests.
 type valuesSerializer interface {
-	Validate()
-	RecognizedParameters() []string
-	HasParameter(parameterName string) bool
-	OutputLength() int32
+	Validate()                              // performs a (possibly trivial) internal consistency check. It panics on failure. This is called after all setters by embedding structs.
+	RecognizedParameters() []string         // returns a list of parameters that can be set/queried for this particular serializer (type). For all our realizations, can be called with nil receivers.
+	HasParameter(parameterName string) bool // Checks whether a given parameter can be set/queried for this particular serializer (type). For all our realizations, can be called with nil receivers.
+	OutputLength() int32                    // Returns that number of bytes that this valuesSerializers will read/write when calling SerializeValues or DeserializeValues. For all our realizations, can be called with nil receivers.
+	// Functions not well-expressible via interface:
+	// Clone() PointerReceiver -- Returns an independent copy of itself.
+	// SerializeValues(output io.Writer, [...]) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	// DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, [...])
 }
+
+// The [...] parameter types and number of DeserializeValues and SerializeValues need to match.
+// The return type of Clone() is the same as the pointer receiver.
+// Go's interfaces cannot express this (even with generics). We use reflection to express this.
+// Note that reflection is mostly used to unify the testing code -- the actual usage does not use reflection, since the code paths for the different
+// realisations of this "interface" are separate anyway.
+
+// We could add Clone here if we made the valuesSerializer interface generic, but it's only used in testing anyway and we already have a Clonable[Foo] generic.
+
+// **********************************************************************************************************************************
+// Utility functions:
 
 // updateReadError and updateWriteError are helper functions to avoid code duplication:
 
-// updateReadError is used to update the metadata contained in the error;
+// updateReadError is used to update "PartialRead" in the metadata contained in the error;
 // bytesRead is passed via pointer because this function is called via defer and arguments to deferred functions
 // get evaluated at the time of defer, not when the function is actually run.
 func updateReadError(errPtr *bandersnatchErrors.DeserializationError, bytesReadPtr *int, expectToRead int) {
 	if *errPtr != nil {
-		bytesRead := *bytesReadPtr
+		var bytesRead int = *bytesReadPtr
 		*errPtr = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](*errPtr,
 			FIELDNAME_PARTIAL_READ, bytesRead != 0 && bytesRead != expectToRead,
-			// bandersnatchErrors.BYTES_READ, bytesRead, // NOTE: This might change
+			// NOTE: We do not update the "BytesRead" metadata in the error. This is intentional: "BytesRead" refers to the failing sub-call.
 		)
 	}
 }
 
-// updateWriteError is used to update the metadata contained in the error;
+// updateWriteError is used to update the "PartialWrite" metadata contained in the error;
 // bytesWritten is passed via pointer because this function is called via defer and arguments to deferred functions
 // get evaluated at the time of defer, not when the functon is run.
 func updateWriteError(errPtr *bandersnatchErrors.SerializationError, bytesWrittenPtr *int, expectToWrite int) {
 	if *errPtr != nil {
-		bytesWritten := *bytesWrittenPtr
+		var bytesWritten int = *bytesWrittenPtr
 		*errPtr = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.WriteErrorData](*errPtr,
-			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten != expectToWrite,
-			// bandersnatchErrors.BYTES_WRITTEN, bytesWritten,
+			FIELDNAME_PARTIAL_WRITE, (bytesWritten != 0) && (bytesWritten != expectToWrite),
+			// NOTE: We do not update the "BytesWritten" metadata in the error. This is intentional: "BytesWritten" refers to the failing sub-call.
 		)
 	}
 }
@@ -97,16 +98,16 @@ type valuesSerializerFeFe struct {
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
 func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
-	defer updateReadError(&err, &bytesRead, int(s.OutputLength()))
+	defer updateReadError(&err, &bytesRead, int(s.OutputLength())) // ensures PartialRead is correctly set on error.
 	bytesRead, err = fieldElement1.Deserialize(input, s.fieldElementEndianness)
-	// Note: This aborts on ErrNonNormalizedDeserialization
+	// Note: This aborts on ErrNonNormalizedDeserialization. I.e. if the first read field element is not in normalized form, we don't even read the second.
 	if err != nil {
 		return
 	}
 	bytesJustRead, err := fieldElement2.Deserialize(input, s.fieldElementEndianness)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err)
+	bandersnatchErrors.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
 	return
 }
 
@@ -114,7 +115,7 @@ func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int
 //
 // For valuesSerializerFeFe, it writes 2 field elements.
 func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	defer updateWriteError(&err, &bytesWritten, int(s.OutputLength()))
+	defer updateWriteError(&err, &bytesWritten, int(s.OutputLength())) // ensures PartialWrite is correctly set on error.
 
 	bytesWritten, err = fieldElement1.Serialize(output, s.fieldElementEndianness)
 	if err != nil {
@@ -123,7 +124,7 @@ func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, 
 	bytesJustWritten, err := fieldElement2.Serialize(output, s.fieldElementEndianness)
 	bytesWritten += bytesJustWritten
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err)
+	bandersnatchErrors.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
 	return
 }
 
@@ -141,29 +142,33 @@ func (s *valuesSerializerFeFe) Validate() {
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
 //
-// For valuesSerializerFeFe, it always outputs 64
+// For valuesSerializerFeFe, it always outputs 64 and works with nil receivers.
 func (s *valuesSerializerFeFe) OutputLength() int32 { return 64 }
 
 // RecognizedParameters outputs a slice of strings listing valid parameters that can be queried/set via
 // the hasParameter / makeCopyWithParameters generic methods.
 //
 // For a valuesSerializerFeFe, contains "Endianness" (the endianness used to (de)serialize FieldElements)
+// This method works with nil receivers.
 func (s *valuesSerializerFeFe) RecognizedParameters() []string {
 	return []string{"Endianness"}
 }
 
+// Has Parameter checks whether the given Serializer has a parameter with parameterName that can be set queried with the respective Setters/Getters.
+// This method works with nil receivers.
 func (s *valuesSerializerFeFe) HasParameter(parameterName string) bool {
-	return normalizeParameter(parameterName) == normalizeParameter("Endianness")
+	return normalizeParameter(parameterName) == normalizeParameter("Endianness") // Only endianness, from embedded field.
 }
 
 //*******************************************************************************************************************************
 
-// valuesSerializerHeaderFeHeaderFe is a serializer for a pair of field elements, where each of the two field elements has a prefix (of sub-byte length) contained in the
-// msbs. These prefixes are fixed headers for the serializer and not part of the individual output/input field elements.
+// valuesSerializerHeaderFeHeaderFe is a serializer for a pair of field elements, where each of the two field elements
+// has a prefix (of sub-byte length) contained in the msbs.
+// These prefixes are fixed headers for the serializer and not part of the individual output/input field elements.
 type valuesSerializerHeaderFeHeaderFe struct {
-	fieldElementEndianness
-	bitHeader  //bitHeader for the first field element. This is embedded, so we don't have to forward setters/getters.
-	bitHeader2 bitHeader
+	fieldElementEndianness           // endianness for (de)serializing both field elements.
+	bitHeader                        // bitHeader for the first field element. This is embedded, so we don't have to forward setters/getters.
+	bitHeader2             bitHeader // bitHeader for the second field element.
 }
 
 // DeserializeValues reads from input and returns values.
@@ -174,17 +179,17 @@ type valuesSerializerHeaderFeHeaderFe struct {
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
 func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
-	defer updateReadError(&err, &bytesRead, int(s.OutputLength()))
+	defer updateReadError(&err, &bytesRead, int(s.OutputLength())) // Ensure correctess of PartialRead flag on error.
 
 	bytesRead, err = fieldElement1.DeserializeWithPrefix(input, s.bitHeader, s.fieldElementEndianness)
-	// Note: This aborts on ErrNonNormalizedDeserialization
+	// Note: This aborts on ErrNonNormalizedDeserialization. I.e. if the first field element is not in normalized form, we do not even read the second.
 	if err != nil {
 		return
 	}
 	bytesJustRead, err := fieldElement2.DeserializeWithPrefix(input, s.bitHeader2, s.fieldElementEndianness)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err)
+	bandersnatchErrors.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
 	return
 }
 
@@ -192,7 +197,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (b
 //
 // For valuesSerializerHeaderFeHeaderFe, it writes 2 field elements and headers.
 func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	defer updateWriteError(&err, &bytesWritten, int(s.OutputLength()))
+	defer updateWriteError(&err, &bytesWritten, int(s.OutputLength())) // Ensure correctness of PartialWrite flag on error
 
 	bytesWritten, err = fieldElement1.SerializeWithPrefix(output, s.bitHeader, s.fieldElementEndianness)
 	if err != nil {
@@ -202,11 +207,12 @@ func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fie
 	bytesJustWritten, err := fieldElement2.SerializeWithPrefix(output, s.bitHeader2, s.fieldElementEndianness)
 	bytesWritten += bytesJustWritten
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err)
+	bandersnatchErrors.UnexpectEOF2(&err) // transform EOF -> UnexpectedEOF
 	return
 }
 
-// TODO: SetBitHeader2 / GetBitHeader2 has a different interface that SetBitHeader and GetBitHeader
+// TODO: SetBitHeader2 / GetBitHeader2 has a different interface than SetBitHeader and GetBitHeader.
+// This looks like a bug.
 
 // SetBitHeader2 is a setter for the second bitHeader. We cannot use struct embedding here, because we have 2 separate BitHeaders.
 func (s *valuesSerializerHeaderFeHeaderFe) SetBitHeader2(bh bitHeader) {
@@ -226,6 +232,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) Clone() *valuesSerializerHeaderFeHead
 
 // Validate checks the internal parameter of the valuesSerializer for consistency.
 func (s *valuesSerializerHeaderFeHeaderFe) Validate() {
+	// Validate each component individually. Note that there actually should be now way of Validate failing through this code path.
 	s.fieldElementEndianness.Validate()
 	s.bitHeader.Validate()
 	s.bitHeader2.Validate()
@@ -236,24 +243,28 @@ func (s *valuesSerializerHeaderFeHeaderFe) Validate() {
 //
 // For a valuesSerializerHeaderFeHeaderFe, the list contains "Endianness" (the endianness used to (de)serialize FieldElements),
 // "BitHeader", "BitHeader2" (the Headers used for the first and second field element)
+// This method works with nil receivers.
 func (s *valuesSerializerHeaderFeHeaderFe) RecognizedParameters() []string {
 	return []string{"Endianness", "BitHeader", "BitHeader2"}
 }
 
+// Has Parameter checks whether the given Serializer has a parameter with parameterName that can be set queried with the respective Setters/Getters.
+// This method works with nil receivers.
 func (s *valuesSerializerHeaderFeHeaderFe) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
 //
-// For valuesSerializerHeaderFeHeaderFe, it always outputs 64
+// For valuesSerializerHeaderFeHeaderFe, it always outputs 64.
+// This method works with nil receivers.
 func (s *valuesSerializerHeaderFeHeaderFe) OutputLength() int32 { return 64 }
 
 //*******************************************************************************************************************************
 
 // valuesSerializerFe is a simple serializer for a single field element.
 type valuesSerializerFe struct {
-	fieldElementEndianness
+	fieldElementEndianness // endianness for field element (de)serialization, embedded.
 }
 
 // DeserializeValues reads from input and returns values.
@@ -287,22 +298,26 @@ func (s *valuesSerializerFe) Clone() *valuesSerializerFe {
 
 // Validate checks the internal parameter of the valuesSerializer for consistency.
 func (s *valuesSerializerFe) Validate() {
+	// It should actually be impossible for this to fail through this code path.
 	s.fieldElementEndianness.Validate()
 }
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
 //
-// For valuesSerializerFe, it always outputs 32
+// For valuesSerializerFe, it always outputs 32. This can be called on nil receivers.
 func (s *valuesSerializerFe) OutputLength() int32 { return 32 }
 
 // RecognizedParameters outputs a slice of strings listing valid parameters that can be queried/set via
 // the hasParameter / makeCopyWithParameters generic methods.
 //
-// For a valuesSerializerFe, the list contains "Endianness" (the endianness used to (de)serialize FieldElements)
+// For a valuesSerializerFe, the list contains "Endianness" (the endianness used to (de)serialize FieldElements).
+// This method works with nil receivers.
 func (s *valuesSerializerFe) RecognizedParameters() []string {
 	return []string{"Endianness"}
 }
 
+// Has Parameter checks whether the given Serializer has a parameter with parameterName that can be set queried with the respective Setters/Getters.
+// This method works with nil receivers.
 func (s *valuesSerializerFe) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
@@ -311,8 +326,8 @@ func (s *valuesSerializerFe) HasParameter(parameterName string) bool {
 
 // valuesSerializerHeaderFe is a simple serializer for a single field element with sub-byte header
 type valuesSerializerHeaderFe struct {
-	fieldElementEndianness
-	bitHeader
+	fieldElementEndianness // endianness for field element (de)serialization
+	bitHeader              // fixed sub-byte-sized header that is serialized/consumed at each write/read
 }
 
 // DeserializeValues reads from input and returns values.
@@ -343,23 +358,27 @@ func (s *valuesSerializerHeaderFe) Clone() *valuesSerializerHeaderFe {
 
 // Validate checks the internal parameter of the valuesSerializer for consistency.
 func (s *valuesSerializerHeaderFe) Validate() {
+	// Note: Should should be impossible to fail via this code path.
 	s.fieldElementEndianness.Validate()
 	s.bitHeader.Validate()
 }
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
 //
-// For valuesSerializerHeaderFe, it always outputs 32
+// For valuesSerializerHeaderFe, it always outputs 32 and can be called on nil receivers.
 func (s *valuesSerializerHeaderFe) OutputLength() int32 { return 32 }
 
 // RecognizedParameters outputs a slice of strings listing valid parameters that can be queried/set via
 // the hasParameter / makeCopyWithParameters generic methods.
 //
-// For a valuesSerializerHeaderFe, the list contains "Endianness" (the endianness used to (de)serialize FieldElements) and "BitHeader" (the sub-byte header)
+// For a valuesSerializerHeaderFe, the list contains "Endianness" (the endianness used to (de)serialize FieldElements) and "BitHeader" (the sub-byte header).
+// It can be called on nil receivers.
 func (s *valuesSerializerHeaderFe) RecognizedParameters() []string {
 	return []string{"Endianness", "BitHeader"}
 }
 
+// Has Parameter checks whether the given Serializer has a parameter with parameterName that can be set queried with the respective Setters/Getters.
+// This method works with nil receivers.
 func (s *valuesSerializerHeaderFe) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
@@ -368,8 +387,15 @@ func (s *valuesSerializerHeaderFe) HasParameter(parameterName string) bool {
 
 // valuesSerializerFeCompressedBit is a simple serializer for a field element + 1 extra bit. The extra bit is squeezed into the field element.
 type valuesSerializerFeCompressedBit struct {
-	fieldElementEndianness
+	fieldElementEndianness // endianness for field element (de)serialization.
 }
+
+// the extra bit b is encoded as a lenght-1 BitHeader (with value 1 iff b==true, i.e. the "obvious encoding"). This is just to get the types right:
+const falsePrefix = common.PrefixBits(0b0)
+const truePrefix = common.PrefixBits(0b1)
+
+var falsePrefixBitHeader = common.MakeBitHeader(falsePrefix, 1)
+var truePrefixBitHeader = common.MakeBitHeader(truePrefix, 1)
 
 // DeserializeValues reads from input and returns values.
 //
@@ -380,8 +406,8 @@ type valuesSerializerFeCompressedBit struct {
 // Having the unknown-length part at the end makes things simpler.
 func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement fieldElements.FieldElement, bit bool) {
 	var prefix common.PrefixBits
-	bytesRead, prefix, err = fieldElement.DeserializeAndGetPrefix(input, 1, s.fieldElementEndianness)
-	bit = (prefix == 0b1)
+	bytesRead, prefix, err = fieldElement.DeserializeAndGetPrefix(input, 1, s.fieldElementEndianness) // Get one prefix bit and deserialize the rest as field element.
+	bit = (prefix != falsePrefix)
 	return
 }
 
@@ -391,9 +417,9 @@ func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (by
 func (s *valuesSerializerFeCompressedBit) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement, bit bool) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	var embeddedPrefix common.BitHeader
 	if bit {
-		embeddedPrefix = common.MakeBitHeader(common.PrefixBits(0b1), 1)
+		embeddedPrefix = truePrefixBitHeader
 	} else {
-		embeddedPrefix = common.MakeBitHeader(common.PrefixBits(0b0), 1)
+		embeddedPrefix = falsePrefixBitHeader
 	}
 	bytesWritten, err = fieldElement.SerializeWithPrefix(output, embeddedPrefix, s.fieldElementEndianness)
 	return
@@ -413,17 +439,20 @@ func (s *valuesSerializerFeCompressedBit) Validate() {
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
 //
-// For valuesSerializerFeCompressedBit, it always outputs 32
+// For valuesSerializerFeCompressedBit, it always outputs 32 and can be called on nil receivers.
 func (s *valuesSerializerFeCompressedBit) OutputLength() int32 { return 32 }
 
 // RecognizedParameters outputs a slice of strings listing valid parameters that can be queried/set via
 // the hasParameter / makeCopyWithParameters generic methods.
 //
-// For a valuesSerializerFeCompressedBit, the list contains "Endianness" (the endianness used to (de)serialize FieldElements)
+// For a valuesSerializerFeCompressedBit, the list contains "Endianness" (the endianness used to (de)serialize FieldElements).
+// This method can be called on nil receivers.
 func (s *valuesSerializerFeCompressedBit) RecognizedParameters() []string {
 	return []string{"Endianness"}
 }
 
+// Has Parameter checks whether the given Serializer has a parameter with parameterName that can be set queried with the respective Setters/Getters.
+// This method works with nil receivers.
 func (s *valuesSerializerFeCompressedBit) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
