@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -327,5 +328,42 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 		}
 
 	}
+
+}
+
+func TestOverheadReporting(t *testing.T) {
+	var someSimpleHeaderDeserializer simpleHeaderDeserializer
+	someSimpleHeaderDeserializer.sliceSizeEndianness = defaultEndianness
+	someSimpleHeaderDeserializer.Validate()
+	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "GlobalSliceHeader", make([]byte, 1))
+	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "GlobalSliceFooter", make([]byte, 2))
+	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "SinglePointHeader", make([]byte, 4))
+	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "SinglePointFooter", make([]byte, 8))
+	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "PerPointHeader", make([]byte, 16))
+	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "PerPointFooter", make([]byte, 32))
+
+	var someSimpleHeaderSerializer simpleHeaderSerializer = simpleHeaderSerializer{simpleHeaderDeserializer: someSimpleHeaderDeserializer}
+
+	testutils.FatalUnless(t, someSimpleHeaderDeserializer.SinglePointHeaderOverhead() == 4+8, "Unexpected Overhead")
+	testutils.FatalUnless(t, someSimpleHeaderSerializer.SinglePointHeaderOverhead() == 4+8, "Unexpected Overhead")
+
+	overhead, err := someSimpleHeaderDeserializer.MultiPointHeaderOverhead(0)
+	testutils.FatalUnless(t, overhead == 1+2+simpleHeaderSliceLengthOverhead, "Unexpected Overhead 2")
+	testutils.FatalUnless(t, err == nil, "Multi-Overhead reported error")
+	overhead, err = someSimpleHeaderSerializer.MultiPointHeaderOverhead(0)
+	testutils.FatalUnless(t, overhead == 1+2+simpleHeaderSliceLengthOverhead, "Unexpected Overhead 2'")
+	testutils.FatalUnless(t, err == nil, "Multi-Overhead reported error")
+
+	testutils.FatalUnless(t, testutils.CheckPanic(someSimpleHeaderDeserializer.MultiPointHeaderOverhead, int32(-1)), "MultiOverhead did not panic")
+	overhead, err = someSimpleHeaderSerializer.MultiPointHeaderOverhead(100)
+	testutils.FatalUnless(t, err == nil, "Multi-Overhead reported error")
+	testutils.FatalUnless(t, overhead == 1+2+simpleHeaderSliceLengthOverhead+100*(16+32), "Unexpected Overhead 3")
+
+	const TOO_LARGE_SLICE = 1 << 30
+	_, err = someSimpleHeaderDeserializer.MultiPointHeaderOverhead(TOO_LARGE_SLICE)
+	testutils.FatalUnless(t, err != nil, "Multi-Overhead reported no error")
+	realOverhead, ok := errorsWithData.GetParameterFromError(err, "Size")
+	testutils.Assert(ok)
+	testutils.FatalUnless(t, realOverhead.(int64) == 1+2+simpleHeaderSliceLengthOverhead+TOO_LARGE_SLICE*(16+32), "Unexpected Overhead 4")
 
 }
