@@ -23,6 +23,10 @@ type headerRead struct {
 	BytesRead      int
 }
 
+func init() {
+	errorsWithData.CheckIsSubtype[bandersnatchErrors.ReadErrorData, headerRead]() // ensure that headerRead extends bandersnatchErrors.ReadErorData
+}
+
 const ErrorPrefix = "bandersnatch / serialization: "
 
 var ErrDidNotReadExpectedString = bandersnatchErrors.ErrDidNotReadExpectedString
@@ -63,20 +67,26 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 	if expectToRead == nil {
 		panic(ErrorPrefix + "consumeExpectRead called with nil input for expectToRead")
 	}
-	l := len(expectToRead)
+	l := len(expectToRead) // number of bytes we will try to read
+	// Ensure l fits into an int32 (signed!)
 	if l > math.MaxInt32 {
 		// should we return an error instead of panicking?
 		panic(fmt.Errorf(ErrorPrefix+"trying to read from io.Reader, expecting to read %v bytes, which is more than MaxInt32", l))
 	}
+
+	// consuming 0 bytes is always successful, even if the input io.Reader is actually invalid (e.g. nil)
 	if l == 0 {
 		return 0, nil
 	}
+
 	if input == nil {
 		panic(ErrorPrefix + "consumeExpectRead was called on nil reader")
 	}
+
 	var err error
 	var buf []byte = make([]byte, l)
-	bytes_read, err = io.ReadFull(input, buf)
+	bytes_read, err = io.ReadFull(input, buf) // read l bytes into buffer
+
 	if err != nil {
 		buf = buf[0:bytes_read:bytes_read] // We reduce the cap, so maybe some future version of Go actually frees the trailing memory. (We *could* copy it to a new buffer, but that's probably worse in most cases)
 
@@ -91,23 +101,25 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 			return
 		} else if errors.Is(err, io.EOF) {
 			message := ErrorPrefix + "EOF when trying to read buffer.\nExpected to read 0x%x{ExpectedToRead}, got EOF instead"
-			if bytes_read != 0 {
-				panic("Cannot happen")
-			}
-			returnedErrorData.ActuallyRead = make([]byte, 0) // no need to extend the lifetime of buf's underlying array.
+
+			// Note: bytes_read == 0 is guaranteed by io.ReadFull if the error is io.EOF
+
+			returnedErrorData.ActuallyRead = make([]byte, 0)
 			returnedErrorData.PartialRead = false
 
 			returnedError = errorsWithData.NewErrorWithParametersFromData(err, message, &returnedErrorData)
 			return
-		} else { // io error
-			returnedErrorData.PartialRead = (bytes_read > 0) // NOTE: io.ReadFull guarantees bytes_read < l
+		} else { // other io error
+			returnedErrorData.PartialRead = (bytes_read > 0) // NOTE: io.ReadFull guarantees bytes_read < l, since errors after full reads are dropped.
 			returnedError = errorsWithData.NewErrorWithParametersFromData(err, "", &returnedErrorData)
 			return
 		}
 
 	}
+
+	// We successfully read len(expectToRead) many bytes. Now check if they match.
 	if !bytes.Equal(expectToRead, buf) {
-		// Note: We deep-copy the contents of expectToRead. The reason is that the caller might later modify the backing array otherwise.
+		// Note: We deep-copy the contents of expectToRead. The reason is that the caller might later modify the backing array otherwise, which screws up the error message.
 		var returnedErrorData headerRead = headerRead{ActuallyRead: buf, ExpectedToRead: copyByteSlice(expectToRead), BytesRead: bytes_read, PartialRead: false} // extra data returned in error
 
 		err = bandersnatchErrors.ErrDidNotReadExpectedString
@@ -115,7 +127,7 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 		returnedError = errorsWithData.NewErrorWithParametersFromData(err, message, &returnedErrorData)
 		return
 	}
-	returnedError = nil // this is true anyway at this point, we like being explicit.
+	returnedError = nil // this is true anyway at this point; just added for clarity.
 	return
 }
 
@@ -135,8 +147,13 @@ func copyByteSlice(v []byte) (ret []byte) {
 
 // writeFull(output, data) wraps around output.Write(data) by adding error data.
 //
-// One error, the returned error has an extra data field in addition to WriteErrorData (accessible via errorsWithData) called "Data" that holds a deepcopy of the data that we tried to write.
+// On error, the returned error has an extra data field in addition to WriteErrorData (accessible via errorsWithData) called "Data" that holds (a deep copy of) the data that we tried to write.
 func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+	// Note: output.Write may interpret a nil byte slice as an empty []byte array and actually work.
+	// However, since this is an internal function and we never intend to call it with something that may be nil, we panic.
+	if data == nil {
+		panic(ErrorPrefix + " called writeFull with nil byte slice")
+	}
 	bytesWritten, errPlain := output.Write(data)
 	if errPlain != nil {
 		err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, "Error %w occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data.",

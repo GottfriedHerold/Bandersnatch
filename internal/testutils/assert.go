@@ -1,5 +1,7 @@
 package testutils
 
+import "testing"
+
 // TODO: Not really an assert (since the check is actually performed). Maybe rename to PanicUnless?
 
 // Assert(condition) panics if condition is false; Assert(condition, error) panics if condition is false with panic(error).
@@ -13,5 +15,11 @@ func Assert(condition bool, err ...interface{}) {
 		} else {
 			panic(err[0])
 		}
+	}
+}
+
+func FatalUnless(t *testing.T, condition bool, formatstring string, args ...any) {
+	if !condition {
+		t.Fatalf(formatstring, args...)
 	}
 }

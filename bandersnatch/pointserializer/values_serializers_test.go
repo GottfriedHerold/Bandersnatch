@@ -75,8 +75,8 @@ var allValueSerializerTypes []reflect.Type = []reflect.Type{
 func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	for _, valueSerializerType := range allValueSerializerTypes {
 		// methods are defined on the pointer types
-		valueSerializerType = reflect.PtrTo(valueSerializerType)
-		ok, reason := testutils.DoesMethodExist(valueSerializerType, "Clone", []reflect.Type{}, []reflect.Type{valueSerializerType})
+		valueSerializerPtrType := reflect.PtrTo(valueSerializerType)
+		ok, reason := testutils.DoesMethodExist(valueSerializerPtrType, "Clone", []reflect.Type{}, []reflect.Type{valueSerializerPtrType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -84,6 +84,8 @@ func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 		// Currently, this is done in the TestValuesSerializersRountrip test.
 	}
 }
+
+// TODO: Check that general SetParameter functions work and merge these two tests:
 
 func TestRegognizedParameters(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
@@ -98,16 +100,28 @@ func TestRegognizedParameters(t *testing.T) {
 			t.Fatalf("Invalid Parameter was recognized as value")
 		}
 	}
-
 }
 
-// This tests whether OutputLength and RecognizedParameters can be called on nil pointers of the appropriate type
+func TestParameterSettings(t *testing.T) {
+	for _, valueSerializer := range allValuesSerializers {
+		name := testutils.GetReflectName(reflect.TypeOf(valueSerializer)) // name of the type of the serialzer. Used for error reporting.
+		var params []string = valueSerializer.RecognizedParameters()
+		for _, param := range params {
+			if !hasParameter(valueSerializer, param) {
+				t.Errorf("%v does not have parameter named %v as claimed", name, param)
+			}
+		}
+	}
+}
+
+// This tests whether OutputLength, RecognizedParameters and HasParameter can be called on nil pointers of the appropriate type
 func TestQueryFunctionsCallableOnNil(t *testing.T) {
 	for _, valueSerializerType := range allValueSerializerTypes {
 		valueSerializerType = reflect.PtrTo(valueSerializerType)
 		zeroValue := reflect.Zero(valueSerializerType).Interface().(valuesSerializer)
 		_ = zeroValue.OutputLength()
 		_ = zeroValue.RecognizedParameters()
+		_ = zeroValue.HasParameter("foo")
 	}
 }
 
@@ -118,6 +132,7 @@ func TestAllValuesSerializersValidate(t *testing.T) {
 	}
 }
 
+// Checks that Clone methods are callable
 func TestAllValuesSerializersClonable(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
 		// TestValuesSerializersSatisfyImplicitInterface takes care about whether a Clone method exists with the correct type.
@@ -132,17 +147,6 @@ func TestAllValuesSerializersClonable(t *testing.T) {
 			t.Fatalf("Cloning a valuesSerializer did not work. See output of TestValuesSerializersSatisfyImplicitInterface.")
 		}
 		cloneSerializer.Validate()
-	}
-}
-func TestParameterSettings(t *testing.T) {
-	for _, valueSerializer := range allValuesSerializers {
-		name := testutils.GetReflectName(reflect.TypeOf(valueSerializer)) // name of the type of the serialzer. Used for error reporting.
-		var params []string = valueSerializer.RecognizedParameters()
-		for _, param := range params {
-			if !hasParameter(valueSerializer, param) {
-				t.Errorf("%v does not have parameter named %v as claimed", name, param)
-			}
-		}
 	}
 }
 

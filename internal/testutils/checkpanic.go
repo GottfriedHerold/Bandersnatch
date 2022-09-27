@@ -10,7 +10,7 @@ import (
 // It does not re-raise or return the actual panic argument
 // (unless the panic argument is a string starting with "reflect" -- likely an error from the reflect package)
 //
-// This function is only used in testing. It does not work with untyped nil in variadic functions due to limitations of Go1.18.
+// This function is only used in testing. It does not work with untyped nil arguments to variadic functions fun due to limitations of Go1.18.
 func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
 	didPanic = true
 	fun_reflected := reflect.ValueOf(fun)
