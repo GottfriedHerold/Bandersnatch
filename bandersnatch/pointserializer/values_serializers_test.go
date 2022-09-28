@@ -91,7 +91,7 @@ func TestRegognizedParameters(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
 		recognizedParams := valueSerializer.RecognizedParameters()
 		for _, recognizedParam := range recognizedParams {
-			_ = getSerializerParam(valueSerializer, recognizedParam)
+			_ = getSerializerParameter(valueSerializer, recognizedParam)
 			if !valueSerializer.HasParameter(recognizedParam) {
 				t.Fatalf("Parameter not reported as recognized")
 			}
@@ -107,7 +107,7 @@ func TestParameterSettings(t *testing.T) {
 		name := testutils.GetReflectName(reflect.TypeOf(valueSerializer)) // name of the type of the serialzer. Used for error reporting.
 		var params []string = valueSerializer.RecognizedParameters()
 		for _, param := range params {
-			if !hasParameter(valueSerializer, param) {
+			if !hasSetterAndGetterForParameter(valueSerializer, param) {
 				t.Errorf("%v does not have parameter named %v as claimed", name, param)
 			}
 		}

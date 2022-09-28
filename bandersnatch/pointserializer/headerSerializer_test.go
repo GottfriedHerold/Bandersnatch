@@ -95,7 +95,7 @@ func TestSettersAndGetters(t *testing.T) {
 		shd = makeCopyWithParameters(&shd, paramName, m[paramName])
 	}
 	for _, paramName := range headerSerializerParams {
-		arg := getSerializerParam(&shd, paramName).([]byte)
+		arg := getSerializerParameter(&shd, paramName).([]byte)
 		if arg == nil {
 			t.Fatalf("Getter returned nil")
 		}

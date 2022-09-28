@@ -364,10 +364,10 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName str
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
 func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicDeserializer)
-	if hasParameter(basicPointer, parameterName) {
+	if hasSetterAndGetterForParameter(basicPointer, parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
-		return getSerializerParam(&md.headerDeserializer, parameterName)
+		return getSerializerParameter(&md.headerDeserializer, parameterName)
 	}
 }
 
@@ -376,10 +376,10 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName st
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
 func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicSerializer)
-	if hasParameter(basicPointer, parameterName) {
+	if hasSetterAndGetterForParameter(basicPointer, parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
-		return getSerializerParam(&md.headerSerializer, parameterName)
+		return getSerializerParameter(&md.headerSerializer, parameterName)
 	}
 }
 

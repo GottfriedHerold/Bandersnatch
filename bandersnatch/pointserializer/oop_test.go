@@ -31,25 +31,25 @@ type dummyGetterAndSetter struct {
 
 func TestHasParameters(t *testing.T) {
 	var nilEndianness *FieldElementEndianness = nil
-	if !testutils.CheckPanic(hasParameter, nilEndianness, "invalidParameter") {
+	if !testutils.CheckPanic(hasSetterAndGetterForParameter, nilEndianness, "invalidParameter") {
 		t.Fatalf("hasParameter did not panic on unrecognized parameter")
 	}
-	if hasParameter(nilEndianness, "SubgroupOnly") {
+	if hasSetterAndGetterForParameter(nilEndianness, "SubgroupOnly") {
 		t.Fatalf("hasParameter returned true when it should not")
 	}
-	if !hasParameter(nilEndianness, "Endianness") {
+	if !hasSetterAndGetterForParameter(nilEndianness, "Endianness") {
 		t.Fatalf("hasParameter returned false when it should not")
 	}
 	var getterOnly *dummyGetterOnly = nil
 	var setterOnly *dummySetterOnly = nil
 	var setterAndGetter *dummyGetterAndSetter = nil
-	if hasParameter(getterOnly, "Endianness") {
+	if hasSetterAndGetterForParameter(getterOnly, "Endianness") {
 		t.Fatalf("hasParameter returned true for struct with getter only")
 	}
-	if hasParameter(setterOnly, "Endianness") {
+	if hasSetterAndGetterForParameter(setterOnly, "Endianness") {
 		t.Fatalf("hasParameter returned true for struct with setter only")
 	}
-	if !hasParameter(setterAndGetter, "Endianness") {
+	if !hasSetterAndGetterForParameter(setterAndGetter, "Endianness") {
 		t.Fatalf("hasParamter returned false for struct with both getter and setter")
 	}
 }

@@ -232,7 +232,7 @@ func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly"., "BitHeader", "BitHeader2"
 func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
-	return getSerializerParam(s, parameterName)
+	return getSerializerParameter(s, parameterName)
 }
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
@@ -366,7 +366,7 @@ func (s *pointSerializerXAndSignY) OutputLength() int32 { return 32 }
 //
 // Accepted values for parameterName are "Endiannness", "SubgroupOnly"
 func (s *pointSerializerXAndSignY) GetParameter(parameterName string) interface{} {
-	return getSerializerParam(s, parameterName)
+	return getSerializerParameter(s, parameterName)
 }
 
 // Validate perfoms a self-check of the internal parameters stored for the given serializer.
@@ -533,7 +533,7 @@ func (s *pointSerializerYAndSignX) OutputLength() int32 { return 32 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerYAndSignX) GetParameter(parameterName string) interface{} {
-	return getSerializerParam(s, parameterName)
+	return getSerializerParameter(s, parameterName)
 }
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
@@ -648,7 +648,7 @@ func (s *pointSerializerXTimesSignY) OutputLength() int32 { return 32 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interface{} {
-	return getSerializerParam(s, parameterName)
+	return getSerializerParameter(s, parameterName)
 }
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
@@ -777,7 +777,7 @@ func (s *pointSerializerYXTimesSignY) OutputLength() int32 { return 64 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interface{} {
-	return getSerializerParam(s, parameterName)
+	return getSerializerParameter(s, parameterName)
 }
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
