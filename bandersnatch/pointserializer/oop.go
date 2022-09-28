@@ -96,6 +96,100 @@ func hasSetterAndGetterForParameter(serializer any, parameterName string) bool {
 	return ok
 }
 
+// might go to testing
+
+func validateSetter(serializer ParameterAware, parameterName string) {
+	if serializer == nil {
+		panic(ErrorPrefix + "validateSetter called with nil serializer")
+	}
+	serializerType := reflect.TypeOf(serializer)
+	var typeName string = testutils.GetReflectName(serializerType) // used for better error messages
+
+	// Retrieve method name from parameterName
+	parameterNameNormalized := normalizeParameter(parameterName) // case-insensitive. The map keys are all normalized
+	paramInfo, ok := serializerParams[parameterNameNormalized]
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"validateSetter called with unrecognized parameter name %v. This is unrecognized no matter the serializer type", parameterName))
+	}
+
+	// reflect.TypeOf reaches into serializer. This is just to make absolutely sure, because the specification of MethodByName differs if serializerType is an interface
+	if serializerType.Kind() == reflect.Interface {
+		panic("Should be unreachable")
+	}
+
+	setterMethod, ok := serializerType.MethodByName(paramInfo.setter)
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"validateSetter could not retrieve setter methods named %v for type %v", parameterNameNormalized, typeName))
+	}
+	var setterType reflect.Type = setterMethod.Type // type of method. Note that setterType describes a function with the first argument being the receiver.
+	if setterType.Kind() != reflect.Func {
+		panic("Should be unreachable")
+	}
+
+	// We refuse to consider setters with >0 return values, since we would silently discarding the output.
+	if numOutputs := setterType.NumOut(); numOutputs != 0 {
+		panic(fmt.Errorf(ErrorPrefix+"validateSetter called with type %v whose parameter setter %v returns a non-zero number %v of return values", typeName, paramInfo.setter, numOutputs))
+	}
+
+	// Check the number of input arguments. Note that the first input is the receiver (since we called MethodByName on a reflect.Type rather than a reflect.Value).
+	if numInputs := setterType.NumIn(); numInputs != 2 {
+		panic(fmt.Errorf(ErrorPrefix+"validateSetter called with type %v whose parameter setter %v takes %v rather than 1 input argument ", typeName, paramInfo.setter, numInputs-1))
+	}
+
+	inputArgType := setterType.In(1) // declared argument type for the setter function.
+	if !paramInfo.vartype.AssignableTo(inputArgType) {
+		panic(fmt.Errorf(ErrorPrefix+"validateSetter detected setter %v for %v with invalid signature: We expected a type %v, but got %v instead",
+			paramInfo.setter, typeName, testutils.GetReflectName(paramInfo.vartype), testutils.GetReflectName(inputArgType)))
+	}
+}
+
+func validateGetter(serializer ParameterAware, parameterName string) {
+	if serializer == nil {
+		panic(ErrorPrefix + "validateGetter called with nil serializer")
+	}
+	serializerType := reflect.TypeOf(serializer)
+	var typeName string = testutils.GetReflectName(serializerType) // used for better error messages
+
+	// Retrieve method name from parameterName
+	parameterNameNormalized := normalizeParameter(parameterName) // case-insensitive. The map keys are all normalized
+	paramInfo, ok := serializerParams[parameterNameNormalized]
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"validateGetter called with unrecognized parameter name %v. This is unrecognized no matter the serializer type", parameterName))
+	}
+
+	exptectedArgType := paramInfo.vartype
+
+	// reflect.TypeOf reaches into serializer. This is just to make absolutely sure, because the specification of MethodByName differs if serializerType is an interface
+	if serializerType.Kind() == reflect.Interface {
+		panic("Should be unreachable")
+	}
+
+	getterMethod, ok := serializerType.MethodByName(paramInfo.getter)
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"validateGetter could not retrieve getter methods named %v for type %v", parameterNameNormalized, typeName))
+	}
+	var getterType reflect.Type = getterMethod.Type // type of method. Note that getterType describes a function with the first argument being the receiver.
+	if getterType.Kind() != reflect.Func {
+		panic("Should be unreachable")
+	}
+
+	// We refuse to consider setters with !=1 return values
+	if numOutputs := getterType.NumOut(); numOutputs != 1 {
+		panic(fmt.Errorf(ErrorPrefix+"validateGetter called with type %v whose parameter getter %v returns a number %v != 1 of return values", typeName, paramInfo.getter, numOutputs))
+	}
+
+	// Check the number of input arguments. Note that the first input is the receiver (since we called MethodByName on a reflect.Type rather than a reflect.Value).
+	if numInputs := getterType.NumIn(); numInputs != 1 {
+		panic(fmt.Errorf(ErrorPrefix+"validateGetter called with type %v whose parameter getter %v takes %v rather than 0 input argument ", typeName, paramInfo.getter, numInputs-1))
+	}
+
+	returnedType := getterType.Out(0) // declared return type for the getter function.
+	if !returnedType.AssignableTo(exptectedArgType) {
+		panic(fmt.Errorf(ErrorPrefix+"validateGetter detected getter %v for %v with invalid signature: We expected a return type %v, but got %v instead",
+			paramInfo.setter, typeName, testutils.GetReflectName(exptectedArgType), testutils.GetReflectName(returnedType)))
+	}
+}
+
 // TODO: We may remove this after making Validate() a hard requirement for all components of our serializer parts.
 
 // validater is an interface used for type-asserting/checking whether some type has a Validate() method
@@ -155,6 +249,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	if !setterMethod.IsValid() {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, parameterName))
 	}
+
 	// We refuse to call setters with >0 return values rather than silently discarding them.
 	if numOutputs := setterMethod.Type().NumOut(); numOutputs != 0 {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v whose parameter setter %v returns a non-zero number %v of return values", typeName, paramInfo.setter, numOutputs))
