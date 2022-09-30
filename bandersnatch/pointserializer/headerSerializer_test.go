@@ -42,25 +42,8 @@ func TestRecognizeParameterNames(t *testing.T) {
 	if !utils.CompareSlices(allHeaderParams, allHeaderParams2) {
 		t.Fatalf("serializer parameter names and deserializer unexpectedly differ")
 	}
-	for _, arg := range allHeaderParams {
-		argNormalized := normalizeParameter(arg)
-		_, ok := serializerParams[argNormalized]
-		if !ok {
-			t.Fatalf("serializer parameter named %v not recognized by global parameter lookup table", arg)
-		}
-		if !nilSimpleHeaderDeserializer.HasParameter(arg) {
-			t.Fatalf("deserializer parameter %v not recognized by HasParameter", arg)
-		}
-		if !nilSimpleHeaderSerializer.HasParameter(arg) {
-			t.Fatalf("serializer parameter %v not recognized by HasParameter", arg)
-		}
-	}
-	if nilSimpleHeaderDeserializer.HasParameter("InvalidParamSAFASF") {
-		t.Fatalf("derserializer recognizes invalid parameter")
-	}
-	if nilSimpleHeaderSerializer.HasParameter("InvalidParamGAGAG") {
-		t.Fatalf("serializer recognizes invalid parameter")
-	}
+	ensureParamsAreValidForSerializer(nilSimpleHeaderDeserializer, t)
+	ensureParamsAreValidForSerializer(nilSimpleHeaderSerializer, t)
 }
 
 // getParamDirectlyForSimpleHeaderDeserializer returns the []byte stored in a simpleHeaderDeserializer bypassing the getter.

@@ -35,7 +35,7 @@ var serializerParams = map[string]struct {
 }{
 	// Note: We use utils.TypeOfType rather than reflect.TypeOf, since this also works with interface types such as binary.ByteOrder.
 	normalizeParameter("Endianness"):        {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
-	normalizeParameter("BitHeader"):         {getter: "GetBitHeader", setter: "SetBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
+	normalizeParameter("BitHeader"):         {getter: "GetBitHeader", setter: "SetBitHeaderFromBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
 	normalizeParameter("BitHeader2"):        {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
 	normalizeParameter("SubgroupOnly"):      {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
 	normalizeParameter("GlobalSliceHeader"): {getter: "GetGlobalSliceHeader", setter: "SetGlobalSliceHeader", vartype: utils.TypeOfType[[]byte]()},
@@ -76,6 +76,8 @@ func concatParameterList(list1 []string, list2 []string) []string {
 // Note: This internal function does NOT look at RecognizedParameters().
 // It instead uses reflection to check the presence of methods.
 // It panics if called on invalid parameter strings not in the serializerParams map.
+//
+// DEPRECATED
 func hasSetterAndGetterForParameter(serializer any, parameterName string) bool {
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
 	paramInfo, ok := serializerParams[parameterName]
@@ -96,7 +98,7 @@ func hasSetterAndGetterForParameter(serializer any, parameterName string) bool {
 	return ok
 }
 
-// might go to testing
+// these 2 might go to testing and use testutils.DoesMethodExist
 
 func validateSetter(serializer ParameterAware, parameterName string) {
 	if serializer == nil {
@@ -222,10 +224,8 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 		panic(ErrorPrefix + "makeCopyWithParams called with unrecognized parameter name")
 	}
 
-	// check whether parameterName is in the serializer.RecognizedParameters() list (modulo normalizeParameters)
-	parameterName = normalizeParameter(parameterName)
-	paramList := serializer.RecognizedParameters()
-	if !utils.ElementInList(parameterName, paramList, normalizeParameter) {
+	// check whether parameterName is accepted by this serializer
+	if !serializer.HasParameter(parameterName) {
 		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v (normalized) that is not among the list of recognized parameters for this type", typeName, parameterName))
 	}
 
@@ -249,6 +249,9 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	if !setterMethod.IsValid() {
 		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, parameterName))
 	}
+
+	// This subsumes the test below, anyway
+	validateSetter(serializer, parameterName)
 
 	// We refuse to call setters with >0 return values rather than silently discarding them.
 	if numOutputs := setterMethod.Type().NumOut(); numOutputs != 0 {
@@ -286,12 +289,12 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 // Note that we should pass a pointer to this function, since we reflect-call a function with it as receiver.
 func getSerializerParameter(serializer ParameterAware, parameterName string) interface{} {
 
-	// receiverName := utils.NameOfType[ValueType]() // used for diagnostics.
+	// used for diagnostics.
 	receiverType := reflect.TypeOf(serializer)
 	receiverName := testutils.GetReflectName(receiverType)
 
-	// check whether parameterName is in the serializer.RecognizedParameters() list (modulo normalizeParameters)
-	if !utils.ElementInList(parameterName, serializer.RecognizedParameters(), normalizeParameter) {
+	// check whether parameterName is recognized by the serializer
+	if !serializer.HasParameter(parameterName) {
 		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v that is not among the list of recognized parameters for this type", receiverName, parameterName))
 	}
 

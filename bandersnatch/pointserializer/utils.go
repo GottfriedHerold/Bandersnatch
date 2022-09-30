@@ -153,11 +153,12 @@ func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatc
 	// Note: output.Write may interpret a nil byte slice as an empty []byte array and actually work.
 	// However, since this is an internal function and we never intend to call it with something that may be nil, we panic.
 	if data == nil {
-		panic(ErrorPrefix + " called writeFull with nil byte slice")
+		panic(ErrorPrefix + "called writeFull with nil byte slice")
 	}
+
 	bytesWritten, errPlain := output.Write(data)
 	if errPlain != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, "Error %w occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data.",
+		err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, ErrorPrefix+"An error occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data. The error was:\n%w",
 			"Data", copyByteSlice(data),
 			bandersnatchErrors.FIELDNAME_BYTES_WRITTEN, bytesWritten,
 			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten < len(data),

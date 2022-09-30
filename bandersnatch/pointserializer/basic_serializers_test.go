@@ -68,6 +68,12 @@ var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []cu
 	&ps_YSX,
 }
 
+func TestParameterSanityCheck(t *testing.T) {
+	for _, basicSerializer := range allBasicSerializers {
+		ensureParamsAreValidForSerializer(basicSerializer, t)
+	}
+}
+
 // Superseded by generics, but kept
 func TestBasicSerializersHasClonable(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {

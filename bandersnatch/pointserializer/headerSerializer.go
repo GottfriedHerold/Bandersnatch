@@ -11,6 +11,14 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// This file is part of the serialization-for-curve-points package.
+// This package defines types that act as (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
+// (De)serializers then have methods that are called with the actual curve point(s) as arguments to (de)serialize them.
+
+// This file holds serializer for serializing Headers/footers to be used in slices.
+// E.g. to serialize a slice of 3 elements A,B,C, we might write [A,B,] (in addition to the slice size; the extra ',' at the end makes things simpler)
+// In this case, '[' would be the global header, ']' the global footer and ',' the per-point footer.
+
 // headerDeserializer and headerSerializer are abstractions used to (de)serialize headers / footers for multiple points.
 //
 // When (de)serializing a single point, we call

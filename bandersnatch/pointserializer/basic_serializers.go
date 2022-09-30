@@ -17,6 +17,7 @@ import (
 // (De)serializers then have methods that are called with the actual curve point(s) as arguments to (de)serialize them.
 
 // This file defines basic serializers that serialize and deserialize a single curve point.
+// Note that all serializers are also deserializers, but not vice-versa: The reason is that a deserializer might understand multiple formats.
 
 // TODO: Allow serializing points at infinity.
 

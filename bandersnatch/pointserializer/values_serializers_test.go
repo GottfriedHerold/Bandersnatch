@@ -85,32 +85,9 @@ func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	}
 }
 
-// TODO: Check that general SetParameter functions work and merge these two tests:
-
-func TestRegognizedParameters(t *testing.T) {
-	for _, valueSerializer := range allValuesSerializers {
-		recognizedParams := valueSerializer.RecognizedParameters()
-		for _, recognizedParam := range recognizedParams {
-			_ = getSerializerParameter(valueSerializer, recognizedParam)
-			if !valueSerializer.HasParameter(recognizedParam) {
-				t.Fatalf("Parameter not reported as recognized")
-			}
-		}
-		if valueSerializer.HasParameter("InvalidParameter") {
-			t.Fatalf("Invalid Parameter was recognized as value")
-		}
-	}
-}
-
 func TestParameterSettings(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
-		name := testutils.GetReflectName(reflect.TypeOf(valueSerializer)) // name of the type of the serialzer. Used for error reporting.
-		var params []string = valueSerializer.RecognizedParameters()
-		for _, param := range params {
-			if !hasSetterAndGetterForParameter(valueSerializer, param) {
-				t.Errorf("%v does not have parameter named %v as claimed", name, param)
-			}
-		}
+		ensureParamsAreValidForSerializer(valueSerializer, t)
 	}
 }
 

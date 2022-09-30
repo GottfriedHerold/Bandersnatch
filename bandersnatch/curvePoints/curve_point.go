@@ -77,6 +77,7 @@ type CurvePointPtrInterfaceWrite interface {
 	// contained in both Write and Read interface
 	CanRepresentInfinity() bool     // returns true if the type can represent and distinguish the points at infinity. This can be called on nil receivers of a concrete (pointer) type.
 	CanOnlyRepresentSubgroup() bool // returns true if the type can represent curve points from outside the prime-order subgroup. This can be called on nil receivers of a concrete (pointer) type.
+	Clone() CurvePointPtrInterface  // returns a copy of the point. Note that this can be used to "read" from a CurvePointPtrInterfaceWrite
 }
 
 // Point_xtw_Full and Point_xtw_subgroup actually embed a joint Point_xtw_base type (dito with the other coordinate types).

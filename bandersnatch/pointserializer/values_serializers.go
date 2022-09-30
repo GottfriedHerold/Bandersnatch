@@ -10,6 +10,10 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// This file is part of the serialization-for-curve-points package.
+// This package defines types that act as (de)serializers. These types hold metadata (such as e.g. endianness) about the serialization format.
+// (De)serializers then have methods that are called with the actual curve point(s) as arguments to (de)serialize them.
+
 // This file contains the serializers that are responsible for (de)serializing (uninterpreted) sequences of field elements, bits and sub-byte headers.
 // We call these valuesSerializers, values referring to bits and field elements.
 
@@ -210,9 +214,6 @@ func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fie
 	bandersnatchErrors.UnexpectEOF2(&err) // transform EOF -> UnexpectedEOF
 	return
 }
-
-// TODO: SetBitHeader2 / GetBitHeader2 has a different interface than SetBitHeader and GetBitHeader.
-// This looks like a bug.
 
 // SetBitHeader2 is a setter for the second bitHeader. We cannot use struct embedding here, because we have 2 separate BitHeaders.
 func (s *valuesSerializerHeaderFeHeaderFe) SetBitHeader2(bh bitHeader) {

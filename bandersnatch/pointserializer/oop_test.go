@@ -2,13 +2,14 @@ package pointserializer
 
 import (
 	"encoding/binary"
+	"reflect"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 // keys in the global serializerParams act case-insensitve, which is implemented via normalization to lowercase. So the entries in the map must be lowercase.
-func TestParamsLowercase(t *testing.T) {
+func TestParamsNormalized(t *testing.T) {
 	for key := range serializerParams {
 		if key != normalizeParameter(key) {
 			t.Fatalf("serializerParams has non-normalized key %v", key)
@@ -70,6 +71,22 @@ func TestConcatParameterList(t *testing.T) {
 	for i, v := range concat {
 		if v != expectedconcat[i] {
 			t.Fatalf("List concatenation not as expected")
+		}
+	}
+
+}
+
+func ensureParamsAreValidForSerializer(serializer ParameterAware, t *testing.T) {
+
+	params := serializer.RecognizedParameters()
+	for _, param := range params {
+		validateGetter(serializer, param)
+		validateSetter(serializer, param)
+		if !serializer.HasParameter(param) {
+			t.Fatalf("Serializer of type %v does not have parameter %v recognized by HasParameter", testutils.GetReflectName(reflect.TypeOf(serializer)), param)
+		}
+		if serializer.HasParameter("InvalidParameter") {
+			t.Fatalf("Serializer of type %v does recognize an invalid paramter as valid", testutils.GetReflectName(reflect.TypeOf(serializer)))
 		}
 	}
 

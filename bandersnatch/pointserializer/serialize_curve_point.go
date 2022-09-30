@@ -12,7 +12,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // *** PURPOSE OF THIS PACAKGE ***:
@@ -20,12 +19,16 @@ import (
 // Generally, we define structs/interfaces that define some (de)serializer (named, say s)
 // s holds all the metadata (such as e.g. endianness) needed to define the serialization format.
 // Modifying such metadata contained in a (de)serializer is done by making a copy with modified parameters.
-// the (de)serializers themselves are considered (shallowly) immutable.
+// The (de)serializers themselves are considered (shallowly) immutable.
 // To actually serialize a curve point, the user calls some appropropriate (de)serialization method, e.g.
 // s.SomeSerializeMethod(outputStream io.Writer, curvePoint ...) (bytesWritten int, err SomeErrorInterfaceType)
+// or
+// s.SomeDeserializeMethod(inputStream io.Reader, targetCurvePoint, ...) (bytesRead int, err SomeErrorInterfaceType)
+// Note here that deserializers do not usually return points, but rather take some buffer to hold points as input.
+// The reason is that targetCurvePoint's type is essentially used to pass the intended type to the deserialization method.
 //
 //
-// Note here that io targets are io.Writer or io.Reader, not []byte.
+// Note here that io targets are io.Writer or io.Reader, not []byte. Use bytes.Buffer to wrap this.
 // Deserialization function also typically have a trustLevel argument to distinguish trusted input from untrusted input.
 // Serializers and Deserializers are separate types:
 // This is annoying, but the reason is that some methods have slightly differnt signatures:
@@ -53,7 +56,7 @@ import (
 // --general helper functions (utils.go)
 // --helper functions to pass parameter setting up/down this hierarchical structure (oop.go)
 //
-// The user is provided with an interface type for serializers of single curve points or multiple curve points; this an an implementation is defined in this file.
+// The user is provided with an interface type for serializers of single curve points or multiple curve points; the latter is defined in this file.
 // The implementation splits this task into a serializer for headers (which includes slice size for serializing multiple points) and serializing single curve points.
 // The former is what we call headerSerializers, the latter is called basic_serializers.
 // basic_serializers in turn split their task into translating a curve point to a sequence of values (sign or field elements)
@@ -231,15 +234,6 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) Validate() {
 	basicDeserializerPtr.Validate()
 	md.headerDeserializer.Validate()
 
-	// We check that the return values of RecognizedParameters are distinct.
-	paramsDeserializer := basicDeserializerPtr.RecognizedParameters()
-	paramsHeader := md.headerDeserializer.RecognizedParameters()
-	for _, paramDeserializer := range paramsDeserializer {
-		if utils.ElementInList(paramDeserializer, paramsHeader, normalizeParameter) {
-			panic(fmt.Errorf(ErrorPrefix+"Parameter %v appears in both header deserializer and basic deserializer", paramDeserializer))
-		}
-	}
-
 	// overflow check for output length:
 	var singleOutputLength64 int64 = int64(md.headerDeserializer.SinglePointHeaderOverhead()) + int64(basicDeserializerPtr.OutputLength())
 	if singleOutputLength64 > math.MaxInt32 {
@@ -254,15 +248,6 @@ func (md *multiSerializer[BasicValue, BasicPtr]) Validate() {
 	basicSerializerPtr := BasicPtr(&md.basicSerializer)
 	basicSerializerPtr.Validate()
 	md.headerSerializer.Validate()
-
-	// We check that the return values of RecognizedParameters are distinct.
-	paramsSerializer := basicSerializerPtr.RecognizedParameters()
-	paramsHeader := md.headerSerializer.RecognizedParameters()
-	for _, paramSerializer := range paramsSerializer {
-		if utils.ElementInList(paramSerializer, paramsHeader, normalizeParameter) {
-			panic(fmt.Errorf(ErrorPrefix+"Parameter %v appears in both header serializer and basic serializer", paramSerializer))
-		}
-	}
 
 	// overflow check for output length:
 	var singleOutputLength64 int64 = int64(md.headerSerializer.SinglePointHeaderOverhead()) + int64(basicSerializerPtr.OutputLength())
@@ -290,7 +275,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) Clone() CurvePointSerializerMod
 // RecognizedParameters returns a list of parameters that can be queried/modified via WithParameter / GetParameter
 func (md *multiDeserializer[BasicValue, BasicPtr]) RecognizedParameters() []string {
 
-	// return the union of parameters from its components
+	// return the union of parameters from its components.
 	list1 := BasicPtr(&md.basicDeserializer).RecognizedParameters()
 	list2 := md.headerDeserializer.RecognizedParameters()
 	return concatParameterList(list1, list2)
@@ -299,7 +284,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) RecognizedParameters() []stri
 // RecognizedParameters returns a list of parameters that can be queried/modified via WithParameter / GetParameter
 func (md *multiSerializer[BasicValue, BasicPtr]) RecognizedParameters() []string {
 
-	// return the union of parameters from its components
+	// return the union of parameters from its components.
 	list1 := BasicPtr(&md.basicSerializer).RecognizedParameters()
 	list2 := md.headerSerializer.RecognizedParameters()
 	return concatParameterList(list1, list2)
@@ -323,37 +308,44 @@ func (md *multiSerializer[BasicValue, BasicPtr]) HasParameter(parameterName stri
 func (md *multiDeserializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointDeserializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicDeserializationPtr = BasicPtr(&mdCopy.basicDeserializer)
+	var found bool = false
 
-	// Check which one of the components has a parameter with the given parameterName and change it.
-	//
-	// NOTE: Validate asserts that a parameter is not settable for both.
-	// NOTE2: makeCopyWithParameters rechecks that parameterName is contained in RecognizedParameters(),
-	// so we don't need a check in the else-branch here.
+	// Check which one of the components have a parameter with the given parameterName and change it.
 	if basicDeserializationPtr.HasParameter(parameterName) {
 		mdCopy.basicDeserializer = makeCopyWithParameters(basicDeserializationPtr, parameterName, newParam)
-	} else {
+		found = true
+	}
+	if md.headerDeserializer.HasParameter(parameterName) {
 		mdCopy.headerDeserializer = makeCopyWithParameters(&mdCopy.headerDeserializer, parameterName, newParam)
+		found = true
+	}
+	if !found {
+		panic(fmt.Errorf(ErrorPrefix+"Trying to set parameter %v that does not exist for this deserializer", parameterName))
 	}
 	mdCopy.Validate()
 	return &mdCopy
 }
 
-// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParam.
+// WithParameter returns a new Serializer with the parameter determined by parameterName changed to newParam.
 //
-// Note: This function will panic if the parameter does not exists or the new deserializer would have invalid parameters.
+// Note: This function will panic if the parameter does not exists or the new serializer would have invalid parameters.
 func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable {
 	mdCopy := md.makeCopy()
 	var basicSerializationPtr = BasicPtr(&mdCopy.basicSerializer)
+	var found bool = false
 
-	// Check which one of the components has a parameter with the given parameterName and change it.
-	//
-	// NOTE: Validate asserts that a parameter is not settable for both.
-	// NOTE2: makeCopyWithParameters rechecks that parameterName is contained in RecognizedParameters(),
-	// so we don't need a check in the else-branch here.
+	// Check which of the components have a parameter with the given parameterName and change it.
 	if basicSerializationPtr.HasParameter(parameterName) {
 		mdCopy.basicSerializer = makeCopyWithParameters(basicSerializationPtr, parameterName, newParam)
-	} else {
+		found = true
+	}
+
+	if md.headerSerializer.HasParameter(parameterName) {
 		mdCopy.headerSerializer = makeCopyWithParameters(&mdCopy.headerSerializer, parameterName, newParam)
+		found = true
+	}
+	if !found {
+		panic(fmt.Errorf(ErrorPrefix+"Trying to set parameter %v that does not exist for this serializer", parameterName))
 	}
 	mdCopy.Validate()
 	return &mdCopy
@@ -364,7 +356,10 @@ func (md *multiSerializer[BasicValue, BasicPtr]) WithParameter(parameterName str
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
 func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicDeserializer)
-	if hasSetterAndGetterForParameter(basicPointer, parameterName) {
+
+	// If parameterName is contained in both, preference is given to basicPointer
+
+	if basicPointer.HasParameter(parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
 		return getSerializerParameter(&md.headerDeserializer, parameterName)
@@ -376,7 +371,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName st
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
 func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName string) any {
 	basicPointer := BasicPtr(&md.basicSerializer)
-	if hasSetterAndGetterForParameter(basicPointer, parameterName) {
+
+	// If parameterName is contained in both, preference is given to basicPointer
+	if basicPointer.HasParameter(parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
 		return getSerializerParameter(&md.headerSerializer, parameterName)
@@ -414,6 +411,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputSt
 	if err != nil {
 		return
 	}
+
+	originalPoint := outputPoint.Clone() // needed to undo changes on error.
+
 	bytesJustRead, err := BasicPtr(&md.basicDeserializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 	bytesRead += bytesJustRead
 	if err != nil {
@@ -421,6 +421,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputSt
 	}
 	bytesJustRead, err = md.headerDeserializer.deserializeSinglePointFooter(inputStream)
 	bytesRead += bytesJustRead
+	if err != nil {
+		outputPoint.SetFrom(originalPoint)
+	}
 	return
 }
 
@@ -433,6 +436,9 @@ func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStre
 	if err != nil {
 		return
 	}
+
+	originalPoint := outputPoint.Clone() // needed to undo changes on error.
+
 	bytesJustRead, err := BasicPtr(&md.basicSerializer).DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 	bytesRead += bytesJustRead
 	if err != nil {
@@ -440,6 +446,9 @@ func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoint(inputStre
 	}
 	bytesJustRead, err = md.headerSerializer.deserializeSinglePointFooter(inputStream)
 	bytesRead += bytesJustRead
+	if err != nil {
+		outputPoint.SetFrom(originalPoint)
+	}
 	return
 }
 
