@@ -1029,6 +1029,9 @@ func (p *Point_xtw_full) SetFrom(input CurvePointPtrInterfaceRead) {
 		p.x, p.y, p.t, p.z = input.XYTZ_projective()
 	default:
 		p.x, p.y, p.z = input.XYZ_projective()
+		if p.z.IsZero() {
+			panic("Not implemented.") // TODO: FIX THIS
+		}
 		p.t.Mul(&p.x, &p.y)
 		p.x.MulEq(&p.z)
 		p.y.MulEq(&p.z)
