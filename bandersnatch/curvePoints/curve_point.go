@@ -173,7 +173,7 @@ type CurvePointPtrInterfaceTestSample interface {
 	// torsionAdder
 	// curvePointPtrInterfaceTestSampleA i.e.
 	// 		SetAffineTwoTorsion
-	// curvePointPtrInterfaceTestSampleE
+	// curvePointPtrInterfaceTestSampleE, i.e.
 	//		SetE1()
 	//		SetE2()
 }

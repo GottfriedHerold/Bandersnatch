@@ -12,55 +12,55 @@ var _ CurvePointSlice = curvePointSliceWrapper[Point_axtw_full, *Point_axtw_full
 var _ CurvePointSlice = curvePointPtrSliceWrapper[*Point_axtw_full]{}
 var _ CurvePointSlice = curvePointPtrSliceWrapper[CurvePointPtrInterface]{}
 
+// Ensure that AsCurvePointSlice and AsCurvePointPtrSlice can actually
+// wrap appropriate Slices.
 func TestGenericPointSliceWrapping(t *testing.T) {
 	const size = 256
 	testutils.Assert(size >= 1)
+
+	// Generates a slice of interfaces (whose dynamic types are pointers)
 	var A1_TestInterfaceSlice []CurvePointPtrInterfaceTestSample = getPrecomputedCurvePointSlice(2, pointTypeAXTWSubgroup, size)
 
-	A2 := getPrecomputedCurvePointSlice(3, pointTypeAXTWSubgroup, size)
+	// Generate an array of Point_axtw_subgroup (array of non-pointers)
 	var A2_Array [size]Point_axtw_subgroup
-	for i := 0; i < size; i++ {
-		A2_Array[i].SetFrom(A2[i])
+	{
+		A2_temp := getPrecomputedCurvePointSlice(3, pointTypeAXTWSubgroup, size)
+
+		for i := 0; i < size; i++ {
+			A2_Array[i].SetFrom(A2_temp[i])
+		}
 	}
 
+	// TOOD: Add some global "dummy" types and use that.
+
+	// Generate an array of non-pointers, with a dummy type that ensures the generic path is taken in type-switches.
 	type dummyAXTW struct {
 		Point_axtw_subgroup
 	}
-
-	A3 := getPrecomputedCurvePointSlice(4, pointTypeAXTWSubgroup, size)
 	var A3_Array [size]dummyAXTW
-	for i := 0; i < size; i++ {
-		A3_Array[i].SetFrom(A3[i])
+
+	{
+		A3_temp := getPrecomputedCurvePointSlice(4, pointTypeAXTWSubgroup, size)
+
+		for i := 0; i < size; i++ {
+			A3_Array[i].SetFrom(A3_temp[i])
+		}
 	}
 
-	// var temp1, temp2 Point_axtw_subgroup
-
+	// Wrap the 3 slices above.
 	WrapA1 := AsCurvePointPtrSlice(A1_TestInterfaceSlice)
 	WrapA2 := AsCurvePointSlice(A2_Array[:])
 	WrapA3 := AsCurvePointSlice(A3_Array[:])
 
-	if WrapA1.Len() != size {
-		t.Fatalf("Wrapped A1 has invalid length")
-	}
+	// Check that they behave as intended.
+	testutils.FatalUnless(t, WrapA1.Len() == size, "Wrapped A1 has invalid length")
+	testutils.FatalUnless(t, WrapA2.Len() == size, "Wrapped A2 has invalid length")
+	testutils.FatalUnless(t, WrapA3.Len() == size, "Wrapped A3 has invalid length")
 
-	if WrapA2.Len() != size {
-		t.Fatalf("Wrapped A2 has invalid length")
-	}
-
-	if WrapA3.Len() != size {
-		t.Fatalf("Wrapped A3 has invalid length")
-	}
-
-	// Note: These comparisons compare pointers
-	if WrapA1.GetByIndex(1) != A1_TestInterfaceSlice[1] {
-		t.Fatalf("Wrapped A1 does not retrieve element")
-	}
-	if WrapA2.GetByIndex(1) != &A2_Array[1] {
-		t.Fatalf("Wrapped A2 does not retrieve element")
-	}
-	if WrapA3.GetByIndex(1) != &A3_Array[1] {
-		t.Fatalf("Wrapped A3 does not retrieve element")
-	}
+	// Note: These comparisons compare interfaces holding pointers. Comparing the pointers is correct here.
+	testutils.FatalUnless(t, WrapA1.GetByIndex(1) == A1_TestInterfaceSlice[1], "Wrapped A1 does not retrieve element")
+	testutils.FatalUnless(t, WrapA2.GetByIndex(1) == &A2_Array[1], "Wrapped A2 does not retrieve element")
+	testutils.FatalUnless(t, WrapA3.GetByIndex(1) == &A3_Array[1], "Wrapped A3 does not retrieve element")
 
 }
 
@@ -164,8 +164,8 @@ var _ CurvePointSlice = reflectedPointSlice{}
 func TestMakeCurvePointSlice(t *testing.T) {
 	const size = 31
 	pointTypeAXTW_Full := utils.TypeOfType[Point_axtw_full]()
-	someSlice, sliceInInterface := makePointSlice(pointTypeAXTW_Full, size)
-	real := sliceInInterface.([]Point_axtw_full)
+	someSlice, sliceValue := makePointSlice(pointTypeAXTW_Full, size)
+	real := sliceValue.Interface().([]Point_axtw_full)
 
 	if len(real) != size {
 		t.Fatalf("Size of interface is wrong")
