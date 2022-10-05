@@ -106,7 +106,7 @@ func TestOpsOnRandomValues(t *testing.T) {
 		res2.Add(&y, &z)
 		res2.Add(&x, &res2)
 		if !res1.IsEqual(&res2) {
-			t.Error("Addition non assiciative")
+			t.Error("Addition non associative")
 			break
 		}
 	}
@@ -120,7 +120,7 @@ func TestOpsOnRandomValues(t *testing.T) {
 		res2.Mul(&y, &z)
 		res2.Mul(&x, &res2)
 		if !res1.IsEqual(&res2) {
-			t.Error("Multiplication non assiciative")
+			t.Error("Multiplication non associative")
 			break
 		}
 	}

@@ -277,6 +277,13 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	z.maybe_reduce_once()
 }
 
+func (z *bsFieldElement_64) Add2(x, y *bsFieldElement_64) {
+	xUint256 := (*uint256)(&x.words)
+	yUint256 := (*uint256)(&y.words)
+	zUint256 := (*uint256)(&z.words)
+	zUint256.Add_ReduceNonUnique(xUint256, yUint256)
+}
+
 // Sub is used to perform subtraction.
 //
 // Use z.Sub(&x, &y) to compute x - y and store the result in z.
