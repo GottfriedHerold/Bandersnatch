@@ -1,3 +1,5 @@
+//go:build ignore
+
 package bandersnatch
 
 import "github.com/GottfriedHerold/Bandersnatch/internal/testutils"
