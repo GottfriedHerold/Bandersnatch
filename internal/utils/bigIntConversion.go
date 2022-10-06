@@ -35,3 +35,4 @@ func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
 	result[3] = binary.BigEndian.Uint64(big_endian_byte_slice[0:8])
 	return
 }
+

@@ -35,9 +35,10 @@ const BaseFieldByteLength = common.BaseFieldByteLength // == 32
 
 // An implementation of the base field might actually use more bytes; we don't.
 
-// NOTE: We intentionally expose copies of unexported variables here to prevent users
-// from modifying bsFieldElement_64_one etc. and to give the compiler at least a chance to observe that these are never modified.
-// Internal code should not use the exported variables.
+// NOTE: We intentionally expose *copies* of unexported variables here to prevent users from modifying bsFieldElement_64_one etc.
+// The issue is that these constants may be used internally in the actual implementation of the arithmetic; accidental modifications can then lead to errors that are very hard to debug.
+// The other benefit is to give the compiler at least a chance to observe that these are never modified.
+// For the above reason, internal code should not use the exported variables.
 
 var (
 	// Important constants of type FieldElement

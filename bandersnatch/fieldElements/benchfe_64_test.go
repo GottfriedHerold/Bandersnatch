@@ -48,15 +48,6 @@ func BenchmarkAdd_64(b *testing.B) {
 	}
 }
 
-func BenchmarkAdd_64_Alt(b *testing.B) {
-	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS)
-	var bench_y_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(2, benchS)
-	prepareBenchmarkFieldElements(b)
-	for n := 0; n < b.N; n++ {
-		DumpFe_64[n%benchS].Add2(&bench_x_64[n%benchS], &bench_y_64[n%benchS])
-	}
-}
-
 func BenchmarkAddEq_64(b *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(1, benchS)
 	var bench_y_64 []bsFieldElement_64 = getPrecomputedFieldElementSlice_64(2, benchS)
