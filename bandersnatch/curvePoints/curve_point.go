@@ -159,6 +159,14 @@ type CurvePointPtrInterfaceCooReadExtended interface {
 	XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement) // gives X:Y:T:Z coordinates in extended projective twisted Edwards coordinates. This is equivalent to calling all 4 coordinate functions, but may be (MUCH) more efficient.
 }
 
+type NormalizerForY interface {
+	NormalizeForY() (ok bool)
+}
+
+type NormalizerForZ interface {
+	NormalizeForZ() (ok bool)
+}
+
 // CurvePointPtrInterfaceTestSample is the interface that types need to provide in order to make our testing framework work.
 // These add some requirements in addition to CurvePointPtrInterface. -- Note that all of those are only used in testing.
 type CurvePointPtrInterfaceTestSample interface {

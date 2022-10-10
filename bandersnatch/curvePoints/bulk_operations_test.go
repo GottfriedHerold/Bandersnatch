@@ -1,3 +1,6 @@
+//go:build ignore
+
+// NEED TO REDO
 package curvePoints
 
 import (
@@ -5,21 +8,12 @@ import (
 	"testing"
 )
 
-var _ bulkNormalizer = CurvePointSlice_xtw_full{}
-var _ bulkNormalizer = CurvePointSlice_xtw_subgroup{}
-
-type bulkNormalizer interface {
-	NormalizeSlice() []int
-	CurvePointSlice
-}
-
-type normalizerAffineZ interface {
-	normalizeAffineZ()
-}
+var _ BulkNormalizer = CurvePointSlice_xtw_full{}
+var _ BulkNormalizer = CurvePointSlice_xtw_subgroup{}
 
 // subroutine for testing NormalizeSlice: ensure that is works for a particular CurvePointSlice
 // We assert that each point has a normalizeAffineZ method and we compare against that.
-func testMultiAffineZWorks(t *testing.T, vec bulkNormalizer) {
+func testMultiAffineZWorks(t *testing.T, vec BulkNormalizer) {
 	L := vec.Len()
 	var vecCopy []CurvePointPtrInterface = make([]CurvePointPtrInterface, L)
 	for i := 0; i < L; i++ {
@@ -30,7 +24,7 @@ func testMultiAffineZWorks(t *testing.T, vec bulkNormalizer) {
 
 	// not merged with loop above because we want to give preference to panics in the vec-version.
 	for i := 0; i < L; i++ {
-		vecCopy[i].(normalizerAffineZ).normalizeAffineZ()
+		vecCopy[i].(BulkNormalizeAffineZ).NormalizeAffineZ()
 	}
 	for i := 0; i < L; i++ {
 		if !vecCopy[i].IsEqual(vec.GetByIndex(i)) {

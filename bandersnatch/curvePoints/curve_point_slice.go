@@ -11,9 +11,29 @@ import (
 // CurvePointSlice is a joint interface for slices of CurvePoints or pointers to CurvePoints.
 //
 // This interface is needed (due to inadequacies of Go's type system) to make certain functions work with slices of concrete point types.
+// Notably, we need methods taking a []CurvePoint, which does not work with generics (because as of Go1.19, methods cannot be generic)
+// The alternative is for those methods to take (functions returning the i-th point) as arguments, but then we might just as well make it an interface.
+//
+// Furthermore, some instantiations of CurvePointSlice satisfy additional interfaces that enable vastly more efficient batch-operations.
 type CurvePointSlice interface {
 	GetByIndex(int) CurvePointPtrInterface
 	Len() int
+}
+
+// TODO: Might be removed in favor of the next two.
+type BulkNormalizer interface {
+	NormalizeSlice() []int
+	CurvePointSlice
+}
+
+type BulkNormalizeAffineZ interface {
+	NormalizeAffineZ() (zeroIndices []int)
+	CurvePointSlice
+}
+
+type BulkNormalizeAffineY interface {
+	NormalizeAffineY() (zeroIndices []int)
+	CurvePointSlice
 }
 
 // GenericPointSlice is the most simple implementation of the CurvePointSlice interface.

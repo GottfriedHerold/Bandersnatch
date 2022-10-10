@@ -165,6 +165,146 @@ func (p *point_xtw_base) normalizeAffineZ() {
 	p.z.SetOne()
 }
 
+// NormalizeForZ tries to change the internal representation of the point to one where Z_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent Z_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs and points at infinity.
+// On such failure, the representation may still change (to a different NaP or to a different representation of the point at infinity)
+func (p *Point_xtw_full) NormalizeForZ() (ok bool) {
+	// almost identical to the (internal) normalizeAffineZ, except for the behaviour at z==0 and NaPs.
+	if p.IsNaP() {
+		napEncountered("Called NormalizeZ with NaP", false, p)
+		// If the above did not panic, we replace the NaP p by a default NaP.
+		*p = Point_xtw_full{}
+		return false
+	}
+
+	// We reasonably likely call this method several times in a row on the same point. If Z==1 to start with, do nothing.
+	if p.z.IsOne() {
+		return true
+	}
+	if p.z.IsZero() {
+		if p.IsE1() {
+			p.SetE1()
+		} else {
+			if !p.IsE2() {
+				panic(ErrorPrefix + "Point with z==0 encountered which is neither a NaP nor a point at infinity. This is not supposed to be possible")
+			}
+			p.SetE2()
+		}
+		return false
+	}
+	var zInverse FieldElement
+	zInverse.Inv(&p.z)
+	p.x.MulEq(&zInverse)
+	p.y.MulEq(&zInverse)
+	p.t.MulEq(&zInverse)
+	p.z.SetOne()
+	return true
+}
+
+// NormalizeForZ tries to change the internal representation of the point to one where Z_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent call to Z_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs.
+// On such failure, the representation may still change to a different NaP.
+func (p *Point_xtw_subgroup) NormalizeForZ() (ok bool) {
+	// almost identical to the (internal) normalizeAffineZ, except for the behaviour at z==0 and NaPs.
+	if p.IsNaP() {
+		napEncountered("Called NormalizeZ with NaP", false, p)
+		// If the above did not panic, we replace the NaP p by a default NaP.
+		*p = Point_xtw_subgroup{}
+		return false
+	}
+
+	// We reasonably likely call this method several times in a row on the same point. If Z==1 to start with, do nothing.
+	if p.z.IsOne() {
+		return true
+	}
+	if p.z.IsZero() {
+		panic(ErrorPrefix + "xtw_subgroup Point with z==0 encountered that is no NaP. This is not supposed to be possible")
+	}
+	var zInverse FieldElement
+	zInverse.Inv(&p.z)
+	p.x.MulEq(&zInverse)
+	p.y.MulEq(&zInverse)
+	p.t.MulEq(&zInverse)
+	p.z.SetOne()
+	return true
+}
+
+// Remember: Y==0 iff Z==0 (unless NaP)
+
+// NormalizeForY tries to change the internal representation of the point to one where Y_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent Y_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs and points at infinity.
+// On such failure, the representation may still change (to a different NaP or to a different representation of the point at infinity)
+func (p *Point_xtw_full) NormalizeForY() (ok bool) {
+
+	if p.IsNaP() {
+		napEncountered("Called NormalizeY with NaP", false, p)
+		// If the above did not panic, we replace the NaP p by a default NaP.
+		*p = Point_xtw_full{}
+		return false
+	}
+
+	// Not sure if that really helps for the y-variant.
+	if p.y.IsOne() {
+		return true
+	}
+
+	if p.y.IsZero() {
+		if p.IsE1() {
+			p.SetE1()
+		} else {
+			if !p.IsE2() {
+				panic(ErrorPrefix + "Point with y==0 encountered which is neither a NaP nor a point at infinity. This is not supposed to be possible")
+			}
+			p.SetE2()
+		}
+		return false
+	}
+	var yInverse FieldElement
+	yInverse.Inv(&p.y)
+	p.x.MulEq(&yInverse)
+	p.y.SetOne()
+	p.t.MulEq(&yInverse)
+	p.z.MulEq(&yInverse)
+	return true
+}
+
+// NormalizeForY tries to change the internal representation of the point to one where Y_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent call to Y_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs.
+// On such failure, the representation may still change to a different NaP.
+func (p *Point_xtw_subgroup) NormalizeForY() (ok bool) {
+
+	if p.IsNaP() {
+		napEncountered("Called NormalizeY with NaP", false, p)
+		// If the above did not panic, we replace the NaP p by a default NaP.
+		*p = Point_xtw_subgroup{}
+		return false
+	}
+
+	if p.y.IsOne() {
+		return true
+	}
+
+	if p.y.IsZero() {
+		panic(ErrorPrefix + "xtw_subgroup Point with y==0 encountered that is no NaP. This is not supposed to be possible")
+	}
+
+	var yInverse FieldElement
+	yInverse.Inv(&p.y)
+	p.x.MulEq(&yInverse)
+	p.y.SetOne()
+	p.t.MulEq(&yInverse)
+	p.z.MulEq(&yInverse)
+	return true
+}
+
 // normalizeSubgroup changes the internal representation of p, such that the coordinates of p
 // corresponds exactly to p (without working modulo the affine two-torsion point).
 func (p *Point_xtw_subgroup) normalizeSubgroup() {
