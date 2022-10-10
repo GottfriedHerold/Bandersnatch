@@ -20,19 +20,13 @@ type CurvePointSlice interface {
 	Len() int
 }
 
-// TODO: Might be removed in favor of the next two.
-type BulkNormalizer interface {
-	NormalizeSlice() []int
+type BatchNormalizerForZ interface {
+	BatchNormalizeForZ() (zeroIndices []int)
 	CurvePointSlice
 }
 
-type BulkNormalizeAffineZ interface {
-	NormalizeAffineZ() (zeroIndices []int)
-	CurvePointSlice
-}
-
-type BulkNormalizeAffineY interface {
-	NormalizeAffineY() (zeroIndices []int)
+type BatchNormalizerForY interface {
+	BatchNormalizeForY() (zeroIndices []int)
 	CurvePointSlice
 }
 
