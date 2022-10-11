@@ -792,3 +792,16 @@ func (p *Point_axtw_subgroup) sampleRandomUnsafe(rnd *rand.Rand) {
 func (p *Point_axtw_full) SetAffineTwoTorsion() {
 	p.point_axtw_base = affineOrderTwoPoint_axtwbase
 }
+
+// NormalizeForZ tries to change the internal representation of the point to one where Z_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent Z_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs and points at infinity.
+// On such failure, the representation may still change (to a different NaP or to a different representation of the point at infinity)
+func (p *point_axtw_base) NormalizeForZ() (ok bool) {
+	if p.IsNaP() {
+		napEncountered("called NormalizerForZ on NaP of type axtw", false)
+		return false
+	}
+	return true
+}

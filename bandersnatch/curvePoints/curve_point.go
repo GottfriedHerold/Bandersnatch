@@ -159,10 +159,24 @@ type CurvePointPtrInterfaceCooReadExtended interface {
 	XYTZ_projective() (FieldElement, FieldElement, FieldElement, FieldElement) // gives X:Y:T:Z coordinates in extended projective twisted Edwards coordinates. This is equivalent to calling all 4 coordinate functions, but may be (MUCH) more efficient.
 }
 
+// NormalizerForY detects the presence of a NormalizeForY method.
+//
+// NormalizeForY tries to change the internal representation of the point to one where Y_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent Y_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs and points at infinity.
+// On such failure, the representation may still change (to a different NaP or to a different representation of the point at infinity)
 type NormalizerForY interface {
 	NormalizeForY() (ok bool)
 }
 
+// NormalizerForZ detects the presence of a NormalizeForZ method.
+//
+// NormalizeForZ tries to change the internal representation of the point to one where Z_decaf_projective() outputs 1.
+//
+// The return value indicates success. On success, a subsequent Z_decaf_projective() without intervening calls is guaranteed to return 1.
+// The function will fail and return false for NaPs and points at infinity.
+// On such failure, the representation may still change (to a different NaP or to a different representation of the point at infinity)
 type NormalizerForZ interface {
 	NormalizeForZ() (ok bool)
 }

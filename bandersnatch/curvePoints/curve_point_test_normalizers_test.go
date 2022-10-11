@@ -13,6 +13,9 @@ var NormalizerForZType reflect.Type = utils.TypeOfType[NormalizerForZ]()
 var _ NormalizerForZ = &Point_xtw_full{}
 var _ NormalizerForZ = &Point_xtw_subgroup{}
 
+var _ NormalizerForZ = &Point_axtw_full{}
+var _ NormalizerForZ = &Point_axtw_subgroup{}
+
 var _ NormalizerForY = &Point_xtw_full{}
 var _ NormalizerForY = &Point_xtw_subgroup{}
 
