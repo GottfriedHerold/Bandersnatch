@@ -276,3 +276,21 @@ func (points CurvePointSlice_xtw_subgroup) BatchNormalizeForY() (failingIndices 
 	}
 	return
 }
+
+// BatchNormalizeForZ is (almost) equivalent to calling NormalizeForZ on each entry, but much more efficient.
+//
+// If non-nil, the returned slice is sorted and indicites the (0-based) indices where BatchNormalizeForZ failed.
+// NOTE: The only observable difference to calling NormalizeForZ individually is for NaPs.
+// This method may fail to recognize NaPs and change their internal representation to one with Z_decaf_projective() returning 1 without indicating it in failingIndices.
+func (points CurvePointSlice_axtw_full) BatchNormalizeForZ() (failingIndices []int) {
+	return nil
+}
+
+// BatchNormalizeForZ is (almost) equivalent to calling NormalizeForZ on each entry, but much more efficient.
+//
+// If non-nil, the returned slice is sorted and indicites the (0-based) indices where BatchNormalizeForZ failed.
+// NOTE: The only observable difference to calling NormalizeForZ individually is for NaPs.
+// This method may fail to recognize NaPs and change their internal representation to one with Z_decaf_projective() returning 1 without indicating it in failingIndices.
+func (points CurvePointSlice_axtw_subgroup) BatchNormalizeForZ() (failingIndices []int) {
+	return nil
+}

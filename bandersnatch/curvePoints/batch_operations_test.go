@@ -42,6 +42,16 @@ func TestBatchNormalizerForY_xtw_subgroup(t *testing.T) {
 	testBatchNormalizeYRandom[Point_xtw_subgroup, *Point_xtw_subgroup, CurvePointSlice_xtw_subgroup](t)
 }
 
+func TestBatchNormalizeForZ_axtw_full(t *testing.T) {
+	testBatchNormalizeZZeroed[Point_axtw_full, *Point_axtw_full, CurvePointSlice_axtw_full](t)
+	testBatchNormalizeZRandom[Point_axtw_full, *Point_axtw_full, CurvePointSlice_axtw_full](t)
+}
+
+func TestBatchNormalizeForZ_axtw_subgroup(t *testing.T) {
+	testBatchNormalizeZZeroed[Point_axtw_subgroup, *Point_axtw_subgroup, CurvePointSlice_axtw_subgroup](t)
+	testBatchNormalizeZRandom[Point_axtw_subgroup, *Point_axtw_subgroup, CurvePointSlice_axtw_subgroup](t)
+}
+
 // testBatchNormalizerForZ is a testing sub-routine; it ensures that BatchNormalizeForZ works correctly when called on vec.
 func testBatchNormalizerForZ(t *testing.T, vec BatchNormalizerForZ) {
 	L := vec.Len()
