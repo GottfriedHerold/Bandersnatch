@@ -23,6 +23,19 @@ type ReadErrorData struct {
 	ActuallyRead []byte // this may contain information about data that was read when the error occured. It may be nil, is not guaranteed to be present (even if meaningful) and may be from a sub-call. The reason is that we do not buffer the raw input data, so we cannot provide it in a lot of cases. It serves purely as a debugging aid.
 }
 
+// NoReadAttempt is a constant of type ReadErrorData that can be used if no read attempt was ever made, e.g. because some error was detected even before trying to read.
+var NoReadAttempt = ReadErrorData{
+	PartialRead:  false,
+	BytesRead:    0,
+	ActuallyRead: nil,
+}
+
+// NoWriteAttempt is a constant of type WriteErrorData that can be used if no write attept was ever made, e.g. because some error was detected before even trying.
+var NoWriteAttempt = WriteErrorData{
+	PartialWrite: false,
+	BytesWritten: 0,
+}
+
 // The errorsWithData package can access fields by name (using reflection internally). We export the field names as constants for IDE-friendliness and as a typo- and refactoring guard.
 
 const FIELDNAME_PARTIAL_WRITE = "PartialWrite"

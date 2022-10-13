@@ -19,7 +19,7 @@ import (
 // This file defines basic serializers that serialize and deserialize a single curve point.
 // Note that all serializers are also deserializers, but not vice-versa: The reason is that a deserializer might understand multiple formats.
 
-// TODO: Allow serializing points at infinity.
+// TODO: Allow serializing points at infinity (for those serializers where it makes sense).
 
 // curvePointDeserializer_basic is a deserializer for single curve points
 //

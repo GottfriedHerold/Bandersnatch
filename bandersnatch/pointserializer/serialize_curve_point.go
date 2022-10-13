@@ -607,7 +607,8 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SliceOutputLength(numPoints int
 // NOTE: If you have a slice buf of type []PointType to hold the output, call this with curvePoints.AsCurvePointSlice(buf) to create a view of buf with the appropriate type.
 // Be aware that whether PointType is restricted to points in the subgroup or not may control whether we perform subgroup checks on deserialization!
 //
-// NOTE: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream, you need to check that the error wraps either io.EOF/io.UnexpectedEOF and PartialRead is false.
+// NOTE: When using this method to deserialize AT MOST L points into a buffer, but without knowing how many points are in the stream,
+// you need to check that the error wraps either io.EOF or io.UnexpectedEOF and PartialRead is false.
 // We provide a convenience function DeserializeCurvePoints_Bounded that handles this case.
 // We also provide a convenience variadic version DeserialiveCurvePoints_Variadic.
 // These are both functions, not methods.
@@ -651,7 +652,8 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoints(inputS
 // NOTE: If you have a slice buf of type []PointType to hold the output, call this with curvePoints.AsCurvePointSlice(buf) to create a view of buf with the appropriate type.
 // Be aware that whether PointType is restricted to points in the subgroup or not may control whether we perform subgroup checks on deserialization!
 //
-// NOTE: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream, you need to check that the error wraps either io.EOF/io.UnexpectedEOF and PartialRead is false.
+// NOTE: When using this method to deserialize AT MOST L points into a buffer, but don't know how many points are in the stream,
+// you need to check that the error wraps either io.EOF or io.UnexpectedEOF and that PartialRead is false.
 // We provide a convenience function DeserializeCurvePoints_Bounded that handles this case.
 // We also provide a convenience variadic version DeserialiveCurvePoints_Variadic.
 // These are both functions, not methods.
@@ -824,7 +826,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream 
 // DeserializeSlice reads a slice of curve points from inputSteam.
 // As opposed to DeserializeCurvePoints, the slice length is contained in-band and the slice is treated as a single (de)serialization object.
 //
-// the passes sliceMaker argument has type func(length int32) (output any, slice CurvePointSlice, err error) and is called exactly once an appropriate length.
+// the passed sliceMaker argument has type func(length int32) (output any, slice CurvePointSlice, err error) and is called exactly once with an appropriate length.
 // The slice return value is where DeserializeSlice will write into. The output return value of sliceMaker is the output return value of DeserializeSlice.
 // Note that the type(s) contained in slice influence whether DeserializeSlice performs subgroup checks.
 // See the specification of DeserializeSliceMaker for details.
@@ -834,7 +836,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream 
 //
 // On error, at least for the two DeserializeSliceMaker's above, output has the correct type, but is meaningless (possibly a nil slice).
 // error contains as data (accessible via errorsWithData) a PointsDeserialized field. This indicates how many points were successfully writen to slice.
-func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceCreater DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError) {
+func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceMaker DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError) {
 	var size int32                                          // size of the slice
 	var errNonBatch bandersnatchErrors.DeserializationError // error returned from individual deserialization routines
 
@@ -842,19 +844,19 @@ func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeSlice(inputStream io
 	if errNonBatch != nil {
 		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
 
-		output, _, _ = sliceCreater(-1)
+		output, _, _ = sliceMaker(-1)
 		return
 	}
 	_, overflowErr := md.SliceOutputLength(size)
 	if overflowErr != nil {
 		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
-		output, _, _ = sliceCreater(-1)
+		output, _, _ = sliceMaker(-1)
 		return
 	}
 
 	var outputPointSlice curvePoints.CurvePointSlice
 	var errSliceCreate error
-	output, outputPointSlice, errSliceCreate = sliceCreater(size)
+	output, outputPointSlice, errSliceCreate = sliceMaker(size)
 	if errSliceCreate != nil {
 		err = errorsWithData.NewErrorWithParametersFromData(errSliceCreate, "%w", &BatchDeserializationErrorData{
 			ReadErrorData:      bandersnatchErrors.ReadErrorData{PartialRead: true},
@@ -956,8 +958,139 @@ func UseExistingSlice[PointType any, PointTypePtr interface {
 	}
 }
 
+// SerializeCurvePoints will (try to) serialize the points from inputPoints to the given outputStream.
+// The total number of bytes written must fit into an int32, else we panic.
+// If no error occurs, it is equivalent to calling SerializeCurvePoint on each input point separately (but possibly more efficient).
+//
+// Note that this method treats each point separately and does not write the slice size in-band. Use SerializeSlice for that.
+//
+// SerializeCurvePoints will stop at the first error. The error value contains data (accessible via the errorsWithData framework)
+//  - PointsSerialized (int) is the number of points successfully written
+//  - PartialWrite (bool) indicates whether some write operation wrote data that is not aligned with actually encoding points (e.g. due to some IO error in the middle of writing a point)
 func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoints(outputStream io.Writer, inputPoints curvePoints.CurvePointSlice) (bytesWritten int, err BatchSerializationError) {
-	var _ BatchSerializationErrorData
-	panic(0)
-	// return
+	// var _ BatchSerializationErrorData
+
+	// for efficiency, we batch-normalize the points, if supported.
+	normalizeable, ok := inputPoints.(curvePoints.BatchNormalizerForZ)
+	if ok {
+		_ = normalizeable.BatchNormalizeForZ() // Note: errors are ignored: Some points might not be normalized.
+		// Without knowing about the capabilities of the underlying serializers and point type, we cannot do anything about that.
+	}
+
+	L := inputPoints.Len()
+	if L > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"SerializeCurvePoints was asked to serialize %v points, which exceeds MaxInt32. Bailing out", L))
+	}
+	if int64(L)*int64(md.OutputLength()) > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"trying to batch-serialize %v points, each expected to write %v bytes. The total number of bytes might exceed MaxInt32. Bailing out", L, md.OutputLength()))
+	}
+	for i := 0; i < L; i++ {
+		inputPoint := inputPoints.GetByIndex(i) // pointer, wrapped in interface
+		bytesJustWriten, errSingle := md.SerializeCurvePoint(outputStream, inputPoint)
+		bytesWritten += bytesJustWriten
+		if errSingle != nil {
+			if i != 0 {
+				bandersnatchErrors.UnexpectEOF2(&errSingle)
+			}
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errSingle,
+				ErrorPrefix+"batch serialization failed after deserializing %{PointsSerialized} many points with error %w",
+				"PointsSerialized", i)
+			return
+		}
+	}
+	return
+}
+
+func (md *multiSerializer[BasicValue, BasicPtr]) SerializeSlice(outputStream io.Writer, inputPoints curvePoints.CurvePointSlice) (bytesWritten int, err BatchSerializationError) {
+	// Get slice length
+	LInt := inputPoints.Len()
+	if LInt > math.MaxInt32 {
+		panic(fmt.Errorf(ErrorPrefix+"called SerializeSlice with a slice of length %v > MaxInt32. This is not supported. Bailing out", LInt))
+	}
+	L := int32(LInt)
+
+	// make copy of the underlying point serializer, to avoid type-casting all the time.
+	pointSerializer := BasicPtr(&md.basicSerializer)
+
+	// ensure the total number of bytes written will not overflow MaxInt32. Notet that we don't need expectedSize itself, actually.
+	// We only use it to make an internal self-check after everything.
+	expectedSize, errOverflow := md.SliceOutputLength(L)
+	if errOverflow != nil {
+		// var noWriteAttempt :=
+		overflowErrData := BatchSerializationErrorData{WriteErrorData: bandersnatchErrors.NoWriteAttempt, PointsSerialized: 0}
+		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrSizeDoesNotFitInt32, ErrorPrefix+"called SerializeSlice with a slice that would require more than MaxInt32 bytes to serialize", &overflowErrData)
+		return
+	}
+
+	// write length header
+	bytesJustWritten, errHeader := md.headerSerializer.serializeGlobalSliceHeader(outputStream, L)
+	bytesWritten += bytesJustWritten
+	if errHeader != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errHeader,
+			ErrorPrefix+"failed to write slice header. Error was %w",
+			"PointsSerialized", 0,
+			"PartialWrite", bytesWritten != 0)
+		return
+	}
+
+	// for efficiency, we batch-normalize the points, if supported.
+	normalizeable, ok := inputPoints.(curvePoints.BatchNormalizerForZ)
+	if ok {
+		_ = normalizeable.BatchNormalizeForZ() // Note: errors are ignored: Some points might not be normalized.
+		// Without knowing about the capabilities of the underlying serializers and point type, we cannot do anything about that.
+	}
+
+	var errNonBatch bandersnatchErrors.SerializationError
+	// write each point. Note that i is int, not int32 -- this is important to include it as parameter in errors.
+	for i := 0; i < LInt; i++ {
+		// write per-point-header
+		bytesJustWritten, errNonBatch = md.headerSerializer.serializePerPointHeader(outputStream)
+		bytesWritten += bytesJustWritten
+		if errNonBatch != nil {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+				ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
+				"PointsSerialized", i,
+				FIELDNAME_PARTIAL_WRITE, true)
+			return
+		}
+
+		// write point
+		bytesJustWritten, errNonBatch = pointSerializer.SerializeCurvePoint(outputStream, inputPoints.GetByIndex(i))
+		bytesWritten += bytesJustWritten
+		if errNonBatch != nil {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+				ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
+				"PointsSerialized", i,
+				FIELDNAME_PARTIAL_WRITE, true)
+			return
+		}
+
+		// write per-point footer. Note that PointsSerialized is set to i+1 here (this is debatable, but done for constency with failing slice reads)
+		bytesJustWritten, errNonBatch = md.headerSerializer.serializePerPointFooter(outputStream)
+		bytesWritten += bytesJustWritten
+		if errNonBatch != nil {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+				ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
+				"PointsSerialized", i+1,
+				FIELDNAME_PARTIAL_WRITE, true)
+			return
+		}
+	}
+
+	// write slice footer
+	bytesJustWritten, errNonBatch = md.headerSerializer.serializeGlobalSliceFooter(outputStream)
+	bytesWritten += bytesJustWritten
+	if errNonBatch != nil {
+		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+			ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
+			"PointsSerialized", LInt, // Note: PointsSerialize needs type int, not int32
+			FIELDNAME_PARTIAL_WRITE, true)
+		return
+	}
+
+	if bytesWritten != int(expectedSize) {
+		panic(fmt.Errorf(ErrorPrefix+"Slice serialization for slice of length %v was successful, but the number of bytes written was not what we expected: bytesWritten = %v, but we expected %v", LInt, bytesWritten, expectedSize))
+	}
+	return
+
 }

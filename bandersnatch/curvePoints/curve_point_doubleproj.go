@@ -10,7 +10,7 @@ import "math/rand"
 
 // Usually, we prefer inputs to be affine over projective over efgh. Output is always interally efgh first and then converted.
 // By making this explicit, we can, in fact, save computation if a coordinate is unused:
-// The doubling formula and the endomorphism can be computed directly from efgh-coordinates without going through X:Y:T:Z coordinates more efficiently that converting + conputing would cost.
+// The doubling formula and the endomorphism can be computed directly from efgh-coordinates without going through X:Y:T:Z coordinates more efficiently that converting + computing would cost.
 
 // Generally, if an output of a curve operation is only used once, it should remain in efgh-coordinates.
 // It is better to let the next operation on the point perform the conversion internally as part of the operation when and if it is needed.
