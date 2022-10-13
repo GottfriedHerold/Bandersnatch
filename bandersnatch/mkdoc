@@ -1,7 +1,0 @@
-#!/usr/bin/bash
-
-# I cannot properly install godoc in Ubuntu, since godoc is only available either via go tooling or Ubuntu's package manager
-# However, the latter only has Go1.18 ATM, wheres snap has Go1.19. I use the latter, because godoc's format actually changed
-# significantly.
-
-go run golang.org/x/tools/cmd/godoc
