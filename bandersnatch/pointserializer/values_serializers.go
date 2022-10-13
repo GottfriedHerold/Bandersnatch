@@ -7,6 +7,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -113,7 +114,7 @@ func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int
 	bytesJustRead, err := fieldElement2.Deserialize(input, s.fieldElementEndianness)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
+	errorTransform.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
 	return
 }
 
@@ -130,7 +131,7 @@ func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, 
 	bytesJustWritten, err := fieldElement2.Serialize(output, s.fieldElementEndianness)
 	bytesWritten += bytesJustWritten
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
+	errorTransform.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
 	return
 }
 
@@ -195,7 +196,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (b
 	bytesJustRead, err := fieldElement2.DeserializeWithPrefix(input, s.bitHeader2, s.fieldElementEndianness)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
+	errorTransform.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
 	return
 }
 
@@ -213,7 +214,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fie
 	bytesJustWritten, err := fieldElement2.SerializeWithPrefix(output, s.bitHeader2, s.fieldElementEndianness)
 	bytesWritten += bytesJustWritten
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
-	bandersnatchErrors.UnexpectEOF2(&err) // transform EOF -> UnexpectedEOF
+	errorTransform.UnexpectEOF2(&err) // transform EOF -> UnexpectedEOF
 	return
 }
 

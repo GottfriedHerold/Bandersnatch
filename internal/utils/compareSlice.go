@@ -2,7 +2,8 @@ package utils
 
 // Functionality scheduled for inclusion in Go's standard library,
 
-// compare two slices for equality.
+// CompareSlices compares two slices for equality.
+//
 // Note: nil != empty slice, nil == nil here.
 func CompareSlices[T comparable](x []T, y []T) bool {
 	if x == nil {

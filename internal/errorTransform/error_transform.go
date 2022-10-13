@@ -1,4 +1,7 @@
-package bandersnatchErrors
+// errorTransform is an internal (mini-)package that contains sub-routines to manipulate errors that are used for both curvePoints and fieldElements.
+//
+// Note: This is a separate package mostly because it depends on errorsWithData
+package errorTransform
 
 import (
 	"errors"

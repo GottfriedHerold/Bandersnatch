@@ -7,6 +7,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
@@ -163,7 +164,7 @@ func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefi
 		bytes_just_read, errPlain := io.ReadFull(input, buf[1:32])
 		bytesRead += bytes_just_read
 		if errPlain != nil {
-			bandersnatchErrors.UnexpectEOF(&errPlain) // Replace io.EOF -> io.ErrUnexpectedEOF
+			errorTransform.UnexpectEOF(&errPlain) // Replace io.EOF -> io.ErrUnexpectedEOF
 			return
 		}
 	} else {

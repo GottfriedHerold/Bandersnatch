@@ -11,6 +11,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
@@ -627,7 +628,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) DeserializeCurvePoints(inputS
 		if errSingle != nil {
 			// Turns an EOF into an UnexpectedEOF if i != 0.
 			if i != 0 {
-				bandersnatchErrors.UnexpectEOF2(&errSingle)
+				errorTransform.UnexpectEOF2(&errSingle)
 			}
 
 			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
@@ -672,7 +673,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) DeserializeCurvePoints(inputStr
 		if errSingle != nil {
 			// Turns an EOF into an UnexpectedEOF if i != 0.
 			if i != 0 {
-				bandersnatchErrors.UnexpectEOF2(&errSingle)
+				errorTransform.UnexpectEOF2(&errSingle)
 			}
 
 			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
@@ -965,8 +966,8 @@ func UseExistingSlice[PointType any, PointTypePtr interface {
 // Note that this method treats each point separately and does not write the slice size in-band. Use SerializeSlice for that.
 //
 // SerializeCurvePoints will stop at the first error. The error value contains data (accessible via the errorsWithData framework)
-//  - PointsSerialized (int) is the number of points successfully written
-//  - PartialWrite (bool) indicates whether some write operation wrote data that is not aligned with actually encoding points (e.g. due to some IO error in the middle of writing a point)
+//   - PointsSerialized (int) is the number of points successfully written
+//   - PartialWrite (bool) indicates whether some write operation wrote data that is not aligned with actually encoding points (e.g. due to some IO error in the middle of writing a point)
 func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoints(outputStream io.Writer, inputPoints curvePoints.CurvePointSlice) (bytesWritten int, err BatchSerializationError) {
 	// var _ BatchSerializationErrorData
 
@@ -990,7 +991,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SerializeCurvePoints(outputStre
 		bytesWritten += bytesJustWriten
 		if errSingle != nil {
 			if i != 0 {
-				bandersnatchErrors.UnexpectEOF2(&errSingle)
+				errorTransform.UnexpectEOF2(&errSingle)
 			}
 			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errSingle,
 				ErrorPrefix+"batch serialization failed after deserializing %{PointsSerialized} many points with error %w",

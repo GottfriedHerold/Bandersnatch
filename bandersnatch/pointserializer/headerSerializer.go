@@ -8,6 +8,7 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -27,12 +28,12 @@ import (
 // - (de)deserializeSinglePointFooter
 //
 // When (de)serializing a slice (this includes its length in-band), we call
-// - (de)serializeGlobalSliceHeader : This reads/writes the slice length
-// - for each element:
-//    -- (de)serializePerPointHeader
-//    -- actual point (de)serialization
-//    -- (de)serializePerPointFooter
-// - (de)serializeGlobalSliceFooter
+//   - (de)serializeGlobalSliceHeader : This reads/writes the slice length
+//   - for each element:
+//     -- (de)serializePerPointHeader
+//     -- actual point (de)serialization
+//     -- (de)serializePerPointFooter
+//   - (de)serializeGlobalSliceFooter
 //
 // NOTE: While the return type is int (for consistency with the standard library), we promise that all bytesRead / bytesWritten fit into an int32.
 // Too big reads/write will panic. This is to ensure consistency for 32-bit and 64-bit users.
@@ -240,7 +241,7 @@ func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reade
 	bytesJustRead, errPlain := io.ReadFull(input, buf[:])
 	bytesRead += bytesJustRead // Validate ensures this fits into int32
 	if errPlain != nil {
-		bandersnatchErrors.UnexpectEOF(&errPlain) // turn io.EOF into io.ErrUnexpectedEOF
+		errorTransform.UnexpectEOF(&errPlain) // turn io.EOF into io.ErrUnexpectedEOF
 		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errPlain,
 			FIELDNAME_PARTIAL_READ, bytesJustRead != simpleHeaderSliceLengthOverhead,
 			FIELDNAME_ACTUALLY_READ, buf[:],
@@ -286,7 +287,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 	bytesJustWritten, errPlain := output.Write(buf[:])
 	bytesWritten += bytesJustWritten // ensureInt32Constrains ensures this fits into int32
 	if errPlain != nil {
-		bandersnatchErrors.UnexpectEOF(&errPlain)
+		errorTransform.UnexpectEOF(&errPlain)
 		err = errorsWithData.NewErrorWithParametersFromData(errPlain, "%w", &bandersnatchErrors.WriteErrorData{
 			BytesWritten: bytesJustWritten,
 			PartialWrite: bytesJustWritten != simpleHeaderSliceLengthOverhead,

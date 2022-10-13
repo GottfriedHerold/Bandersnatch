@@ -61,8 +61,11 @@ func (bh *BitHeader) SetBitHeader(prefixBits PrefixBits, prefixLen uint8) {
 // It panics for invalid inputs.
 //
 // Note: PrefixBits is based on uint8 == byte.
-// You are supposed to write e.g. MakeBitHeader(PrefixBits(0b0101), 4)
-// with explicit type conversion to PrefixBits in order to not mess up the order of parameters.
+// You are supposed to write e.g.
+//
+//	MakeBitHeader(PrefixBits(0b0101), 4)
+//
+// with explicit type conversion to [PrefixBits] in order to not mess up the order of parameters.
 func MakeBitHeader(prefixBits PrefixBits, prefixLen uint8) BitHeader {
 	var ret BitHeader = BitHeader{prefixBits: prefixBits, prefixLen: prefixLen}
 	ret.validate()
@@ -96,6 +99,8 @@ func (bh *BitHeader) validate() {
 func (bh *BitHeader) Validate() {
 	bh.validate() // just double-checking.
 }
+
+// TODO: Move to internal?
 
 // implicit interface with methods SetSubgroupRestriction(bool) and IsSubgroupOnly() bool defined in tests only.
 // Since we use reflection, we don't need the explicit interface here.
