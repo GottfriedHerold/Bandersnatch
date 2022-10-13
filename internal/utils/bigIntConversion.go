@@ -35,3 +35,19 @@ func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
 	result[3] = binary.BigEndian.Uint64(big_endian_byte_slice[0:8])
 	return
 }
+
+// InitIntFromString initializes a big.Int from a given string similar to InitFieldElementFromString.
+// This internally uses big.Int's SetString and understands exactly those string formats.
+// This implies that the given string can be decimal, hex, octal or binary, but needs to be prefixed if not decimal.
+//
+// This essentially is equivalent to big.Int's SetString method, except that it panics on error (which is appropriate for initialization globals from constant strings literal).
+func InitIntFromString(input string) *big.Int {
+	var t *big.Int = big.NewInt(0)
+	var success bool
+	t, success = t.SetString(input, 0)
+	// Note: panic is the appropriate error handling here. Also, since this code is only run during package import, there is actually no way to catch it.
+	if !success {
+		panic("String used to initialized big.Int not recognized as a valid number")
+	}
+	return t
+}

@@ -20,6 +20,8 @@ import (
 // Note that sub-byte headers are fixed constants (stored in the serializer object) written/consumed upon (de)serializing.
 // They are not considered values and are invisible to the SerializeValues and DeserializeValues methods.
 
+// FieldElementEndianness is an extension of [binary.ByteOrder] that also works with field elements (in addition to Go's standard integer types).
+// It is used to control the endianness of field element serialization. See [common.FieldElementEndianness] for details.
 type FieldElementEndianness = common.FieldElementEndianness
 
 // aliases to make struct-embedding non-exported.

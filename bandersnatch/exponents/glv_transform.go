@@ -3,7 +3,7 @@ package exponents
 import (
 	"math/big"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // TODO: Doc is notationally not up-to-date
@@ -97,12 +97,12 @@ const (
 )
 
 var (
-	lBasis_11_Int = common.InitIntFromString(lBasis_11_string)
-	lBasis_12_Int = common.InitIntFromString(lBasis_12_string)
-	lBasis_21_Int = common.InitIntFromString(lBasis_21_string)
-	lBasis_22_Int = common.InitIntFromString(lBasis_22_string)
+	lBasis_11_Int = utils.InitIntFromString(lBasis_11_string)
+	lBasis_12_Int = utils.InitIntFromString(lBasis_12_string)
+	lBasis_21_Int = utils.InitIntFromString(lBasis_21_string)
+	lBasis_22_Int = utils.InitIntFromString(lBasis_22_string)
 
-	glvDecompositionMax_Int = common.InitIntFromString(glvDecompositionMax_string)
+	glvDecompositionMax_Int = utils.InitIntFromString(glvDecompositionMax_string)
 )
 
 // infty_norm computes the max of the absolute values of x and y.

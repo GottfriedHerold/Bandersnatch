@@ -5,6 +5,7 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file collects the various constants that we use throughout the Bandersnatch implementations.
@@ -55,7 +56,7 @@ const (
 	BaseFieldSize_string  = "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
 )
 
-var BaseFieldSize_Int = common.InitIntFromString(BaseFieldSize_string)
+var BaseFieldSize_Int = utils.InitIntFromString(BaseFieldSize_string)
 
 /*
 	These are used as constants in the multiplication algorithm.
@@ -106,7 +107,7 @@ const (
 	halfGroupOrder_string = "6554484396890773809930967563523245729654577946720285125893201653364843836400"
 )
 
-var halfGroupOrder_Int = common.InitIntFromString(halfGroupOrder_string)
+var halfGroupOrder_Int = utils.InitIntFromString(halfGroupOrder_string)
 
 // parameters a, d in twisted Edwards form ax^2 + y^2 = 1 + dx^2y^2
 
@@ -127,9 +128,9 @@ const (
 
 // CurveParameters as *big.Int's or FieldElements
 var (
-	CurveParameterD_Int *big.Int     = common.InitIntFromString(CurveParameterD_string)
+	CurveParameterD_Int *big.Int     = utils.InitIntFromString(CurveParameterD_string)
 	CurveParameterD_fe  FieldElement = fieldElements.InitFieldElementFromString(CurveParameterD_string)
-	CurveParameterA_Int *big.Int     = common.InitIntFromString(CurveParameterA_string)
+	CurveParameterA_Int *big.Int     = utils.InitIntFromString(CurveParameterA_string)
 	CurveParameterA_fe  FieldElement = fieldElements.InitFieldElementFromString(CurveParameterA_string)
 )
 

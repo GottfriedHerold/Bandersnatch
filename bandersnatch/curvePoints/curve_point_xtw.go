@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // point_xtw_base is a struct holding x,y,t,z values that can be used to represent an elliptic curve point on the Bandersnatch curve.
@@ -89,8 +89,8 @@ type Point_xtw_full struct {
 // TODO: Define and export in other coo formats?
 
 // example point on the subgroup specified in the bandersnatch paper
-var example_generator_x *big.Int = common.InitIntFromString("0x29c132cc2c0b34c5743711777bbe42f32b79c022ad998465e1e71866a252ae18")
-var example_generator_y *big.Int = common.InitIntFromString("0x2a6c669eda123e0f157d8b50badcd586358cad81eee464605e3167b6cc974166")
+var example_generator_x *big.Int = utils.InitIntFromString("0x29c132cc2c0b34c5743711777bbe42f32b79c022ad998465e1e71866a252ae18")
+var example_generator_y *big.Int = utils.InitIntFromString("0x2a6c669eda123e0f157d8b50badcd586358cad81eee464605e3167b6cc974166")
 var example_generator_t *big.Int = new(big.Int).Mul(example_generator_x, example_generator_y)
 var example_generator_xtw point_xtw_base = func() (ret point_xtw_base) {
 	ret.x.SetBigInt(example_generator_x)

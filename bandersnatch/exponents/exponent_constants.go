@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 const CurveExponent = common.CurveExponent
@@ -42,7 +43,7 @@ const (
 	groupOrder_3
 )
 
-var twoTo128_Int *big.Int = common.InitIntFromString("0x1_00000000_00000000_00000000_00000000")
+var twoTo128_Int *big.Int = utils.InitIntFromString("0x1_00000000_00000000_00000000_00000000")
 
 // (p253-1)/2. We can represent Z/p253 by numbers from -halfGroupOrder, ... , + halfGroupOrder. This is used in the GLV decomposition algorithm.
 const (
@@ -51,4 +52,4 @@ const (
 )
 
 // (p253-1)/2
-var halfGroupOrder_Int = common.InitIntFromString(halfGroupOrder_string)
+var halfGroupOrder_Int = utils.InitIntFromString(halfGroupOrder_string)
