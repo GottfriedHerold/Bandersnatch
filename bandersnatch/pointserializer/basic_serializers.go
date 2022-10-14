@@ -23,7 +23,7 @@ import (
 
 // curvePointDeserializer_basic is a deserializer for single curve points
 //
-// Note that methods for parameter modification are contained in the generic modifyableSerializer interface.
+// Note that methods for parameter modification are contained in the generic [modifyableSerializer] interface.
 // This is done in order to have the non-generic interface separate.
 type curvePointDeserializer_basic interface {
 	// DeserializeCurvePoint deserializes a single curve point from the inputStream. The output is written to output point.
@@ -34,7 +34,7 @@ type curvePointDeserializer_basic interface {
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type. This indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers without serializers, it is an upper bound.
 
-	GetParameter(parameterName string) any        // obtains a parameter (such as endianness. parameterName is case-insensitive.
+	GetParameter(parameterName string) any        // obtains a parameter (such as endianness). parameterName is case-insensitive.
 	GetEndianness() common.FieldElementEndianness // returns the endianness used for field element serialization.
 	Validate()                                    // internal self-check of parameters; this is exported because of reflect usage
 	RecognizedParameters() []string               // gives a list of recognized parameters
@@ -47,7 +47,6 @@ type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interf
 	WithParameter(parameterName string, newParam any) SelfValue // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
 	WithEndianness(newEndianness binary.ByteOrder) SelfValue    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
 	utils.Clonable[SelfPtr]                                     // gives a Clone() SelfPtr function to make copies of itself
-
 }
 
 // modifyableDeserializer_basic is the interface for deserializer of single curve points that allow parameter modifications.
@@ -217,7 +216,7 @@ func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (n
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
-// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
+// It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEndianness interface (which extends binary.ByteOrder).
 //
 // Invalid inputs cause a panic.
 func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXY {
@@ -734,8 +733,8 @@ func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, tru
 		ok := point.SetFromSubgroupPoint(&P, bandersnatch.TrustedInput) // P is trusted at this point
 		if !ok {
 			// This is supposed to be impossible to happen (unless the user lied wrt trusted-ness of input)
-			// Actually, even then, SetFromSubgroupPoint does not make checks for trusted input, so it ought to be unreachable; of course, this depends on the dynamic type of point, so don't
-			// want to make this assumption.
+			// Actually, even then, SetFromSubgroupPoint does not make checks for trusted input, so it ought to be unreachable;
+			// of course, this depends on implementation of the dynamic type of point, so we don't want to make this assumption.
 			// The error message is unspecific, because we can not guarantee that the previous steps produced valid outputs.
 			panic(fmt.Errorf(ErrorPrefix+"When deserializing trusted input from (X,Y)*SignOfY, an unexpected error happened during conversion to the desired curve point. XSignY = %v, YSignY = %v", XSignY, YSignY))
 		}

@@ -1084,7 +1084,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) SerializeSlice(outputStream io.
 	if errNonBatch != nil {
 		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
 			ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
-			"PointsSerialized", LInt, // Note: PointsSerialize needs type int, not int32
+			"PointsSerialized", LInt, // Note: PointsSerialized needs type int, not int32
 			FIELDNAME_PARTIAL_WRITE, true)
 		return
 	}

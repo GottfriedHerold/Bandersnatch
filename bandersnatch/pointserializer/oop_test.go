@@ -76,7 +76,7 @@ func TestConcatParameterList(t *testing.T) {
 
 }
 
-func ensureParamsAreValidForSerializer(serializer ParameterAware, t *testing.T) {
+func ensureParamsAreValidForSerializer(serializer parameterAware, t *testing.T) {
 
 	params := serializer.RecognizedParameters()
 	for _, param := range params {

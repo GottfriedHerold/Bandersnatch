@@ -22,7 +22,9 @@ import (
 // They are not considered values and are invisible to the SerializeValues and DeserializeValues methods.
 
 // FieldElementEndianness is an extension of [binary.ByteOrder] that also works with field elements (in addition to Go's standard integer types).
-// It is used to control the endianness of field element serialization. See [common.FieldElementEndianness] for details.
+// It is used to control the endianness of field element serialization.
+//
+// See [common.FieldElementEndianness] for details.
 type FieldElementEndianness = common.FieldElementEndianness
 
 // aliases to make struct-embedding non-exported.
@@ -42,8 +44,9 @@ type valuesSerializer interface {
 	RecognizedParameters() []string         // returns a list of parameters that can be set/queried for this particular serializer (type). For all our realizations, can be called with nil receivers.
 	HasParameter(parameterName string) bool // Checks whether a given parameter can be set/queried for this particular serializer (type). For all our realizations, can be called with nil receivers.
 	OutputLength() int32                    // Returns that number of bytes that this valuesSerializers will read/write when calling SerializeValues or DeserializeValues. For all our realizations, can be called with nil receivers.
+	// NOTE: The above extends parameterAware
 	// Functions not well-expressible via interface:
-	// Clone() PointerReceiver -- Returns an independent copy of itself.
+	// Clone() PointerReceiver -- Returns an independent copy of itself. Would require making the interface generic, which we do not want.
 	// SerializeValues(output io.Writer, [...]) (bytesWritten int, err bandersnatchErrors.SerializationError)
 	// DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, [...])
 }
@@ -99,7 +102,7 @@ type valuesSerializerFeFe struct {
 
 // DeserializeValues reads from input and returns values.
 //
-// # For valuesSerializerFeFe, it returns 2 field elements
+// For valuesSerializerFeFe, it returns 2 field elements
 //
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
@@ -286,7 +289,7 @@ func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, 
 
 // SerializeValues writes the given values (and possibly header) to output.
 //
-// For valuesSerializerFe, it writes 1field element.
+// For valuesSerializerFe, it writes 1 field element.
 func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	// no need for defer updateWriteError(...)
 	bytesWritten, err = fieldElement.Serialize(output, s.fieldElementEndianness)

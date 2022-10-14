@@ -173,38 +173,38 @@ func (shd *simpleHeaderDeserializer) Validate() {
 	l1 := len(shd.headerSingleCurvePoint)
 	l2 := len(shd.footerSingleCurvePoint)
 	if l1 > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has single-point header length of %v, which exceeds MaxInt32", l1))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has single-point header length of %v, which exceeds MaxInt32", l1))
 	}
 	if l2 > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has single-point footer length of %v, which exceeds MaxInt32", l2))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has single-point footer length of %v, which exceeds MaxInt32", l2))
 	}
 	var sum int64 = int64(l1) + int64(l2)
 	if sum > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has single-point overhead of %v, which exceeds MaxInt32", sum))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has single-point overhead of %v, which exceeds MaxInt32", sum))
 	}
 	l1 = len(shd.headerSlice)
 	l2 = len(shd.footerSlice)
 	if l1 > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has slice serialization header of length %v, which exceeds MaxInt32", l1))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has slice serialization header of length %v, which exceeds MaxInt32", l1))
 	}
 	if l2 > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has slice serialization footer of length %v, which exceeds MaxInt32", l2))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has slice serialization footer of length %v, which exceeds MaxInt32", l2))
 	}
 	sum = int64(l1) + int64(l2) + simpleHeaderSliceLengthOverhead
 	if sum > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has fixed overhead for slice serialization of length %v, which exceeds MaxInt32", sum))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has fixed overhead for slice serialization of length %v, which exceeds MaxInt32", sum))
 	}
 	l1 = len(shd.headerPerCurvePoint)
 	l2 = len(shd.footerPerCurvePoint)
 	if l1 > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has per-point header for slice serialization of length %v, which exceeds MaxInt32", l1))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has per-point header for slice serialization of length %v, which exceeds MaxInt32", l1))
 	}
 	if l2 > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has per-point footer for slice serialization of length %v, which exceeds MaxInt32", l2))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has per-point footer for slice serialization of length %v, which exceeds MaxInt32", l2))
 	}
 	sum = int64(l1) + int64(l2)
 	if sum > math.MaxInt32 {
-		panic(fmt.Errorf("bandersnatch / serialization: serializer has per-point overhead for slice serialization of length %v, which exceeds MaxInt32", sum))
+		panic(fmt.Errorf(ErrorPrefix+"serializer has per-point overhead for slice serialization of length %v, which exceeds MaxInt32", sum))
 	}
 }
 

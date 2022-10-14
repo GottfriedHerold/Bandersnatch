@@ -46,8 +46,8 @@ var serializerParams = map[string]struct {
 	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
 }
 
-// ParameterAware is the interface satisfied by all (parts of) serializers that work with makeCopyWithParameters
-type ParameterAware interface {
+// parameterAware is the interface satisfied by all (parts of) serializers that work with makeCopyWithParameters
+type parameterAware interface {
 	RecognizedParameters() []string // returns a slice of strings of all parameters that are recognized by this particular serializer.
 	HasParameter(paramName string) bool
 }
@@ -100,7 +100,7 @@ func hasSetterAndGetterForParameter(serializer any, parameterName string) bool {
 
 // these 2 might go to testing and use testutils.DoesMethodExist
 
-func validateSetter(serializer ParameterAware, parameterName string) {
+func validateSetter(serializer parameterAware, parameterName string) {
 	if serializer == nil {
 		panic(ErrorPrefix + "validateSetter called with nil serializer")
 	}
@@ -145,7 +145,7 @@ func validateSetter(serializer ParameterAware, parameterName string) {
 	}
 }
 
-func validateGetter(serializer ParameterAware, parameterName string) {
+func validateGetter(serializer parameterAware, parameterName string) {
 	if serializer == nil {
 		panic(ErrorPrefix + "validateGetter called with nil serializer")
 	}
@@ -210,7 +210,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	// utils.Clonable[SerializerPtr] OR utils.Clonable[SerializerType]
 	Validate()
-	ParameterAware
+	parameterAware
 },
 ](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
 
@@ -287,7 +287,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 // parameterName is case-insensitive.
 //
 // Note that we should pass a pointer to this function, since we reflect-call a function with it as receiver.
-func getSerializerParameter(serializer ParameterAware, parameterName string) interface{} {
+func getSerializerParameter(serializer parameterAware, parameterName string) interface{} {
 
 	// used for diagnostics.
 	receiverType := reflect.TypeOf(serializer)
