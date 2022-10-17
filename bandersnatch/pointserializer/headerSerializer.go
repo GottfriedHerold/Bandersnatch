@@ -50,8 +50,14 @@ type headerDeserializer interface {
 	HasParameter(parameterName string) bool
 }
 
-// these are the parameter names accepted by simpleHeaderDeserializer. This is returned by RecognizedParameters()
-var headerSerializerParams = []string{"GlobalSliceHeader", "GlobalSliceFooter", "SinglePointHeader", "SinglePointFooter", "PerPointHeader", "PerPointFooter"}
+// headerSerializerParams is the list of the parameter names accepted by simpleHeaderDeserializer. This is returned by RecognizedParameters(). Note we do not run normalizeParameters here.
+var headerSerializerParams = []string{
+	"GlobalSliceHeader",
+	"GlobalSliceFooter",
+	"SinglePointHeader",
+	"SinglePointFooter",
+	"PerPointHeader",
+	"PerPointFooter"}
 
 // headerSerializer extends headerDeserializer by also providing serialization routines.
 type headerSerializer interface {
@@ -252,7 +258,8 @@ func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reade
 
 	var sizeUInt32 uint32 = shd.sliceSizeEndianness.Uint32(buf[:])
 	if sizeUInt32 > math.MaxInt32 {
-		errPlain = errorsWithData.NewErrorWithParameters(bandersnatchErrors.ErrSizeDoesNotFitInt32, "%w. Size read when deserializing was %v{Size}", "Size", sizeUInt32)
+		errPlain = errorsWithData.NewErrorWithParameters(bandersnatchErrors.ErrSizeDoesNotFitInt32, "%w. Size read when deserializing was %v{Size}",
+			"Size", sizeUInt32)
 		err = errorsWithData.NewErrorWithParametersFromData(errPlain, "%w", &bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    bytesJustRead,
@@ -437,14 +444,15 @@ func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (
 	var ret64 int64
 	// shd.fixNilEntries()
 	if numPoints < 0 {
-		panic(fmt.Errorf(ErrorPrefix+"Querying overhead size for slice (de)serialization for negative length %v", numPoints))
+		panic(fmt.Errorf(ErrorPrefix+"Querying overhead size for slice (de)serialization for negative slice length %v", numPoints))
 	}
 	ret64 = int64(numPoints) * int64(len(shd.headerPerCurvePoint)+len(shd.footerPerCurvePoint)) // both factors are guaranteed to fit into int32, so no overflow here.
 	ret64 += simpleHeaderSliceLengthOverhead                                                    // for writing the size
 	ret64 += int64(len(shd.headerSlice) + len(shd.footerSlice))                                 // term added is guaranteed to fit into int32
 	// NOTE: ret64 is guaranteed to not have overflown an int64, since it is at most (2^31-1) * (2^31-1) + 4 + (2^31-1), which is smaller than 2^63-1
 	if ret64 > math.MaxInt32 {
-		err = errorsWithData.NewErrorWithParameters(nil, "MultiPointOverhead does not fit into int32, size was %v{Size}", "Size", ret64)
+		err = errorsWithData.NewErrorWithParameters(nil, "MultiPointOverhead does not fit into int32, size was %v{Size}",
+			"Size", ret64)
 	}
 	ret = int32(ret64)
 	return

@@ -48,18 +48,18 @@ func TestRecognizeParameterNames(t *testing.T) {
 
 // getParamDirectlyForSimpleHeaderDeserializer returns the []byte stored in a simpleHeaderDeserializer bypassing the getter.
 func getParamDirectlyForSimpleHeaderDeserializer(shd *simpleHeaderDeserializer, paramName string) []byte {
-	switch paramName {
-	case "GlobalSliceHeader":
+	switch normalizeParameter(paramName) {
+	case normalizeParameter("GlobalSliceHeader"):
 		return shd.headerSlice
-	case "GlobalSliceFooter":
+	case normalizeParameter("GlobalSliceFooter"):
 		return shd.footerSlice
-	case "SinglePointHeader":
+	case normalizeParameter("SinglePointHeader"):
 		return shd.headerSingleCurvePoint
-	case "SinglePointFooter":
+	case normalizeParameter("SinglePointFooter"):
 		return shd.footerSingleCurvePoint
-	case "PerPointHeader":
+	case normalizeParameter("PerPointHeader"):
 		return shd.headerPerCurvePoint
-	case "PerPointFooter":
+	case normalizeParameter("PerPointFooter"):
 		return shd.footerPerCurvePoint
 	default:
 		panic("unrecognized paramName")

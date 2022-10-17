@@ -105,7 +105,7 @@ func TestQueryFunctionsCallableOnNil(t *testing.T) {
 // This Test runs Validate on all values Serializers that we defined above.
 func TestAllValuesSerializersValidate(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
-		valueSerializer.(validater).Validate()
+		valueSerializer.Validate()
 	}
 }
 
