@@ -76,7 +76,7 @@ func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	for _, valueSerializerType := range allValueSerializerTypes {
 		// methods are defined on the pointer types
 		valueSerializerPtrType := reflect.PtrTo(valueSerializerType)
-		ok, reason := testutils.DoesMethodExist(valueSerializerPtrType, "Clone", []reflect.Type{}, []reflect.Type{valueSerializerPtrType})
+		ok, reason := utils.DoesMethodExist(valueSerializerPtrType, "Clone", []reflect.Type{}, []reflect.Type{valueSerializerPtrType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -133,7 +133,7 @@ func TestValuesSerializersRoundtrip(t *testing.T) {
 	for _, valuesSerializer := range allValuesSerializers {
 		serializerV := reflect.ValueOf(valuesSerializer)
 		serializerT := reflect.TypeOf(valuesSerializer)
-		var typeName string = testutils.GetReflectName(serializerT)
+		var typeName string = utils.GetReflectName(serializerT)
 		if serializerT.Kind() != reflect.Ptr {
 			t.Fatal("values serializer is not a pointer receiver")
 		}

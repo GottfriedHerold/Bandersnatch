@@ -78,7 +78,7 @@ func TestParameterSanityCheck(t *testing.T) {
 func TestBasicSerializersHasClonable(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
-		ok, reason := testutils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{serializerType})
+		ok, reason := utils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{serializerType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -92,7 +92,7 @@ func TestBasicSerializersHaveWithParams(t *testing.T) {
 		serializerNonPointerType := serializerType.Elem()
 		var arg1Type reflect.Type = utils.TypeOfType[string]()
 		var arg2Type reflect.Type = utils.TypeOfType[any]()
-		ok, reason := testutils.DoesMethodExist(serializerType, "WithParameter", []reflect.Type{arg1Type, arg2Type}, []reflect.Type{serializerNonPointerType})
+		ok, reason := utils.DoesMethodExist(serializerType, "WithParameter", []reflect.Type{arg1Type, arg2Type}, []reflect.Type{serializerNonPointerType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -105,7 +105,7 @@ func TestBasicSerializerHasWithEndianness(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
 		serializerValueType := serializerType.Elem()
-		ok, reason := testutils.DoesMethodExist(serializerType, "WithEndianness", []reflect.Type{utils.TypeOfType[binary.ByteOrder]()}, []reflect.Type{serializerValueType})
+		ok, reason := utils.DoesMethodExist(serializerType, "WithEndianness", []reflect.Type{utils.TypeOfType[binary.ByteOrder]()}, []reflect.Type{serializerValueType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -116,7 +116,7 @@ func TestBasicSerializerHasWithEndianness(t *testing.T) {
 
 func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 	for _, basicSerializer := range allSubgroupOnlySerializers {
-		var typeName string = testutils.GetReflectName(reflect.TypeOf(basicSerializer))
+		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
 
 		funSubgroupOnly := func(val bool) {
 			newSerializer := testutils.CallMethodByName(basicSerializer, "WithParameter", "SubgroupOnly", val)[0]
@@ -139,7 +139,7 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 
 func TestBasicSerializeNAPs(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
-		var typeName string = testutils.GetReflectName(reflect.TypeOf(basicSerializer))
+		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
 		var P curvePoints.Point_xtw_subgroup
 		if !P.IsNaP() {
 			t.Fatalf("Uninitialized Point is no NAP. This is not supposed not happen") // well, it's not really a problem semantically, but the test here would not work.
@@ -160,7 +160,7 @@ func TestBasicSerializeNAPs(t *testing.T) {
 
 func TestBasicSerializersNonSubgroup(t *testing.T) {
 	for _, basicSerializer := range allSubgroupOnlySerializers {
-		var typeName string = testutils.GetReflectName(reflect.TypeOf(basicSerializer))
+		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
 		var P curvePoints.Point_xtw_full
 		P.SetAffineTwoTorsion() // not in subgroup
 		var buf bytes.Buffer
@@ -187,7 +187,7 @@ func TestBasicSerializersRoundtrip(t *testing.T) {
 		const iterations = 20
 		for i := 0; i < iterations+outputLen; i++ {
 			var err error
-			serializerName := testutils.GetReflectName(reflect.TypeOf(basicSerializer))
+			serializerName := utils.GetReflectName(reflect.TypeOf(basicSerializer))
 			var subgroupOnly bool = basicSerializer.IsSubgroupOnly()
 			var inputPoint curvePoints.CurvePointPtrInterface
 			if subgroupOnly {

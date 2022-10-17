@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -181,7 +180,7 @@ func makePointSlice(pointType reflect.Type, size int) (asCurvePointSlice CurvePo
 	// TODO: Special case common reflect.Types: The following is the generic "default", which is horribly inefficient, thanks to Go.
 
 	if pointType.Kind() == reflect.Interface {
-		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a reflect.Type for the type %v, which is an interface type. The provided type must be a concrete type", testutils.GetReflectName(pointType)))
+		panic(fmt.Errorf(ErrorPrefix+"Called makePointSlice with a reflect.Type for the type %v, which is an interface type. The provided type must be a concrete type", utils.GetReflectName(pointType)))
 	}
 
 	var PtrType reflect.Type = reflect.PointerTo(pointType)

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -105,7 +104,7 @@ func validateSetter(serializer parameterAware, parameterName string) {
 		panic(ErrorPrefix + "validateSetter called with nil serializer")
 	}
 	serializerType := reflect.TypeOf(serializer)
-	var typeName string = testutils.GetReflectName(serializerType) // used for better error messages
+	var typeName string = utils.GetReflectName(serializerType) // used for better error messages
 
 	// Retrieve method name from parameterName
 	parameterNameNormalized := normalizeParameter(parameterName) // case-insensitive. The map keys are all normalized
@@ -141,7 +140,7 @@ func validateSetter(serializer parameterAware, parameterName string) {
 	inputArgType := setterType.In(1) // declared argument type for the setter function.
 	if !paramInfo.vartype.AssignableTo(inputArgType) {
 		panic(fmt.Errorf(ErrorPrefix+"validateSetter detected setter %v for %v with invalid signature: We expected a type %v, but got %v instead",
-			paramInfo.setter, typeName, testutils.GetReflectName(paramInfo.vartype), testutils.GetReflectName(inputArgType)))
+			paramInfo.setter, typeName, utils.GetReflectName(paramInfo.vartype), utils.GetReflectName(inputArgType)))
 	}
 }
 
@@ -150,7 +149,7 @@ func validateGetter(serializer parameterAware, parameterName string) {
 		panic(ErrorPrefix + "validateGetter called with nil serializer")
 	}
 	serializerType := reflect.TypeOf(serializer)
-	var typeName string = testutils.GetReflectName(serializerType) // used for better error messages
+	var typeName string = utils.GetReflectName(serializerType) // used for better error messages
 
 	// Retrieve method name from parameterName
 	parameterNameNormalized := normalizeParameter(parameterName) // case-insensitive. The map keys are all normalized
@@ -188,7 +187,7 @@ func validateGetter(serializer parameterAware, parameterName string) {
 	returnedType := getterType.Out(0) // declared return type for the getter function.
 	if !returnedType.AssignableTo(exptectedArgType) {
 		panic(fmt.Errorf(ErrorPrefix+"validateGetter detected getter %v for %v with invalid signature: We expected a return type %v, but got %v instead",
-			paramInfo.setter, typeName, testutils.GetReflectName(exptectedArgType), testutils.GetReflectName(returnedType)))
+			paramInfo.setter, typeName, utils.GetReflectName(exptectedArgType), utils.GetReflectName(returnedType)))
 	}
 }
 
@@ -215,7 +214,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 ](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
 
 	// Obtain string representations of parameter type. This is only used for better error messages.
-	var typeName string = testutils.GetReflectName(utils.TypeOfType[SerializerType]())
+	var typeName string = utils.GetReflectName(utils.TypeOfType[SerializerType]())
 
 	// Retrieve method name from parameterName
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive. The map keys are all normalized
@@ -268,7 +267,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	newParamValue := reflect.ValueOf(newParam)
 	newParamType := newParamValue.Type()
 	if !newParamType.AssignableTo(paramInfo.vartype) {
-		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with wrong type of argument %v. Expected argument type was %v", testutils.GetReflectName(newParamType), testutils.GetReflectName(paramInfo.vartype)))
+		panic(fmt.Errorf(ErrorPrefix+"makeCopyWithParams called with wrong type of argument %v. Expected argument type was %v", utils.GetReflectName(newParamType), utils.GetReflectName(paramInfo.vartype)))
 	}
 
 	// Call Setter on clone with new value. This may fail for various reasons (such as a Validate() call from the setter panicking)
@@ -291,7 +290,7 @@ func getSerializerParameter(serializer parameterAware, parameterName string) int
 
 	// used for diagnostics.
 	receiverType := reflect.TypeOf(serializer)
-	receiverName := testutils.GetReflectName(receiverType)
+	receiverName := utils.GetReflectName(receiverType)
 
 	// check whether parameterName is recognized by the serializer
 	if !serializer.HasParameter(parameterName) {

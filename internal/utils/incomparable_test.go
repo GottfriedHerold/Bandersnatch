@@ -3,8 +3,6 @@ package utils
 import (
 	"reflect"
 	"testing"
-
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
 func TestIncomparability(t *testing.T) {
@@ -28,9 +26,28 @@ func TestIncomparability(t *testing.T) {
 
 	// type anyComparable[T comparable] interface{}
 
-	testutils.FatalUnless(t, type_comparable.Comparable(), "dummy type incomparable")
-	testutils.FatalUnless(t, !type_incomparable.Comparable(), "dummy type not incomparable")
-	testutils.FatalUnless(t, !type_incomparable2.Comparable(), "dummy type2 not incomparable")
-	testutils.FatalUnless(t, type_comparable.Size() == type_incomparable.Size(), "MakeIncomparable changes memory size")
-	testutils.FatalUnless(t, type_comparable.Size() == type_incomparable2.Size(), "MakeIncomparable changes memory size (2)")
+	// expanded below, we avoid testutils.FatalUnless due to dependency cycles
+	/*
+		testutils.FatalUnless(t, type_comparable.Comparable(), "dummy type incomparable")
+		testutils.FatalUnless(t, !type_incomparable.Comparable(), "dummy type not incomparable")
+		testutils.FatalUnless(t, !type_incomparable2.Comparable(), "dummy type2 not incomparable")
+		testutils.FatalUnless(t, type_comparable.Size() == type_incomparable.Size(), "MakeIncomparable changes memory size")
+		testutils.FatalUnless(t, type_comparable.Size() == type_incomparable2.Size(), "MakeIncomparable changes memory size (2)")
+	*/
+
+	if !type_comparable.Comparable() {
+		t.Fatalf("dummy type incomparable")
+	}
+	if type_incomparable.Comparable() {
+		t.Fatalf("dummy type not incomparable")
+	}
+	if type_incomparable2.Comparable() {
+		t.Fatalf("dummy type2 not incomparable")
+	}
+	if type_comparable.Size() != type_incomparable.Size() {
+		t.Fatalf("MakeIncomparable changes memory size")
+	}
+	if type_comparable.Size() != type_incomparable2.Size() {
+		t.Fatalf("MakeIncomaprable changes memory size (2)")
+	}
 }

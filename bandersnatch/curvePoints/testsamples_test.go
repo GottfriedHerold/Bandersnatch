@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 /*
@@ -167,7 +168,7 @@ func pointTypeToString(c PointType) string {
 	if ok {
 		return ret
 	} else {
-		return "unrecognized type [" + testutils.GetReflectName(c) + "]"
+		return "unrecognized type [" + utils.GetReflectName(c) + "]"
 	}
 }
 
@@ -190,7 +191,7 @@ func pointTypeToTag(c PointType) string {
 	if ok {
 		return ret
 	} else {
-		return "unrecognized tag [" + testutils.GetReflectName(c) + "]"
+		return "unrecognized tag [" + utils.GetReflectName(c) + "]"
 	}
 }
 

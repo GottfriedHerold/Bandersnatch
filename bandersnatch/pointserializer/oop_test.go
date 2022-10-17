@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // keys in the global serializerParams act case-insensitve, which is implemented via normalization to lowercase. So the entries in the map must be lowercase.
@@ -83,10 +84,10 @@ func ensureParamsAreValidForSerializer(serializer parameterAware, t *testing.T) 
 		validateGetter(serializer, param)
 		validateSetter(serializer, param)
 		if !serializer.HasParameter(param) {
-			t.Fatalf("Serializer of type %v does not have parameter %v recognized by HasParameter", testutils.GetReflectName(reflect.TypeOf(serializer)), param)
+			t.Fatalf("Serializer of type %v does not have parameter %v recognized by HasParameter", utils.GetReflectName(reflect.TypeOf(serializer)), param)
 		}
 		if serializer.HasParameter("InvalidParameter") {
-			t.Fatalf("Serializer of type %v does recognize an invalid paramter as valid", testutils.GetReflectName(reflect.TypeOf(serializer)))
+			t.Fatalf("Serializer of type %v does recognize an invalid paramter as valid", utils.GetReflectName(reflect.TypeOf(serializer)))
 		}
 	}
 
