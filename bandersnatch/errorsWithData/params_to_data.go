@@ -132,7 +132,7 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 	m := GetAllParametersFromError(e)
 	for _, expectedField := range allExpectedFields {
 		// Special case e==nil for better error message.
-		// If e == nil, GetParameterFromError returns nil, false so any iteration of the for loop ends up here.
+		// If e == nil, GetParameterFromError returns (nil, false) so any iteration of the for loop ends up here.
 		if e == nil {
 			err = fmt.Errorf(errorPrefix+"nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
 			return

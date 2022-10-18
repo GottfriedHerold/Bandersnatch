@@ -153,3 +153,5 @@ var (
 )
 
 */
+
+const ErrorPrefix = "bandersnatch / common: "
