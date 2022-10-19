@@ -360,7 +360,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName st
 	if basicPointer.HasParameter(parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
-		return getSerializerParameter(&md.headerDeserializer, parameterName)
+		return default_getParameter(&md.headerDeserializer, parameterName)
 	}
 }
 
@@ -374,7 +374,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName stri
 	if basicPointer.HasParameter(parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
-		return getSerializerParameter(&md.headerSerializer, parameterName)
+		return default_getParameter(&md.headerSerializer, parameterName)
 	}
 }
 

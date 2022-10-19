@@ -102,7 +102,7 @@ type valuesSerializerFeFe struct {
 
 // DeserializeValues reads from input and returns values.
 //
-// For valuesSerializerFeFe, it returns 2 field elements
+// # For valuesSerializerFeFe, it returns 2 field elements
 //
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
@@ -168,6 +168,22 @@ func (s *valuesSerializerFeFe) RecognizedParameters() []string {
 // This method works with nil receivers.
 func (s *valuesSerializerFeFe) HasParameter(parameterName string) bool {
 	return normalizeParameter(parameterName) == normalizeParameter("Endianness") // Only endianness, from embedded field.
+}
+
+// GetParameter returns the parameter given by parameterName.
+//
+// This method panics for invalid parameterName.
+// For valuesSerializerFeFe, only "Endianness" is accepted.
+func (s *valuesSerializerFeFe) GetParameter(parameterName string) any {
+	return default_getParameter(s, parameterName)
+}
+
+// WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
+//
+// This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
+// For valuesSerializerFeFe, only "Endianness" is accepted and newParam must be accepted by [common.FieldElementEndianness]'s SetEndianness method.
+func (s *valuesSerializerFeFe) WithParameter(parameterName string, newParam any) *valuesSerializerFeFe {
+	return default_withParameter(s, parameterName, newParam)
 }
 
 //*******************************************************************************************************************************
@@ -259,6 +275,22 @@ func (s *valuesSerializerHeaderFeHeaderFe) RecognizedParameters() []string {
 // This method works with nil receivers.
 func (s *valuesSerializerHeaderFeHeaderFe) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
+// GetParameter returns the parameter given by parameterName.
+//
+// This method panics for invalid parameterName.
+// For valuesSerializerFeFe, only "Endianness, BitHeader" and "BitHeader2" are accepted.
+func (s *valuesSerializerHeaderFeHeaderFe) GetParameter(parameterName string) any {
+	return default_getParameter(s, parameterName)
+}
+
+// WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
+//
+// This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
+// For valuesSerializerFeFe, only "Endianness" is accepted and newParam must be accepted by [common.FieldElementEndianness]'s SetEndianness method.
+func (s *valuesSerializerHeaderFeHeaderFe) WithParameter(parameterName string, newParam any) *valuesSerializerHeaderFeHeaderFe {
+	return default_withParameter(s, parameterName, newParam)
 }
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.

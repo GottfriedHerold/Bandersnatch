@@ -1,5 +1,33 @@
 package playground
 
+import (
+	"fmt"
+	"reflect"
+	"testing"
+)
+
+func TestNilReflect(t *testing.T) {
+	makeNil := func() any {
+		return nil
+	}
+
+	makeNilFun := reflect.ValueOf(makeNil)
+	out := makeNilFun.Call([]reflect.Value{})[0]
+	fmt.Println(out)
+	if out.IsValid() {
+		fmt.Println("Good")
+	}
+	outinterface := out.Interface()
+	if outinterface == nil {
+		fmt.Println("good2")
+	}
+
+	a := reflect.ValueOf(error(nil))
+	if !a.IsValid() {
+		fmt.Println("!!!")
+	}
+}
+
 /*
 func getCofactors(P *Point_xtw) (tN, tA, t1, t2 FieldElement) {
 	var tmp FieldElement

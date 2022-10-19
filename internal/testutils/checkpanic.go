@@ -6,12 +6,12 @@ import (
 	"strings"
 )
 
-// CheckPanic runs fun(args...), captures all panics() and returns whether a panic occurred.
-// It does not re-raise or return the actual panic argument
+// CheckPanic2 runs fun(args...), captures all panics() and returns whether a panic occurred (and if so, which).
+// It does not re-raise the actual panic argument
 // (unless the panic argument is a string starting with "reflect" -- likely an error from the reflect package)
 //
-// This function is only used in testing. It does not work with untyped nil arguments to variadic functions fun due to limitations of Go1.18.
-func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
+// This function is only used in testing. At the moment, it does not work with nil interface arguments to variadic functions fun.
+func CheckPanic2(fun interface{}, args ...interface{}) (didPanic bool, panicValue any) {
 	didPanic = true
 	fun_reflected := reflect.ValueOf(fun)
 	if fun_reflected.Kind() != reflect.Func {
@@ -33,6 +33,9 @@ func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
 		// As of Go1.18, we need to specifically catch that case,
 		// analyze the type of argument that fun_reflected expects and create a nil value
 		// of appropriate interface/chan/map/func/pointer/slice type
+
+		// NOTE: We actually have common.CallFunction_FixNil for that; unfortunately, we cannot use it here,
+		// because we need make some checks (and panic on failure) done by CallFunction_FixNil before the defer() and the actual call done by CallFunction_FixNeil after the defer() below.
 
 		// checking for untyped nil
 		if args[i] == nil {
@@ -56,12 +59,12 @@ func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
 	// HACK: 	we check whether the panic's error starts with reflect (by convention, such errors start with the package name --
 	// 			indeed, checking my used standard library source code for Go1.17 confirms this)
 	defer func() {
-		err := recover()
-		if err == nil {
+		panicValue = recover()
+		if panicValue == nil {
 			return
 		}
 		var errstring string
-		switch err := err.(type) {
+		switch err := panicValue.(type) {
 		case string:
 			errstring = err
 		case error:
@@ -72,10 +75,20 @@ func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
 			return
 		}
 		if strings.HasPrefix(errstring, "reflect") {
-			panic(err)
+			panic(panicValue)
 		}
 	}()
 	fun_reflected.Call(function_arguments)
 	didPanic = false
+	return
+}
+
+// CheckPanic runs fun(args...), captures all panics() and returns whether a panic occurred.
+// It does not re-raise or return the actual panic argument
+// (unless the panic argument is a string starting with "reflect" -- likely an error from the reflect package)
+//
+// This function is only used in testing. It does not work with untyped nil arguments to variadic functions fun at the moment.
+func CheckPanic(fun interface{}, args ...interface{}) (didPanic bool) {
+	didPanic, _ = CheckPanic2(fun, args...)
 	return
 }

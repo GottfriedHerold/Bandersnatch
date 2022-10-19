@@ -1,12 +1,10 @@
 package pointserializer
 
 import (
-	"encoding/binary"
 	"fmt"
 	"reflect"
 	"strings"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
@@ -25,25 +23,6 @@ import (
 // We "solve" this problem by just screwing with idiomatic Go and use reflection:
 // We bascially define a makeCopyWithParams function defined for the embedding struct (and is hence aware of it) that just calls the appropriate
 // functions on the embedded struct via reflection.
-
-// serializerParams is a global constant map that is used to lookup the names of setter and getter methods and their expected/returned types (which are called via reflection)
-var serializerParams = map[string]struct {
-	getter  string
-	setter  string
-	vartype reflect.Type
-}{
-	// Note: We use utils.TypeOfType rather than reflect.TypeOf, since this also works with interface types such as binary.ByteOrder.
-	normalizeParameter("Endianness"):        {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
-	normalizeParameter("BitHeader"):         {getter: "GetBitHeader", setter: "SetBitHeaderFromBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
-	normalizeParameter("BitHeader2"):        {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
-	normalizeParameter("SubgroupOnly"):      {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
-	normalizeParameter("GlobalSliceHeader"): {getter: "GetGlobalSliceHeader", setter: "SetGlobalSliceHeader", vartype: utils.TypeOfType[[]byte]()},
-	normalizeParameter("GlobalSliceFooter"): {getter: "GetGlobalSliceFooter", setter: "SetGlobalSliceFooter", vartype: utils.TypeOfType[[]byte]()},
-	normalizeParameter("PerPointHeader"):    {getter: "GetPerPointHeader", setter: "SetPerPointHeader", vartype: utils.TypeOfType[[]byte]()},
-	normalizeParameter("PerPointFooter"):    {getter: "GetPerPointFooter", setter: "SetPerPointFooter", vartype: utils.TypeOfType[[]byte]()},
-	normalizeParameter("SinglePointHeader"): {getter: "GetSinglePointHeader", setter: "SetSinglePointHeader", vartype: utils.TypeOfType[[]byte]()},
-	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
-}
 
 // parameterAware is the interface satisfied by all (parts of) serializers that work with makeCopyWithParameters
 type parameterAware interface {
@@ -64,39 +43,6 @@ func concatParameterList(list1 []string, list2 []string) []string {
 	return utils.ConcatenateListsWithoutDuplicates(list1, list2, normalizeParameter)
 }
 
-// TOOD: This does not check argument types for getters and setters!
-
-// hasSetterAndGetterForParameter(serializer, parameterName) checks whether the (dynamic) type of serializer has setter and getter methods for the given parameter.
-// The name of these getter and setter methods is looked up via the serializerParams map.
-// parameterName is case-insensitive
-//
-// Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
-//
-// Note: This internal function does NOT look at RecognizedParameters().
-// It instead uses reflection to check the presence of methods.
-// It panics if called on invalid parameter strings not in the serializerParams map.
-//
-// DEPRECATED
-func hasSetterAndGetterForParameter(serializer any, parameterName string) bool {
-	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
-	paramInfo, ok := serializerParams[parameterName]
-
-	// Technically, we could just meaningfully return false if parameterName is not found in serializerParams.
-	// However, this is an internal function and we never intend to call hasParameter on anything but a fixed string which is supposed to be a key of the serializerParams map.
-	// Hence, this can only occur due to a bug (e.g. a typo in the parameterName string).
-	if !ok {
-		panic(ErrorPrefix + "hasParameter called with unrecognized parameter name")
-	}
-
-	serializerType := reflect.TypeOf(serializer)
-	_, ok = serializerType.MethodByName(paramInfo.getter)
-	if !ok {
-		return false
-	}
-	_, ok = serializerType.MethodByName(paramInfo.setter)
-	return ok
-}
-
 // these 2 might go to testing and use testutils.DoesMethodExist
 
 func validateSetter(serializer parameterAware, parameterName string) {
@@ -108,7 +54,7 @@ func validateSetter(serializer parameterAware, parameterName string) {
 
 	// Retrieve method name from parameterName
 	parameterNameNormalized := normalizeParameter(parameterName) // case-insensitive. The map keys are all normalized
-	paramInfo, ok := serializerParams[parameterNameNormalized]
+	paramInfo, ok := default_serializerParamFuns[parameterNameNormalized]
 	if !ok {
 		panic(fmt.Errorf(ErrorPrefix+"validateSetter called with unrecognized parameter name %v. This is unrecognized no matter the serializer type", parameterName))
 	}
@@ -153,7 +99,7 @@ func validateGetter(serializer parameterAware, parameterName string) {
 
 	// Retrieve method name from parameterName
 	parameterNameNormalized := normalizeParameter(parameterName) // case-insensitive. The map keys are all normalized
-	paramInfo, ok := serializerParams[parameterNameNormalized]
+	paramInfo, ok := default_serializerParamFuns[parameterNameNormalized]
 	if !ok {
 		panic(fmt.Errorf(ErrorPrefix+"validateGetter called with unrecognized parameter name %v. This is unrecognized no matter the serializer type", parameterName))
 	}
@@ -191,13 +137,6 @@ func validateGetter(serializer parameterAware, parameterName string) {
 	}
 }
 
-// TODO: We may remove this after making Validate() a hard requirement for all components of our serializer parts.
-
-// validater is an interface used for type-asserting/checking whether some type has a Validate() method
-type validater interface {
-	Validate() // panics on failure, so no return value
-}
-
 // makeCopyWithParameters(serializer, parameterName, newParam) takes a serializer (anything with a Clone-method, really) and returns an
 // independent copy (create via Clone() with the parameter given by parameterName replaced by newParam.
 //
@@ -208,7 +147,7 @@ type validater interface {
 func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	*SerializerType
 	// utils.Clonable[SerializerPtr] OR utils.Clonable[SerializerType]
-	Validate()
+	// Validate()
 	parameterAware
 },
 ](serializer SerializerPtr, parameterName string, newParam any) SerializerType {
@@ -218,7 +157,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 
 	// Retrieve method name from parameterName
 	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive. The map keys are all normalized
-	paramInfo, ok := serializerParams[parameterName]
+	paramInfo, ok := default_serializerParamFuns[parameterName]
 	if !ok {
 		panic(ErrorPrefix + "makeCopyWithParams called with unrecognized parameter name")
 	}
@@ -276,63 +215,7 @@ func makeCopyWithParameters[SerializerType any, SerializerPtr interface {
 	// Any setter called above should, of course, validate whether the input is valid;
 	// however in some cases, there are constraints that cannot be handled by the setter
 	// (such as a setter from a struct-embedded type, where there are constraints imposed via the embedding type)
-	clonePtr.Validate()
+	// clonePtr.Validate()
 
 	return *clonePtr
-}
-
-// getSerializerParameter takes a serializer and returns the parameter stored under the key parameterName.
-// The type of the return value depends on parameterName.
-// parameterName is case-insensitive.
-//
-// Note that we should pass a pointer to this function, since we reflect-call a function with it as receiver.
-func getSerializerParameter(serializer parameterAware, parameterName string) interface{} {
-
-	// used for diagnostics.
-	receiverType := reflect.TypeOf(serializer)
-	receiverName := utils.GetReflectName(receiverType)
-
-	// check whether parameterName is recognized by the serializer
-	if !serializer.HasParameter(parameterName) {
-		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with parameter name %v that is not among the list of recognized parameters for this type", receiverName, parameterName))
-	}
-
-	// Normalize parameterName
-	parameterName = normalizeParameter(parameterName)
-
-	// Obtain getter method string
-	paramInfo, ok := serializerParams[parameterName]
-	if !ok {
-		// If we get here, something output by RecognizedParameters() is not in the global serializerParams map.
-		// This is not supposed to happen even if we call getSerializerParameter with bad input.
-		panic(fmt.Errorf(ErrorPrefix+"getSerializerParam called on %v with unrecognized parameter name %v (normalized). This is not supposed to be possible", receiverName, parameterName))
-	}
-
-	getterName := paramInfo.getter
-	expectedReturnType := paramInfo.vartype // Note: If this an interface type, it's OK if the getter returns a realization.
-
-	// Obtain getter Method
-	serializerValue := reflect.ValueOf(serializer)
-	getterMethod := serializerValue.MethodByName(getterName)
-
-	// Check some validity contraints on the getter
-	if !getterMethod.IsValid() {
-		panic(fmt.Errorf("bandersnatch / serialization: getSerializerParam called on %v with parameter %v, but that type does not have a %v method", receiverName, parameterName, getterName))
-	}
-	getterType := getterMethod.Type()
-	if numIn := getterType.NumIn(); numIn != 0 {
-		panic(fmt.Errorf(ErrorPrefix+"Getter Method %v called via getSerializeParam on %v takes %v > 0 arguments", getterName, receiverName, numIn))
-	}
-	if numOut := getterType.NumOut(); numOut != 1 {
-		panic(fmt.Errorf(ErrorPrefix+"Getter Method %v called via getSerializeParam on %v returns %v != 1 arguments", getterName, receiverName, numOut))
-	}
-
-	// Check type returned by getter method. Note: If the getter method returns an interface (such as any), we should actually check the dynamic type.
-	// The latter is hard to get right (due to nil etc) and can only be done AFTER the actual call, so we just don't; this is only for better diagnostics anyway.
-	if outType := getterType.Out(0); !outType.AssignableTo(expectedReturnType) && outType.Kind() != reflect.Interface {
-		panic(fmt.Errorf(ErrorPrefix+"Getter Method %v called via getSerializeParam on %v returns value of type %v, which is not assignable to %v", getterName, receiverName, outType, expectedReturnType))
-	}
-
-	retValue := getterMethod.Call([]reflect.Value{})[0] // Note: If the getter method returns an interface, retValue.Type() is actually this static interface type.
-	return retValue.Interface()
 }

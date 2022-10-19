@@ -9,9 +9,43 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// TOOD: This does not check argument types for getters and setters!
+// NOTE: Has been moved to test, will probably be removed completely.
+
+// hasSetterAndGetterForParameter(serializer, parameterName) checks whether the (dynamic) type of serializer has setter and getter methods for the given parameter.
+// The name of these getter and setter methods is looked up via the serializerParams map.
+// parameterName is case-insensitive
+//
+// Note that the serializer argument is only used to derive the generic parameters and may be a nil pointer of the appropriate type.
+//
+// Note: This internal function does NOT look at RecognizedParameters().
+// It instead uses reflection to check the presence of methods.
+// It panics if called on invalid parameter strings not in the serializerParams map.
+//
+// DEPRECATED
+func hasSetterAndGetterForParameter(serializer any, parameterName string) bool {
+	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive
+	paramInfo, ok := default_serializerParamFuns[parameterName]
+
+	// Technically, we could just meaningfully return false if parameterName is not found in serializerParams.
+	// However, this is an internal function and we never intend to call hasParameter on anything but a fixed string which is supposed to be a key of the serializerParams map.
+	// Hence, this can only occur due to a bug (e.g. a typo in the parameterName string).
+	if !ok {
+		panic(ErrorPrefix + "hasParameter called with unrecognized parameter name")
+	}
+
+	serializerType := reflect.TypeOf(serializer)
+	_, ok = serializerType.MethodByName(paramInfo.getter)
+	if !ok {
+		return false
+	}
+	_, ok = serializerType.MethodByName(paramInfo.setter)
+	return ok
+}
+
 // keys in the global serializerParams act case-insensitve, which is implemented via normalization to lowercase. So the entries in the map must be lowercase.
 func TestParamsNormalized(t *testing.T) {
-	for key := range serializerParams {
+	for key := range default_serializerParamFuns {
 		if key != normalizeParameter(key) {
 			t.Fatalf("serializerParams has non-normalized key %v", key)
 		}

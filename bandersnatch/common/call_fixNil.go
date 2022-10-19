@@ -33,5 +33,4 @@ func CallFunction_FixNil(fun reflect.Value, in []reflect.Value) (out []reflect.V
 		}
 	}
 	return fun.Call(in)
-
 }

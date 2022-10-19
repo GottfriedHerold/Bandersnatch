@@ -1,6 +1,7 @@
 package pointserializer
 
 import (
+	"encoding/binary"
 	"fmt"
 	"reflect"
 
@@ -27,7 +28,7 @@ var stringType = utils.TypeOfType[string]()
 // Typically, t is a (de-)serializer, but we also use it internally on sub-units of serializers.
 //
 // NOTE: This free function works by assuming that t satsfies the ParameterAware interface.
-// We require (not expressible via Go interfaces without generics, which would not work here) as part of the interface that
+// We require (not expressible via Go interfaces without generics, and generics would not work here) as part of that interface that
 // T (or potentially a value receiver) has a method WithParameter(string, any) DynamicallyAssignableTo<T>
 // which returns something whose *dynamic* type is assignable to T.
 func WithParameter[T ParameterAware](t T, paramName string, newParam any) T {
@@ -59,4 +60,139 @@ func WithParameter[T ParameterAware](t T, paramName string, newParam any) T {
 
 	// should we panic with a more verbose error message if that type-assertion fails?
 	return out.Interface().(T)
+}
+
+func default_hasParameter[T interface{ RecognizedParameters() []string }](t T, paramName string) bool {
+	return utils.ElementInList(paramName, t.RecognizedParameters(), normalizeParameter)
+}
+
+// default_serializerParamFuns is a global constant map that is used to lookup the names of setter and getter methods and their expected/returned types (which are called via reflection)
+var default_serializerParamFuns = map[string]struct {
+	getter  string
+	setter  string
+	vartype reflect.Type
+}{
+	// Note: We use utils.TypeOfType rather than reflect.TypeOf, since this also works with interface types such as binary.ByteOrder.
+	normalizeParameter("Endianness"):        {getter: "GetEndianness", setter: "SetEndianness", vartype: utils.TypeOfType[binary.ByteOrder]()},
+	normalizeParameter("BitHeader"):         {getter: "GetBitHeader", setter: "SetBitHeaderFromBitHeader", vartype: utils.TypeOfType[common.BitHeader]()},
+	normalizeParameter("BitHeader2"):        {getter: "GetBitHeader2", setter: "SetBitHeader2", vartype: utils.TypeOfType[common.BitHeader]()},
+	normalizeParameter("SubgroupOnly"):      {getter: "IsSubgroupOnly", setter: "SetSubgroupRestriction", vartype: utils.TypeOfType[bool]()},
+	normalizeParameter("GlobalSliceHeader"): {getter: "GetGlobalSliceHeader", setter: "SetGlobalSliceHeader", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("GlobalSliceFooter"): {getter: "GetGlobalSliceFooter", setter: "SetGlobalSliceFooter", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("PerPointHeader"):    {getter: "GetPerPointHeader", setter: "SetPerPointHeader", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("PerPointFooter"):    {getter: "GetPerPointFooter", setter: "SetPerPointFooter", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("SinglePointHeader"): {getter: "GetSinglePointHeader", setter: "SetSinglePointHeader", vartype: utils.TypeOfType[[]byte]()},
+	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
+}
+
+// default_getParameter takes a serializer and returns the parameter stored under the key parameterName.
+// The type of the return value depends on parameterName.
+// parameterName is case-insensitive.
+//
+// Note that we should pass a pointer to this function, since we reflect-call a function with it as receiver.
+func default_getParameter[T interface{ HasParameter(string) bool }](serializer T, parameterName string) interface{} {
+
+	// used for diagnostics.
+	receiverType := reflect.TypeOf(serializer)
+	receiverName := utils.GetReflectName(receiverType)
+
+	// check whether parameterName is recognized by the serializer
+	if !serializer.HasParameter(parameterName) {
+		panic(fmt.Errorf(ErrorPrefix+"GetParameter called on type %v with parameter name %v that is not among the list of recognized parameters for this type", receiverName, parameterName))
+	}
+
+	// Normalize parameterName
+	parameterName = normalizeParameter(parameterName)
+
+	// Obtain getter method string
+	paramInfo, ok := default_serializerParamFuns[parameterName]
+	if !ok {
+		// If we get here, a parameter accepted by parameterName is not in the default_serializerParamFuns map.
+		// In this case, we must not use default_getParameter.
+		panic(fmt.Errorf(ErrorPrefix+"default_getParameter called on %v with unrecognized parameter name %v (normalized). This is not supposed to be possible", receiverName, parameterName))
+	}
+
+	getterName := paramInfo.getter
+	expectedReturnType := paramInfo.vartype // Note: If this an interface type, it's OK if the getter returns a realization.
+
+	// Obtain getter Method
+	serializerValue := reflect.ValueOf(serializer)
+	getterMethod := serializerValue.MethodByName(getterName)
+
+	// Check some validity contraints on the getter
+	// If any of these happen, we (as opposed to the user of the library) screwed up.
+	if !getterMethod.IsValid() {
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: default_getParameter called on %v with parameter %v, but that type does not have a %v method", receiverName, parameterName, getterName))
+	}
+	getterType := getterMethod.Type()
+	if numIn := getterType.NumIn(); numIn != 0 {
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: Getter Method %v called via default_getParameter on %v takes %v > 0 arguments", getterName, receiverName, numIn))
+	}
+	if numOut := getterType.NumOut(); numOut != 1 {
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: Getter Method %v called via default_getParameter on %v returns %v != 1 arguments", getterName, receiverName, numOut))
+	}
+
+	// Check type returned by getter method. Note: If the getter method returns an interface (such as any), we should actually check the dynamic type.
+	// The latter is hard to get right (due to nil etc) and can only be done AFTER the actual call, so we just don't; this is only for better diagnostics anyway.
+	if outType := getterType.Out(0); !outType.AssignableTo(expectedReturnType) && outType.Kind() != reflect.Interface {
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: Getter Method %v called via default_getParameter on %v returns value of type %v, which is not assignable to %v", getterName, receiverName, outType, expectedReturnType))
+	}
+
+	// Note: If the getter method returns an interface, retValue.Type() is actually this static interface type (rather than the dynamic type).
+	// In particular, if the getter returns any(nil), this does actually work without needing special treatment.
+	retValue := getterMethod.Call([]reflect.Value{})[0]
+	return retValue.Interface()
+}
+
+// makeCopyWithParameters(serializer, parameterName, newParam) takes a serializer (anything with a Clone-method, really) and returns an
+// independent copy (create via Clone() with the parameter given by parameterName replaced by newParam.
+//
+// The serializer argument is a pointer, but the returned value is not.
+// parameterName is looked up in the global serializerParams map to obtain getter/setter method names.
+// There must be a Clone() - Method defined on SerializerPtr returning either a SerializerType or SerializerPtr
+// The function panics on failure.
+func default_withParameter[T any, Ptr interface {
+	*T
+	HasParameter(string) bool
+	Validate()
+}](serializer Ptr, parameterName string, newParam any) Ptr {
+
+	// Obtain string representations of parameter type. This is only used for better error messages.
+	var typeName string = utils.GetReflectName(utils.TypeOfType[T]())
+
+	// check whether parameterName is accepted by this serializer
+	if !serializer.HasParameter(parameterName) {
+		panic(fmt.Errorf(ErrorPrefix+"WithParameter called on %v with parameter name %v (normalized) that is not among the list of recognized parameters for this type", typeName, parameterName))
+	}
+
+	// Retrieve method name from parameterName
+	parameterName = normalizeParameter(parameterName) // make parameterName case-insensitive. The map keys are all normalized
+	paramInfo, ok := default_serializerParamFuns[parameterName]
+	// If this happens, we (and not the library user) screwed up.
+	if !ok {
+		panic(ErrorPrefix + "Internal error: default_withParameter called with unrecognized parameter name")
+	}
+
+	// If this panics, we screwed up.
+	clonePtr := common.Clone(serializer)
+
+	clonePtrValue := reflect.ValueOf(clonePtr)
+
+	// Get setter method (as a reflect.Value with .Kind() == reflect.Function) and make some basic checks.
+	setterMethod := clonePtrValue.MethodByName(paramInfo.setter)
+	if !setterMethod.IsValid() {
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: default_withParameter called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, parameterName))
+	}
+
+	ok, errMsg := utils.DoesMethodExist(clonePtrValue.Type(), paramInfo.setter, []reflect.Type{stringType, paramInfo.vartype}, []reflect.Type{paramInfo.vartype})
+	if !ok {
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: WithParameter called on type %v for parameter %v, whose implementation used default_withParameter. However, the argument types of the internal setters do not match what default_withParameter expects:\n%v", typeName, parameterName, errMsg))
+	}
+
+	newParamValue := reflect.ValueOf(newParam)
+
+	common.CallFunction_FixNil(setterMethod, []reflect.Value{newParamValue})
+	clonePtr.Validate()
+
+	return clonePtr
 }
