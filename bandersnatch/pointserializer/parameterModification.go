@@ -9,6 +9,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// TODO: Might not be exported?
+
 type ParameterAware interface {
 	RecognizedParameters() []string
 	HasParameter(paramName string) bool
@@ -16,8 +18,6 @@ type ParameterAware interface {
 	// WithParameter(paramName string, newParam any) AssignableToReceiver -- Note: The return type may be either an interface or the concrete receiver type. The lack of covariance is why this is not part of the actual interface, but enforced at runtime using reflection.
 	// We ask that the *dynamic* type returned is the same as the receiver.
 }
-
-// TODO: Might not be exported?
 
 var anyType = utils.TypeOfType[any]()
 var stringType = utils.TypeOfType[string]()
@@ -28,7 +28,7 @@ var stringType = utils.TypeOfType[string]()
 // Typically, t is a (de-)serializer, but we also use it internally on sub-units of serializers.
 //
 // NOTE: This free function works by assuming that t satsfies the ParameterAware interface.
-// We require (not expressible via Go interfaces without generics, and generics would not work here) as part of that interface that
+// We require (not expressible via Go interfaces without generics, and even generics would not work here) as part of that interface that
 // T (or potentially a value receiver) has a method WithParameter(string, any) DynamicallyAssignableTo<T>
 // which returns something whose *dynamic* type is assignable to T.
 func WithParameter[T ParameterAware](t T, paramName string, newParam any) T {
@@ -184,9 +184,9 @@ func default_withParameter[T any, Ptr interface {
 		panic(fmt.Errorf(ErrorPrefix+"Internal error: default_withParameter called with type %v lacking a setter method %v for the requested parameter %v", typeName, paramInfo.setter, parameterName))
 	}
 
-	ok, errMsg := utils.DoesMethodExist(clonePtrValue.Type(), paramInfo.setter, []reflect.Type{stringType, paramInfo.vartype}, []reflect.Type{paramInfo.vartype})
+	ok, errMsg := utils.DoesMethodExist(clonePtrValue.Type(), paramInfo.setter, []reflect.Type{paramInfo.vartype}, []reflect.Type{})
 	if !ok {
-		panic(fmt.Errorf(ErrorPrefix+"Internal error: WithParameter called on type %v for parameter %v, whose implementation used default_withParameter. However, the argument types of the internal setters do not match what default_withParameter expects:\n%v", typeName, parameterName, errMsg))
+		panic(fmt.Errorf(ErrorPrefix+"Internal error: WithParameter called on type %v for parameter %v, whose implementation uses default_withParameter. However, the argument types of the internal setters do not match what default_withParameter expects:\n%v", typeName, parameterName, errMsg))
 	}
 
 	newParamValue := reflect.ValueOf(newParam)

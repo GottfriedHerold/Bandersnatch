@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // TOOD: This does not check argument types for getters and setters!
@@ -106,22 +105,6 @@ func TestConcatParameterList(t *testing.T) {
 	for i, v := range concat {
 		if v != expectedconcat[i] {
 			t.Fatalf("List concatenation not as expected")
-		}
-	}
-
-}
-
-func ensureParamsAreValidForSerializer(serializer parameterAware, t *testing.T) {
-
-	params := serializer.RecognizedParameters()
-	for _, param := range params {
-		validateGetter(serializer, param)
-		validateSetter(serializer, param)
-		if !serializer.HasParameter(param) {
-			t.Fatalf("Serializer of type %v does not have parameter %v recognized by HasParameter", utils.GetReflectName(reflect.TypeOf(serializer)), param)
-		}
-		if serializer.HasParameter("InvalidParameter") {
-			t.Fatalf("Serializer of type %v does recognize an invalid paramter as valid", utils.GetReflectName(reflect.TypeOf(serializer)))
 		}
 	}
 

@@ -11,6 +11,7 @@ import (
 // (unless the panic argument is a string starting with "reflect" -- likely an error from the reflect package)
 //
 // This function is only used in testing. At the moment, it does not work with nil interface arguments to variadic functions fun.
+// We also have CheckPanic (without the "2") that drop the panic argument for historical reasons.
 func CheckPanic2(fun interface{}, args ...interface{}) (didPanic bool, panicValue any) {
 	didPanic = true
 	fun_reflected := reflect.ValueOf(fun)

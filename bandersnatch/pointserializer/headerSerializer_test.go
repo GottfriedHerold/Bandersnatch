@@ -1,3 +1,5 @@
+//go:build ignore
+
 package pointserializer
 
 import (
@@ -42,8 +44,8 @@ func TestRecognizeParameterNames(t *testing.T) {
 	if !utils.CompareSlices(allHeaderParams, allHeaderParams2) {
 		t.Fatalf("serializer parameter names and deserializer unexpectedly differ")
 	}
-	ensureParamsAreValidForSerializer(nilSimpleHeaderDeserializer, t)
-	ensureParamsAreValidForSerializer(nilSimpleHeaderSerializer, t)
+	ensureDefaultSettersAndGettersWorkForSerializer(nilSimpleHeaderDeserializer, t)
+	ensureDefaultSettersAndGettersWorkForSerializer(nilSimpleHeaderSerializer, t)
 }
 
 // getParamDirectlyForSimpleHeaderDeserializer returns the []byte stored in a simpleHeaderDeserializer bypassing the getter.

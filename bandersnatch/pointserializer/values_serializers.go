@@ -35,7 +35,7 @@ type bitHeader = common.BitHeader
 // a field element, two field element, field element+bit etc.
 // These (de)serializiers all have serializeValues and DeserializeValues methods, which differ in their arguments (including number of arguments)
 
-// TODO: Move this to *_test.go? I prefer it here for clarity.
+// Move this to *_test.go? I prefer it here for clarity.
 
 // valuesSerializer is the part of the interface satisfied by all valuesSerializer that is actually expressible via Go interfaces.
 // It is only used in testing to unify some tests.
@@ -44,11 +44,13 @@ type valuesSerializer interface {
 	RecognizedParameters() []string         // returns a list of parameters that can be set/queried for this particular serializer (type). For all our realizations, can be called with nil receivers.
 	HasParameter(parameterName string) bool // Checks whether a given parameter can be set/queried for this particular serializer (type). For all our realizations, can be called with nil receivers.
 	OutputLength() int32                    // Returns that number of bytes that this valuesSerializers will read/write when calling SerializeValues or DeserializeValues. For all our realizations, can be called with nil receivers.
+	GetParameter(parameterName string) any
 	// NOTE: The above extends parameterAware
 	// Functions not well-expressible via interface:
 	// Clone() PointerReceiver -- Returns an independent copy of itself. Would require making the interface generic, which we do not want.
 	// SerializeValues(output io.Writer, [...]) (bytesWritten int, err bandersnatchErrors.SerializationError)
 	// DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, [...])
+	// WithParameter(parameterName string, newParam any) PointerReceiver
 }
 
 // The [...] parameter types and number of DeserializeValues and SerializeValues need to match.
@@ -57,7 +59,7 @@ type valuesSerializer interface {
 // Note that reflection is mostly used to unify the testing code -- the actual usage does not use reflection, since the code paths for the different
 // realisations of this "interface" are separate anyway.
 
-// We could add Clone here if we made the valuesSerializer interface generic, but it's only used in testing anyway and we already have a Clonable[Foo] generic.
+// We could add Clone here if we made the valuesSerializer interface generic, but it's only used in testing anyway (in a way that would not work with generics) and we already have a Clonable[Foo] generic.
 
 // **********************************************************************************************************************************
 // Utility functions:
@@ -288,7 +290,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) GetParameter(parameterName string) an
 // WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
 //
 // This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
-// For valuesSerializerFeFe, only "Endianness" is accepted and newParam must be accepted by [common.FieldElementEndianness]'s SetEndianness method.
+// For valuesSerializerHeaderFeHeaderFe, only "Endianness", "BitHeader" and "BitHeader2" are accepted.
 func (s *valuesSerializerHeaderFeHeaderFe) WithParameter(parameterName string, newParam any) *valuesSerializerHeaderFeHeaderFe {
 	return default_withParameter(s, parameterName, newParam)
 }
@@ -361,6 +363,22 @@ func (s *valuesSerializerFe) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
 }
 
+// GetParameter returns the parameter given by parameterName.
+//
+// This method panics for invalid parameterName.
+// For valuesSerializerFe, only "Endianness" is accepted.
+func (s *valuesSerializerFe) GetParameter(parameterName string) any {
+	return default_getParameter(s, parameterName)
+}
+
+// WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
+//
+// This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
+// For valuesSerializerFe, only "Endianness" is accepted and newParam must be accepted by [common.FieldElementEndianness]'s SetEndianness method.
+func (s *valuesSerializerFe) WithParameter(parameterName string, newParam any) *valuesSerializerFe {
+	return default_withParameter(s, parameterName, newParam)
+}
+
 //*******************************************************************************************************************************
 
 // valuesSerializerHeaderFe is a simple serializer for a single field element with sub-byte header
@@ -420,6 +438,22 @@ func (s *valuesSerializerHeaderFe) RecognizedParameters() []string {
 // This method works with nil receivers.
 func (s *valuesSerializerHeaderFe) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
+// GetParameter returns the parameter given by parameterName.
+//
+// This method panics for invalid parameterName.
+// For valuesSerializerHeaderFe, only "Endianness" and "BitHeader" are accepted.
+func (s *valuesSerializerHeaderFe) GetParameter(parameterName string) any {
+	return default_getParameter(s, parameterName)
+}
+
+// WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
+//
+// This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
+// For valuesSerializerFeFe, only "Endianness" and "BitHeader" are accepted.
+func (s *valuesSerializerHeaderFe) WithParameter(parameterName string, newParam any) *valuesSerializerHeaderFe {
+	return default_withParameter(s, parameterName, newParam)
 }
 
 //*******************************************************************************************************************************
@@ -494,4 +528,20 @@ func (s *valuesSerializerFeCompressedBit) RecognizedParameters() []string {
 // This method works with nil receivers.
 func (s *valuesSerializerFeCompressedBit) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+}
+
+// GetParameter returns the parameter given by parameterName.
+//
+// This method panics for invalid parameterName.
+// For valuesSerializerFeCompressedBit, only "Endianness" is accepted.
+func (s *valuesSerializerFeCompressedBit) GetParameter(parameterName string) any {
+	return default_getParameter(s, parameterName)
+}
+
+// WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
+//
+// This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
+// For valuesSerializerFeCompressedBit, only "Endianness" is accepted.
+func (s *valuesSerializerFeCompressedBit) WithParameter(parameterName string, newParam any) *valuesSerializerFeCompressedBit {
+	return default_withParameter(s, parameterName, newParam)
 }

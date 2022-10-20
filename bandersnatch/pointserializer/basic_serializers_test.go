@@ -1,3 +1,5 @@
+//go:build ignore
+
 package pointserializer
 
 import (
@@ -70,7 +72,7 @@ var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []cu
 
 func TestParameterSanityCheck(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
-		ensureParamsAreValidForSerializer(basicSerializer, t)
+		ensureDefaultSettersAndGettersWorkForSerializer(basicSerializer, t)
 	}
 }
 

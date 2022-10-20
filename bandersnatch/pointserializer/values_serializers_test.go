@@ -25,7 +25,9 @@ var allValuesSerializers []valuesSerializer = []valuesSerializer{
 	&valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness},
 }
 
-// for debugging reflect issues with unexported stuff. Currently unused:
+// for debugging reflect issues with unexported stuff. Currently unused and commented out:
+
+/*
 type ValuesSerializerFeFe struct {
 	valuesSerializerFeFe
 }
@@ -59,6 +61,8 @@ var allValuesSerializersExported []valuesSerializer = []valuesSerializer{
 	&ValuesSerializerHeaderFe{valuesSerializerHeaderFe{fieldElementEndianness: defaultEndianness}},
 }
 
+*/
+
 var allValueSerializerTypes []reflect.Type = []reflect.Type{
 	utils.TypeOfType[valuesSerializerFe](),
 	utils.TypeOfType[valuesSerializerHeaderFe](),
@@ -66,8 +70,6 @@ var allValueSerializerTypes []reflect.Type = []reflect.Type{
 	utils.TypeOfType[valuesSerializerHeaderFeHeaderFe](),
 	utils.TypeOfType[valuesSerializerFeCompressedBit](),
 }
-
-// TODO: Check that this works with the oop.go - functions.
 
 // This tests that all value serializer types satisfy some constraints on the type such as having a Clone() - function.
 // Since the return type of Clone depends on the type of the value serializer itself, we need reflection to express that
@@ -85,9 +87,11 @@ func TestValueSerializersSatisfyImplicitInterface(t *testing.T) {
 	}
 }
 
+var valueSerializerTypesUsingDefaultMethods = allValueSerializerTypes
+
 func TestParameterSettings(t *testing.T) {
-	for _, valueSerializer := range allValuesSerializers {
-		ensureParamsAreValidForSerializer(valueSerializer, t)
+	for _, valueSerializerType := range valueSerializerTypesUsingDefaultMethods {
+		ensureDefaultSettersAndGettersWorkForSerializer(valueSerializerType, t)
 	}
 }
 
@@ -278,4 +282,139 @@ func TestValuesSerializersRoundtrip(t *testing.T) {
 			}
 		}
 	}
+}
+
+// compare two lists of strings for equality up to order and normalization by normalizeParameter
+func cmpParamLists(x []string, y []string) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	if x == nil || y == nil {
+		panic("called cmpParamList with nil argument")
+	}
+	for _, s1 := range x {
+		if !utils.ElementInList(s1, y, normalizeParameter) {
+			return false
+		}
+	}
+	return true
+}
+
+func TestParameterModificationsFeFe(t *testing.T) {
+	var ser = &valuesSerializerFeFe{fieldElementEndianness: common.LittleEndian}
+	allParams := ser.RecognizedParameters()
+	// This checks whether the list of accepted parameters has changed. This merely serves to alert us to the need to change the test.
+	testutils.FatalUnless(t, cmpParamLists(allParams, []string{"Endianness"}), "Accepted Parameters have changed")
+
+	ser1 := ser.WithParameter("Endianness", common.BigEndian)
+	testutils.FatalUnless(t, ser.GetParameter("Endianness") == common.LittleEndian, "Endnianness not retained upon change")
+	testutils.FatalUnless(t, ser1.GetParameter("Endianness") == common.BigEndian, "Endianness not changed as requested")
+
+	didPanic := testutils.CheckPanic(ser.GetParameter, "Invalid")
+	testutils.FatalUnless(t, didPanic, "Getting invalid param did not panic")
+
+	didPanic = testutils.CheckPanic(ser.WithParameter, "Invalid", nil)
+	testutils.FatalUnless(t, didPanic, "Modifying invalid param did not panic")
+}
+
+func TestParameterModificationsHeaderFeHeaderFe(t *testing.T) {
+	var ser = &valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: common.LittleEndian}
+
+	allParams := ser.RecognizedParameters()
+	// This checks whether the list of accepted parameters has changed. This merely serves to alert us to the need to change the test.
+	testutils.FatalUnless(t, cmpParamLists(allParams, []string{"Endianness", "BitHeader", "BitHeader2"}), "Accepted Parameters have changed")
+
+	didPanic := testutils.CheckPanic(ser.GetParameter, "Invalid")
+	testutils.FatalUnless(t, didPanic, "Getting invalid param did not panic")
+
+	didPanic = testutils.CheckPanic(ser.WithParameter, "Invalid", nil)
+	testutils.FatalUnless(t, didPanic, "Modifying invalid param did not panic")
+
+	ser1 := ser.WithParameter("Endianness", common.BigEndian)
+	testutils.FatalUnless(t, ser.GetParameter("Endianness") == common.LittleEndian, "Endnianness not retained upon change")
+	testutils.FatalUnless(t, ser1.GetParameter("Endianness") == common.BigEndian, "Endianness not changed as requested")
+
+	var bh1 common.BitHeader
+	var bh2 common.BitHeader = common.MakeBitHeader(0b1, 1)
+	var bh3 common.BitHeader = common.MakeBitHeader(0b010, 3)
+
+	testutils.FatalUnless(t, ser.GetParameter("BitHeader") == bh1, "BitHeader not as expected")
+	testutils.FatalUnless(t, ser.GetParameter("BitHeader2") == bh1, "BitHeader not as expected")
+	ser2 := ser.WithParameter("BitHeader", bh2)
+	testutils.FatalUnless(t, ser.GetParameter("BitHeader") == bh1, "BitHeader did not stay not as expected")
+	testutils.FatalUnless(t, ser.GetParameter("BitHeader2") == bh1, "BitHeader not not stay as expected")
+
+	testutils.FatalUnless(t, ser2.GetParameter("BitHeader") == bh2, "BitHeader not as expected")
+	testutils.FatalUnless(t, ser2.GetParameter("BitHeader2") == bh1, "BitHeader not as expected")
+
+	ser3 := ser2.WithParameter("BitHeader2", bh3)
+
+	testutils.FatalUnless(t, ser2.GetParameter("BitHeader") == bh2, "BitHeader not stay as expected")
+	testutils.FatalUnless(t, ser2.GetParameter("BitHeader2") == bh1, "BitHeader not stay as expected")
+
+	testutils.FatalUnless(t, ser3.GetParameter("BitHeader") == bh2, "BitHeader not as expected")
+	testutils.FatalUnless(t, ser3.GetParameter("BitHeader2") == bh3, "BitHeader not as expected")
+
+}
+
+func TestParameterModificationsFe(t *testing.T) {
+	var ser = &valuesSerializerFe{fieldElementEndianness: common.LittleEndian}
+	allParams := ser.RecognizedParameters()
+	// This checks whether the list of accepted parameters has changed. This merely serves to alert us to the need to change the test.
+	testutils.FatalUnless(t, cmpParamLists(allParams, []string{"Endianness"}), "Accepted Parameters have changed")
+
+	ser1 := ser.WithParameter("Endianness", common.BigEndian)
+	testutils.FatalUnless(t, ser.GetParameter("Endianness") == common.LittleEndian, "Endnianness not retained upon change")
+	testutils.FatalUnless(t, ser1.GetParameter("Endianness") == common.BigEndian, "Endianness not changed as requested")
+
+	didPanic := testutils.CheckPanic(ser.GetParameter, "Invalid")
+	testutils.FatalUnless(t, didPanic, "Getting invalid param did not panic")
+
+	didPanic = testutils.CheckPanic(ser.WithParameter, "Invalid", nil)
+	testutils.FatalUnless(t, didPanic, "Modifying invalid param did not panic")
+}
+
+func TestParameterModificationsHeaderFe(t *testing.T) {
+	var ser = &valuesSerializerHeaderFe{fieldElementEndianness: common.LittleEndian}
+
+	allParams := ser.RecognizedParameters()
+	// This checks whether the list of accepted parameters has changed. This merely serves to alert us to the need to change the test.
+	testutils.FatalUnless(t, cmpParamLists(allParams, []string{"Endianness", "BitHeader"}), "Accepted Parameters have changed")
+
+	didPanic := testutils.CheckPanic(ser.GetParameter, "Invalid")
+	testutils.FatalUnless(t, didPanic, "Getting invalid param did not panic")
+
+	didPanic = testutils.CheckPanic(ser.WithParameter, "Invalid", nil)
+	testutils.FatalUnless(t, didPanic, "Modifying invalid param did not panic")
+
+	ser1 := ser.WithParameter("Endianness", common.BigEndian)
+	testutils.FatalUnless(t, ser.GetParameter("Endianness") == common.LittleEndian, "Endnianness not retained upon change")
+	testutils.FatalUnless(t, ser1.GetParameter("Endianness") == common.BigEndian, "Endianness not changed as requested")
+
+	var bh1 common.BitHeader
+	var bh2 common.BitHeader = common.MakeBitHeader(0b1, 1)
+
+	testutils.FatalUnless(t, ser.GetParameter("BitHeader") == bh1, "BitHeader not as expected")
+	ser2 := ser.WithParameter("BitHeader", bh2)
+	testutils.FatalUnless(t, ser.GetParameter("BitHeader") == bh1, "BitHeader did not stay not as expected")
+
+	testutils.FatalUnless(t, ser2.GetParameter("BitHeader") == bh2, "BitHeader not as expected")
+
+}
+
+func TestParameterModificationsFeCompressedBit(t *testing.T) {
+	var ser = &valuesSerializerFeCompressedBit{fieldElementEndianness: common.LittleEndian}
+	allParams := ser.RecognizedParameters()
+	// This checks whether the list of accepted parameters has changed. This merely serves to alert us to the need to change the test.
+	testutils.FatalUnless(t, cmpParamLists(allParams, []string{"Endianness"}), "Accepted Parameters have changed")
+
+	ser1 := ser.WithParameter("Endianness", common.BigEndian)
+	testutils.FatalUnless(t, ser.GetParameter("Endianness") == common.LittleEndian, "Endnianness not retained upon change")
+	testutils.FatalUnless(t, ser1.GetParameter("Endianness") == common.BigEndian, "Endianness not changed as requested")
+
+	didPanic := testutils.CheckPanic(ser.GetParameter, "Invalid")
+	testutils.FatalUnless(t, didPanic, "Getting invalid param did not panic")
+
+	didPanic = testutils.CheckPanic(ser.WithParameter, "Invalid", nil)
+	testutils.FatalUnless(t, didPanic, "Modifying invalid param did not panic")
 }
