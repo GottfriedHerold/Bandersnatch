@@ -68,11 +68,21 @@ var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []cu
 	ps_YSX,
 }
 
+var pointSerializerTypesUsingDefaultParameterChangeMethods = []reflect.Type{
+	utils.TypeOfType[pointSerializerXY](),
+	utils.TypeOfType[pointSerializerXAndSignY](),
+	utils.TypeOfType[pointSerializerYAndSignX](),
+	utils.TypeOfType[pointSerializerXTimesSignY](),
+	utils.TypeOfType[pointSerializerYXTimesSignY](),
+}
+
 func TestParameterSanityCheck(t *testing.T) {
-	for _, basicSerializer := range allBasicSerializers {
-		ensureDefaultSettersAndGettersWorkForSerializer(reflect.TypeOf(basicSerializer), t)
+	for _, basicSerializerType := range pointSerializerTypesUsingDefaultParameterChangeMethods {
+		ensureDefaultSettersAndGettersWorkForSerializer(basicSerializerType, t)
 	}
 }
+
+// This test is more strict than neccessary on the return type of Clone(), but all pointSerializers satisfy that
 
 // Superseded by generics, but kept
 func TestBasicSerializersHasClonable(t *testing.T) {
@@ -85,14 +95,13 @@ func TestBasicSerializersHasClonable(t *testing.T) {
 	}
 }
 
+// This test is more strict than neccessary on the return type of WithParamter, but all our pointSerializer satisfy that.
+
 // Superseded by generics, but kept
 func TestBasicSerializersHaveWithParams(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
-		serializerNonPointerType := serializerType.Elem()
-		var arg1Type reflect.Type = utils.TypeOfType[string]()
-		var arg2Type reflect.Type = utils.TypeOfType[any]()
-		ok, reason := utils.DoesMethodExist(serializerType, "WithParameter", []reflect.Type{arg1Type, arg2Type}, []reflect.Type{serializerNonPointerType})
+		ok, reason := utils.DoesMethodExist(serializerType, "WithParameter", []reflect.Type{stringType, anyType}, []reflect.Type{serializerType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -104,8 +113,7 @@ func TestBasicSerializerHasWithEndianness(t *testing.T) {
 	_ = ps_XSY.WithEndianness(binary.BigEndian)
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
-		serializerValueType := serializerType.Elem()
-		ok, reason := utils.DoesMethodExist(serializerType, "WithEndianness", []reflect.Type{utils.TypeOfType[binary.ByteOrder]()}, []reflect.Type{serializerValueType})
+		ok, reason := utils.DoesMethodExist(serializerType, "WithEndianness", []reflect.Type{utils.TypeOfType[binary.ByteOrder]()}, []reflect.Type{serializerType})
 		if !ok {
 			t.Error(reason)
 		}
@@ -119,15 +127,11 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
 
 		funSubgroupOnly := func(val bool) {
-			newSerializer := testutils.CallMethodByName(basicSerializer, "WithParameter", "SubgroupOnly", val)[0]
-			// Does not work. newSerializer is not addressable.
-			_ = newSerializer
-			/*
-				newSerializerPtr = (&newSerializer).(curvePointDeserializer_basic)
-				if newSerializer.IsSubgroupOnly() != val {
-					t.Fatalf("Chaning SubgroupOnly not reflected by IsSubgroupOnly for %v", typeName)
-				}
-			*/
+			newSerializer := testutils.CallMethodByName(basicSerializer, "WithParameter", "SubgroupOnly", val)[0].(curvePointDeserializer_basic)
+			if newSerializer.IsSubgroupOnly() != val {
+				t.Fatalf("Chaning SubgroupOnly not reflected by IsSubgroupOnly for %v", typeName)
+			}
+
 		}
 		funSubgroupOnly(true)
 		didPanic := testutils.CheckPanic(funSubgroupOnly, false)
@@ -158,6 +162,9 @@ func TestBasicSerializeNAPs(t *testing.T) {
 	}
 }
 
+// This ensures that trying to serialize points outside the subgroup fails with the correct error.
+// We only try with the affine 2-torsion point.
+
 func TestBasicSerializersNonSubgroup(t *testing.T) {
 	for _, basicSerializer := range allSubgroupOnlySerializers {
 		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
@@ -176,6 +183,9 @@ func TestBasicSerializersNonSubgroup(t *testing.T) {
 		}
 	}
 }
+
+// TODO:
+// Test behaviour for serializing points at infinity. Note that expected behaviour is subject to change.
 
 // Test Roundtrip for basic serialializers.
 // We also check correct error behaviour on reading EOF / unexpected EOF.
