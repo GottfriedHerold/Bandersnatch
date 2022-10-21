@@ -36,17 +36,18 @@ type curvePointDeserializer_basic interface {
 
 	GetParameter(parameterName string) any        // obtains a parameter (such as endianness). parameterName is case-insensitive.
 	GetEndianness() common.FieldElementEndianness // returns the endianness used for field element serialization.
-	Validate()                                    // internal self-check of parameters; this is exported because of reflect usage
-	RecognizedParameters() []string               // gives a list of recognized parameters
-	HasParameter(parameterName string) bool       // checks whether a given parameter is recognized
+	// Remove Validate here?
+	Validate()                              // internal self-check of parameters; this is exported because of reflect usage
+	RecognizedParameters() []string         // gives a list of recognized parameters
+	HasParameter(parameterName string) bool // checks whether a given parameter is recognized
 }
 
 // modifyableSerializer is the interface part contains the generic methods used to modify parameters.
 // The relevant methods return a modified copy, whose type depends on the original, hence the need for generics.
 type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
-	WithParameter(parameterName string, newParam any) SelfValue // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
-	WithEndianness(newEndianness binary.ByteOrder) SelfValue    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
-	utils.Clonable[SelfPtr]                                     // gives a Clone() SelfPtr function to make copies of itself
+	WithParameter(parameterName string, newParam any) SelfPtr // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
+	WithEndianness(newEndianness binary.ByteOrder) SelfPtr    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
+	utils.Clonable[SelfPtr]                                   // gives a Clone() SelfPtr function to make copies of itself
 }
 
 // modifyableDeserializer_basic is the interface for deserializer of single curve points that allow parameter modifications.
@@ -152,6 +153,8 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 		return
 	}
 	if s.IsSubgroupOnly() || point.CanOnlyRepresentSubgroup() {
+		// We need to ensure the X,Y coordinate represents a point in the subgroup
+
 		// using a temporary P here to ensure P is unchanged on error
 		var P curvePoints.Point_axtw_subgroup
 		P, errPlain := curvePoints.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
@@ -211,15 +214,15 @@ func (s *pointSerializerXY) Clone() (ret *pointSerializerXY) {
 // Invalid inputs cause a panic.
 //
 // Recognized params are: "Endianness", "SubgroupOnly", "BitHeader", "BitHeader2"
-func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXY) {
-	return makeCopyWithParameters(s, param, newParam)
+func (s *pointSerializerXY) WithParameter(param string, newParam interface{}) (newSerializer *pointSerializerXY) {
+	return default_WithParameter(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
 // It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEndianness interface (which extends binary.ByteOrder).
 //
 // Invalid inputs cause a panic.
-func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXY {
+func (s *pointSerializerXY) WithEndianness(newEndianness binary.ByteOrder) *pointSerializerXY {
 	return s.WithParameter("Endianness", newEndianness)
 }
 
@@ -230,19 +233,21 @@ func (s *pointSerializerXY) OutputLength() int32 { return 64 }
 
 // GetParameter returns the value of the internal parameter determined by parameterName
 //
-// recognized parameterNames are: "Endianness", "SubgroupOnly"., "BitHeader", "BitHeader2"
+// recognized parameterNames are: "Endianness", "SubgroupOnly", "BitHeader", "BitHeader2"
 func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
+
+var pointSerializerXYregognizedParams = concatenateParameterList((*valuesSerializerHeaderFeHeaderFe)(nil).RecognizedParameters(), (*subgroupRestriction)(nil).RecognizedParameters())
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXY) RecognizedParameters() []string {
-	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+	return copySlice(pointSerializerXYregognizedParams)
 }
 
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXY) HasParameter(parameterName string) bool {
-	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+	return utils.ElementInList(parameterName, pointSerializerXYregognizedParams, normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -342,15 +347,15 @@ func (s *pointSerializerXAndSignY) Clone() (ret *pointSerializerXAndSignY) {
 // Invalid input cause a panic.
 //
 // Recognized params are: "Endianness", "SubgroupOnly"
-func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXAndSignY) {
-	return makeCopyWithParameters(s, param, newParam)
+func (s *pointSerializerXAndSignY) WithParameter(param string, newParam interface{}) (newSerializer *pointSerializerXAndSignY) {
+	return default_WithParameter(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
 // It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
 //
 // Invalid inputs cause a panic.
-func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXAndSignY {
+func (s *pointSerializerXAndSignY) WithEndianness(newEndianness binary.ByteOrder) *pointSerializerXAndSignY {
 	return s.WithParameter("Endianness", newEndianness)
 }
 
@@ -365,8 +370,8 @@ func (s *pointSerializerXAndSignY) OutputLength() int32 { return 32 }
 // GetParameter returns the value of the given parameterName.
 //
 // Accepted values for parameterName are "Endiannness", "SubgroupOnly"
-func (s *pointSerializerXAndSignY) GetParameter(parameterName string) interface{} {
-	return default_getParameter(s, parameterName)
+func (s *pointSerializerXAndSignY) GetParameter(parameterName string) any {
+	return default_GetParameter(s, parameterName)
 }
 
 // Validate perfoms a self-check of the internal parameters stored for the given serializer.
@@ -379,14 +384,16 @@ func (s *pointSerializerXAndSignY) Validate() {
 	s.fieldElementEndianness.Validate()
 }
 
+var pointSerializerXAndSignYrecognizedParams = concatenateParameterList((*valuesSerializerFeCompressedBit)(nil).RecognizedParameters(), (*subgroupRestriction)(nil).RecognizedParameters())
+
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXAndSignY) RecognizedParameters() []string {
-	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+	return copySlice(pointSerializerXAndSignYrecognizedParams)
 }
 
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXAndSignY) HasParameter(parameterName string) bool {
-	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+	return utils.ElementInList(parameterName, pointSerializerXAndSignYrecognizedParams, normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -512,15 +519,15 @@ func (s *pointSerializerYAndSignX) Clone() (ret *pointSerializerYAndSignX) {
 // WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
 //
 // Recognized params are: "Endianness", "SubgroupOnly"
-func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYAndSignX) {
-	return makeCopyWithParameters(s, param, newParam)
+func (s *pointSerializerYAndSignX) WithParameter(param string, newParam interface{}) (newSerializer *pointSerializerYAndSignX) {
+	return default_WithParameter(s, param, newParam)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
 // It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
 //
 // Invalid inputs cause a panic.
-func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYAndSignX {
+func (s *pointSerializerYAndSignX) WithEndianness(newEndianness binary.ByteOrder) *pointSerializerYAndSignX {
 	return s.WithParameter("Endianness", newEndianness)
 }
 
@@ -533,17 +540,19 @@ func (s *pointSerializerYAndSignX) OutputLength() int32 { return 32 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerYAndSignX) GetParameter(parameterName string) interface{} {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
+
+var pointSerializerYAndSignXrecognizedParams = concatenateParameterList((*valuesSerializerFeCompressedBit)(nil).RecognizedParameters(), (*subgroupRestriction)(nil).RecognizedParameters())
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerYAndSignX) RecognizedParameters() []string {
-	return concatParameterList(s.valuesSerializerFeCompressedBit.RecognizedParameters(), s.subgroupRestriction.RecognizedParameters())
+	return copySlice(pointSerializerYAndSignXrecognizedParams)
 }
 
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerYAndSignX) HasParameter(parameterName string) bool {
-	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+	return utils.ElementInList(parameterName, pointSerializerYAndSignXrecognizedParams, normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -627,15 +636,15 @@ func (s *pointSerializerXTimesSignY) Clone() (ret *pointSerializerXTimesSignY) {
 //
 // Recognized params are: "Endianness", "SubgroupOnly"
 // Note that "SubgroupOnly" only accepts true.
-func (s *pointSerializerXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerXTimesSignY) {
-	return makeCopyWithParameters(s, param, newParam)
+func (s *pointSerializerXTimesSignY) WithParameter(parameterName string, newParameter interface{}) (newSerializer *pointSerializerXTimesSignY) {
+	return default_WithParameter(s, parameterName, newParameter)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
 // It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
 //
 // Invalid inputs cause a panic.
-func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerXTimesSignY {
+func (s *pointSerializerXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) *pointSerializerXTimesSignY {
 	return s.WithParameter("Endianness", newEndianness)
 }
 
@@ -648,17 +657,19 @@ func (s *pointSerializerXTimesSignY) OutputLength() int32 { return 32 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerXTimesSignY) GetParameter(parameterName string) interface{} {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
+
+var pointSerializerXTimesSignYrecognizedParams = concatenateParameterList((*valuesSerializerHeaderFe)(nil).RecognizedParameters(), (*subgroupOnly)(nil).RecognizedParameters())
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXTimesSignY) RecognizedParameters() []string {
-	return concatParameterList(s.valuesSerializerHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
+	return copySlice(pointSerializerXTimesSignYrecognizedParams)
 }
 
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXTimesSignY) HasParameter(parameterName string) bool {
-	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+	return utils.ElementInList(parameterName, pointSerializerXTimesSignYrecognizedParams, normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -752,19 +763,19 @@ func (s *pointSerializerYXTimesSignY) Clone() (ret *pointSerializerYXTimesSignY)
 	return
 }
 
-// WithParameter(param, newParam) creates a modified copy of the received serializer with the parameter determined by param replaced by newParam.
+// WithParameter(paramerName, newParameter) creates a modified copy of the received serializer with the parameter determined by parameterName replaced by newParameter.
 //
-// Recognized params are: "Endianness", "SubgroupOnly"
+// Recognized values for parameterName are: "Endianness", "SubgroupOnly"
 // Note that SubgroupOnly only accepts true.
-func (s *pointSerializerYXTimesSignY) WithParameter(param string, newParam interface{}) (newSerializer pointSerializerYXTimesSignY) {
-	return makeCopyWithParameters(s, param, newParam)
+func (s *pointSerializerYXTimesSignY) WithParameter(parameterName string, newparameter interface{}) (newSerializer *pointSerializerYXTimesSignY) {
+	return default_WithParameter(s, parameterName, newparameter)
 }
 
 // WithEndianness creates a modified copy of the received serializer with the prescribed endianness for field element serialization.
 // It accepts only literal binary.LittleEndian, binary.BigEndian or any newEndianness satisfying the common.FieldElementEnianness interface (which extends binary.ByteOrder).
 //
 // Invalid inputs cause a panic.
-func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) pointSerializerYXTimesSignY {
+func (s *pointSerializerYXTimesSignY) WithEndianness(newEndianness binary.ByteOrder) *pointSerializerYXTimesSignY {
 	return s.WithParameter("Endianness", newEndianness)
 }
 
@@ -777,17 +788,19 @@ func (s *pointSerializerYXTimesSignY) OutputLength() int32 { return 64 }
 //
 // recognized parameterNames are: "Endianness", "SubgroupOnly".
 func (s *pointSerializerYXTimesSignY) GetParameter(parameterName string) interface{} {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
+
+var pointSerializerYXTimesSignYrecognizedParams = concatenateParameterList((*valuesSerializerHeaderFeHeaderFe)(nil).RecognizedParameters(), (*subgroupOnly)(nil).RecognizedParameters())
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerYXTimesSignY) RecognizedParameters() []string {
-	return concatParameterList(s.valuesSerializerHeaderFeHeaderFe.RecognizedParameters(), s.subgroupOnly.RecognizedParameters())
+	return copySlice(pointSerializerYXTimesSignYrecognizedParams)
 }
 
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerYXTimesSignY) HasParameter(parameterName string) bool {
-	return utils.ElementInList(parameterName, s.RecognizedParameters(), normalizeParameter)
+	return utils.ElementInList(parameterName, pointSerializerYXTimesSignYrecognizedParams, normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -797,8 +810,8 @@ func (s *pointSerializerYXTimesSignY) HasParameter(parameterName string) bool {
 var bitHeaderBanderwagonX common.BitHeader = common.MakeBitHeader(common.PrefixBits(0b1), 1)
 var bitHeaderBanderwagonY common.BitHeader = common.MakeBitHeader(common.PrefixBits(0b00), 2)
 
-var basicBanderwagonShort = pointSerializerXTimesSignY{valuesSerializerHeaderFe: valuesSerializerHeaderFe{fieldElementEndianness: common.DefaultEndian, bitHeader: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
-var basicBanderwagonLong = pointSerializerYXTimesSignY{valuesSerializerHeaderFeHeaderFe: valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: common.DefaultEndian, bitHeader: bitHeaderBanderwagonY, bitHeader2: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
+var basicBanderwagonShort = &pointSerializerXTimesSignY{valuesSerializerHeaderFe: valuesSerializerHeaderFe{fieldElementEndianness: common.DefaultEndian, bitHeader: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
+var basicBanderwagonLong = &pointSerializerYXTimesSignY{valuesSerializerHeaderFeHeaderFe: valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: common.DefaultEndian, bitHeader: bitHeaderBanderwagonY, bitHeader2: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
 
 func init() {
 	bitHeaderBanderwagonX.Validate()

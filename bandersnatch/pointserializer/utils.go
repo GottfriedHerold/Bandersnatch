@@ -132,6 +132,8 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 	return
 }
 
+// TODO: Move to utils
+
 // Note: This returns a copy (by design). For v==nil, we return a fresh, empty non-nil slice.
 
 // copyByteSlice returns a copy of the given byte slice (with newly allocated underlying array).
@@ -142,6 +144,16 @@ func copyByteSlice(v []byte) (ret []byte) {
 		return
 	}
 	ret = make([]byte, len(v))
+	copy(ret, v)
+	return
+}
+
+func copySlice[T any](v []T) (ret []T) {
+	if v == nil {
+		ret = make([]T, 0)
+		return
+	}
+	ret = make([]T, len(v))
 	copy(ret, v)
 	return
 }

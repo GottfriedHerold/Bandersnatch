@@ -25,6 +25,8 @@ import (
 // functions on the embedded struct via reflection.
 
 // parameterAware is the interface satisfied by all (parts of) serializers that work with makeCopyWithParameters
+//
+// DEPRECATED
 type parameterAware interface {
 	RecognizedParameters() []string // returns a slice of strings of all parameters that are recognized by this particular serializer.
 	HasParameter(paramName string) bool
@@ -37,9 +39,11 @@ func normalizeParameter(arg string) string {
 	return strings.ToLower(arg)
 }
 
-// concatParameterList concatenates two lists of parameters, removing duplicates modulo normalizeParameters.
+// concatenateParameterList concatenates two lists of parameters, removing duplicates modulo normalizeParameters.
 // The intended use is to implement RecognizedParameters() by merging component lists of accepted parameters.
-func concatParameterList(list1 []string, list2 []string) []string {
+//
+// DEPRECATED
+func concatenateParameterList(list1 []string, list2 []string) []string {
 	return utils.ConcatenateListsWithoutDuplicates(list1, list2, normalizeParameter)
 }
 

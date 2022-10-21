@@ -110,6 +110,9 @@ func TestWithParameterFreeFunction(t *testing.T) {
 
 // ensureDefaultSettersAndGettersWorkForSerializer makes sure that our default_* functions work for the given type.
 // Note that serializerType may be either a value or a pointer type
+//
+// This test should be run on all types that use default_GetParameter and default_WithParameter
+// (default_HasParameter is fine)
 func ensureDefaultSettersAndGettersWorkForSerializer(serializerType reflect.Type, t *testing.T) {
 	if serializerType.Kind() != reflect.Pointer {
 		serializerType = reflect.PtrTo(serializerType)
@@ -132,8 +135,6 @@ func ensureDefaultSettersAndGettersWorkForSerializer(serializerType reflect.Type
 		validate_DefaultSetterForParam(t, serializerType, param)
 	}
 }
-
-// these 2 might go to testing and use testutils.DoesMethodExist
 
 func validate_DefaultSetterForParam(t *testing.T, serializerType reflect.Type, parameterName string) {
 

@@ -276,7 +276,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) RecognizedParameters() []stri
 	// return the union of parameters from its components.
 	list1 := BasicPtr(&md.basicDeserializer).RecognizedParameters()
 	list2 := md.headerDeserializer.RecognizedParameters()
-	return concatParameterList(list1, list2)
+	return concatenateParameterList(list1, list2)
 }
 
 // RecognizedParameters returns a list of parameters that can be queried/modified via WithParameter / GetParameter
@@ -285,7 +285,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) RecognizedParameters() []string
 	// return the union of parameters from its components.
 	list1 := BasicPtr(&md.basicSerializer).RecognizedParameters()
 	list2 := md.headerSerializer.RecognizedParameters()
-	return concatParameterList(list1, list2)
+	return concatenateParameterList(list1, list2)
 }
 
 // HasParameter tells whether a given parameterName is the name of a valid parameter for this deserializer.
@@ -360,7 +360,7 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) GetParameter(parameterName st
 	if basicPointer.HasParameter(parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
-		return default_getParameter(&md.headerDeserializer, parameterName)
+		return default_GetParameter(&md.headerDeserializer, parameterName)
 	}
 }
 
@@ -374,7 +374,7 @@ func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName stri
 	if basicPointer.HasParameter(parameterName) {
 		return basicPointer.GetParameter(parameterName)
 	} else {
-		return default_getParameter(&md.headerSerializer, parameterName)
+		return default_GetParameter(&md.headerSerializer, parameterName)
 	}
 }
 
@@ -383,8 +383,9 @@ func (md *multiSerializer[BasicValue, BasicPtr]) GetParameter(parameterName stri
 // NOTE: The endianness for (de)serialization of slice size headers is NOT affected by this method.
 // NOTE2: newEndianness must be either literal binary.BigEndian, binary.LittleEndian or a common.FieldElementEndianness. In particular it must be non-nil. Failure to do so will panic.
 func (md *multiDeserializer[BasicValue, BasicPtr]) WithEndianness(newEndianness binary.ByteOrder) CurvePointDeserializerModifyable {
+	panic(0)
 	mdcopy := md.makeCopy()
-	mdcopy.basicDeserializer = BasicPtr(&mdcopy.basicDeserializer).WithEndianness(newEndianness)
+	// mdcopy.basicDeserializer = BasicPtr(&mdcopy.basicDeserializer).WithEndianness(newEndianness)
 	mdcopy.Validate()
 	return &mdcopy
 }
@@ -394,8 +395,9 @@ func (md *multiDeserializer[BasicValue, BasicPtr]) WithEndianness(newEndianness 
 // NOTE: The endianness for (de)serialization of slice size headers is NOT affected by this method.
 // NOTE2: newEndianness must be either literal binary.BigEndian, binary.LittleEndian or a common.FieldElementEndianness. In particular it must be non-nil. Failure to do so will panic.
 func (md *multiSerializer[BasicValue, BasicPtr]) WithEndianness(newEndianness binary.ByteOrder) CurvePointSerializerModifyable {
+	panic(0)
 	mdcopy := md.makeCopy()
-	mdcopy.basicSerializer = BasicPtr(&mdcopy.basicSerializer).WithEndianness(newEndianness)
+	// mdcopy.basicSerializer = BasicPtr(&mdcopy.basicSerializer).WithEndianness(newEndianness)
 	mdcopy.Validate()
 	return &mdcopy
 }

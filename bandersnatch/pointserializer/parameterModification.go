@@ -62,7 +62,7 @@ func WithParameter[T ParameterAware](t T, paramName string, newParam any) T {
 	return out.Interface().(T)
 }
 
-func default_hasParameter[T interface{ RecognizedParameters() []string }](t T, paramName string) bool {
+func default_HasParameter[T interface{ RecognizedParameters() []string }](t T, paramName string) bool {
 	return utils.ElementInList(paramName, t.RecognizedParameters(), normalizeParameter)
 }
 
@@ -85,12 +85,16 @@ var default_serializerParamFuns = map[string]struct {
 	normalizeParameter("SinglePointFooter"): {getter: "GetSinglePointFooter", setter: "SetSinglePointFooter", vartype: utils.TypeOfType[[]byte]()},
 }
 
-// default_getParameter takes a serializer and returns the parameter stored under the key parameterName.
+// default_GetParameter is a default implementation for GetParameter. The latter It takes a serializer and returns the parameter stored under the key parameterName.
 // The type of the return value depends on parameterName.
 // parameterName is case-insensitive.
 //
+// NOTE: default_GetParameter relies on the fact that all parameterNames are in the global default_serializerParamFuns map and the type has appropriate Getters/Setters.
+// The constraint on T is unable to express that.
+// Add a test using ensureDefaultSettersAndGettersWorkForSerializer to validate this for each type you use this on.
+//
 // Note that we should pass a pointer to this function, since we reflect-call a function with it as receiver.
-func default_getParameter[T interface{ HasParameter(string) bool }](serializer T, parameterName string) interface{} {
+func default_GetParameter[T interface{ HasParameter(string) bool }](serializer T, parameterName string) interface{} {
 
 	// used for diagnostics.
 	receiverType := reflect.TypeOf(serializer)
@@ -144,14 +148,14 @@ func default_getParameter[T interface{ HasParameter(string) bool }](serializer T
 	return retValue.Interface()
 }
 
-// makeCopyWithParameters(serializer, parameterName, newParam) takes a serializer (anything with a Clone-method, really) and returns an
-// independent copy (create via Clone() with the parameter given by parameterName replaced by newParam.
+// default_WithParamter provides a default implementation of WithParameter, (soft-)required for the ParameterAware interface.
 //
-// The serializer argument is a pointer, but the returned value is not.
-// parameterName is looked up in the global serializerParams map to obtain getter/setter method names.
-// There must be a Clone() - Method defined on SerializerPtr returning either a SerializerType or SerializerPtr
-// The function panics on failure.
-func default_withParameter[T any, Ptr interface {
+// NOTE: default_WithParameter relies on the fact that all parameterNames are in the global default_serializerParamFuns map and the type has appropriate Getters/Setters.
+// Furthermore, the type needs an appropriate Clone method.
+// The constraint on T is unable to express that.
+//
+// Add a test using ensureDefaultSettersAndGettersWorkForSerializer to validate this for each type you use this on.
+func default_WithParameter[T any, Ptr interface {
 	*T
 	HasParameter(string) bool
 	Validate()

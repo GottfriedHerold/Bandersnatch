@@ -91,13 +91,13 @@ func TestHasParameters(t *testing.T) {
 
 func TestConcatParameterList(t *testing.T) {
 	emptyList := []string{}
-	emptyListSum := concatParameterList(emptyList, emptyList)
+	emptyListSum := concatenateParameterList(emptyList, emptyList)
 	if len(emptyListSum) != 0 {
 		t.Fatalf("Concatenatio of empty lists non-empty")
 	}
 	list1 := []string{"A", "AB", "A", "DUP", "B"}
 	list2 := []string{"B", "C", "DUP", "D"}
-	concat := concatParameterList(list1, list2)
+	concat := concatenateParameterList(list1, list2)
 	expectedconcat := []string{"A", "AB", "DUP", "B", "C", "D"}
 	if len(concat) != len(expectedconcat) {
 		t.Fatalf("List concatentation has unexpected length")

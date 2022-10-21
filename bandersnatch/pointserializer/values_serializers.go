@@ -177,7 +177,7 @@ func (s *valuesSerializerFeFe) HasParameter(parameterName string) bool {
 // This method panics for invalid parameterName.
 // For valuesSerializerFeFe, only "Endianness" is accepted.
 func (s *valuesSerializerFeFe) GetParameter(parameterName string) any {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
 
 // WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
@@ -185,7 +185,7 @@ func (s *valuesSerializerFeFe) GetParameter(parameterName string) any {
 // This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
 // For valuesSerializerFeFe, only "Endianness" is accepted and newParam must be accepted by [common.FieldElementEndianness]'s SetEndianness method.
 func (s *valuesSerializerFeFe) WithParameter(parameterName string, newParam any) *valuesSerializerFeFe {
-	return default_withParameter(s, parameterName, newParam)
+	return default_WithParameter(s, parameterName, newParam)
 }
 
 //*******************************************************************************************************************************
@@ -284,7 +284,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) HasParameter(parameterName string) bo
 // This method panics for invalid parameterName.
 // For valuesSerializerFeFe, only "Endianness, BitHeader" and "BitHeader2" are accepted.
 func (s *valuesSerializerHeaderFeHeaderFe) GetParameter(parameterName string) any {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
 
 // WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
@@ -292,7 +292,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) GetParameter(parameterName string) an
 // This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
 // For valuesSerializerHeaderFeHeaderFe, only "Endianness", "BitHeader" and "BitHeader2" are accepted.
 func (s *valuesSerializerHeaderFeHeaderFe) WithParameter(parameterName string, newParam any) *valuesSerializerHeaderFeHeaderFe {
-	return default_withParameter(s, parameterName, newParam)
+	return default_WithParameter(s, parameterName, newParam)
 }
 
 // OutputLength returns the number of bytes written/read by this valuesSerialzer.
@@ -368,7 +368,7 @@ func (s *valuesSerializerFe) HasParameter(parameterName string) bool {
 // This method panics for invalid parameterName.
 // For valuesSerializerFe, only "Endianness" is accepted.
 func (s *valuesSerializerFe) GetParameter(parameterName string) any {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
 
 // WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
@@ -376,7 +376,7 @@ func (s *valuesSerializerFe) GetParameter(parameterName string) any {
 // This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
 // For valuesSerializerFe, only "Endianness" is accepted and newParam must be accepted by [common.FieldElementEndianness]'s SetEndianness method.
 func (s *valuesSerializerFe) WithParameter(parameterName string, newParam any) *valuesSerializerFe {
-	return default_withParameter(s, parameterName, newParam)
+	return default_WithParameter(s, parameterName, newParam)
 }
 
 //*******************************************************************************************************************************
@@ -445,7 +445,7 @@ func (s *valuesSerializerHeaderFe) HasParameter(parameterName string) bool {
 // This method panics for invalid parameterName.
 // For valuesSerializerHeaderFe, only "Endianness" and "BitHeader" are accepted.
 func (s *valuesSerializerHeaderFe) GetParameter(parameterName string) any {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
 
 // WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
@@ -453,7 +453,7 @@ func (s *valuesSerializerHeaderFe) GetParameter(parameterName string) any {
 // This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
 // For valuesSerializerFeFe, only "Endianness" and "BitHeader" are accepted.
 func (s *valuesSerializerHeaderFe) WithParameter(parameterName string, newParam any) *valuesSerializerHeaderFe {
-	return default_withParameter(s, parameterName, newParam)
+	return default_WithParameter(s, parameterName, newParam)
 }
 
 //*******************************************************************************************************************************
@@ -535,7 +535,7 @@ func (s *valuesSerializerFeCompressedBit) HasParameter(parameterName string) boo
 // This method panics for invalid parameterName.
 // For valuesSerializerFeCompressedBit, only "Endianness" is accepted.
 func (s *valuesSerializerFeCompressedBit) GetParameter(parameterName string) any {
-	return default_getParameter(s, parameterName)
+	return default_GetParameter(s, parameterName)
 }
 
 // WithParameter returns a copy of the given receiver, but with the parameter given by parameterName changed into newParam.
@@ -543,5 +543,5 @@ func (s *valuesSerializerFeCompressedBit) GetParameter(parameterName string) any
 // This method panics for invalid parameterName or newParam of the wrong type (which depends on parameterName)
 // For valuesSerializerFeCompressedBit, only "Endianness" is accepted.
 func (s *valuesSerializerFeCompressedBit) WithParameter(parameterName string, newParam any) *valuesSerializerFeCompressedBit {
-	return default_withParameter(s, parameterName, newParam)
+	return default_WithParameter(s, parameterName, newParam)
 }

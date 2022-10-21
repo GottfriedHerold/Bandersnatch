@@ -1,5 +1,3 @@
-//go:build ignore
-
 package pointserializer
 
 import (
@@ -39,40 +37,40 @@ var _ modifyableSerializer[pointSerializerYXTimesSignY, *pointSerializerYXTimesS
 
 var testBitHeader = common.MakeBitHeader(common.PrefixBits(0b1), 1)
 
-var ps_XY = pointSerializerXY{valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: testBitHeader}, subgroupRestriction{}}
+var ps_XY = &pointSerializerXY{valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: defaultEndianness, bitHeader: testBitHeader}, subgroupRestriction{}}
 var ps_XY_sub = ps_XY.WithParameter("SubgroupOnly", true)
-var ps_XSY = pointSerializerXAndSignY{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{}}
+var ps_XSY = &pointSerializerXAndSignY{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{}}
 var ps_XSY_sub = ps_XSY.WithParameter("SubgroupOnly", true)
-var ps_YSX = pointSerializerYAndSignX{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{}}
+var ps_YSX = &pointSerializerYAndSignX{valuesSerializerFeCompressedBit{fieldElementEndianness: defaultEndianness}, subgroupRestriction{}}
 var ps_YSX_sub = ps_YSX.WithParameter("SubgroupOnly", true)
 var ps_XxSY = basicBanderwagonShort
 var ps_XYxSY = basicBanderwagonLong
 
 var allBasicSerializers []curvePointSerializer_basic = []curvePointSerializer_basic{
-	&ps_XY,
-	&ps_XY_sub,
-	&ps_XSY,
-	&ps_XSY_sub,
-	&ps_YSX,
-	&ps_YSX_sub,
-	&ps_XxSY,
-	&ps_XYxSY,
+	ps_XY,
+	ps_XY_sub,
+	ps_XSY,
+	ps_XSY_sub,
+	ps_YSX,
+	ps_YSX_sub,
+	ps_XxSY,
+	ps_XYxSY,
 }
 
 var allSubgroupOnlySerializers []curvePointSerializer_basic = []curvePointSerializer_basic{
-	&ps_XxSY,
-	&ps_XYxSY,
+	ps_XxSY,
+	ps_XYxSY,
 }
 
 var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []curvePointSerializer_basic{
-	&ps_XY,
-	&ps_XSY,
-	&ps_YSX,
+	ps_XY,
+	ps_XSY,
+	ps_YSX,
 }
 
 func TestParameterSanityCheck(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
-		ensureDefaultSettersAndGettersWorkForSerializer(basicSerializer, t)
+		ensureDefaultSettersAndGettersWorkForSerializer(reflect.TypeOf(basicSerializer), t)
 	}
 }
 
