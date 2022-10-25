@@ -170,3 +170,14 @@ func validate_DefaultGetterForParam(t *testing.T, serializerType reflect.Type, p
 	ok, reason := utils.DoesMethodExist(serializerType, paramInfo.getter, []reflect.Type{}, []reflect.Type{paramInfo.vartype})
 	testutils.FatalUnless(t, ok, reason)
 }
+
+func ensureRecognizedParamsAreFine(t *testing.T, p interface {
+	RecognizedParameters() []string
+	HasParameter(string) bool
+}) {
+	params := p.RecognizedParameters()
+	for _, param := range params {
+		testutils.FatalUnless(t, p.HasParameter(param), "Parameter %v output by RecognizedParamters, but HasParameter says no for type %T", param, p)
+	}
+	testutils.FatalUnless(t, !p.HasParameter("InvalidParameter"), "HasParameter accepts invalid parameter for type %T", p)
+}

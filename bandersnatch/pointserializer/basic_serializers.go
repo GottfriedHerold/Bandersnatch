@@ -672,6 +672,14 @@ func (s *pointSerializerXTimesSignY) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, pointSerializerXTimesSignYrecognizedParams, normalizeParameter)
 }
 
+// Needs special handling, because struct embedding fails for s==nil.
+
+// IsSubgroupOnly tells whether the basic serializer can only be used to (de)serialize points from the subgroup. This is equivalent to GetParameter("SubgroupOnly").
+// Note that this cannot be changed away from true for pointSerializerXTimesSignY
+func (s *pointSerializerXTimesSignY) IsSubgroupOnly() bool {
+	return true
+}
+
 // ***********************************************************************************************************************************************************
 
 // pointSerializerYXTimesSignY is a serializer that uses X*Sign(Y), Y*Sign(Y).
@@ -801,6 +809,14 @@ func (s *pointSerializerYXTimesSignY) RecognizedParameters() []string {
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerYXTimesSignY) HasParameter(parameterName string) bool {
 	return utils.ElementInList(parameterName, pointSerializerYXTimesSignYrecognizedParams, normalizeParameter)
+}
+
+// Needs special handling, because struct embedding fails for s==nil.
+
+// IsSubgroupOnly tells whether the basic serializer can only be used to (de)serialize points from the subgroup. This is equivalent to GetParameter("SubgroupOnly").
+// Note that this cannot be changed away from true for pointSerializerYXTimesSignY
+func (s *pointSerializerYXTimesSignY) IsSubgroupOnly() bool {
+	return true
 }
 
 // ***********************************************************************************************************************************************************

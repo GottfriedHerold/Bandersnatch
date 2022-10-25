@@ -68,7 +68,7 @@ var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []cu
 	ps_YSX,
 }
 
-var pointSerializerTypesUsingDefaultParameterChangeMethods = []reflect.Type{
+var allBasicSerializerTypes = []reflect.Type{
 	utils.TypeOfType[pointSerializerXY](),
 	utils.TypeOfType[pointSerializerXAndSignY](),
 	utils.TypeOfType[pointSerializerYAndSignX](),
@@ -76,7 +76,12 @@ var pointSerializerTypesUsingDefaultParameterChangeMethods = []reflect.Type{
 	utils.TypeOfType[pointSerializerYXTimesSignY](),
 }
 
-func TestParameterSanityCheck(t *testing.T) {
+// Ensure that the serializers work with our default_* implementation of WithParameter and GetParameter.
+// Note that this might change and we might just not use the default_ functions for a given type.
+
+var pointSerializerTypesUsingDefaultParameterChangeMethods = allBasicSerializerTypes
+
+func TestDefaultParameterHandlingIsSaneForBasicSerializers(t *testing.T) {
 	for _, basicSerializerType := range pointSerializerTypesUsingDefaultParameterChangeMethods {
 		ensureDefaultSettersAndGettersWorkForSerializer(basicSerializerType, t)
 	}
@@ -84,7 +89,6 @@ func TestParameterSanityCheck(t *testing.T) {
 
 // This test is more strict than neccessary on the return type of Clone(), but all pointSerializers satisfy that
 
-// Superseded by generics, but kept
 func TestBasicSerializersHasClonable(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
@@ -97,7 +101,6 @@ func TestBasicSerializersHasClonable(t *testing.T) {
 
 // This test is more strict than neccessary on the return type of WithParamter, but all our pointSerializer satisfy that.
 
-// Superseded by generics, but kept
 func TestBasicSerializersHaveWithParams(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
 		serializerType := reflect.TypeOf(basicSerializer)
@@ -122,6 +125,41 @@ func TestBasicSerializerHasWithEndianness(t *testing.T) {
 	}
 }
 
+func TestQueryFunctionsCallableOnNilForBasicSerializers(t *testing.T) {
+	for _, basicSerializerType := range allBasicSerializerTypes {
+		// sanity check: allBasicSerializerTypes should contain the non-pointer types.
+		testutils.FatalUnless(t, basicSerializerType.Kind() != reflect.Pointer, "basicSerializerType contains a pointer")
+		basicSerializerType = reflect.PtrTo(basicSerializerType)
+
+		// create nil pointer of concrete type, stored in appropriate interface.
+		zeroValue := reflect.Zero(basicSerializerType).Interface().(curvePointDeserializer_basic)
+
+		// NOTE: This is contained here because it currently happens to work. Callability on nil-pointers is not a requirement.
+		_ = zeroValue.OutputLength()
+
+		_ = zeroValue.RecognizedParameters()
+		_ = zeroValue.HasParameter("foo")
+
+	}
+
+	// loop is over actual interfaces, not reflect.Types and already has pointer types.
+	for _, basicSerializer := range allSubgroupOnlySerializers {
+		basicSerializerType := reflect.TypeOf(basicSerializer)
+		// this time, we already should have pointers.
+		testutils.FatalUnless(t, basicSerializerType.Kind() == reflect.Pointer, "basicSerializerType is non-pointer")
+
+		// create nil pointer of concrete type, stored in appropriate interface.
+		zeroValue := reflect.Zero(basicSerializerType).Interface().(curvePointDeserializer_basic)
+
+		v := zeroValue.IsSubgroupOnly()
+		testutils.FatalUnless(t, v, "IsSubgroupOnly() called on nil value did not return true when we expected that")
+		v = zeroValue.GetParameter("SubgroupOnly").(bool)
+		testutils.FatalUnless(t, v, "WithParameter('SubgroupOnly') called on nil value did not return true when we expected that")
+	}
+}
+
+// This test checks whether the behaviour on changing the SubgroupOnly parameter is as we expect.
+
 func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 	for _, basicSerializer := range allSubgroupOnlySerializers {
 		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
@@ -129,7 +167,7 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 		funSubgroupOnly := func(val bool) {
 			newSerializer := testutils.CallMethodByName(basicSerializer, "WithParameter", "SubgroupOnly", val)[0].(curvePointDeserializer_basic)
 			if newSerializer.IsSubgroupOnly() != val {
-				t.Fatalf("Chaning SubgroupOnly not reflected by IsSubgroupOnly for %v", typeName)
+				t.Fatalf("Changing SubgroupOnly not reflected by IsSubgroupOnly for %v", typeName)
 			}
 
 		}
@@ -140,6 +178,21 @@ func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
 		}
 	}
 }
+
+// This test checks whether RecognizedParameters gives a reasonable result
+
+func TestRecognizedParameterForBasicSerializers(t *testing.T) {
+	for _, basicSerializer := range allBasicSerializers {
+		// ensure consistency with HasParameter
+		ensureRecognizedParamsAreFine(t, basicSerializer)
+		params := basicSerializer.RecognizedParameters()
+		testutils.FatalUnless(t, utils.ElementInList("Endianness", params, normalizeParameter), "Type %T has no Endianness parameter", basicSerializer)
+		testutils.FatalUnless(t, utils.ElementInList("SubgroupOnly", params, normalizeParameter), "Type %T has no SubgroupOnly parameter", basicSerializer)
+	}
+
+}
+
+// This test verifies that trying to serialize NAPs behaves as expected (fail with the correct error, don't write anyying)
 
 func TestBasicSerializeNAPs(t *testing.T) {
 	for _, basicSerializer := range allBasicSerializers {
@@ -216,7 +269,7 @@ func TestBasicSerializersRoundtrip(t *testing.T) {
 				t.Fatalf("Error when using %v's SerializeCurvePoint Method: bytesWritten == %v, expected output length == %v", serializerName, bytesWritten, basicSerializer.OutputLength())
 			}
 
-			// write extra byte, to ensure reading stops at the correct position.
+			// write extra byte with arbitrary value. This is make sure that the fact that reading stops at the correct position is for non EOF-reasons.
 			buf.WriteByte(42)
 
 			var truncate bool = (i >= iterations)

@@ -106,6 +106,14 @@ func TestQueryFunctionsCallableOnNil(t *testing.T) {
 	}
 }
 
+// Test consistency of HasParameter and RecognizedParameters
+
+func TestRecognizedParamsConsistencyForValuesSerializer(t *testing.T) {
+	for _, valueSerializer := range allValuesSerializers {
+		ensureRecognizedParamsAreFine(t, valueSerializer)
+	}
+}
+
 // This Test runs Validate on all values Serializers that we defined above.
 func TestAllValuesSerializersValidate(t *testing.T) {
 	for _, valueSerializer := range allValuesSerializers {
