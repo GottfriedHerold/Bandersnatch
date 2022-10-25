@@ -1,5 +1,3 @@
-//go:build ignore
-
 package pointserializer
 
 import (
@@ -34,6 +32,8 @@ func TestFixNilEntries(t *testing.T) {
 	shd.Validate()
 }
 
+// ensure RecognizedParameters is consistent with HasParameters and Serializer and Deserializer agree.
+
 func TestRecognizeParameterNames(t *testing.T) {
 	var nilSimpleHeaderDeserializer *simpleHeaderDeserializer = nil
 	var nilSimpleHeaderSerializer *simpleHeaderSerializer = nil
@@ -44,9 +44,16 @@ func TestRecognizeParameterNames(t *testing.T) {
 	if !utils.CompareSlices(allHeaderParams, allHeaderParams2) {
 		t.Fatalf("serializer parameter names and deserializer unexpectedly differ")
 	}
-	ensureDefaultSettersAndGettersWorkForSerializer(nilSimpleHeaderDeserializer, t)
-	ensureDefaultSettersAndGettersWorkForSerializer(nilSimpleHeaderSerializer, t)
+	ensureRecognizedParamsAreFine(t, nilSimpleHeaderDeserializer)
+	ensureRecognizedParamsAreFine(t, nilSimpleHeaderSerializer)
 }
+
+func TestDefaultParameterHandlingForHeaderSerializers(t *testing.T) {
+	ensureDefaultSettersAndGettersWorkForSerializer(utils.TypeOfType[simpleHeaderDeserializer](), t)
+	ensureDefaultSettersAndGettersWorkForSerializer(utils.TypeOfType[simpleHeaderSerializer](), t)
+}
+
+// helper function to test getters and setters
 
 // getParamDirectlyForSimpleHeaderDeserializer returns the []byte stored in a simpleHeaderDeserializer bypassing the getter.
 func getParamDirectlyForSimpleHeaderDeserializer(shd *simpleHeaderDeserializer, paramName string) []byte {
@@ -68,19 +75,23 @@ func getParamDirectlyForSimpleHeaderDeserializer(shd *simpleHeaderDeserializer, 
 	}
 }
 
+// ensures that getter and setter functions for HeadersAndFooter work as intended.
+
 func TestSettersAndGetters(t *testing.T) {
-	var shd simpleHeaderDeserializer
+	var shd *simpleHeaderDeserializer = &simpleHeaderDeserializer{}
 	shd.sliceSizeEndianness = binary.LittleEndian
+
+	shd.fixNilEntries() // Just to be explicit; this would also be done by Validate.
 	shd.Validate()
 
 	var m map[string][]byte = make(map[string][]byte)
 
 	for _, paramName := range headerSerializerParams {
 		m[paramName] = []byte(paramName)
-		shd = makeCopyWithParameters(&shd, paramName, m[paramName])
+		shd = shd.WithParameter(paramName, m[paramName])
 	}
 	for _, paramName := range headerSerializerParams {
-		arg := default_getParameter(&shd, paramName).([]byte)
+		arg := shd.GetParameter(paramName).([]byte)
 		if arg == nil {
 			t.Fatalf("Getter returned nil")
 		}
@@ -90,7 +101,7 @@ func TestSettersAndGetters(t *testing.T) {
 		if !bytes.Equal(arg, m[paramName]) {
 			t.Fatalf("Getter did not return value that was set")
 		}
-		arg2 := getParamDirectlyForSimpleHeaderDeserializer(&shd, paramName)
+		arg2 := getParamDirectlyForSimpleHeaderDeserializer(shd, paramName)
 		if testutils.CheckSliceAlias(arg, arg2) {
 			t.Fatalf("Getter returns value that aliases stored value")
 		}
@@ -102,12 +113,12 @@ func TestSettersAndGetters(t *testing.T) {
 }
 
 // Serializer that writes a literal "GlobalSliceHeader" etc. as slice header
-var testSimpleHeaderSerializer simpleHeaderSerializer
+var testSimpleHeaderSerializer *simpleHeaderSerializer = &simpleHeaderSerializer{}
 
 func init() {
 	testSimpleHeaderSerializer.sliceSizeEndianness = binary.LittleEndian
 	for _, paramName := range headerSerializerParams {
-		testSimpleHeaderSerializer = makeCopyWithParameters(&testSimpleHeaderSerializer, paramName, []byte(paramName))
+		testSimpleHeaderSerializer = testSimpleHeaderSerializer.WithParameter(paramName, []byte(paramName))
 	}
 	testSimpleHeaderSerializer.Validate()
 }
@@ -226,7 +237,7 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 	for i := 0; i < MaxHeaderLength; i++ {
 		designatedErr := errors.New("designated IO error")
 		faultyBuf := testutils.NewFaultyBuffer(i, designatedErr) // will fail after reading / writing i bytes
-		serializers := get_ser_funs(&testSimpleHeaderSerializer)
+		serializers := get_ser_funs(testSimpleHeaderSerializer)
 		deserializers := get_deser_funs(&testSimpleHeaderSerializer.simpleHeaderDeserializer)
 		for j := 0; j < 6; j++ { // The last iteration j == 5 (GlobalSliceHeader) is special
 			L := len(hs_getter_funs[j](&testSimpleHeaderSerializer.simpleHeaderDeserializer))
@@ -317,17 +328,18 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 }
 
 func TestOverheadReporting(t *testing.T) {
-	var someSimpleHeaderDeserializer simpleHeaderDeserializer
+	var someSimpleHeaderDeserializer *simpleHeaderDeserializer = &simpleHeaderDeserializer{}
 	someSimpleHeaderDeserializer.sliceSizeEndianness = defaultEndianness
 	someSimpleHeaderDeserializer.Validate()
-	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "GlobalSliceHeader", make([]byte, 1))
-	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "GlobalSliceFooter", make([]byte, 2))
-	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "SinglePointHeader", make([]byte, 4))
-	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "SinglePointFooter", make([]byte, 8))
-	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "PerPointHeader", make([]byte, 16))
-	someSimpleHeaderDeserializer = makeCopyWithParameters(&someSimpleHeaderDeserializer, "PerPointFooter", make([]byte, 32))
+	someSimpleHeaderDeserializer = someSimpleHeaderDeserializer.WithParameter("GlobalSliceHeader", make([]byte, 1))
+	someSimpleHeaderDeserializer = someSimpleHeaderDeserializer.WithParameter("GlobalSliceFooter", make([]byte, 2))
+	someSimpleHeaderDeserializer = someSimpleHeaderDeserializer.WithParameter("SinglePointHeader", make([]byte, 4))
+	someSimpleHeaderDeserializer = someSimpleHeaderDeserializer.WithParameter("SinglePointFooter", make([]byte, 8))
+	someSimpleHeaderDeserializer = someSimpleHeaderDeserializer.WithParameter("PerPointHeader", make([]byte, 16))
+	someSimpleHeaderDeserializer = someSimpleHeaderDeserializer.WithParameter("PerPointFooter", make([]byte, 32))
 
-	var someSimpleHeaderSerializer simpleHeaderSerializer = simpleHeaderSerializer{simpleHeaderDeserializer: someSimpleHeaderDeserializer}
+	// NOTE: Slices in Serializer and Deserializer share backing array.
+	var someSimpleHeaderSerializer simpleHeaderSerializer = simpleHeaderSerializer{simpleHeaderDeserializer: *someSimpleHeaderDeserializer}
 
 	testutils.FatalUnless(t, someSimpleHeaderDeserializer.SinglePointHeaderOverhead() == 4+8, "Unexpected Overhead")
 	testutils.FatalUnless(t, someSimpleHeaderSerializer.SinglePointHeaderOverhead() == 4+8, "Unexpected Overhead")

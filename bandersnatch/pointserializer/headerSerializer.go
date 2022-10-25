@@ -48,6 +48,7 @@ type headerDeserializer interface {
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 	RecognizedParameters() []string
 	HasParameter(parameterName string) bool
+	// WithParameter(parameterName string, newParameter any) RETURN_TYPE.  -- Not part of the "official" interface, because the return type is not clear
 }
 
 // headerSerializerParams is the list of the parameter names accepted by simpleHeaderDeserializer. This is returned by RecognizedParameters(). Note we do not run normalizeParameters here.
@@ -135,6 +136,9 @@ func (shd *simpleHeaderDeserializer) Clone() *simpleHeaderDeserializer {
 	// We copy the byte slices to avoid aliasing. This is actually not needed, since headerDeserializers are immutable.
 	// While Clone is used internally to create modified copies (by first cloning and then changing parameters), the latter change
 	// does not modify the existing slice.
+
+	// NOTE: copyByteSlice transforms nil -> empy byte slice.
+
 	ret.headerSlice = copyByteSlice(shd.headerSlice)
 	ret.headerPerCurvePoint = copyByteSlice(shd.headerPerCurvePoint)
 	ret.headerSingleCurvePoint = copyByteSlice(shd.headerSingleCurvePoint)
@@ -152,6 +156,24 @@ func (shs *simpleHeaderSerializer) Clone() *simpleHeaderSerializer {
 	var ret simpleHeaderSerializer
 	ret.simpleHeaderDeserializer = *shs.simpleHeaderDeserializer.Clone()
 	return &ret
+}
+
+// WithParameter returns a copy of the given shd with the parameter determined by parameterName changed
+func (shd *simpleHeaderDeserializer) WithParameter(parameterName string, newParameter any) *simpleHeaderDeserializer {
+	return default_WithParameter(shd, parameterName, newParameter)
+}
+
+// WithParameter returns a copy of the given shd with the parameter determined by parameterName changed
+func (shd *simpleHeaderSerializer) WithParameter(parameterName string, newParameter any) *simpleHeaderSerializer {
+	return default_WithParameter(shd, parameterName, newParameter)
+}
+
+func (shd *simpleHeaderSerializer) GetParameter(parameterName string) any {
+	return default_GetParameter(shd, parameterName)
+}
+
+func (shd *simpleHeaderDeserializer) GetParameter(parameterName string) any {
+	return default_GetParameter(shd, parameterName)
 }
 
 // fixNilEntries replaces any nil []byte entries by length-0 []bytes.

@@ -57,11 +57,13 @@ var allBasicSerializers []curvePointSerializer_basic = []curvePointSerializer_ba
 	ps_XYxSY,
 }
 
-var allSubgroupOnlySerializers []curvePointSerializer_basic = []curvePointSerializer_basic{
+// basic serializer that only work for the subgroup (and for which this cannot be changed)
+var allSubgroupRestrictedSerializers []curvePointSerializer_basic = []curvePointSerializer_basic{
 	ps_XxSY,
 	ps_XYxSY,
 }
 
+// basic serializer for which the SubgroupOnly parameter can be changed
 var allSerializersWithModifyableSubgroupOnly []curvePointSerializer_basic = []curvePointSerializer_basic{
 	ps_XY,
 	ps_XSY,
@@ -75,6 +77,9 @@ var allBasicSerializerTypes = []reflect.Type{
 	utils.TypeOfType[pointSerializerXTimesSignY](),
 	utils.TypeOfType[pointSerializerYXTimesSignY](),
 }
+
+// TODO: Parameter modification (type-specific tests)
+// TODO: Error handling for specific errors
 
 // Ensure that the serializers work with our default_* implementation of WithParameter and GetParameter.
 // Note that this might change and we might just not use the default_ functions for a given type.
@@ -143,7 +148,7 @@ func TestQueryFunctionsCallableOnNilForBasicSerializers(t *testing.T) {
 	}
 
 	// loop is over actual interfaces, not reflect.Types and already has pointer types.
-	for _, basicSerializer := range allSubgroupOnlySerializers {
+	for _, basicSerializer := range allSubgroupRestrictedSerializers {
 		basicSerializerType := reflect.TypeOf(basicSerializer)
 		// this time, we already should have pointers.
 		testutils.FatalUnless(t, basicSerializerType.Kind() == reflect.Pointer, "basicSerializerType is non-pointer")
@@ -161,7 +166,7 @@ func TestQueryFunctionsCallableOnNilForBasicSerializers(t *testing.T) {
 // This test checks whether the behaviour on changing the SubgroupOnly parameter is as we expect.
 
 func TestBasicSerializersCannotChangeAwayFromSubgroupOnly(t *testing.T) {
-	for _, basicSerializer := range allSubgroupOnlySerializers {
+	for _, basicSerializer := range allSubgroupRestrictedSerializers {
 		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
 
 		funSubgroupOnly := func(val bool) {
@@ -219,7 +224,7 @@ func TestBasicSerializeNAPs(t *testing.T) {
 // We only try with the affine 2-torsion point.
 
 func TestBasicSerializersNonSubgroup(t *testing.T) {
-	for _, basicSerializer := range allSubgroupOnlySerializers {
+	for _, basicSerializer := range allSubgroupRestrictedSerializers {
 		var typeName string = utils.GetReflectName(reflect.TypeOf(basicSerializer))
 		var P curvePoints.Point_xtw_full
 		P.SetAffineTwoTorsion() // not in subgroup
