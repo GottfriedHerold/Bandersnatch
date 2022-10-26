@@ -20,7 +20,7 @@ import (
 // E.g. to serialize a slice of 3 elements A,B,C, we might write [A,B,] (in addition to the slice size; the extra ',' at the end makes things simpler)
 // In this case, '[' would be the global header, ']' the global footer and ',' the per-point footer.
 
-// headerDeserializer and headerSerializer are abstractions used to (de)serialize headers / footers for multiple points.
+// headerDeserializerInterface and headerSerializerInterface (The explicit Interface in the name is to avoid confusion in the way we use it) are abstractions used to (de)serialize headers / footers for multiple points.
 //
 // When (de)serializing a single point, we call
 // - (de)serializeSinglePointHeader
@@ -37,7 +37,7 @@ import (
 //
 // NOTE: While the return type is int (for consistency with the standard library), we promise that all bytesRead / bytesWritten fit into an int32.
 // Too big reads/write will panic. This is to ensure consistency for 32-bit and 64-bit users.
-type headerDeserializer interface {
+type headerDeserializerInterface interface {
 	deserializeGlobalSliceHeader(input io.Reader) (bytesRead int, size int32, err bandersnatchErrors.DeserializationError)
 	deserializeGlobalSliceFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	deserializeSinglePointHeader(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
@@ -46,9 +46,10 @@ type headerDeserializer interface {
 	deserializePerPointFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	SinglePointHeaderOverhead() int32                                         // returns the size taken up by headers and footers for single-point
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
-	RecognizedParameters() []string
-	HasParameter(parameterName string) bool
-	// WithParameter(parameterName string, newParameter any) RETURN_TYPE.  -- Not part of the "official" interface, because the return type is not clear
+	ParameterAware
+	Validate()
+	// WithParameter(parameterName string, newParameter any) RETURN_TYPE.  -- required, but not part of the "official" interface, because the constraints on the return type are dynamic, not static.
+	// Clone() SAME_TYPE -- only useful if this is satisfied.
 }
 
 // headerSerializerParams is the list of the parameter names accepted by simpleHeaderDeserializer. This is returned by RecognizedParameters(). Note we do not run normalizeParameters here.
@@ -61,8 +62,8 @@ var headerSerializerParams = []string{
 	"PerPointFooter"}
 
 // headerSerializer extends headerDeserializer by also providing serialization routines.
-type headerSerializer interface {
-	headerDeserializer
+type headerSerializerInterface interface {
+	headerDeserializerInterface
 	serializeGlobalSliceHeader(output io.Writer, size int32) (bytesWritten int, err bandersnatchErrors.SerializationError)
 	serializeGlobalSliceFooter(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)
 	serializeSinglePointHeader(output io.Writer) (bytesWritten int, err bandersnatchErrors.SerializationError)

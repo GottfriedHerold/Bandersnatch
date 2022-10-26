@@ -44,16 +44,16 @@ type curvePointDeserializer_basic interface {
 
 // modifyableSerializer is the interface part contains the generic methods used to modify parameters.
 // The relevant methods return a modified copy, whose type depends on the original, hence the need for generics.
-type modifyableSerializer[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
+type modifyableSerializer[SelfPtr any] interface {
 	WithParameter(parameterName string, newParam any) SelfPtr // WithParameter returns an independent copy of the serializer with parameter given by paramName changed to newParam
 	WithEndianness(newEndianness binary.ByteOrder) SelfPtr    // WithEndianness is equivalent to WithParameter("Endianness, newEndianness)")
 	utils.Clonable[SelfPtr]                                   // gives a Clone() SelfPtr function to make copies of itself
 }
 
 // modifyableDeserializer_basic is the interface for deserializer of single curve points that allow parameter modifications.
-type modifyableDeserializer_basic[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
+type modifyableDeserializer_basic[SelfPtr any] interface {
 	curvePointDeserializer_basic
-	modifyableSerializer[SelfValue, SelfPtr]
+	modifyableSerializer[SelfPtr]
 }
 
 // curvePointSerializer_basic is a serializer+deserializer for single curve points.
@@ -63,9 +63,9 @@ type curvePointSerializer_basic interface {
 }
 
 // modifyableDeserializer_basic is the interface for a serializer+deserializer of single curve points that allow parameter modifications.
-type modifyableSerializer_basic[SelfValue any, SelfPtr interface{ *SelfValue }] interface {
+type modifyableSerializer_basic[SelfPtr any] interface {
 	curvePointSerializer_basic
-	modifyableSerializer[SelfValue, SelfPtr]
+	modifyableSerializer[SelfPtr]
 }
 
 // Q: Separate into separate checks?
