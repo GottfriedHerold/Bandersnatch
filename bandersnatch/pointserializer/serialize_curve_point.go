@@ -229,7 +229,7 @@ func newMultiSerializer[BasicPtr interface {
 
 // ErrInsufficientBufferForDeserialization is the (base) error output when DeserializeSliceToBuffer is called with a buffer of insufficient size.
 //
-// Note that the actual error returned wraps this error (and the error message reports the actual sizes)
+// Note that the actual error returned wraps this error (and the error message of the wrapping error reports the actual sizes)
 var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWithData.NewErrorWithParametersFromData(nil,
 	ErrorPrefix+"The provided buffer is too small to store the curve point slice",
 	&BatchDeserializationErrorData{
@@ -240,37 +240,18 @@ var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWi
 
 // ***********************************************************************************************************************************************************
 
-/*
-// makeCopy is basically a variant of Clone() that returns a non-pointer and does not throw away the concrete struct type.
-//
-// This distinction is made here, because here Clone() actually returns an interface (as opposed to essentially everywhere else).
-// The latter is done to avoid users having to see our generics.
-//
-// DEPRECATED
-func (md *multiDeserializer[BasicValue, BasicPtr]) makeCopy() multiDeserializer[BasicValue, BasicPtr] {
-	var ret multiDeserializer[BasicValue, BasicPtr]
-	ret.basicDeserializer = *BasicPtr(&md.basicDeserializer).Clone()
-	ret.headerDeserializer = *md.headerDeserializer.Clone()
-	return ret
-}
-
-// makeCopy is basically a variant of Clone() that returns a non-pointer and does not throw away the concrete struct type.
-//
-// This distinction is made here, because here Clone() actually returns an interface (as opposed to essentially everywhere else).
-// The latter is done to avoid users having to see our generics.
-//
-// DEPRECATED
-func (md *multiSerializer[BasicValue, BasicPtr]) makeCopy() multiSerializer[BasicValue, BasicPtr] {
-	var ret multiSerializer[BasicValue, BasicPtr]
-	ret.basicSerializer = *BasicPtr(&md.basicSerializer).Clone()
-	ret.headerSerializer = *md.headerSerializer.Clone()
-	return ret
-}
-*/
+// general note: We check for nil in most methods here. The first reason is that for some methods, we actually at (least try to) comply with the callers request as far as possible.
+// (which may or not work, depending on whether the individual point and header serializers handle nil -- but at least some methods of those do by design)
+// The second reason is that this type is "pointer-based", i.e. we think of as the pointers as the correct objects and we want to give better error messages for nils.
+// NOTE: Only an interface type is actually exported, so users should not be able to create nil pointers anyway (without reflect or unsafe packages). As such these are all internal errors.
 
 // Validate checks the internal data of the deserializer for validity.
 //
-// It panics on error. Note that This is an internal function. We actually provide no easy way for users to generate an instance (nil interfaces don't count, because they are not even instances of this type) where this would fail.
+// It panics on error. Note that this is an internal function.
+// We actually provide no easy way for users to generate an instance where this would fail.
+//   - nil interfaces don't count, because they are not even instances of this type
+//   - nil pointers cannot be easily created because the type is not exported
+//   - any modification / copying with modifications of existing instances runs through Validate before the new instance is given to the user
 func (md *multiDeserializer[_, _, _, _]) Validate() {
 	// would panic anyway, but we prefer a custom error
 	if md == nil {
@@ -295,7 +276,11 @@ func (md *multiDeserializer[_, _, _, _]) Validate() {
 
 // Validate checks the internal data of the serializer for validity.
 //
-// It panics on error. Note that this is an internal function. We actually provide no easy way for users to generate an instance (nil interfaces don't count, because they are not even instances of this type) where this would fail.
+// It panics on error. Note that this is an internal function.
+// We actually provide no easy way for users to generate an instance where this would fail.
+//   - nil interfaces don't count, because they are not even instances of this type
+//   - nil pointers cannot be easily created because the type is not exported
+//   - any modification / copying with modifications of existing instances runs through Validate before the new instance is given to the user
 func (md *multiSerializer[_, _, _, _]) Validate() {
 	// would panic anyway, but we prefer a custom error
 	if md == nil {
@@ -350,7 +335,6 @@ func (md *multiDeserializer[BasicPtr, HeaderPtr, _, _]) RecognizedParameters() [
 	}
 
 	return concatenateParameterList(list1, list2)
-
 }
 
 // RecognizedParameters returns a list of parameters that can be queried/modified via WithParameter / GetParameter
@@ -375,7 +359,6 @@ func (md *multiDeserializer[BasicPtr, HeaderPtr, _, _]) HasParameter(parameterNa
 	} else {
 		return md.basicDeserializer.HasParameter(parameterName) || md.headerDeserializer.HasParameter(parameterName)
 	}
-
 }
 
 // HasParameter tells whether a given parameterName is the name of a valid parameter for this serializer.
@@ -407,7 +390,7 @@ func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithP
 
 	// make sure the parameter actually exists.
 	if !(foundBasic || foundHeader) {
-		panic(fmt.Errorf(ErrorPrefix+"Trying to set parameter %v that does not exist for this deserializer.\nValid parameter are %v", parameterName, md.RecognizedParameters()))
+		panic(fmt.Errorf(ErrorPrefix+"Trying to set parameter %v that does not exist for this deserializer.\nValid parameters are %v", parameterName, md.RecognizedParameters()))
 	}
 
 	// Case distinction: If the paramter is present in the component, use WithParameter, otherwise Clone()
@@ -470,12 +453,12 @@ func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithPar
 // GetParameter returns the value stored under the given parameterName for this deserializer.
 //
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
-func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue_, HeaderValue]) GetParameter(parameterName string) any {
+func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) GetParameter(parameterName string) any {
 
 	// Treat nil md as md containing nils. This may or may not work, depending on the involved types and on parameterName
 	// Note that we change (the local variable) md, not *md -- this is not visible to the called.
 	if md == nil {
-		md = &multiDeserializer[BasicPtr, HeaderPtr, BasicValue_, HeaderValue]{}
+		md = &multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{}
 	}
 
 	// If parameterName is contained in both components, preference is given to basicPointer

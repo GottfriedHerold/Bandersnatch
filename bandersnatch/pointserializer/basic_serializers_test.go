@@ -133,7 +133,7 @@ func TestBasicSerializerHasWithEndianness(t *testing.T) {
 func TestQueryFunctionsCallableOnNilForBasicSerializers(t *testing.T) {
 	for _, basicSerializerType := range allBasicSerializerTypes {
 		// sanity check: allBasicSerializerTypes should contain the non-pointer types.
-		testutils.FatalUnless(t, basicSerializerType.Kind() != reflect.Pointer, "basicSerializerType contains a pointer")
+		testutils.FatalUnless(t, basicSerializerType.Kind() != reflect.Pointer, "basicSerializerType must contain a pointer")
 		basicSerializerType = reflect.PtrTo(basicSerializerType)
 
 		// create nil pointer of concrete type, stored in appropriate interface.
