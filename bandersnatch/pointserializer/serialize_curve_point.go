@@ -308,7 +308,6 @@ func (md *multiSerializer[_, _, _, _]) Validate() {
 // Note that for the sake of simplicity (to avoid exporting a generic type), Clone throws away the concrete type here.
 func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) Clone() CurvePointDeserializerModifyable {
 	return &multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{basicDeserializer: md.basicDeserializer.Clone(), headerDeserializer: md.headerDeserializer.Clone()}
-
 }
 
 // Clone() returns a copy of itself (as a pointer inside an interface)
