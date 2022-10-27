@@ -96,16 +96,19 @@ type simpleHeaderSerializer struct {
 }
 
 var (
-	// basicSimpleHeaderDeserializer is a valid simpleHeaderDeserializer with trivial headers/footers. Note that nil []byte-slices are changed by init() below
-	basicSimpleHeaderDeserializer simpleHeaderDeserializer = simpleHeaderDeserializer{sliceSizeEndianness: binary.LittleEndian}
-	// basicSimpleHeaderSerializer is a valid simpleHeaderSerializer with trivial headers/footers. Note that nil []byte-slices are changed by init() below
-	basicSimpleHeaderSerializer simpleHeaderSerializer = simpleHeaderSerializer{simpleHeaderDeserializer: *basicSimpleHeaderDeserializer.Clone()}
+	// trivialSimpleHeaderDeserializer is a valid simpleHeaderDeserializer with trivial headers/footers. Note that nil []byte-slices are changed by init() below
+	trivialSimpleHeaderDeserializer *simpleHeaderDeserializer = &simpleHeaderDeserializer{sliceSizeEndianness: binary.LittleEndian}
+	// trivialSimpleHeaderSerializer is a valid simpleHeaderSerializer with trivial headers/footers. Note that nil []byte-slices are changed by init() below
+	trivialSimpleHeaderSerializer *simpleHeaderSerializer = &simpleHeaderSerializer{simpleHeaderDeserializer: *trivialSimpleHeaderDeserializer.Clone()}
 )
 
-// Validate the above; this also changes nil entries to empty []byte
+// set the []byte entries to empty slices rather than nil.
 func init() {
-	basicSimpleHeaderDeserializer.Validate()
-	basicSimpleHeaderSerializer.Validate()
+	trivialSimpleHeaderDeserializer.fixNilEntries()
+	trivialSimpleHeaderSerializer.fixNilEntries()
+
+	trivialSimpleHeaderDeserializer.Validate()
+	trivialSimpleHeaderSerializer.Validate()
 }
 
 // RecognizedParameters returns a list of all parameter names that header (de)serializers support for querying and modifying.

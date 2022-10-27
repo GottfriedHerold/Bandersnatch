@@ -17,7 +17,7 @@ import (
 // Generally, we define structs/interfaces that define some (de)serializer (named, say s)
 // s holds all the metadata (such as e.g. endianness) needed to define the serialization format.
 // Modifying such metadata contained in a (de)serializer is done by making a copy with modified parameters.
-// The (de)serializers themselves are considered (shallowly) immutable.
+// The (de)serializers themselves are considered immutable.
 // To actually serialize a curve point, the user calls some appropropriate (de)serialization method, e.g.
 // s.SomeSerializeMethod(outputStream io.Writer, curvePoint ...) (bytesWritten int, err SomeErrorInterfaceType)
 // or
@@ -134,6 +134,7 @@ type CurvePointSerializer interface {
 	Validate() // internal self-check function. Users never have a reason to call this.
 
 	RecognizedParameters() []string
+	HasParameter(parameterName string) bool
 
 	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
 
@@ -155,12 +156,18 @@ type CurvePointSerializerModifyable interface {
 	Clone() CurvePointSerializerModifyable
 }
 
-// Note: We cannot directly use variables of interface type inside the struct, but we need generic for two reasons:
+var (
+	BanderwagonShort CurvePointSerializerModifyable = newMultiSerializer(basicBanderwagonShort, trivialSimpleHeaderSerializer)
+	BanderwagonLong  CurvePointSerializerModifyable = newMultiSerializer(basicBanderwagonLong, trivialSimpleHeaderSerializer)
+)
+
+// Note: We cannot directly use variables of interface type inside the struct, but rather use generics for two reasons:
 //   a) Albeit a minor issue (we could just not support this), handling nils is somewhat different.
 //      In particular, nil pointers to multiDeserializer[A,B] contain information about the types A and B.
-//      We have functions on A, B that do work with nil receivers and we want to have the same behaviour on multiDeserializer for constency.
+//      We have functions on A, B that do work with nil receivers of type A resp. B and we want to have the same behaviour on multiDeserializer[A,B] for constency.
 //      This is only possible with generics
-//   b) At least for BasicPtr, The actual interface satified is generic due to Clone() functions retaining the type. Since we need generics anyway, we might as well make both types generic.
+//   b) At least for BasicPtr, The actual interface satisfied is generic due to Clone() functions retaining the type.
+//      Since we need either generics or reflection anyway, we might as well make both types generic.
 //
 
 type multiDeserializer[BasicPtr interface {
@@ -187,6 +194,37 @@ type multiSerializer[BasicPtr interface {
 }, BasicValue any, HeaderValue any] struct {
 	basicSerializer  BasicPtr  // pointer to basic serializer. Due to immutability, having a pointer is fine.
 	headerSerializer HeaderPtr // pointer to header serializer. Again, a pointer is fine.
+}
+
+// these functions just serve as workarounds to Go's inability to derive type parameters for variable declarations.
+
+func newMultiDeserializer[BasicPtr interface {
+	modifyableDeserializer_basic[BasicPtr]
+	*BasicValue
+}, HeaderPtr interface {
+	headerDeserializerInterface
+	Clone() HeaderPtr
+	WithParameter(string, any) HeaderPtr
+	*HeaderValue
+}, BasicValue any, HeaderValue any](basicDeserializer BasicPtr, headerDeserializer HeaderPtr) (ret *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) {
+	ret = &multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{basicDeserializer: basicDeserializer, headerDeserializer: headerDeserializer}
+	ret.Validate()
+	return
+}
+
+func newMultiSerializer[BasicPtr interface {
+	modifyableSerializer_basic[BasicPtr]
+	*BasicValue
+}, HeaderPtr interface {
+	headerSerializerInterface
+	Clone() HeaderPtr
+	WithParameter(string, any) HeaderPtr
+	*HeaderValue
+}, BasicValue any, HeaderValue any](basicSerializer BasicPtr, headerSerializer HeaderPtr) (ret *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) {
+
+	ret = &multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{basicSerializer: basicSerializer, headerSerializer: headerSerializer}
+	ret.Validate()
+	return
 }
 
 // ErrInsufficientBufferForDeserialization is the (base) error output when DeserializeSliceToBuffer is called with a buffer of insufficient size.
@@ -231,7 +269,20 @@ func (md *multiSerializer[BasicValue, BasicPtr]) makeCopy() multiSerializer[Basi
 */
 
 // Validate checks the internal data of the deserializer for validity.
+//
+// It panics on error. Note that This is an internal function. We actually provide no easy way for users to generate an instance (nil interfaces don't count, because they are not even instances of this type) where this would fail.
 func (md *multiDeserializer[_, _, _, _]) Validate() {
+	// would panic anyway, but we prefer a custom error
+	if md == nil {
+		panic(ErrorPrefix + "Validate called nil pointer of type *multiDeserializer[...]")
+	}
+	if md.basicDeserializer == nil {
+		panic(ErrorPrefix + "Validate called on multiDeserializer whose underlying basic deserializer is nil.")
+	}
+	if md.headerDeserializer == nil {
+		panic(ErrorPrefix + "Validate called on multiDeserializer whose underlying header deserializer is nil.")
+	}
+
 	md.basicDeserializer.Validate()
 	md.headerDeserializer.Validate()
 
@@ -244,8 +295,19 @@ func (md *multiDeserializer[_, _, _, _]) Validate() {
 
 // Validate checks the internal data of the serializer for validity.
 //
-// It panics on error
+// It panics on error. Note that this is an internal function. We actually provide no easy way for users to generate an instance (nil interfaces don't count, because they are not even instances of this type) where this would fail.
 func (md *multiSerializer[_, _, _, _]) Validate() {
+	// would panic anyway, but we prefer a custom error
+	if md == nil {
+		panic(ErrorPrefix + "Validate called nil pointer of type *multiSerializer[...]")
+	}
+	if md.basicSerializer == nil {
+		panic(ErrorPrefix + "Validate called on multiSerializer whose underlying basic serializer is nil.")
+	}
+	if md.headerSerializer == nil {
+		panic(ErrorPrefix + "Validate called on multiSerializer whose underlying header serializer is nil.")
+	}
+
 	md.basicSerializer.Validate()
 	md.headerSerializer.Validate()
 
@@ -327,10 +389,16 @@ func (md *multiSerializer[BasicPtr, HeaderPtr, _, _]) HasParameter(parameterName
 
 // WithParameter and GetParameter are complicated by the fact that we cannot struct-embed generic type parameters.
 
-// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParam.
+// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParameter.
+// The receiver is unchanged and the new Deserializer is independent.
 //
 // Note: This function will panic if the parameter does not exists or the new deserializer would have invalid parameters.
-func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithParameter(parameterName string, newParam any) CurvePointDeserializerModifyable {
+func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithParameter(parameterName string, newParameter any) CurvePointDeserializerModifyable {
+	// Just for better error message
+	if md == nil {
+		panic(fmt.Errorf(ErrorPrefix+"Called WithParameter on nil receiver of type %T", md))
+	}
+
 	var ret multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]
 
 	// Check which component has the parameter. Note that it could be both
@@ -344,12 +412,12 @@ func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithP
 
 	// Case distinction: If the paramter is present in the component, use WithParameter, otherwise Clone()
 	if foundBasic {
-		ret.basicDeserializer = md.basicDeserializer.WithParameter(parameterName, newParam)
+		ret.basicDeserializer = md.basicDeserializer.WithParameter(parameterName, newParameter)
 	} else {
 		ret.basicDeserializer = md.basicDeserializer.Clone() // NOTE: We could copy the pointer. However, that is error-prone
 	}
 	if foundHeader {
-		ret.headerDeserializer = md.headerDeserializer.WithParameter(parameterName, newParam)
+		ret.headerDeserializer = md.headerDeserializer.WithParameter(parameterName, newParameter)
 	} else {
 		ret.headerDeserializer = md.headerDeserializer.Clone() // NOTE: We could copy the pointer. However, that is error-prone
 	}
@@ -360,10 +428,16 @@ func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithP
 	return &ret
 }
 
-// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParam.
+// WithParameter returns a new Deserializer with the parameter determined by parameterName changed to newParameter.
+// The receiver is unchanged and the new Deserializer is independent.
 //
 // Note: This function will panic if the parameter does not exists or the new deserializer would have invalid parameters.
-func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable {
+func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithParameter(parameterName string, newParameter any) CurvePointSerializerModifyable {
+	// Just for better error message
+	if md == nil {
+		panic(fmt.Errorf(ErrorPrefix+"Called WithParameter on nil receiver of type %T", md))
+	}
+
 	var ret multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]
 
 	// Check which component has the parameter. Note that it could be both
@@ -377,12 +451,12 @@ func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithPar
 
 	// Case distinction: If the paramter is present in the component, use WithParameter, otherwise Clone()
 	if foundBasic {
-		ret.basicSerializer = md.basicSerializer.WithParameter(parameterName, newParam)
+		ret.basicSerializer = md.basicSerializer.WithParameter(parameterName, newParameter)
 	} else {
 		ret.basicSerializer = md.basicSerializer.Clone() // NOTE: We could copy the pointer. However, that is error-prone
 	}
 	if foundHeader {
-		ret.headerSerializer = md.headerSerializer.WithParameter(parameterName, newParam)
+		ret.headerSerializer = md.headerSerializer.WithParameter(parameterName, newParameter)
 	} else {
 		ret.headerSerializer = md.headerSerializer.Clone() // NOTE: We could copy the pointer. However, that is error-prone
 	}
@@ -396,7 +470,13 @@ func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithPar
 // GetParameter returns the value stored under the given parameterName for this deserializer.
 //
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
-func (md *multiDeserializer[_, _, _, _]) GetParameter(parameterName string) any {
+func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue_, HeaderValue]) GetParameter(parameterName string) any {
+
+	// Treat nil md as md containing nils. This may or may not work, depending on the involved types and on parameterName
+	// Note that we change (the local variable) md, not *md -- this is not visible to the called.
+	if md == nil {
+		md = &multiDeserializer[BasicPtr, HeaderPtr, BasicValue_, HeaderValue]{}
+	}
 
 	// If parameterName is contained in both components, preference is given to basicPointer
 
@@ -410,7 +490,13 @@ func (md *multiDeserializer[_, _, _, _]) GetParameter(parameterName string) any 
 // GetParameter returns the value stored under the given parameterName for this serializer.
 //
 // Note that this method panics if the parameterName is not valid. Check with HasParameter first, if needed.
-func (md *multiSerializer[_, _, _, _]) GetParameter(parameterName string) any {
+func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) GetParameter(parameterName string) any {
+
+	// Treat nil md as md containing nils. This may or may not work, depending on the involved types and on parameterName
+	// Note that we change (the local variable) md, not *md -- this is not visible to the called.
+	if md == nil {
+		md = &multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{}
+	}
 
 	// If parameterName is contained in both components, preference is given to basicPointer
 	if md.basicSerializer.HasParameter(parameterName) {
@@ -425,6 +511,10 @@ func (md *multiSerializer[_, _, _, _]) GetParameter(parameterName string) any {
 // NOTE: The endianness for (de)serialization of slice size headers is NOT affected by this method.
 // NOTE2: newEndianness must be either literal binary.BigEndian, binary.LittleEndian or a common.FieldElementEndianness. In particular it must be non-nil. Failure to do so will panic.
 func (md *multiDeserializer[_, _, _, _]) WithEndianness(newEndianness binary.ByteOrder) CurvePointDeserializerModifyable {
+
+	if md == nil {
+		panic(fmt.Errorf(ErrorPrefix+"Called WithEndianness on nil receiver of type %T", md))
+	}
 	return md.WithParameter("Endianness", newEndianness)
 }
 
@@ -433,6 +523,10 @@ func (md *multiDeserializer[_, _, _, _]) WithEndianness(newEndianness binary.Byt
 // NOTE: The endianness for (de)serialization of slice size headers is NOT affected by this method.
 // NOTE2: newEndianness must be either literal binary.BigEndian, binary.LittleEndian or a common.FieldElementEndianness. In particular it must be non-nil. Failure to do so will panic.
 func (md *multiSerializer[_, _, _, _]) WithEndianness(newEndianness binary.ByteOrder) CurvePointSerializerModifyable {
+	if md == nil {
+		panic(fmt.Errorf(ErrorPrefix+"Called WithEndianness on nil receiver of type %T", md))
+	}
+
 	return md.WithParameter("Endianness", newEndianness)
 }
 
@@ -513,24 +607,36 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 // GetFieldElementEndianness returns the endianness this deserializer used to (de)serialize field elements.
 //
 // Note that the value is returned as a common.FieldElementEndianness, which is an interface extending binary.ByteOrder.
-func (md *multiDeserializer[_, _, _, _]) GetFieldElementEndianness() common.FieldElementEndianness {
+func (md *multiDeserializer[BasicPtr, _, _, _]) GetFieldElementEndianness() common.FieldElementEndianness {
+	if md == nil {
+		return BasicPtr(nil).GetEndianness()
+	}
 	return md.basicDeserializer.GetEndianness()
 }
 
 // GetFieldElementEndianness returns the endianness this serializer used to (de)serialize field elements.
 //
 // Note that the value is returned as a common.FieldElementEndianness, which is an interface extending binary.ByteOrder.
-func (md *multiSerializer[_, _, _, _]) GetFieldElementEndianness() common.FieldElementEndianness {
+func (md *multiSerializer[BasicPtr, _, _, _]) GetFieldElementEndianness() common.FieldElementEndianness {
+	if md == nil {
+		return BasicPtr(nil).GetEndianness()
+	}
 	return md.basicSerializer.GetEndianness()
 }
 
 // IsSubgroupOnly returns whether this deserializer only works for subgroup elements.
-func (md *multiDeserializer[_, _, _, _]) IsSubgroupOnly() bool {
+func (md *multiDeserializer[BasicPtr, _, _, _]) IsSubgroupOnly() bool {
+	if md == nil {
+		return BasicPtr(nil).IsSubgroupOnly()
+	}
 	return md.basicDeserializer.IsSubgroupOnly()
 }
 
 // IsSubgroupOnly returns whether this serializer only works for subgroup elements.
-func (md *multiSerializer[_, _, _, _]) IsSubgroupOnly() bool {
+func (md *multiSerializer[BasicPtr, _, _, _]) IsSubgroupOnly() bool {
+	if md == nil {
+		return BasicPtr(nil).IsSubgroupOnly()
+	}
 	return md.basicSerializer.IsSubgroupOnly()
 }
 
@@ -538,13 +644,33 @@ func (md *multiSerializer[_, _, _, _]) IsSubgroupOnly() bool {
 //
 // Note: We can only hope to get an upper bound, because a deserializer that is *not* also a serializer might work (and autodetect) multiple serialization formats;
 // these different formats may have different lengths.
-func (md *multiDeserializer[_, _, _, _]) OutputLength() int32 {
+func (md *multiDeserializer[BasicPtr, HeaderPtr, _, _]) OutputLength() int32 {
+	if md == nil {
+
+		// These calls may well panic (especially the HeaderPtr one)
+		actualPoint := BasicPtr(nil).OutputLength()
+		overhead := HeaderPtr(nil).SinglePointHeaderOverhead()
+
+		if int64(actualPoint)+int64(overhead) > math.MaxInt32 {
+			panic(fmt.Errorf(ErrorPrefix+"OutputLength overflows int32 when called on nil receiver of type %T", md))
+		}
+	}
 	// Validate ensures this does not overflow
 	return md.headerDeserializer.SinglePointHeaderOverhead() + md.basicDeserializer.OutputLength()
 }
 
 // OutputLength returns the size (in bytes) that this serializer will read or write when (de)serializing a single curve point.
-func (md *multiSerializer[_, _, _, _]) OutputLength() int32 {
+func (md *multiSerializer[BasicPtr, HeaderPtr, _, _]) OutputLength() int32 {
+	if md == nil {
+
+		// These calls may well panic (especially the HeaderPtr one)
+		actualPoint := BasicPtr(nil).OutputLength()
+		overhead := HeaderPtr(nil).SinglePointHeaderOverhead()
+
+		if int64(actualPoint)+int64(overhead) > math.MaxInt32 {
+			panic(fmt.Errorf(ErrorPrefix+"OutputLength overflows int32 when called on nil receiver of type %T", md))
+		}
+	}
 	// Validate ensures this does not overflow
 	return md.headerSerializer.SinglePointHeaderOverhead() + md.basicSerializer.OutputLength()
 }
