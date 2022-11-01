@@ -11,19 +11,39 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+var VerboseBanderwagonLong = BanderwagonLong.
+	WithParameter("SinglePointHeader", "SinglePointHeader").
+	WithParameter("SinglePointFooter", "SinglePointFooter").
+	WithParameter("GlobalSliceHeader", "GlobalSliceHeader").
+	WithParameter("GlobalSliceFooter", "GlobalSliceFooter").
+	WithParameter("PerPointHeader", "PerPointHeader").
+	WithParameter("PerPointFooter", "PerPointFooter")
+
+var VerboseBanderwagonShort = BanderwagonShort.
+	WithParameter("SinglePointHeader", "SinglePointHeader").
+	WithParameter("SinglePointFooter", "SinglePointFooter").
+	WithParameter("GlobalSliceHeader", "GlobalSliceHeader").
+	WithParameter("GlobalSliceFooter", "GlobalSliceFooter").
+	WithParameter("PerPointHeader", "PerPointHeader").
+	WithParameter("PerPointFooter", "PerPointFooter")
+
 var (
-	BanderwagonLong_OnlyDeserializer  = newMultiDeserializer(basicBanderwagonLong, trivialSimpleHeaderDeserializer)
-	BanderwagonShort_OnlyDeserializer = newMultiDeserializer(basicBanderwagonShort, trivialSimpleHeaderDeserializer)
+	BanderwagonLong_OnlyDeserializer         = BanderwagonLong.AsDeserializer()
+	BanderwagonShort_OnlyDeserializer        = BanderwagonShort.AsDeserializer()
+	VerboseBanderwagonLong_OnlyDeserializer  = VerboseBanderwagonLong.AsDeserializer()
+	VerboseBanderwagonShort_OnlyDeserializer = VerboseBanderwagonShort.AsDeserializer()
 )
 
 var (
-	allTestMultiSerializers   []CurvePointSerializerModifyable = []CurvePointSerializerModifyable{BanderwagonShort, BanderwagonLong}
-	allTestMultiDeserializers []CurvePointDeserializer         = []CurvePointDeserializer{BanderwagonShort_OnlyDeserializer, BanderwagonLong_OnlyDeserializer}
+	allTestMultiSerializers   []CurvePointSerializerModifyable   = []CurvePointSerializerModifyable{BanderwagonShort, BanderwagonLong, VerboseBanderwagonLong, VerboseBanderwagonShort}
+	allTestMultiDeserializers []CurvePointDeserializerModifyable = []CurvePointDeserializerModifyable{BanderwagonShort_OnlyDeserializer, BanderwagonLong_OnlyDeserializer, VerboseBanderwagonLong_OnlyDeserializer, VerboseBanderwagonShort_OnlyDeserializer}
 )
 
-var DeserializerFromSerializer = map[CurvePointSerializerModifyable]CurvePointDeserializer{
-	BanderwagonShort: BanderwagonShort_OnlyDeserializer,
-	BanderwagonLong:  BanderwagonLong_OnlyDeserializer,
+var DeserializerFromSerializer = map[CurvePointSerializerModifyable]CurvePointDeserializerModifyable{
+	BanderwagonShort:        BanderwagonShort_OnlyDeserializer,
+	BanderwagonLong:         BanderwagonLong_OnlyDeserializer,
+	VerboseBanderwagonLong:  VerboseBanderwagonLong_OnlyDeserializer,
+	VerboseBanderwagonShort: VerboseBanderwagonShort_OnlyDeserializer,
 }
 
 type (
@@ -31,20 +51,28 @@ type (
 	someMultiDeserializerType = multiDeserializer[*pointSerializerYXTimesSignY, *simpleHeaderDeserializer, pointSerializerYXTimesSignY, simpleHeaderDeserializer]
 )
 
+// make sure everyything we actually export validates
+
 func TestEnsureExportedSerializersValidate(t *testing.T) {
 	BanderwagonLong.Validate()
 	BanderwagonShort.Validate()
 }
+
+// ensure Clone preserves the dynamic type.
 
 func TestClonePreservesDynamicType(t *testing.T) {
 	for _, serializer := range allTestMultiSerializers {
 		serializerType := reflect.TypeOf(serializer)
 		testutils.Assert(serializerType.Kind() == reflect.Pointer)
 
+		// Check the (dynamic) type of everything from allTestMultiSerializers,
+		// reflect-Call Clone() on it and check that the (dynamic) type remains the same
+
 		serializerValue := reflect.ValueOf(serializer)
 		CloneMethod := serializerValue.MethodByName("Clone")
 		cloneValue := CloneMethod.Call([]reflect.Value{})[0]
-		// this looks stupid, but cloneValue reflects a variable of type interface, so this reaches into the interface and changes it to the dynamic type.
+		// this looks stupid, but cloneValue reflects a variable of type interface: cloneValue.Type().Kind() is interface since cloneValue.Type() is the static type returned by Clone.
+		// So we need this to reach into the interface{} and changes it to the dynamic type.
 		cloneValue = reflect.ValueOf(cloneValue.Interface())
 		cloneType := cloneValue.Type()
 
@@ -58,7 +86,6 @@ func TestClonePreservesDynamicType(t *testing.T) {
 		serializerValue := reflect.ValueOf(serializer)
 		CloneMethod := serializerValue.MethodByName("Clone")
 		cloneValue := CloneMethod.Call([]reflect.Value{})[0]
-		// this looks stupid, but cloneValue reflects a variable of type interface, so this reaches into the interface and changes it to the dynamic type.
 		cloneValue = reflect.ValueOf(cloneValue.Interface())
 		cloneType := cloneValue.Type()
 
@@ -143,4 +170,68 @@ func TestMultiSerializerAndDeserializerConsistency(t *testing.T) {
 			testutils.FatalUnless(t, readBack.IsEqual(&point[i]), "Did not read back same point as written")
 		}
 	}
+}
+
+func TestRetrieveParamsViaMultiSerializer(t *testing.T) {
+	for _, serializer := range allTestMultiSerializers {
+		recognizedParams := serializer.RecognizedParameters()
+		for _, param := range recognizedParams {
+			testutils.FatalUnless(t, serializer.HasParameter(param), "Test is meaningless. Recognized Parameters should have failed anyway.")
+			_ = serializer.GetParameter(param)
+		}
+	}
+
+	for _, deserializer := range allTestMultiDeserializers {
+		recognizedParams := deserializer.RecognizedParameters()
+		for _, param := range recognizedParams {
+			testutils.FatalUnless(t, deserializer.HasParameter(param), "Test is meaningless. Recognized Parameters should have failed anyway.")
+			_ = deserializer.GetParameter(param)
+		}
+	}
+
+	for _, param := range headerSerializerParams {
+		// This is not a strict requirement, but our test is only meaningful unter that assumption
+		testutils.FatalUnless(t, VerboseBanderwagonLong.HasParameter(param), "VerboseBanderwagonLong should contain headerSerializerParams")
+		testutils.FatalUnless(t, VerboseBanderwagonShort.HasParameter(param), "VerboseBanderwagonLong should contain headerSerializerParams")
+
+		val1 := VerboseBanderwagonLong.GetParameter(param).([]byte)
+		val1String := string(val1)
+		testutils.FatalUnless(t, param == val1String, "VerboseBanderwagonLong should have param == paramName for its header params")
+
+		val2 := VerboseBanderwagonLong_OnlyDeserializer.GetParameter(param).([]byte)
+		val2String := string(val2)
+		testutils.FatalUnless(t, val1String == val2String, "DeserializerParams differ from serializer params for VerboseBanderwagonLong")
+
+		val2 = VerboseBanderwagonShort.GetParameter(param).([]byte)
+		val2String = string(val2)
+		testutils.FatalUnless(t, val1String == val2String, "DeserializerParams different for VerboseBanderwagonShort")
+
+		val2 = VerboseBanderwagonShort_OnlyDeserializer.GetParameter(param).([]byte)
+		val2String = string(val2)
+		testutils.FatalUnless(t, val1String == val2String, "DeserializerParams different for VerboseBanderwagonShort (Deserializer)")
+	}
+}
+
+func TestWithEndianness(t *testing.T) {
+	orginalEndianness := BanderwagonLong.GetFieldElementEndianness()
+	originalEndianness2 := BanderwagonLong.AsDeserializer().GetFieldElementEndianness()
+
+	// NOTE: This compares pointers inside an interface, actually.
+	testutils.FatalUnless(t, orginalEndianness == originalEndianness2, "Endianness choice for serializer and deserializers differ")
+
+	ser := BanderwagonLong.WithEndianness(common.BigEndian)
+	testutils.FatalUnless(t, BanderwagonLong.GetFieldElementEndianness() == orginalEndianness, "WithEndianness changes original")
+	testutils.FatalUnless(t, ser.GetFieldElementEndianness() == common.BigEndian, "Setting Endianness failed")
+
+	deser := BanderwagonLong.AsDeserializer().WithEndianness(common.BigEndian)
+	testutils.FatalUnless(t, BanderwagonLong.GetFieldElementEndianness() == orginalEndianness, "WithEndianness changes original")
+	testutils.FatalUnless(t, deser.GetFieldElementEndianness() == common.BigEndian, "Setting Endianness failed")
+
+	ser = BanderwagonLong.WithEndianness(common.LittleEndian)
+	testutils.FatalUnless(t, BanderwagonLong.GetFieldElementEndianness() == orginalEndianness, "WithEndianness changes original")
+	testutils.FatalUnless(t, ser.GetFieldElementEndianness() == common.LittleEndian, "Setting Endianness failed")
+
+	deser = BanderwagonLong.AsDeserializer().WithEndianness(common.LittleEndian)
+	testutils.FatalUnless(t, BanderwagonLong.GetFieldElementEndianness() == orginalEndianness, "WithEndianness changes original")
+	testutils.FatalUnless(t, deser.GetFieldElementEndianness() == common.LittleEndian, "Setting Endianness failed")
 }

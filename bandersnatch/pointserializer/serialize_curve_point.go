@@ -154,6 +154,7 @@ type CurvePointSerializerModifyable interface {
 	WithParameter(parameterName string, newParam any) CurvePointSerializerModifyable
 	WithEndianness(newEndianness binary.ByteOrder) CurvePointSerializerModifyable
 	Clone() CurvePointSerializerModifyable
+	AsDeserializer() CurvePointDeserializerModifyable
 }
 
 var (
@@ -225,6 +226,10 @@ func newMultiSerializer[BasicPtr interface {
 	ret = &multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{basicSerializer: basicSerializer, headerSerializer: headerSerializer}
 	ret.Validate()
 	return
+}
+
+func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) AsDeserializer() CurvePointDeserializerModifyable {
+	return &multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]{basicDeserializer: md.basicSerializer, headerDeserializer: md.headerSerializer}
 }
 
 // ErrInsufficientBufferForDeserialization is the (base) error output when DeserializeSliceToBuffer is called with a buffer of insufficient size.

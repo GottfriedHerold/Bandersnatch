@@ -164,12 +164,27 @@ func (shs *simpleHeaderSerializer) Clone() *simpleHeaderSerializer {
 
 // WithParameter returns a copy of the given shd with the parameter determined by parameterName changed
 func (shd *simpleHeaderDeserializer) WithParameter(parameterName string, newParameter any) *simpleHeaderDeserializer {
-	return default_WithParameter(shd, parameterName, newParameter)
+	switch newParameter := newParameter.(type) {
+	case []byte:
+		return default_WithParameter(shd, parameterName, newParameter)
+	case string:
+		return default_WithParameter(shd, parameterName, []byte(newParameter))
+	default:
+		return default_WithParameter(shd, parameterName, newParameter) // will likely fail
+	}
+
 }
 
 // WithParameter returns a copy of the given shd with the parameter determined by parameterName changed
 func (shd *simpleHeaderSerializer) WithParameter(parameterName string, newParameter any) *simpleHeaderSerializer {
-	return default_WithParameter(shd, parameterName, newParameter)
+	switch newParameter := newParameter.(type) {
+	case []byte:
+		return default_WithParameter(shd, parameterName, newParameter)
+	case string:
+		return default_WithParameter(shd, parameterName, []byte(newParameter))
+	default:
+		return default_WithParameter(shd, parameterName, newParameter) // will likely fail
+	}
 }
 
 func (shd *simpleHeaderSerializer) GetParameter(parameterName string) any {
