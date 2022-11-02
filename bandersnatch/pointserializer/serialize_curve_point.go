@@ -10,6 +10,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 )
 
 // *** PURPOSE OF THIS PACAKGE ***:
@@ -518,12 +519,18 @@ func (md *multiSerializer[_, _, _, _]) WithEndianness(newEndianness binary.ByteO
 }
 
 // TODO: We would prefer to specify that on error, outputPoint is unchanged.
-// Unfortunately, this is quite hard to achieve -- we would need to store a backup copy of the point
-// in case the footer deserializer returns an error.
-// Unfortunately, the CurvePointPtr interface does not really allow to do that at the moment:
+// Unfortunately, this is quite hard to achieve -- either we would need to store a backup copy of the point
+// in case the footer deserializer returns an error or we would need to write to a temporary point.
+// For the first solution: Unfortunately, the CurvePointPtr interface does not really allow to do that at the moment:
 // The issue is that backing up the point with .Clone() and restoring with .SetFrom(...) is not really correct:
-// outputPoint might (in fact likely is!) a NaP and we have no guarantee that Clone() or SetFrom works for those.
+// outputPoint might be (in fact likely is!) a NaP and we have no guarantee that Clone() or SetFrom works for those.
 // We would need a raw ToBytes / FromBytes interface here.
+//
+// Deserializing to a temporary and only writing to outputPoint on success has the problem that the dynamic type passed to
+// basicDeserializer.DeserializeCurvePoint is relevant for this method's behaviour. So our temporary point would need to have the same dynamic type
+// as outputPoint -- and we have no good way of doing that (Clone may not work for NaPs, reflection is not a "good way").
+//
+// -> TODO: Either add a raw ToBytes / FromBytes or specify that Clone works for NaPs.
 
 // DeserializeCurvePoint deserializes a single curve point from input stream, (over-)writing to ouputPoint.
 // trustLevel indicates whether the input is to be trusted that the data represents any (subgroup)point at all.
@@ -532,6 +539,10 @@ func (md *multiSerializer[_, _, _, _]) WithEndianness(newEndianness binary.ByteO
 func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	bytesRead, err = md.headerDeserializer.deserializeSinglePointHeader(inputStream)
 	if err != nil {
+		if bytesRead > 0 {
+			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		}
 		return
 	}
 
@@ -540,13 +551,28 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	bytesJustRead, err := md.basicDeserializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 	bytesRead += bytesJustRead
 	if err != nil {
+		// if we either read something before or there is data following, the correct error is UnexpectedEOF rather than EOF.
+		if bytesRead != bytesJustRead || !md.headerDeserializer.trivialSinglePointFooter() {
+			errorTransform.UnexpectEOF2(&err)
+		}
+
+		// If the footer is non-trivial, we always have a partial read.
+		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
+		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
+		if (bytesJustRead != 0 && bytesRead > 0) || !md.headerDeserializer.trivialSinglePointFooter() {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		}
 		return
 	}
 	bytesJustRead, err = md.headerDeserializer.deserializeSinglePointFooter(inputStream)
 	bytesRead += bytesJustRead
-	// if err != nil {
-	// 		outputPoint.SetFrom(originalPoint)
-	//	}
+	if err != nil {
+		errorTransform.UnexpectEOF2(&err)
+		if bytesJustRead == 0 {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		}
+		// outputPoint.SetFrom(originalPoint)
+	}
 	return
 }
 
@@ -557,6 +583,10 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	bytesRead, err = md.headerSerializer.deserializeSinglePointHeader(inputStream)
 	if err != nil {
+		if bytesRead > 0 {
+			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		}
 		return
 	}
 
@@ -565,29 +595,59 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	bytesJustRead, err := md.basicSerializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 	bytesRead += bytesJustRead
 	if err != nil {
+		// if we either read something before or there is data following, the correct error is UnexpectedEOF rather than EOF.
+		if bytesRead != bytesJustRead || !md.headerSerializer.trivialSinglePointFooter() {
+			errorTransform.UnexpectEOF2(&err)
+		}
+
+		// If the footer is non-trivial, we always have a partial read.
+		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
+		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
+		if (bytesJustRead != 0 && bytesRead > 0) || !md.headerSerializer.trivialSinglePointFooter() {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		}
 		return
 	}
 	bytesJustRead, err = md.headerSerializer.deserializeSinglePointFooter(inputStream)
 	bytesRead += bytesJustRead
-	// if err != nil {
-	//	outputPoint.SetFrom(originalPoint)
-	//}
+	if err != nil {
+		errorTransform.UnexpectEOF2(&err)
+		if bytesJustRead == 0 {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		}
+		// outputPoint.SetFrom(originalPoint)
+	}
 	return
+
 }
 
 // SerializeCurvePoint serializes the given input point to the outputStream.
 func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	bytesWritten, err = md.headerSerializer.serializeSinglePointHeader(outputStream)
 	if err != nil {
+		if bytesWritten > 0 {
+			errorTransform.UnexpectEOF2(&err) // does nothing, actually, because err cannot be EOF for bytesWritten > 0
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "%w", FIELDNAME_PARTIAL_WRITE, true)
+		}
 		return
 	}
 	bytesJustWritten, err := md.basicSerializer.SerializeCurvePoint(outputStream, inputPoint)
 	bytesWritten += bytesJustWritten
 	if err != nil {
+		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
+			errorTransform.UnexpectEOF2(&err)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "%w", FIELDNAME_PARTIAL_WRITE, true)
+		}
 		return
 	}
 	bytesJustWritten, err = md.headerSerializer.serializeSinglePointFooter(outputStream)
 	bytesWritten += bytesJustWritten
+	if err != nil {
+		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
+			errorTransform.UnexpectEOF2(&err)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "%w", FIELDNAME_PARTIAL_WRITE, true)
+		}
+	}
 	return
 }
 

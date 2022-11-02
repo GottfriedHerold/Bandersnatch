@@ -166,7 +166,7 @@ func GetAllParametersFromError(err error) map[string]any {
 // For baseError == nil, overrideMessage == "", #params == 0, we return a nil interface
 func NewErrorWithGuaranteedParameters[StructType any](baseError error, overrideMessage string, params ...any) ErrorWithGuaranteedParameters[StructType] {
 	// make some validity checks to give meaningful error messages.
-	// Impressive: go - staticcheck actually recognizes this patterns and has my IDE complain about violations!
+	// Impressive: go - staticcheck actually recognizes this patterns and has my IDE complain at the call site about violations!
 	if len(params)%2 != 0 {
 		panic(errorPrefix + "called NewErrorWithParameters(err, overrideMessage, args...) with an odd number of args. These are supposed to be name-value pairs")
 	}

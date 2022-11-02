@@ -44,6 +44,15 @@ type headerDeserializerInterface interface {
 	deserializeSinglePointFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	deserializePerPointHeader(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
 	deserializePerPointFooter(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError)
+
+	// these indicate whether the next corresponding serialiazation/deserialization operation will try to read/write more than 0 bytes.
+	trivialGlobalSliceHeader() bool
+	trivialGlobalSliceFooter() bool
+	trivialSinglePointHeader() bool
+	trivialSinglePointFooter() bool
+	trivialPerPointHeader() bool
+	trivialPerPointFooter() bool
+
 	SinglePointHeaderOverhead() int32                                         // returns the size taken up by headers and footers for single-point
 	MultiPointHeaderOverhead(numPoints int32) (size int32, overflowErr error) // returns the size taken up by headers and footers for slice of given size. error is set on int32 overflow.
 	ParameterAware
@@ -497,4 +506,28 @@ func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (
 	}
 	ret = int32(ret64)
 	return
+}
+
+func (shd *simpleHeaderDeserializer) trivialGlobalSliceHeader() bool {
+	return len(shd.headerSlice) > 0
+}
+
+func (shd *simpleHeaderDeserializer) trivialGlobalSliceFooter() bool {
+	return len(shd.footerSlice) > 0
+}
+
+func (shd *simpleHeaderDeserializer) trivialPerPointHeader() bool {
+	return len(shd.headerPerCurvePoint) > 0
+}
+
+func (shd *simpleHeaderDeserializer) trivialPerPointFooter() bool {
+	return len(shd.footerPerCurvePoint) > 0
+}
+
+func (shd *simpleHeaderDeserializer) trivialSinglePointHeader() bool {
+	return len(shd.headerSingleCurvePoint) > 0
+}
+
+func (shd *simpleHeaderDeserializer) trivialSinglePointFooter() bool {
+	return len(shd.footerSingleCurvePoint) > 0
 }

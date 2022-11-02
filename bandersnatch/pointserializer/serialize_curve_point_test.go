@@ -297,3 +297,34 @@ func TestOutputSliceLengthForMultiSerializer(t *testing.T) {
 	testutils.FatalUnless(t, x64.(int64) == math.MaxInt32+64, "")
 
 }
+
+// Test roundtrip for single-point serialization
+func TestRoundtripSingleMultiSerializers(t *testing.T) {
+	var buf bytes.Buffer
+	drng := rand.New(rand.NewSource(1))
+
+	// create num many points
+	const num = 200
+	var point [num]curvePoints.Point_xtw_subgroup
+	for i := 0; i < num-1; i++ {
+		point[i] = curvePoints.MakeRandomPointUnsafe_xtw_subgroup(drng)
+	}
+	point[num-1].SetNeutral()
+
+	for _, ser := range allTestMultiSerializers {
+		expectedWrite := ser.OutputLength()
+		buf.Reset()
+		for i := 0; i < num; i++ {
+			bytesWritten, err := ser.SerializeCurvePoint(&buf, &point[i])
+			testutils.FatalUnless(t, err == nil, "Unexpected Write error %v", err)
+			testutils.FatalUnless(t, bytesWritten == int(expectedWrite), "Unexpected number of bytes written")
+		}
+		for i := 0; i < num; i++ {
+			var readBack curvePoints.Point_efgh_subgroup
+			bytesRead, err := ser.DeserializeCurvePoint(&buf, common.UntrustedInput, &readBack)
+			testutils.FatalUnless(t, err == nil, "Unexpected Read error %v", err)
+			testutils.FatalUnless(t, bytesRead == int(expectedWrite), "Unexpected number of bytes read")
+			testutils.FatalUnless(t, readBack.IsEqual(&point[i]), "Did not read back point")
+		}
+	}
+}
