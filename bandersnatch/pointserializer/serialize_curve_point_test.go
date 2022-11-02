@@ -2,12 +2,14 @@ package pointserializer
 
 import (
 	"bytes"
+	"math"
 	"math/rand"
 	"reflect"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
@@ -234,4 +236,64 @@ func TestWithEndianness(t *testing.T) {
 	deser = BanderwagonLong.AsDeserializer().WithEndianness(common.LittleEndian)
 	testutils.FatalUnless(t, BanderwagonLong.GetFieldElementEndianness() == orginalEndianness, "WithEndianness changes original")
 	testutils.FatalUnless(t, deser.GetFieldElementEndianness() == common.LittleEndian, "Setting Endianness failed")
+}
+
+func TestOutputLengthForMultiSerializers(t *testing.T) {
+	testutils.FatalUnless(t, BanderwagonLong.OutputLength() == 64, "Unexpected output length for long banderwagon format")
+	testutils.FatalUnless(t, BanderwagonShort.OutputLength() == 32, "Unexpected output length for long banderwagon format")
+
+	ser := BanderwagonLong.
+		WithParameter("SinglePointHeader", make([]byte, 10)).
+		WithParameter("SinglePointFooter", make([]byte, 100)).
+		WithParameter("PerPointHeader", make([]byte, 1000)).
+		WithParameter("PerPointFooter", make([]byte, 10000))
+	testutils.FatalUnless(t, ser.OutputLength() == 110+64, "Unexpected length after changing headers")
+	for _, ser := range allTestMultiSerializers {
+		testutils.FatalUnless(t, ser.OutputLength() == ser.AsDeserializer().OutputLength(), "Output length differs for serializer vs. deserializer")
+	}
+}
+
+func TestOutputSliceLengthForMultiSerializer(t *testing.T) {
+	x, err := BanderwagonLong.SliceOutputLength(0)
+	testutils.FatalUnless(t, err == nil, "unexpected error: %v", err)
+	testutils.FatalUnless(t, x == 4, "Unexpected Slice serialization size")
+
+	x, err = BanderwagonLong.SliceOutputLength(100)
+	testutils.FatalUnless(t, err == nil, "unexpected error: %v", err)
+	testutils.FatalUnless(t, x == 100*64+4, "Unexpected Slice serialization size")
+
+	ser := BanderwagonLong.
+		WithParameter("GlobalSliceHeader", make([]byte, 100)).
+		WithParameter("GlobalSliceFooter", make([]byte, 50)).
+		WithParameter("PerPointHeader", make([]byte, 1000)).
+		WithParameter("PerPointFooter", make([]byte, 500))
+
+	x, err = ser.SliceOutputLength(0)
+	testutils.FatalUnless(t, err == nil, "unexpected error: %v", err)
+	testutils.FatalUnless(t, x == 4+100+50, "Unexpected Slice serialization size")
+
+	for i := int32(0); i < 10; i++ {
+		x1, err1 := ser.SliceOutputLength(i)
+		x2, err2 := ser.AsDeserializer().SliceOutputLength(i)
+		testutils.FatalUnless(t, err1 == nil, "unexpected error %v", err1)
+		testutils.FatalUnless(t, err2 == nil, "unexpected error %v", err2)
+		testutils.FatalUnless(t, x1 == x2, "SliceOutputLength differs for serializer vs. deserializer")
+
+	}
+
+	x, err = ser.SliceOutputLength(7)
+	testutils.FatalUnless(t, err == nil, "unexpected error: %v", err)
+	testutils.FatalUnless(t, x == 4+100+50+7*(1000+500+64), "Unexpected Slice serialization size")
+
+	serBig := BanderwagonLong.WithParameter("GlobalSliceHeader", make([]byte, math.MaxInt32-4))
+
+	x, err = serBig.SliceOutputLength(0)
+	testutils.FatalUnless(t, err == nil, "unexpected error: %v", err)
+	testutils.FatalUnless(t, x == math.MaxInt32, "unexpected Slice serialization size")
+	_, err = serBig.SliceOutputLength(1)
+	testutils.FatalUnless(t, err != nil, "NO error")
+	x64, ok := errorsWithData.GetParameterFromError(err, "Size")
+	testutils.FatalUnless(t, ok, "internal error")
+	testutils.FatalUnless(t, x64.(int64) == math.MaxInt32+64, "")
+
 }
