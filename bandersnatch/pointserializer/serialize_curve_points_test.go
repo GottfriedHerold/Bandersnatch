@@ -1,22 +1,61 @@
-//go:build ignore
-
 package pointserializer
 
 import (
+	"bytes"
 	"errors"
+	"math/rand"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-type testMultiSerializer = multiSerializer[pointSerializerXY, *pointSerializerXY]
-
-var _ CurvePointSerializerModifyable = &multiSerializer[pointSerializerXY, *pointSerializerXY]{}
-var _ CurvePointDeserializerModifyable = &multiDeserializer[pointSerializerXY, *pointSerializerXY]{}
-
 var _ DeserializeSliceMaker = UseExistingSlice([]curvePoints.Point_axtw_subgroup{})
 var _ DeserializeSliceMaker = CreateNewSlice[curvePoints.Point_axtw_subgroup]
+
+func TestSerializeCurvePoints(t *testing.T) {
+	var buf1, buf2 bytes.Buffer
+	drng := rand.New(rand.NewSource(1))
+
+	for _, serializer := range allTestMultiSerializers {
+		// create num many points
+		const num = 200
+		var point [num]curvePoints.Point_xtw_subgroup
+		for i := 0; i < num-1; i++ {
+			point[i] = curvePoints.MakeRandomPointUnsafe_xtw_subgroup(drng)
+		}
+		point[num-1].SetNeutral()
+
+		buf1.Reset()
+		buf2.Reset()
+		bytesWritten1, err1 := serializer.SerializeCurvePoints(&buf1, curvePoints.AsCurvePointSlice(point[:]))
+		testutils.FatalUnless(t, err1 == nil, "Unexpected error %v", err1)
+
+		var bytesWritten2 int = 0
+
+		for i := 0; i < num; i++ {
+			bytesJustWritten, err2 := serializer.SerializeCurvePoint(&buf2, &point[i])
+			bytesWritten2 += bytesJustWritten
+			testutils.FatalUnless(t, err2 == nil, "Unexpected error %v", err1)
+		}
+
+		testutils.FatalUnless(t, bytesWritten1 == bytesWritten2, "Individual writes and multi-write differ in number of bytes written")
+		testutils.FatalUnless(t, bytes.Equal(buf1.Bytes(), buf2.Bytes()), "Individual writes and multi-write differ in the bytes written")
+
+		var readBack1, readBack2 [num]curvePoints.Point_efgh_subgroup
+		bytesRead1, errRead1 := serializer.DeserializeCurvePoints(&buf1, UntrustedInput, curvePoints.AsCurvePointSlice(readBack1[:]))
+		bytesRead2, errRead2 := serializer.AsDeserializer().DeserializeCurvePoints(&buf2, UntrustedInput, curvePoints.AsCurvePointSlice(readBack2[:]))
+		testutils.FatalUnless(t, bytesRead1 == bytesWritten1, "Did not read back as much as was written")
+		testutils.FatalUnless(t, bytesRead2 == bytesWritten1, "Did not read back as much as was written")
+		testutils.FatalUnless(t, errRead1 == nil, "unexpected read error1 %v", errRead1)
+		testutils.FatalUnless(t, errRead2 == nil, "unexpected read error2 %v", errRead2)
+		for i := 0; i < num; i++ {
+			testutils.FatalUnless(t, readBack1[i].IsEqual(&point[i]), "Did not read back point")
+			testutils.FatalUnless(t, readBack2[i].IsEqual(&point[i]), "Did not read back point")
+		}
+
+	}
+}
 
 func TestCreateNewSlice(t *testing.T) {
 	type Point = curvePoints.Point_axtw_subgroup

@@ -14,20 +14,22 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-// BatchSerializationErrorData is the struct that hold additional data contained in errors reported by batch serialization methods. This data is obtainable via the [errorsWithData] framework.
+// BatchSerializationErrorData is the struct that hold additional data contained in errors reported by batch serialization methods.
+// This data is obtainable via the [errorsWithData] framework.
 // Concretely, we extend our usual serialization error data by an int field indication how many points were actually fully serialized before the error occurred.
 type BatchSerializationErrorData struct {
-	bandersnatchErrors.WriteErrorData
-	PointsSerialized int
+	bandersnatchErrors.WriteErrorData     // Note [errorsWithData]'s behaviour for struct embedding
+	PointsSerialized                  int // Number of points fully serialized
 }
 
-// BatchDeserializationErrorData is the struct that hold additional data contained in errors reported by batch deserialization methods. This data is obtainable via the [errorsWithData] framework.
-// Concretely, we extend our usual deserialization error data by an int field indication how many points were actually fully deserialized before the error occurred.
+// BatchDeserializationErrorData is the struct that hold additional data contained in errors reported by batch deserialization methods.
+// This data is obtainable via the [errorsWithData] framework.
+// Concretely, we extend our usual deserialization error data by an int field indicating how many points were actually fully deserialized before the error occurred.
 // Note that in this context, "fully deserialized" includes potential subgroup and validity checks and actually writing to the target buffer.
 // We guarantee that this is equal to the number of buffer elements that were written to.
 type BatchDeserializationErrorData struct {
-	bandersnatchErrors.ReadErrorData
-	PointsDeserialized int
+	bandersnatchErrors.ReadErrorData     // Note [errorsWithData]'s behaviour for struct embedding
+	PointsDeserialized               int // Number of points fully deserialized
 }
 
 const FIELDNAME_POINTSDESERIALIZED = "PointsDeserialized"
@@ -40,7 +42,12 @@ func init() {
 	errorsWithData.CheckParameterForStruct[BatchSerializationErrorData]("PointsSerialized")
 }
 
+// BatchSerializationError is the error type returned by Serialization methods that serialize multiple points at once.
+// errors of this type contain an instance of [BatchSerializationErrorData].
 type BatchSerializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchSerializationErrorData]
+
+// BatchDeserializationError is the error type returned by Deserialization methods that deserialize multiple points at once.
+// errors of this type contain an instance of [BatchDeserializationErrorData].
 type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchDeserializationErrorData]
 
 // *******************************************************************************
@@ -55,21 +62,22 @@ type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[Ba
 //
 // DeserializeCurvePoints will always try to deserialize L := outputPoints.Len() many points or until the first error.
 // L times deserializer.OutputLenght() must fit into an int32, else we panic.
-// On error, the BatchDeserialization error contains (among other data) via the errorsWithData framework fields PointsDeserialized and PartialRead.
+// On error, the returned error of type [BatchDeserializationError] contains (among other data) via the [errorsWithData] framework fields PointsDeserialized and PartialRead.
 //
 // PointsDeserialized is the number of points that were *successfully* deserialized (i.e. actually written to outputPoints).
 // If we read from the inputStream, but do not write because the read data fails a subgroup check, this is not counted in PointsDeserialized.
 // PartialRead is set to true if we encountered a read error that is not aligned with data encoding points.
 //
-// NOTE: If you have a slice buf of type []PointType to hold the output, call this with curvePoints.AsCurvePointSlice(buf) to create a view of buf with the appropriate type.
-// Be aware that whether PointType is restricted to points in the subgroup or not may control whether we perform subgroup checks on deserialization!
+// NOTE: If you have a slice buf of type []PointType to hold the output, call this method with curvePoints.AsCurvePointSlice(buf) to create a view of buf with the appropriate type.
+// Be aware that whether PointType is restricted to points in the subgroup or not may control whether we perform subgroup checks on untrusted deserialization!
+// (If the serializer only works for subgroup elements anyway, PointType is ignored)
 //
 // NOTE: When using this method to deserialize AT MOST L points into a buffer, but without knowing how many points are in the stream,
 // you need to check that the error wraps either io.EOF or io.UnexpectedEOF and PartialRead is false.
-// We provide a convenience function DeserializeCurvePoints_Bounded that handles this case.
-// We also provide a convenience variadic version DeserialiveCurvePoints_Variadic.
+// We provide a convenience function [DeserializeCurvePoints_Bounded] that handles this case.
+// We also provide a convenience variadic version [DeserialiveCurvePoints_Variadic].
 // These are both functions, not methods.
-func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
+func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoints(inputStream io.Reader, trustLevel IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
 	L := outputPoints.Len()
 	if L > math.MaxInt32 {
 		panic(fmt.Errorf(ErrorPrefix+"trying to batch-deserialize %v points, which is more than MaxInt32, with DeserializeBatch", L))
