@@ -2,11 +2,14 @@ package pointserializer
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"reflect"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
@@ -36,6 +39,9 @@ var (
 	VerboseBanderwagonShort_OnlyDeserializer = VerboseBanderwagonShort.AsDeserializer()
 )
 
+var WideTestSerializer = newMultiSerializer(basicXYSerializer, trivialSimpleHeaderSerializer).WithParameter("SubgroupOnly", false)
+var WideTestDeserializer = newMultiDeserializer(basicXYSerializer, trivialSimpleHeaderDeserializer).WithParameter("SubgroupOnly", false)
+
 var (
 	allTestMultiSerializers   []CurvePointSerializerModifyable   = []CurvePointSerializerModifyable{BanderwagonShort, BanderwagonLong, VerboseBanderwagonLong, VerboseBanderwagonShort}
 	allTestMultiDeserializers []CurvePointDeserializerModifyable = []CurvePointDeserializerModifyable{BanderwagonShort_OnlyDeserializer, BanderwagonLong_OnlyDeserializer, VerboseBanderwagonLong_OnlyDeserializer, VerboseBanderwagonShort_OnlyDeserializer}
@@ -46,6 +52,7 @@ var DeserializerFromSerializer = map[CurvePointSerializerModifyable]CurvePointDe
 	BanderwagonLong:         BanderwagonLong_OnlyDeserializer,
 	VerboseBanderwagonLong:  VerboseBanderwagonLong_OnlyDeserializer,
 	VerboseBanderwagonShort: VerboseBanderwagonShort_OnlyDeserializer,
+	WideTestSerializer:      WideTestDeserializer,
 }
 
 type (
@@ -325,6 +332,55 @@ func TestRoundtripSingleMultiSerializers(t *testing.T) {
 			testutils.FatalUnless(t, err == nil, "Unexpected Read error %v", err)
 			testutils.FatalUnless(t, bytesRead == int(expectedWrite), "Unexpected number of bytes read")
 			testutils.FatalUnless(t, readBack.IsEqual(&point[i]), "Did not read back point")
+		}
+	}
+}
+
+func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
+	var HEADER []byte = []byte("HEADER")
+	var FOOTER []byte = []byte("FOOTER")
+
+	// Try header and footer length 0--2. This is because length 0, length 1 and length 2 behave somewhat differently wrt whether
+	// partially writing something is concerned.
+	for headerLen := 0; headerLen < 3; headerLen++ {
+		for footerLen := 0; footerLen < 3; footerLen++ {
+
+			// Test a serializer with the given header and footer length
+			overhead := headerLen + footerLen
+			ser := WideTestSerializer.WithParameter("SinglePointHeader", HEADER[0:headerLen]).WithParameter("SinglePointFooter", FOOTER[0:footerLen])
+			testutils.Assert(ser.OutputLength() == int32(overhead+64))
+
+			// Obtain a []byte-serialization of an arbitrary point serialized with ser.
+			var goodBuf bytes.Buffer
+			ser.SerializeCurvePoint(&goodBuf, &curvePoints.SubgroupGenerator_xtw_subgroup)
+			correctBytes := goodBuf.Bytes()
+
+			designatedError := errors.New("Designated") // IO error that we will throw
+			for i := 0; i < overhead+64; i++ {
+				faultyBuf := testutils.NewFaultyBuffer(i, designatedError)
+				bytesWritten, err := ser.SerializeCurvePoint(faultyBuf, &curvePoints.SubgroupGenerator_xtw_subgroup)
+				testutils.FatalUnless(t, bytesWritten == i, "Did not write until error")
+				testutils.FatalUnless(t, err != nil, "Did not get error on faulty buffer")
+				errData := err.GetData()
+				testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "Invalid PartialWrite flag")
+				testutils.FatalUnless(t, errors.Is(err, designatedError), "Unexpected Error")
+			}
+
+			for i := 0; i < overhead+64; i++ {
+				faultyBuf := testutils.NewFaultyBuffer(i, designatedError)
+				faultyBuf.SetContent(correctBytes)
+				var p curvePoints.Point_axtw_subgroup
+				bytesRead, err := ser.DeserializeCurvePoint(faultyBuf, UntrustedInput, &p)
+				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
+				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
+				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
+				var errData bandersnatchErrors.ReadErrorData = err.GetData()
+				pr, _ := errorsWithData.GetParameterFromError(err, "PartialRead")
+				fmt.Printf("err = %v\n", err)
+				fmt.Printf("ErrData = %v\n i = %v\n", errData, i)
+				fmt.Printf("pr = %v\n", pr)
+				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
+			}
 		}
 	}
 }

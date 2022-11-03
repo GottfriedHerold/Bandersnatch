@@ -238,16 +238,16 @@ func (s *pointSerializerXY) GetParameter(parameterName string) interface{} {
 	return default_GetParameter(s, parameterName)
 }
 
-var pointSerializerXYregognizedParams = concatenateParameterList((*valuesSerializerHeaderFeHeaderFe)(nil).RecognizedParameters(), (*subgroupRestriction)(nil).RecognizedParameters())
+var pointSerializerXYrecognizedParams = concatenateParameterList((*valuesSerializerHeaderFeHeaderFe)(nil).RecognizedParameters(), (*subgroupRestriction)(nil).RecognizedParameters())
 
 // RecognizedParameters returns a list of all parameter names accepted by GetParameter and WithParameter.
 func (s *pointSerializerXY) RecognizedParameters() []string {
-	return copySlice(pointSerializerXYregognizedParams)
+	return copySlice(pointSerializerXYrecognizedParams)
 }
 
 // HasParameter checks whether the given parameter name is accepted by GetParameter and WithParameter.
 func (s *pointSerializerXY) HasParameter(parameterName string) bool {
-	return utils.ElementInList(parameterName, pointSerializerXYregognizedParams, normalizeParameter)
+	return utils.ElementInList(parameterName, pointSerializerXYrecognizedParams, normalizeParameter)
 }
 
 // ***********************************************************************************************************************************************************
@@ -829,9 +829,12 @@ var bitHeaderBanderwagonY common.BitHeader = common.MakeBitHeader(common.PrefixB
 var basicBanderwagonShort = &pointSerializerXTimesSignY{valuesSerializerHeaderFe: valuesSerializerHeaderFe{fieldElementEndianness: common.DefaultEndian, bitHeader: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
 var basicBanderwagonLong = &pointSerializerYXTimesSignY{valuesSerializerHeaderFeHeaderFe: valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: common.DefaultEndian, bitHeader: bitHeaderBanderwagonY, bitHeader2: bitHeaderBanderwagonX}, subgroupOnly: subgroupOnly{}}
 
+var basicXYSerializer = &pointSerializerXY{valuesSerializerHeaderFeHeaderFe: valuesSerializerHeaderFeHeaderFe{fieldElementEndianness: common.DefaultEndian}}
+
 func init() {
 	bitHeaderBanderwagonX.Validate()
 	bitHeaderBanderwagonY.Validate()
 	basicBanderwagonShort.Validate()
 	basicBanderwagonLong.Validate()
+	basicXYSerializer.Validate()
 }

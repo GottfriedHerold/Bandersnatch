@@ -8,6 +8,10 @@ import (
 // This file provides an IO Reader and an IO Writer that simulate IO failures.
 // This is intented to test error reporting
 
+// FaultyBuffer is an [io.Reader] and [io.Writer] with similar functionality as [bytes.Buffer].
+// After either reading or writing faultThreshold many bytes, it will generate a customizable IO error.
+//
+// This is intended to be used by tests to check correct error handling.
 type FaultyBuffer struct {
 	designatedErr  error
 	faultThreshold int
@@ -16,6 +20,8 @@ type FaultyBuffer struct {
 	alreadyWritten int
 }
 
+// Read is provided to satify the [io.Reader] interface.
+// After reading a total of faultThreshold bytes (and on subsequent read attempty of >0 bytes), we return the designated error.
 func (fb *FaultyBuffer) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
@@ -43,7 +49,12 @@ func (fb *FaultyBuffer) Read(p []byte) (n int, err error) {
 	return
 }
 
+// Write is provided to satisfy the [io.Writer] interface
+// After writing a total of faultThreshold bytes (and  on subsequent write attempts of >0 bytes), we return the designated error.
 func (fb *FaultyBuffer) Write(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	if fb.alreadyWritten > fb.faultThreshold {
 		err = fmt.Errorf("repeated write call to already faulty writer, error %w", fb.designatedErr)
 		return 0, err
@@ -80,4 +91,17 @@ func NewFaultyBuffer(faultThreshold int, designatedError error) *FaultyBuffer {
 	fb.designatedErr = designatedError
 	fb.faultThreshold = faultThreshold
 	return &fb
+}
+
+// SetContent resets the buffer and sets its content (for reading) to content. Note that content's length may be larger than the fault threshold.
+// The Faulty buffer will trigger an IO error after reading faultThreshold bytes or writing faultThreshold *additional* bytes.
+func (fb *FaultyBuffer) SetContent(content []byte) {
+	fb.Reset()
+	L, err := fb.buf.Write(content)
+	if err != nil {
+		panic(fmt.Errorf("SetContent failed with error %v", err))
+	}
+	if L != len(content) {
+		panic("Should be unreachable")
+	}
 }

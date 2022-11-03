@@ -146,5 +146,4 @@ func TestUseExistingSlice(t *testing.T) {
 		t.Fatalf("UseExistingSlice returned wrong error")
 	}
 	// fmt.Printf("%v\n", err)
-
 }

@@ -76,7 +76,7 @@ type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[Ba
 // you need to check that the error wraps either io.EOF or io.UnexpectedEOF and PartialRead is false.
 // We provide a convenience function [DeserializeCurvePoints_Bounded] that handles this case.
 // We also provide a convenience variadic version [DeserialiveCurvePoints_Variadic].
-// These are both functions, not methods.
+// These are both functions, not methods (due to using generics).
 func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoints(inputStream io.Reader, trustLevel IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError) {
 	L := outputPoints.Len()
 	if L > math.MaxInt32 {
@@ -141,7 +141,9 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoints(inputStream io.Rea
 			}
 
 			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errSingle, ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w", "PointsDeserialized", i)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errSingle,
+				ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w",
+				"PointsDeserialized", i)
 			return
 		}
 	}
@@ -192,16 +194,26 @@ func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputT
 		bytesJustRead, errNonBatch = deserializer_header.deserializePerPointHeader(inputStream)
 		bytesRead += bytesJustRead
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed when reading per-point header after reading %v{PointsDeserialized} points. Errors was %w", "PointsDeserialized", i, FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch,
+				ErrorPrefix+"slice deserialization failed when reading per-point header after reading %v{PointsDeserialized} points. Errors was %w",
+				"PointsDeserialized", i,
+				FIELDNAME_PARTIAL_READ, true)
 			return
 		}
 		// Read/consume actual point:
 		bytesJustRead, errNonBatch = deserializer_point.DeserializeCurvePoint(inputStream, trustLevel, targetSlice.GetByIndex(i))
 		bytesRead += bytesJustRead
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed after successfully reading %v{PointsDeserialized} points. The error was %w", "PointsDeserialized", i, FIELDNAME_PARTIAL_READ, true)
-			// NOTE: PartialRead is always set to true here.
-			// TODO: Fix that? We would need to know whether headerDeserializer has a 0-length footer
+			if i != size || !deserializer_header.trivialPerPointFooter() || !deserializer_header.trivialPerPointFooter() || bytesJustRead == 0 {
+				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch,
+					ErrorPrefix+"slice deserialization failed after successfully reading %v{PointsDeserialized} points. The error was %w",
+					"PointsDeserialized", i,
+					FIELDNAME_PARTIAL_READ, true)
+			} else {
+				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch,
+					ErrorPrefix+"slice deserialization failed after successfully reading %v{PointsDeserialized} points. The error was %w",
+					"PointsDeserialized", i)
+			}
 			return
 		}
 		// Read/consume per-point footer. Note that PointsDeserialized is set to i+1.
@@ -554,5 +566,4 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 		panic(fmt.Errorf(ErrorPrefix+"Slice serialization for slice of length %v was successful, but the number of bytes written was not what we expected: bytesWritten = %v, but we expected %v", LInt, bytesWritten, expectedSize))
 	}
 	return
-
 }
