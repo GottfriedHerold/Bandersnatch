@@ -539,7 +539,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	if err != nil {
 		if bytesRead > 0 {
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -557,8 +557,8 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 		// If the footer is non-trivial, we always have a partial read.
 		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
 		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
-		if (bytesJustRead != 0 && bytesRead > 0) || !md.headerDeserializer.trivialSinglePointFooter() {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerDeserializer.trivialSinglePointFooter() && bytesRead > 0) {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -567,7 +567,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	if err != nil {
 		errorTransform.UnexpectEOF2(&err)
 		if bytesJustRead == 0 {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
@@ -583,7 +583,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	if err != nil {
 		if bytesRead > 0 {
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -598,11 +598,11 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 			errorTransform.UnexpectEOF2(&err)
 		}
 
-		// If the footer is non-trivial, we always have a partial read.
+		// If the footer is non-trivial, we have a partial read iff we read anything.
 		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
 		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
-		if (bytesJustRead != 0 && bytesRead > 0) || !md.headerSerializer.trivialSinglePointFooter() {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerSerializer.trivialSinglePointFooter() && bytesRead > 0) {
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -611,10 +611,11 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	if err != nil {
 		errorTransform.UnexpectEOF2(&err)
 		if bytesJustRead == 0 {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "%w", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
+
 	return
 
 }
@@ -625,7 +626,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 {
 			errorTransform.UnexpectEOF2(&err) // does nothing, actually, because err cannot be EOF for bytesWritten > 0
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "%w", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 		return
 	}
@@ -634,7 +635,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
 			errorTransform.UnexpectEOF2(&err)
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "%w", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 		return
 	}
@@ -643,7 +644,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
 			errorTransform.UnexpectEOF2(&err)
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "%w", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 	}
 	return

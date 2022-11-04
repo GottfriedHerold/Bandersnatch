@@ -509,25 +509,25 @@ func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (
 }
 
 func (shd *simpleHeaderDeserializer) trivialGlobalSliceHeader() bool {
-	return len(shd.headerSlice) > 0
+	return len(shd.headerSlice) == 0
 }
 
 func (shd *simpleHeaderDeserializer) trivialGlobalSliceFooter() bool {
-	return len(shd.footerSlice) > 0
+	return len(shd.footerSlice) == 0
 }
 
 func (shd *simpleHeaderDeserializer) trivialPerPointHeader() bool {
-	return len(shd.headerPerCurvePoint) > 0
+	return len(shd.headerPerCurvePoint) == 0
 }
 
 func (shd *simpleHeaderDeserializer) trivialPerPointFooter() bool {
-	return len(shd.footerPerCurvePoint) > 0
+	return len(shd.footerPerCurvePoint) == 0
 }
 
 func (shd *simpleHeaderDeserializer) trivialSinglePointHeader() bool {
-	return len(shd.headerSingleCurvePoint) > 0
+	return len(shd.headerSingleCurvePoint) == 0
 }
 
 func (shd *simpleHeaderDeserializer) trivialSinglePointFooter() bool {
-	return len(shd.footerSingleCurvePoint) > 0
+	return len(shd.footerSingleCurvePoint) == 0
 }

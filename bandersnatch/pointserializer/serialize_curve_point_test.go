@@ -3,7 +3,6 @@ package pointserializer
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"math"
 	"math/rand"
 	"reflect"
@@ -375,10 +374,10 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
 				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
 				var errData bandersnatchErrors.ReadErrorData = err.GetData()
-				pr, _ := errorsWithData.GetParameterFromError(err, "PartialRead")
-				fmt.Printf("err = %v\n", err)
-				fmt.Printf("ErrData = %v\n i = %v\n", errData, i)
-				fmt.Printf("pr = %v\n", pr)
+				// pr, _ := errorsWithData.GetParameterFromError(err, "PartialRead")
+				// fmt.Printf("err = %v\n", err)
+				// fmt.Printf("ErrData = %v\n i = %v\n", errData, i)
+				// fmt.Printf("pr = %v\n", pr)
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
 			}
 		}
