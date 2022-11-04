@@ -13,6 +13,10 @@ import (
 var _ DeserializeSliceMaker = UseExistingSlice([]curvePoints.Point_axtw_subgroup{})
 var _ DeserializeSliceMaker = CreateNewSlice[curvePoints.Point_axtw_subgroup]
 
+// This test checks the following:
+//
+//	a) SerializeCurvePoints and individual SerializeCurvePoint write the same data
+//	b) Roundtrip of SerializeCurvePoints and DeserializeCurvePoints
 func TestSerializeCurvePoints(t *testing.T) {
 	var buf1, buf2 bytes.Buffer
 	drng := rand.New(rand.NewSource(1))
@@ -53,9 +57,10 @@ func TestSerializeCurvePoints(t *testing.T) {
 			testutils.FatalUnless(t, readBack1[i].IsEqual(&point[i]), "Did not read back point")
 			testutils.FatalUnless(t, readBack2[i].IsEqual(&point[i]), "Did not read back point")
 		}
-
 	}
 }
+
+// func
 
 func TestCreateNewSlice(t *testing.T) {
 	type Point = curvePoints.Point_axtw_subgroup
