@@ -59,6 +59,24 @@ func init(){
 
 }
 
+func TestModulus(t *testing.T){
+	//check if the current constants used for the modulus match the computated values
+
+	var mod modulus
+	mod.FromUint256(uint256{m_0, m_1, m_2, m_3})
+
+	if mod.re != [5]uint64{re_0, re_1, re_2, re_3, re_4} {
+		t.Fatalf("The reciprocal of the modulus does not match")
+	}
+
+	if mod.mmu0 != [4]uint64{mmu0_0, mmu0_1, mmu0_2, mmu0_3} {
+		t.Fatalf("The precomputed multiple0 does not match")
+	}
+
+	if mod.mmu1 != [4]uint64{mmu1_0, mmu1_1, mmu1_2, mmu1_3} {
+		t.Fatalf("The precomputed multiple1 does not match")
+	}
+}
 
 /*
 
@@ -384,19 +402,19 @@ BENCHMARK
 
 */
 func Benchmark_uint256(b *testing.B){
-	b.Run("Neg", BenchmarkNegEq)
-	b.Run("Double", BenchmarkDoubleEq)
-	b.Run("Sub", BenchmarkSubEq_ReduceWeak)
-	b.Run("Add", BenchmarkAddEq_ReduceWeak)
+	b.Run("Neg", benchmarkNegEq)
+	b.Run("Double", benchmarkDoubleEq)
+	b.Run("Sub", benchmarkSubEq_ReduceWeak)
+	b.Run("Add", benchmarkAddEq_ReduceWeak)
 
-	b.Run("Square", BenchmarkSquareEq)
-	b.Run("Multiply", BenchmarkMulEq)
-	b.Run("Invert", BenchmarkInv)
+	b.Run("Square", benchmarkSquareEq)
+	b.Run("Multiply", benchmarkMulEq)
+	b.Run("Invert", benchmarkInv)
 
 }
 
 
-func BenchmarkAddEq_ReduceWeak(b *testing.B){
+func benchmarkAddEq_ReduceWeak(b *testing.B){
 	x := uint256{257, 479, 487, 491}
     y := uint256{997, 499, 503, 509}
 
@@ -407,7 +425,7 @@ func BenchmarkAddEq_ReduceWeak(b *testing.B){
 
 }
 
-func BenchmarkSubEq_ReduceWeak(b *testing.B){
+func benchmarkSubEq_ReduceWeak(b *testing.B){
 	x := uint256{257, 479, 487, 491}
     y := uint256{997, 499, 503, 509}
 
@@ -417,7 +435,7 @@ func BenchmarkSubEq_ReduceWeak(b *testing.B){
 	}
 }
 
-func BenchmarkInv(b *testing.B){
+func benchmarkInv(b *testing.B){
 	var a uint256
 	count := 0
 	//runs over the test values
@@ -438,7 +456,7 @@ func BenchmarkInv(b *testing.B){
 
 }
 
-func BenchmarkMulEq(b *testing.B){
+func benchmarkMulEq(b *testing.B){
 	x := uint256{257, 479, 487, 491}
     y := uint256{997, 499, 503, 509}
 
@@ -448,7 +466,7 @@ func BenchmarkMulEq(b *testing.B){
 	}
 }
 
-func BenchmarkSquareEq(b *testing.B){
+func benchmarkSquareEq(b *testing.B){
 	x := uint256{257, 479, 487, 491}
     y := uint256{997, 499, 503, 509}
 
@@ -458,7 +476,7 @@ func BenchmarkSquareEq(b *testing.B){
 	}
 }
 
-func BenchmarkNegEq(b *testing.B){
+func benchmarkNegEq(b *testing.B){
 	x := uint256{257, 479, 487, 491}
     y := uint256{997, 499, 503, 509}
 
@@ -468,7 +486,7 @@ func BenchmarkNegEq(b *testing.B){
 	}
 }
 
-func BenchmarkDoubleEq(b *testing.B){
+func benchmarkDoubleEq(b *testing.B){
 	x := uint256{257, 479, 487, 491}
     y := uint256{997, 499, 503, 509}
 

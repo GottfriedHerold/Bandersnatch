@@ -135,10 +135,6 @@ func (z *uint256) AddEq_ReduceWeak(x *uint256) {
 	}
 
 	z[3], z[2], z[1], z[0] = t3, t2, t1, t0
-	return
-
-	
-
 }
 
 // SubAndReduce_Weak1 sets z, such that z==x-y mod BaseFieldSize holds.
@@ -770,11 +766,11 @@ func (z *uint256) reduce8(x [8]uint64) {
 	x1, b = bits.Sub64(r1, m_1, b)
 	x2, b = bits.Sub64(r2, m_2, b)
 	x3, b = bits.Sub64(r3, m_3, b)
-	x4, b = bits.Sub64(r4, 0, b)
+	_, b = bits.Sub64(r4, 0, b)
 
 	// commit if no borrow
 	if b == 0 {
-		r4, r3, r2, r1, r0 = x4, x3, x2, x1, x0
+		r3, r2, r1, r0 = x3, x2, x1, x0
 	}
 
 	z[3], z[2], z[1], z[0] = r3, r2, r1, r0
