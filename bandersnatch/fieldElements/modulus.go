@@ -4,34 +4,83 @@ import (
 	"math/bits"
 )
 
+// m is an alias for BaseFiledSize
+// re is the reciprocral of the modulus
+// mmu0 is the largest multiple of the modulus such that  mmu0 < 2^256
+// mmu1 is the smallest multiple of the modulus such that mm1 >= 2^256
+
+const(
+//modulo    = common.BaseFieldSize_untyped //0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
+reciprocal = 0x0000000000000002_355094edfede377c_38b5dcb707e08ed3_65043eb4be4bad71_42737a020c0d6393  // [5]uint64{0x42737a020c0d6393 0x65043eb4be4bad71 0x38b5dcb707e08ed3 0x355094edfede377c 0x2}
+mmu0       = 0xe7db4ea6533afa90_6673b0101343b00a_a77b4805fffcb7fd_fffffffe00000002                   // [4]uint64{0xfffffffe00000002 0xa77b4805fffcb7fd 0x6673b0101343b00a 0xe7db4ea6533afa90}
+mmu1       = 0x5bc8f5f97cd877d8_99ad88181ce5880f_fb38ec08fffb13fc_fffffffd00000003                   // [4]uint64{0xfffffffd00000003 0xfb38ec08fffb13fc 0x99ad88181ce5880f 0x5bc8f5f97cd877d8}
+)
+// 64-bit sized words of the modulus. The index is the position of the word. Shorthand for the baseFieldSize
+const (
+    m_0 = baseFieldSize_0
+    m_1 = baseFieldSize_1
+    m_2 = baseFieldSize_2
+    m_3 = baseFieldSize_3
+)
+
+//64-bit sized words of the reciprocal, with the index being the position of the word.
+const (
+	re_0 = (reciprocal >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	re_1
+	re_2
+	re_3
+	re_4
+)
+
+//64-bit sized words of the largest multiple of the modulus such that  mmu0 < 2^256, with the index being the position of the word.
+const (
+	mmu0_0 = (mmu0 >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	mmu0_1
+	mmu0_2
+	mmu0_3
+)
+
+//64-bit sized words of the smallest multiple of the modulus such that mmu1 >= 2^256, with the index being the position of the word.
+const (
+	mmu1_0 = (mmu1 >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	mmu1_1
+	mmu1_2
+	mmu1_3
+)
+
+
+/*
+
+The following functions can be used to calculate the reciprical, mmu0 and mmu1 of an arbritrary modulus m. For usage in the uint256 lib,
+the constants above are used instead.
+
+*/
+
 // modulus contains a modulus `m` as well as derived values that help speed up computations.
 // The allowed range for `m` is `2^192` to `2^256-1`.
+// mmu0 is the largest multiple of the modulus such that  mmu0 < 2^256
+// mmu1 is the smallest multiple of the modulus such that mmu1 >= 2^256
 type modulus struct {
-	// TODO: Rename to more meaningful names
 	m    [4]uint64 // modulus
-	mu   [5]uint64 // reciprocal
-	mmu0 [4]uint64 // m*(mu/2^256 + 0)
-	mmu1 [4]uint64 // m*(mu/2^256 + 1) % 2^256
+	re   [5]uint64 // reciprocal
+	mmu0 [4]uint64 // m*(mu/2^256 + 0) (with / being integer division)
+	mmu1 [4]uint64 // m*(mu/2^256 + 1) % 2^256 (with / being integer division)
 }
 
-func (z *modulus) ModulusFromUint256(m uint256) {
+// Generates a modulus from a uint256 (equivalent to [4]uint64 )
+func (z *modulus) FromUint256(m uint256) {
 
 	if m[3] == 0 {
 		panic("Modulus < 2^192")
 	}
-
-	// TOOD: Will need rewrite after changing reciprocal, mmu0, mmu1 etc to member functions (and merge them)
-
 	// Store the modulus itself
 	*z = modulus{m: m}
 
 	// Compute reciprocal of m
-	z.mu = reciprocal(m)
+	z.reciprocal()
 
 	// Compute mmu0, mmu1
-
-	mmu0(z)
-	mmu1(z)
+	z.mmu()
 }
 
 // ToUint256 returns an array with the modulus.
@@ -39,19 +88,17 @@ func (z *modulus) ToUint256() uint256 {
 	return z.m
 }
 
-// reciprocal computes a 320-bit value mu representing 2^512/m
+// reciprocal computes a 320-bit value re representing 2^512/m
 // (or equivalently 1/m in a 0.320-bit fixed point representation)
 //
 // Notes:
 // - starts with a 32-bit division, refines with newton-raphson iterations
-// - mu * m < 2^512
-// - mu * m + m >= 2^512
-// - mu * m + m == 2^512 iff m is a power of 2
-func reciprocal(m [4]uint64) (mu [5]uint64) {
-
+// - re * m < 2^512
+// - re * m + m >= 2^512
+// - re * m + m == 2^512 iff m is a power of 2
+func (z *modulus) reciprocal() {
 	// Note: specialized for m[3] != 0
-
-	s := bits.LeadingZeros64(m[3])
+	s := bits.LeadingZeros64(z.m[3])
 	p := 63 - s
 
 	// 0 or a power of 2?
@@ -59,25 +106,23 @@ func reciprocal(m [4]uint64) (mu [5]uint64) {
 	// Check if at least one bit is set in m[2], m[1] or m[0],
 	// or at least two bits in m[3]
 	// If not, m is 0 or a power of 2
+	if z.m[0]|z.m[1]|z.m[2]|(z.m[3]&(z.m[3]-1)) == 0 {
+		z.re[4] = ^uint64(0) >> uint(p&63)
+		z.re[3] = ^uint64(0)
+		z.re[2] = ^uint64(0)
+		z.re[1] = ^uint64(0)
+		z.re[0] = ^uint64(0)
 
-	if m[0]|m[1]|m[2]|(m[3]&(m[3]-1)) == 0 {
-		mu[4] = ^uint64(0) >> uint(p&63)
-		mu[3] = ^uint64(0)
-		mu[2] = ^uint64(0)
-		mu[1] = ^uint64(0)
-		mu[0] = ^uint64(0)
-
-		return mu
+		return
 	}
 
 	// Maximise division precision by left-aligning divisor
-
 	var (
 		y  [4]uint64 // left-aligned copy of m
 		r0 uint32    // estimate of 2^31/y
 	)
 
-	y = shiftleft256(m, uint(s)) // 1/2 < y < 1
+	y = shiftleft256(z.m, uint(s)) // 1/2 < y < 1
 
 	// Extract most significant 32 bits
 
@@ -109,16 +154,16 @@ func reciprocal(m [4]uint64) (mu [5]uint64) {
 	a2h, a2l := bits.Mul64(r1, r1)
 
 	// multiply by y: e2h:e2l:b2h = 2^126/y^2 * 2^128/y / 2^128 = 2^126/y
-	b2h, _ := bits.Mul64(a2l, y[2])
+	b2h, _   := bits.Mul64(a2l, y[2])
 	c2h, c2l := bits.Mul64(a2l, y[3])
 	d2h, d2l := bits.Mul64(a2h, y[2])
 	e2h, e2l := bits.Mul64(a2h, y[3])
 
 	b2h, c := bits.Add64(b2h, c2l, 0)
-	e2l, c = bits.Add64(e2l, c2h, c)
-	e2h, _ = bits.Add64(e2h, 0, c)
+	e2l, c  = bits.Add64(e2l, c2h, c)
+	e2h, _  = bits.Add64(e2h, 0, c)
 
-	_, c = bits.Add64(b2h, d2l, 0)
+	_, c   = bits.Add64(b2h, d2l, 0)
 	e2l, c = bits.Add64(e2l, d2h, c)
 	e2h, _ = bits.Add64(e2h, 0, c)
 
@@ -159,54 +204,54 @@ func reciprocal(m [4]uint64) (mu [5]uint64) {
 
 	var q0, q1, q2, q3, q4, t0 uint64
 
-	q0, _ = bits.Mul64(x2, y[0])
+	q0, _  = bits.Mul64(x2, y[0])
 	q1, t0 = bits.Mul64(x3, y[0])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, _ = bits.Add64(q1, 0, c)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, _  = bits.Add64(q1, 0, c)
 
-	t1, _ = bits.Mul64(x1, y[1])
-	q0, c = bits.Add64(q0, t1, 0)
+	t1, _  = bits.Mul64(x1, y[1])
+	q0, c  = bits.Add64(q0, t1, 0)
 	q2, t0 = bits.Mul64(x3, y[1])
-	q1, c = bits.Add64(q1, t0, c)
-	q2, _ = bits.Add64(q2, 0, c)
+	q1, c  = bits.Add64(q1, t0, c)
+	q2, _  = bits.Add64(q2, 0, c)
 
 	t1, t0 = bits.Mul64(x2, y[1])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
-	q2, _ = bits.Add64(q2, 0, c)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
+	q2, _  = bits.Add64(q2, 0, c)
 
 	t1, t0 = bits.Mul64(x1, y[2])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
 	q3, t0 = bits.Mul64(x3, y[2])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, _ = bits.Add64(q3, 0, c)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, _  = bits.Add64(q3, 0, c)
 
-	t1, _ = bits.Mul64(x0, y[2])
-	q0, c = bits.Add64(q0, t1, 0)
+	t1, _  = bits.Mul64(x0, y[2])
+	q0, c  = bits.Add64(q0, t1, 0)
 	t1, t0 = bits.Mul64(x2, y[2])
-	q1, c = bits.Add64(q1, t0, c)
-	q2, c = bits.Add64(q2, t1, c)
-	q3, _ = bits.Add64(q3, 0, c)
+	q1, c  = bits.Add64(q1, t0, c)
+	q2, c  = bits.Add64(q2, t1, c)
+	q3, _  = bits.Add64(q3, 0, c)
 
 	t1, t0 = bits.Mul64(x1, y[3])
-	q1, c = bits.Add64(q1, t0, 0)
-	q2, c = bits.Add64(q2, t1, c)
+	q1, c  = bits.Add64(q1, t0, 0)
+	q2, c  = bits.Add64(q2, t1, c)
 	q4, t0 = bits.Mul64(x3, y[3])
-	q3, c = bits.Add64(q3, t0, c)
-	q4, _ = bits.Add64(q4, 0, c)
+	q3, c  = bits.Add64(q3, t0, c)
+	q4, _  = bits.Add64(q4, 0, c)
 
 	t1, t0 = bits.Mul64(x0, y[3])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
 	t1, t0 = bits.Mul64(x2, y[3])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, c = bits.Add64(q3, t1, c)
-	q4, _ = bits.Add64(q4, 0, c)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, c  = bits.Add64(q3, t1, c)
+	q4, _  = bits.Add64(q4, 0, c)
 
 	// subtract: t3 = 2^191/y - 2^190/y = 2^190/y
-	_, b = bits.Sub64(0, q0, 0)
-	_, b = bits.Sub64(0, q1, b)
+	_, b    = bits.Sub64(0, q0, 0)
+	_, b    = bits.Sub64(0, q1, b)
 	t3l, b := bits.Sub64(0, q2, b)
 	t3m, b := bits.Sub64(r2l, q3, b)
 	t3h, _ := bits.Sub64(r2h, q4, b)
@@ -248,23 +293,23 @@ func reciprocal(m [4]uint64) (mu [5]uint64) {
 	x1, x0 = bits.Mul64(d4h, y[0])
 	x3, x2 = bits.Mul64(f4h, y[0])
 	t1, t0 = bits.Mul64(f4l, y[0])
-	x1, c = bits.Add64(x1, t0, 0)
-	x2, c = bits.Add64(x2, t1, c)
-	x3, _ = bits.Add64(x3, 0, c)
-
-	t1, t0 = bits.Mul64(d4h, y[1])
-	x1, c = bits.Add64(x1, t0, 0)
-	x2, c = bits.Add64(x2, t1, c)
+	x1, c  = bits.Add64(x1, t0, 0)
+	x2, c  = bits.Add64(x2, t1, c)
+	x3, _  = bits.Add64(x3, 0, c)
+ 
+	t1, t0  = bits.Mul64(d4h, y[1])
+	x1, c   = bits.Add64(x1, t0, 0)
+	x2, c   = bits.Add64(x2, t1, c)
 	x4, t0 := bits.Mul64(f4h, y[1])
-	x3, c = bits.Add64(x3, t0, c)
-	x4, _ = bits.Add64(x4, 0, c)
-	t1, t0 = bits.Mul64(d4l, y[1])
-	x0, c = bits.Add64(x0, t0, 0)
-	x1, c = bits.Add64(x1, t1, c)
-	t1, t0 = bits.Mul64(f4l, y[1])
-	x2, c = bits.Add64(x2, t0, c)
-	x3, c = bits.Add64(x3, t1, c)
-	x4, _ = bits.Add64(x4, 0, c)
+	x3, c   = bits.Add64(x3, t0, c)
+	x4, _   = bits.Add64(x4, 0, c)
+	t1, t0  = bits.Mul64(d4l, y[1])
+	x0, c   = bits.Add64(x0, t0, 0)
+	x1, c   = bits.Add64(x1, t1, c)
+	t1, t0  = bits.Mul64(f4l, y[1])
+	x2, c   = bits.Add64(x2, t0, c)
+	x3, c   = bits.Add64(x3, t1, c)
+	x4, _   = bits.Add64(x4, 0, c)
 
 	t1, t0 = bits.Mul64(a4h, y[2])
 	x0, c = bits.Add64(x0, t0, 0)
@@ -465,27 +510,27 @@ func reciprocal(m [4]uint64) (mu [5]uint64) {
 		r4h, r4i, r4j, r4k, r4l = x4, x3, x2, x1, x0
 	}
 
-	mu[0] = r4l
-	mu[1] = r4k
-	mu[2] = r4j
-	mu[3] = r4i
-	mu[4] = r4h
-
-	return mu
+	z.re[0] = r4l
+	z.re[1] = r4k
+	z.re[2] = r4j
+	z.re[3] = r4i
+	z.re[4] = r4h
 }
 
-func mmu0(z *modulus) {
+
+// precomputer the modulo multiples used in speed optmization
+func  (z *modulus) mmu() {
 	var c, t0, t1, q0, q1, q2, q3, q4 uint64
 
-	q2, q1 = bits.Mul64(z.m[1], z.mu[4])
-	q4, q3 = bits.Mul64(z.m[3], z.mu[4])
+	q2, q1 = bits.Mul64(z.m[1], z.re[4])
+	q4, q3 = bits.Mul64(z.m[3], z.re[4])
 
-	t1, q0 = bits.Mul64(z.m[0], z.mu[4])
-	q1, c = bits.Add64(q1, t1, 0)
-	t1, t0 = bits.Mul64(z.m[2], z.mu[4])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, c = bits.Add64(q3, t1, c)
-	q4, _ = bits.Add64(q4, 0, c)
+	t1, q0 = bits.Mul64(z.m[0], z.re[4])
+	q1, c  = bits.Add64(q1, t1, 0)
+	t1, t0 = bits.Mul64(z.m[2], z.re[4])
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, c  = bits.Add64(q3, t1, c)
+	q4, _  = bits.Add64(q4, 0, c)
 
 	if q4 != 0 {
 		panic("Error preparing mmu0")
@@ -493,32 +538,23 @@ func mmu0(z *modulus) {
 
 	z.mmu0 = [4]uint64{q0, q1, q2, q3}
 
-}
-
-func mmu1(z *modulus) {
-	var c uint64
-
 	z.mmu1[0], c = bits.Add64(z.mmu0[0], z.m[0], 0)
 	z.mmu1[1], c = bits.Add64(z.mmu0[1], z.m[1], c)
 	z.mmu1[2], c = bits.Add64(z.mmu0[2], z.m[2], c)
 	z.mmu1[3], c = bits.Add64(z.mmu0[3], z.m[3], c)
 
-	// mmu0 is the largest multiple of m such that mmu0 < 2^256
-	// mmu1 is the smallest multiple of m such that mmu1 >= 2^256
 	// => there must be a carry out from the addition above
-
 	if c != 1 {
 		panic("Error preparing mmu1")
 	}
 }
 
-// NOTE (Gotti): The code sets l:= s % 64 rather than use s directly (or check that s is <64). I do not understand why. This just silently drops the higher bits of s, which seems really weird.
-
-// shiftleft256 returns z = x* 2^s where s is between 0 and 63.
+// shiftleft256 shifts the 256-bit value in a little-endian array left by 0-63 bits.
+// This function is used in the calculation of the reciprocal to produce a left aligned copy of the modulus.
+// For simplicity, it considers that m >= 2^192, hence there will never be more than 63 leading zeros. 
+//
+// TODO: Alternativelly, this function could be inlined to reciprocal.
 func shiftleft256(x uint256, s uint) (z uint256) {
-
-	// TODO: Please explain rationale
-
 	l := s % 64 // left shift
 	r := 64 - l // right shift
 
@@ -529,3 +565,6 @@ func shiftleft256(x uint256, s uint) (z uint256) {
 
 	return z
 }
+
+//The bandersnatch values are
+

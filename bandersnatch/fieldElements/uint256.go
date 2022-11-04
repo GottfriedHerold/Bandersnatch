@@ -10,12 +10,6 @@ import (
 
 type uint256 [4]uint64 // low-endian
 
-var m modulus
-
-func init() {
-	//initialize modulus precomputations to improve speed
-	m.ModulusFromUint256([4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3})
-}
 
 func (z *uint256) ToBigInt() *big.Int {
 	var big_endian_byte_slice [32]byte
@@ -32,7 +26,7 @@ func BigIntToUInt256(x *big.Int) (result uint256) {
 
 // ToUint64 returns an array with the canonical representative of the residue class.
 func (z *uint256) ToUint64() [4]uint64 {
-	z.reduce4() // Reduce to canonical residue
+	z.reduce4() // Reduce to canonical residue modulo m
 	return [4]uint64{z[0], z[1], z[2], z[3]}
 }
 
@@ -76,6 +70,7 @@ func (z *uint256) SubWithBorrow(x, y *uint256) (borrow uint64) {
 	return
 }
 
+
 // AddAndReduce_Weak sets z, such that z==x+y mod BaseFieldSize holds. Assumes x and y to be weakly reduced.
 //
 // z might not be the smallest such representations. More precisely:
@@ -87,9 +82,9 @@ func (z *uint256) AddAndReduce_Weak(x, y *uint256) {
 	z[1], carry = bits.Add64(x[1], y[1], carry)
 	z[2], carry = bits.Add64(x[2], y[2], carry)
 	z[3], carry = bits.Add64(x[3], y[3], carry)
-
+	
 	// If carry == 1, then z.maybe_reduce_once() actually commutes with the -=mdoubled here: it won't do anything either before or after it.
-
+	
 	// On overflow, subtract an appropriate multiple of BaseFieldSize.
 	// The preconditions guarantee that subtracting 2*BaseFieldSize always remedies the overflow.
 	if carry != 0 {
@@ -109,38 +104,40 @@ func (z *uint256) AddAndReduce_Weak(x, y *uint256) {
 
 // TODO: Clarify pre- and post- conditions wrt. reducedness.
 
-// Add computes the sum of two residues, strong reduce
-func (z *uint256) AddEq_Dg(x *uint256) {
+// Computes the sum of two residues, and weakly reduce to the interval [0..2**256).
+//  inputs don't need to be in reduced form
+func (z *uint256) AddEq_ReduceWeak(x *uint256) {
 	t0, c := bits.Add64(z[0], x[0], 0)
 	t1, c := bits.Add64(z[1], x[1], c)
 	t2, c := bits.Add64(z[2], x[2], c)
 	t3, c := bits.Add64(z[3], x[3], c)
-	// NOTE: If both inputs were fully reduced, c cannot be 0 here for the prime used in bandersnatch.
-	// This might lead to an efficiency improvement and simplification.
 
-	u0, b := bits.Sub64(t0, m.mmu1[0], 0)
-	u1, b := bits.Sub64(t1, m.mmu1[1], b)
-	u2, b := bits.Sub64(t2, m.mmu1[2], b)
-	u3, _ := bits.Sub64(t3, m.mmu1[3], b)
+	if c == 0 {
+		z[3], z[2], z[1], z[0] = t3, t2, t1, t0
+		return
+	}
 
-	v0, b := bits.Sub64(t0, m.mmu0[0], 0)
-	v1, b := bits.Sub64(t1, m.mmu0[1], b)
-	v2, b := bits.Sub64(t2, m.mmu0[2], b)
-	v3, b := bits.Sub64(t3, m.mmu0[3], b)
+	
+	u0, b := bits.Sub64(t0, mmu1_0, 0)
+	u1, b := bits.Sub64(t1, mmu1_1, b)
+	u2, b := bits.Sub64(t2, mmu1_2, b)
+	u3, _ := bits.Sub64(t3, mmu1_3, b)
+
+	t0, b  = bits.Sub64(t0, mmu0_0, 0)
+	t1, b  = bits.Sub64(t1, mmu0_1, b)
+	t2, b  = bits.Sub64(t2, mmu0_2, b)
+	t3, b  = bits.Sub64(t3, mmu0_3, b)
 
 	// Subtract the larger multiple of m if necessary
 
 	if b == 0 {
-		v3, v2, v1, v0 = u3, u2, u1, u0
-	}
-
-	// Subtract if overflow
-
-	if c != 0 {
-		t3, t2, t1, t0 = v3, v2, v1, v0
+		t3, t2, t1, t0 = u3, u2, u1, u0
 	}
 
 	z[3], z[2], z[1], z[0] = t3, t2, t1, t0
+	return
+
+	
 
 }
 
@@ -182,6 +179,7 @@ func (z *uint256) SubAndReduce_Weak1(x, y *uint256) {
 			z[3], _ = bits.Add64(z[3], baseFieldSizeDoubled_64_3, borrow) // _ is one
 		}
 	}
+
 }
 
 // SubAndReduce_Weak1 sets z, such that z==x-y mod BaseFieldSize holds.
@@ -209,24 +207,27 @@ func (z *uint256) SubAndReduce_Weak2(x, y *uint256) {
 		z[2], borrow = bits.Add64(z[2], baseFieldSizeDoubled_64_2, borrow)
 		z[3], _ = bits.Add64(z[3], baseFieldSizeDoubled_64_3, borrow) // _ is one
 	}
+
 }
 
-// Sub computes the sum of a residue and the negation of a second residue.
-func (z *uint256) SubEq_Dg(x *uint256) {
+
+// Sub computes the sum of a residue and the negation of a second residue, and weakly reduce to the interval [0..2**256).
+// inputs don't need to be in reduced form
+func (z *uint256) SubEq_ReduceWeak(x *uint256) {
 	t0, b := bits.Sub64(z[0], x[0], 0)
 	t1, b := bits.Sub64(z[1], x[1], b)
 	t2, b := bits.Sub64(z[2], x[2], b)
 	t3, b := bits.Sub64(z[3], x[3], b)
 
-	u0, c := bits.Add64(t0, m.mmu1[0], 0)
-	u1, c := bits.Add64(t1, m.mmu1[1], c)
-	u2, c := bits.Add64(t2, m.mmu1[2], c)
-	u3, _ := bits.Add64(t3, m.mmu1[3], c)
+	u0, c := bits.Add64(t0, mmu1_0, 0)
+	u1, c := bits.Add64(t1, mmu1_1, c)
+	u2, c := bits.Add64(t2, mmu1_2, c)
+	u3, _ := bits.Add64(t3, mmu1_3, c)
 
-	v0, c := bits.Add64(t0, m.mmu0[0], 0)
-	v1, c := bits.Add64(t1, m.mmu0[1], c)
-	v2, c := bits.Add64(t2, m.mmu0[2], c)
-	v3, c := bits.Add64(t3, m.mmu0[3], c)
+	v0, c := bits.Add64(t0, mmu0_0, 0)
+	v1, c := bits.Add64(t1, mmu0_1, c)
+	v2, c := bits.Add64(t2, mmu0_2, c)
+	v3, c := bits.Add64(t3, mmu0_3, c)
 
 	// Add the larger multiple of m if necessary
 
@@ -247,6 +248,7 @@ func (z *uint256) SubEq_Dg(x *uint256) {
 // IsZero checks whether the uint256 is (exactly) zero.
 func (z *uint256) IsZero() bool {
 	return z[0]|z[1]|z[2]|z[3] == 0
+
 }
 
 // reduce_weakly replaces z by some number z' with z' == z mod BaseFieldSize.
@@ -295,10 +297,20 @@ func (z *uint256) is_fully_reduced() bool {
 	return false
 }
 
-// Inv computes the multiplicative Inverse:
-//
-// z.Inv(x) performs z:= 1/x. If x is 0, the behaviour is undefined (possibly panic)
+// Inv computes the multiplicative Inverse of a residue, if it exists.
+// z := x^-1 (mod m)
+// in the case no multiplicative inverse exists, returns false, true otherwise
+// Input and output values are weakly reduced to the interval [0..2**256)
 func (z *uint256) Inv(x *uint256) bool {
+	// check if inverse exists
+	if  (x[3]|x[2]|x[1]|x[0]) == 0 ||  // x == 0
+		(m_3|m_2|m_1|m_0) == 0 || // modulus == 0
+		(x[0]|m_0)&1 == 0 {      // 2|gcd(u,v)
+
+		//panic("Panic! value has no multiplicative inverse")
+		return false
+	}
+
 	var (
 		b, c, // Borrow & carry
 		a4, a3, a2, a1, a0,
@@ -307,19 +319,8 @@ func (z *uint256) Inv(x *uint256) bool {
 		d4, d3, d2, d1, d0 uint64
 	)
 
-	y := m.m
-
 	u3, u2, u1, u0 := x[3], x[2], x[1], x[0]
-	v3, v2, v1, v0 := y[3], y[2], y[1], y[0]
-
-	// there is no inverse
-	if (u3|u2|u1|u0) == 0 || // u == 0
-		(v3|v2|v1|v0) == 0 || // v == 0
-		(u0|v0)&1 == 0 { // 2|gcd(u,v)
-
-		z[3], z[2], z[1], z[0] = 0, 0, 0, 0
-		return false
-	}
+	var v3, v2, v1, v0 uint64 = m_3, m_2, m_1, m_0 //cant use :=, go will infer as signed type, m_0 will overlflow
 
 	a4, a3, a2, a1, a0 = 0, 0, 0, 0, 1
 	b4, b3, b2, b1, b0 = 0, 0, 0, 0, 0
@@ -338,10 +339,10 @@ func (z *uint256) Inv(x *uint256) bool {
 
 			if (a0|b0)&1 == 1 {
 
-				a0, c = bits.Add64(a0, y[0], 0)
-				a1, c = bits.Add64(a1, y[1], c)
-				a2, c = bits.Add64(a2, y[2], c)
-				a3, c = bits.Add64(a3, y[3], c)
+				a0, c = bits.Add64(a0, m_0, 0)
+				a1, c = bits.Add64(a1, m_1, c)
+				a2, c = bits.Add64(a2, m_2, c)
+				a3, c = bits.Add64(a3, m_3, c)
 				a4, _ = bits.Add64(a4, 0, c)
 
 				b0, b = bits.Sub64(b0, x[0], 0)
@@ -373,10 +374,10 @@ func (z *uint256) Inv(x *uint256) bool {
 
 			if (c0|d0)&1 == 1 {
 
-				c0, c = bits.Add64(c0, y[0], 0)
-				c1, c = bits.Add64(c1, y[1], c)
-				c2, c = bits.Add64(c2, y[2], c)
-				c3, c = bits.Add64(c3, y[3], c)
+				c0, c = bits.Add64(c0, m_0, 0)
+				c1, c = bits.Add64(c1, m_1, c)
+				c2, c = bits.Add64(c2, m_2, c)
+				c3, c = bits.Add64(c3, m_3, c)
 				c4, _ = bits.Add64(c4, 0, c)
 
 				d0, b = bits.Sub64(d0, x[0], 0)
@@ -446,25 +447,26 @@ func (z *uint256) Inv(x *uint256) bool {
 	}
 
 	if (v3 | v2 | v1 | (v0 - 1)) != 0 { // gcd(z,m) != 1
-		z[3], z[2], z[1], z[0] = 0, 0, 0, 0
+		//z[3], z[2], z[1], z[0] = 0, 0, 0, 0
+		//panic("Panic! value has no multiplicative inverse")
 		return false
 	}
 
 	// Add or subtract modulus to find 256-bit inverse (<= 2 iterations expected)
 
 	for (c4 >> 63) != 0 {
-		c0, c = bits.Add64(c0, y[0], 0)
-		c1, c = bits.Add64(c1, y[1], c)
-		c2, c = bits.Add64(c2, y[2], c)
-		c3, c = bits.Add64(c3, y[3], c)
+		c0, c = bits.Add64(c0, m_0, 0)
+		c1, c = bits.Add64(c1, m_1, c)
+		c2, c = bits.Add64(c2, m_2, c)
+		c3, c = bits.Add64(c3, m_3, c)
 		c4, _ = bits.Add64(c4, 0, c)
 	}
 
 	for c4 != 0 {
-		c0, b = bits.Sub64(c0, y[0], 0)
-		c1, b = bits.Sub64(c1, y[1], b)
-		c2, b = bits.Sub64(c2, y[2], b)
-		c3, b = bits.Sub64(c3, y[3], b)
+		c0, b = bits.Sub64(c0, m_0, 0)
+		c1, b = bits.Sub64(c1, m_1, b)
+		c2, b = bits.Sub64(c2, m_2, b)
+		c3, b = bits.Sub64(c3, m_3, b)
 		c4, _ = bits.Sub64(c4, 0, b)
 	}
 
@@ -472,99 +474,92 @@ func (z *uint256) Inv(x *uint256) bool {
 	return true
 }
 
+// Computes z*=x (mod m) weakly reduced to the interval [0..2**256)
+// input values don't need to be fully reduced.
 func (z *uint256) MulEq(x *uint256) {
-	// NOTE: This test is not really needed (and might interfere with benchmarking Mul against Square)
-	// NOTE: The algorithm below also works if x == z alias and we export a separate Square function anyway.
-	if z == x {
-		z.Square()
-	}
-	// Multiplication
-
 	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
 
 	q2, q1 = bits.Mul64(z[0], x[1])
 	q4, q3 = bits.Mul64(z[0], x[3])
 
 	t1, q0 = bits.Mul64(z[0], x[0])
-	q1, c = bits.Add64(q1, t1, 0)
+	q1, c  = bits.Add64(q1, t1, 0)
 	t1, t0 = bits.Mul64(z[0], x[2])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, c = bits.Add64(q3, t1, c)
-	q4, _ = bits.Add64(q4, 0, c)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, c  = bits.Add64(q3, t1, c)
+	q4, _  = bits.Add64(q4, 0, c)
 
 	t1, t0 = bits.Mul64(z[1], x[1])
-	q2, c = bits.Add64(q2, t0, 0)
-	q3, c = bits.Add64(q3, t1, c)
+	q2, c  = bits.Add64(q2, t0, 0)
+	q3, c  = bits.Add64(q3, t1, c)
 	q5, t0 = bits.Mul64(z[1], x[3])
-	q4, c = bits.Add64(q4, t0, c)
-	q5, _ = bits.Add64(q5, 0, c)
+	q4, c  = bits.Add64(q4, t0, c)
+	q5, _  = bits.Add64(q5, 0, c)
 
 	t1, t0 = bits.Mul64(z[1], x[0])
-	q1, c = bits.Add64(q1, t0, 0)
-	q2, c = bits.Add64(q2, t1, c)
+	q1, c  = bits.Add64(q1, t0, 0)
+	q2, c  = bits.Add64(q2, t1, c)
 	t1, t0 = bits.Mul64(z[1], x[2])
-	q3, c = bits.Add64(q3, t0, c)
-	q4, c = bits.Add64(q4, t1, c)
-	q5, _ = bits.Add64(q5, 0, c)
+	q3, c  = bits.Add64(q3, t0, c)
+	q4, c  = bits.Add64(q4, t1, c)
+	q5, _  = bits.Add64(q5, 0, c)
 
 	t1, t0 = bits.Mul64(z[2], x[1])
-	q3, c = bits.Add64(q3, t0, 0)
-	q4, c = bits.Add64(q4, t1, c)
+	q3, c  = bits.Add64(q3, t0, 0)
+	q4, c  = bits.Add64(q4, t1, c)
 	q6, t0 = bits.Mul64(z[2], x[3])
-	q5, c = bits.Add64(q5, t0, c)
-	q6, _ = bits.Add64(q6, 0, c)
+	q5, c  = bits.Add64(q5, t0, c)
+	q6, _  = bits.Add64(q6, 0, c)
 
 	t1, t0 = bits.Mul64(z[2], x[0])
-	q2, c = bits.Add64(q2, t0, 0)
-	q3, c = bits.Add64(q3, t1, c)
+	q2, c  = bits.Add64(q2, t0, 0)
+	q3, c  = bits.Add64(q3, t1, c)
 	t1, t0 = bits.Mul64(z[2], x[2])
-	q4, c = bits.Add64(q4, t0, c)
-	q5, c = bits.Add64(q5, t1, c)
-	q6, _ = bits.Add64(q6, 0, c)
+	q4, c  = bits.Add64(q4, t0, c)
+	q5, c  = bits.Add64(q5, t1, c)
+	q6, _  = bits.Add64(q6, 0, c)
 
 	t1, t0 = bits.Mul64(z[3], x[1])
-	q4, c = bits.Add64(q4, t0, 0)
-	q5, c = bits.Add64(q5, t1, c)
+	q4, c  = bits.Add64(q4, t0, 0)
+	q5, c  = bits.Add64(q5, t1, c)
 	q7, t0 = bits.Mul64(z[3], x[3])
-	q6, c = bits.Add64(q6, t0, c)
-	q7, _ = bits.Add64(q7, 0, c)
+	q6, c  = bits.Add64(q6, t0, c)
+	q7, _  = bits.Add64(q7, 0, c)
 
 	t1, t0 = bits.Mul64(z[3], x[0])
-	q3, c = bits.Add64(q3, t0, 0)
-	q4, c = bits.Add64(q4, t1, c)
+	q3, c  = bits.Add64(q3, t0, 0)
+	q4, c  = bits.Add64(q4, t1, c)
 	t1, t0 = bits.Mul64(z[3], x[2])
-	q5, c = bits.Add64(q5, t0, c)
-	q6, c = bits.Add64(q6, t1, c)
-	q7, _ = bits.Add64(q7, 0, c)
+	q5, c  = bits.Add64(q5, t0, c)
+	q6, c  = bits.Add64(q6, t1, c)
+	q7, _  = bits.Add64(q7, 0, c)
 
-	// Reduction
-
+	// Reduce back into uint256
 	z.reduce8([8]uint64{q0, q1, q2, q3, q4, q5, q6, q7})
 
 }
 
-// Square squares the field element, computing z = x * x
-//
-// z.Square(&x) is equivalent to z.Mul(&x, &x)
-func (z *uint256) Square() {
+// Computes z = x * x (mod m) weakly reduced reduce to to the interval [0..2**256)
+//input values don't need to be fully reduced.
+func (z *uint256) SquareEq() {
 	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
 
 	q4, q3 = bits.Mul64(z[0], z[3])
 
 	t1, q2 = bits.Mul64(z[0], z[2])
-	q3, c = bits.Add64(q3, t1, 0)
+	q3, c  = bits.Add64(q3, t1, 0)
 	q5, t0 = bits.Mul64(z[1], z[3])
-	q4, c = bits.Add64(q4, t0, c)
-	q5, _ = bits.Add64(q5, 0, c)
+	q4, c  = bits.Add64(q4, t0, c)
+	q5, _  = bits.Add64(q5, 0, c)
 
 	t1, q1 = bits.Mul64(z[0], z[1])
-	q2, c = bits.Add64(q2, t1, 0)
+	q2, c  = bits.Add64(q2, t1, 0)
 	t1, t0 = bits.Mul64(z[1], z[2])
-	q3, c = bits.Add64(q3, t0, c)
-	q4, c = bits.Add64(q4, t1, c)
+	q3, c  = bits.Add64(q3, t0, c)
+	q4, c  = bits.Add64(q4, t1, c)
 	q6, t0 = bits.Mul64(z[2], z[3])
-	q5, c = bits.Add64(q5, t0, c)
-	q6, _ = bits.Add64(q6, 0, c)
+	q5, c  = bits.Add64(q5, t0, c)
+	q6, _  = bits.Add64(q6, 0, c)
 
 	q1, c = bits.Add64(q1, q1, 0)
 	q2, c = bits.Add64(q2, q2, c)
@@ -575,23 +570,23 @@ func (z *uint256) Square() {
 	q7, _ = bits.Add64(0, 0, c)
 
 	t1, q0 = bits.Mul64(z[0], z[0])
-	q1, c = bits.Add64(q1, t1, 0)
+	q1, c  = bits.Add64(q1, t1, 0)
 	t1, t0 = bits.Mul64(z[1], z[1])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, c = bits.Add64(q3, t1, c)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, c  = bits.Add64(q3, t1, c)
 	t1, t0 = bits.Mul64(z[2], z[2])
-	q4, c = bits.Add64(q4, t0, c)
-	q5, c = bits.Add64(q5, t1, c)
+	q4, c  = bits.Add64(q4, t0, c)
+	q5, c  = bits.Add64(q5, t1, c)
 	t1, t0 = bits.Mul64(z[3], z[3])
-	q6, c = bits.Add64(q6, t0, c)
-	q7, _ = bits.Add64(q7, t1, c)
+	q6, c  = bits.Add64(q6, t0, c)
+	q7, _  = bits.Add64(q7, t1, c)
 
-	// Reduction
-
+	// Reduce back into uint256
 	z.reduce8([8]uint64{q0, q1, q2, q3, q4, q5, q6, q7})
 }
 
-//Barrett reduction in the Handbook of Applied Cryptography.
+//Barrett reduction from the Handbook of Applied Cryptography.
+//Used in the MulEq and SquareEq to execute a weak reduction to the inverval [0..2**256]
 func (z *uint256) reduce8(x [8]uint64) {
 	// q1 = x/2^192
 	x0 := x[3]
@@ -604,70 +599,70 @@ func (z *uint256) reduce8(x [8]uint64) {
 
 	var q0, q1, q2, q3, q4, q5, t0, t1, c uint64
 
-	q0, _ = bits.Mul64(x3, m.mu[0])
-	q1, t0 = bits.Mul64(x4, m.mu[0])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, _ = bits.Add64(q1, 0, c)
+	q0, _  = bits.Mul64(x3, re_0)
+	q1, t0 = bits.Mul64(x4, re_0)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, _  = bits.Add64(q1, 0, c)
 
-	t1, _ = bits.Mul64(x2, m.mu[1])
-	q0, c = bits.Add64(q0, t1, 0)
-	q2, t0 = bits.Mul64(x4, m.mu[1])
-	q1, c = bits.Add64(q1, t0, c)
-	q2, _ = bits.Add64(q2, 0, c)
+	t1, _  = bits.Mul64(x2, re_1)
+	q0, c  = bits.Add64(q0, t1, 0)
+	q2, t0 = bits.Mul64(x4, re_1)
+	q1, c  = bits.Add64(q1, t0, c)
+	q2, _  = bits.Add64(q2, 0, c)
 
-	t1, t0 = bits.Mul64(x3, m.mu[1])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
-	q2, _ = bits.Add64(q2, 0, c)
+	t1, t0 = bits.Mul64(x3, re_1)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
+	q2, _  = bits.Add64(q2, 0, c)
 
-	t1, t0 = bits.Mul64(x2, m.mu[2])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
-	q3, t0 = bits.Mul64(x4, m.mu[2])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, _ = bits.Add64(q3, 0, c)
+	t1, t0 = bits.Mul64(x2, re_2)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
+	q3, t0 = bits.Mul64(x4, re_2)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, _  = bits.Add64(q3, 0, c)
 
-	t1, _ = bits.Mul64(x1, m.mu[2])
-	q0, c = bits.Add64(q0, t1, 0)
-	t1, t0 = bits.Mul64(x3, m.mu[2])
-	q1, c = bits.Add64(q1, t0, c)
-	q2, c = bits.Add64(q2, t1, c)
-	q3, _ = bits.Add64(q3, 0, c)
+	t1, _  = bits.Mul64(x1, re_2)
+	q0, c  = bits.Add64(q0, t1, 0)
+	t1, t0 = bits.Mul64(x3, re_2)
+	q1, c  = bits.Add64(q1, t0, c)
+	q2, c  = bits.Add64(q2, t1, c)
+	q3, _  = bits.Add64(q3, 0, c)
 
-	t1, _ = bits.Mul64(x0, m.mu[3])
-	q0, c = bits.Add64(q0, t1, 0)
-	t1, t0 = bits.Mul64(x2, m.mu[3])
-	q1, c = bits.Add64(q1, t0, c)
-	q2, c = bits.Add64(q2, t1, c)
-	q4, t0 = bits.Mul64(x4, m.mu[3])
-	q3, c = bits.Add64(q3, t0, c)
-	q4, _ = bits.Add64(q4, 0, c)
+	t1, _  = bits.Mul64(x0, re_3)
+	q0, c  = bits.Add64(q0, t1, 0)
+	t1, t0 = bits.Mul64(x2, re_3)
+	q1, c  = bits.Add64(q1, t0, c)
+	q2, c  = bits.Add64(q2, t1, c)
+	q4, t0 = bits.Mul64(x4, re_3)
+	q3, c  = bits.Add64(q3, t0, c)
+	q4, _  = bits.Add64(q4, 0, c)
 
-	t1, t0 = bits.Mul64(x1, m.mu[3])
-	q0, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
-	t1, t0 = bits.Mul64(x3, m.mu[3])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, c = bits.Add64(q3, t1, c)
-	q4, _ = bits.Add64(q4, 0, c)
+	t1, t0 = bits.Mul64(x1, re_3)
+	q0, c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
+	t1, t0 = bits.Mul64(x3, re_3)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, c  = bits.Add64(q3, t1, c)
+	q4, _  = bits.Add64(q4, 0, c)
 
-	t1, t0 = bits.Mul64(x0, m.mu[4])
-	_, c = bits.Add64(q0, t0, 0)
-	q1, c = bits.Add64(q1, t1, c)
-	t1, t0 = bits.Mul64(x2, m.mu[4])
-	q2, c = bits.Add64(q2, t0, c)
-	q3, c = bits.Add64(q3, t1, c)
-	q5, t0 = bits.Mul64(x4, m.mu[4])
-	q4, c = bits.Add64(q4, t0, c)
-	q5, _ = bits.Add64(q5, 0, c)
+	t1, t0 = bits.Mul64(x0, re_4)
+	_ , c  = bits.Add64(q0, t0, 0)
+	q1, c  = bits.Add64(q1, t1, c)
+	t1, t0 = bits.Mul64(x2, re_4)
+	q2, c  = bits.Add64(q2, t0, c)
+	q3, c  = bits.Add64(q3, t1, c)
+	q5, t0 = bits.Mul64(x4, re_4)
+	q4, c  = bits.Add64(q4, t0, c)
+	q5, _  = bits.Add64(q5, 0, c)
 
-	t1, t0 = bits.Mul64(x1, m.mu[4])
-	q1, c = bits.Add64(q1, t0, 0)
-	q2, c = bits.Add64(q2, t1, c)
-	t1, t0 = bits.Mul64(x3, m.mu[4])
-	q3, c = bits.Add64(q3, t0, c)
-	q4, c = bits.Add64(q4, t1, c)
-	q5, _ = bits.Add64(q5, 0, c)
+	t1, t0 = bits.Mul64(x1, re_4)
+	q1, c  = bits.Add64(q1, t0, 0)
+	q2, c  = bits.Add64(q2, t1, c)
+	t1, t0 = bits.Mul64(x3, re_4)
+	q3, c  = bits.Add64(q3, t0, c)
+	q4, c  = bits.Add64(q4, t1, c)
+	q5, _  = bits.Add64(q5, 0, c)
 
 	// Drop the fractional part of q3
 
@@ -689,45 +684,45 @@ func (z *uint256) reduce8(x [8]uint64) {
 
 	var r0, r1, r2, r3, r4 uint64
 
-	r4, r3 = bits.Mul64(q0, m.mu[3])
-	_, t0 = bits.Mul64(q1, m.mu[3])
-	r4, _ = bits.Add64(r4, t0, 0)
+	r4, r3 = bits.Mul64(q0, m_3)
+	_ , t0 = bits.Mul64(q1, m_3)
+	r4, _  = bits.Add64(r4, t0, 0)
 
-	t1, r2 = bits.Mul64(q0, m.mu[2])
-	r3, c = bits.Add64(r3, t1, 0)
-	_, t0 = bits.Mul64(q2, m.mu[2])
-	r4, _ = bits.Add64(r4, t0, c)
+	t1, r2 = bits.Mul64(q0, m_2)
+	r3, c  = bits.Add64(r3, t1, 0)
+	_ , t0 = bits.Mul64(q2, m_2)
+	r4, _  = bits.Add64(r4, t0, c)
 
-	t1, t0 = bits.Mul64(q1, m.mu[2])
-	r3, c = bits.Add64(r3, t0, 0)
-	r4, _ = bits.Add64(r4, t1, c)
+	t1, t0 = bits.Mul64(q1, m_2)
+	r3, c  = bits.Add64(r3, t0, 0)
+	r4, _  = bits.Add64(r4, t1, c)
 
-	t1, r1 = bits.Mul64(q0, m.mu[1])
-	r2, c = bits.Add64(r2, t1, 0)
-	t1, t0 = bits.Mul64(q2, m.mu[1])
-	r3, c = bits.Add64(r3, t0, c)
-	r4, _ = bits.Add64(r4, t1, c)
+	t1, r1 = bits.Mul64(q0, m_1)
+	r2, c  = bits.Add64(r2, t1, 0)
+	t1, t0 = bits.Mul64(q2, m_1)
+	r3, c  = bits.Add64(r3, t0, c)
+	r4, _  = bits.Add64(r4, t1, c)
 
-	t1, t0 = bits.Mul64(q1, m.mu[1])
-	r2, c = bits.Add64(r2, t0, 0)
-	r3, c = bits.Add64(r3, t1, c)
-	_, t0 = bits.Mul64(q3, m.mu[1])
-	r4, _ = bits.Add64(r4, t0, c)
+	t1, t0 = bits.Mul64(q1, m_1)
+	r2, c  = bits.Add64(r2, t0, 0)
+	r3, c  = bits.Add64(r3, t1, c)
+	_ , t0 = bits.Mul64(q3, m_1)
+	r4, _  = bits.Add64(r4, t0, c)
 
-	t1, r0 = bits.Mul64(q0, m.mu[0])
-	r1, c = bits.Add64(r1, t1, 0)
-	t1, t0 = bits.Mul64(q2, m.mu[0])
-	r2, c = bits.Add64(r2, t0, c)
-	r3, c = bits.Add64(r3, t1, c)
-	_, t0 = bits.Mul64(q4, m.mu[0])
-	r4, _ = bits.Add64(r4, t0, c)
+	t1, r0 = bits.Mul64(q0, m_0)
+	r1, c  = bits.Add64(r1, t1, 0)
+	t1, t0 = bits.Mul64(q2, m_0)
+	r2, c  = bits.Add64(r2, t0, c)
+	r3, c  = bits.Add64(r3, t1, c)
+	_ , t0 = bits.Mul64(q4, m_0)
+	r4, _  = bits.Add64(r4, t0, c)
 
-	t1, t0 = bits.Mul64(q1, m.mu[0])
-	r1, c = bits.Add64(r1, t0, 0)
-	r2, c = bits.Add64(r2, t1, c)
-	t1, t0 = bits.Mul64(q3, m.mu[0])
-	r3, c = bits.Add64(r3, t0, c)
-	r4, _ = bits.Add64(r4, t1, c)
+	t1, t0 = bits.Mul64(q1, m_0)
+	r1, c  = bits.Add64(r1, t0, 0)
+	r2, c  = bits.Add64(r2, t1, c)
+	t1, t0 = bits.Mul64(q3, m_0)
+	r3, c  = bits.Add64(r3, t0, c)
+	r4, _  = bits.Add64(r4, t1, c)
 
 	// r = r1 - r2
 
@@ -741,10 +736,10 @@ func (z *uint256) reduce8(x [8]uint64) {
 
 	// if r<0 then r+=m
 
-	x0, c = bits.Add64(r0, m.m[0], 0)
-	x1, c = bits.Add64(r1, m.m[1], c)
-	x2, c = bits.Add64(r2, m.m[2], c)
-	x3, c = bits.Add64(r3, m.m[3], c)
+	x0, c = bits.Add64(r0, m_0, 0)
+	x1, c = bits.Add64(r1, m_1, c)
+	x2, c = bits.Add64(r2, m_2, c)
+	x3, c = bits.Add64(r3, m_3, c)
 	x4, _ = bits.Add64(r4, 0, c)
 
 	// commit if borrow
@@ -753,16 +748,16 @@ func (z *uint256) reduce8(x [8]uint64) {
 	}
 
 	// incomplete reduction is possible if m < 2^256/3
-	if m.m[3] < 0x5555555555555555 {
+	if m_3 < 0x5555555555555555 {
 		z[3], z[2], z[1], z[0] = r3, r2, r1, r0
 		return
 	}
 
 	// q = r - m
-	x0, b = bits.Sub64(r0, m.m[0], 0)
-	x1, b = bits.Sub64(r1, m.m[1], b)
-	x2, b = bits.Sub64(r2, m.m[2], b)
-	x3, b = bits.Sub64(r3, m.m[3], b)
+	x0, b = bits.Sub64(r0, m_0, 0)
+	x1, b = bits.Sub64(r1, m_1, b)
+	x2, b = bits.Sub64(r2, m_2, b)
+	x3, b = bits.Sub64(r3, m_3, b)
 	x4, b = bits.Sub64(r4, 0, b)
 
 	// commit if no borrow
@@ -771,10 +766,10 @@ func (z *uint256) reduce8(x [8]uint64) {
 	}
 
 	// q = r - m
-	x0, b = bits.Sub64(r0, m.m[0], 0)
-	x1, b = bits.Sub64(r1, m.m[1], b)
-	x2, b = bits.Sub64(r2, m.m[2], b)
-	x3, b = bits.Sub64(r3, m.m[3], b)
+	x0, b = bits.Sub64(r0, m_0, 0)
+	x1, b = bits.Sub64(r1, m_1, b)
+	x2, b = bits.Sub64(r2, m_2, b)
+	x3, b = bits.Sub64(r3, m_3, b)
 	x4, b = bits.Sub64(r4, 0, b)
 
 	// commit if no borrow
@@ -786,8 +781,7 @@ func (z *uint256) reduce8(x [8]uint64) {
 
 }
 
-// reduce4 computes the least non-negative residue of z
-// and stores it back in z
+// reduce4 computes computes the canonical form z mod m, storing back in z
 func (z *uint256) reduce4() {
 
 	// NB: Most variable names in the comments match the pseudocode for
@@ -795,13 +789,10 @@ func (z *uint256) reduce4() {
 
 	var x0, x1, x2, x3, x4, r0, r1, r2, r3, r4, q3, t0, t1, c uint64
 
-	mu := m.mu
-	m := m.m
-
 	// q1 = x/2^192
 	// q2 = q1 * mu; q3 = q2 / 2^320
 
-	q3, _ = bits.Mul64(z[3], mu[4])
+	q3, _ = bits.Mul64(z[3], re_4)
 
 	// r1 = x mod 2^320 = x
 
@@ -813,15 +804,15 @@ func (z *uint256) reduce4() {
 
 	// r2 = q3 * m mod 2^320
 
-	r2, r1 = bits.Mul64(q3, m[1])
-	r4, r3 = bits.Mul64(q3, m[3])
+	r2, r1 = bits.Mul64(q3, m_1)
+	r4, r3 = bits.Mul64(q3, m_3)
 
-	t1, r0 = bits.Mul64(q3, m[0])
-	r1, c = bits.Add64(r1, t1, 0)
-	t1, t0 = bits.Mul64(q3, m[2])
-	r2, c = bits.Add64(r2, t0, c)
-	r3, c = bits.Add64(r3, t1, c)
-	r4, _ = bits.Add64(r4, 0, c)
+	t1, r0 = bits.Mul64(q3, m_0)
+	r1, c  = bits.Add64(r1, t1, 0)
+	t1, t0 = bits.Mul64(q3, m_2)
+	r2, c  = bits.Add64(r2, t0, c)
+	r3, c  = bits.Add64(r3, t1, c)
+	r4, _  = bits.Add64(r4, 0, c)
 
 	// r = r1 - r2 = x - r2
 
@@ -842,10 +833,10 @@ func (z *uint256) reduce4() {
 	for {
 		// if r>=m then r-=m
 
-		x0, b = bits.Sub64(r0, m[0], 0)
-		x1, b = bits.Sub64(r1, m[1], b)
-		x2, b = bits.Sub64(r2, m[2], b)
-		x3, b = bits.Sub64(r3, m[3], b)
+		x0, b = bits.Sub64(r0, m_0, 0)
+		x1, b = bits.Sub64(r1, m_1, b)
+		x2, b = bits.Sub64(r2, m_2, b)
+		x3, b = bits.Sub64(r3, m_3, b)
 		x4, b = bits.Sub64(r4, 0, b)
 
 		if b != 0 {
@@ -853,93 +844,62 @@ func (z *uint256) reduce4() {
 		}
 
 		// commit if no borrow (r1 >= r2 + m)
-
 		r4, r3, r2, r1, r0 = x4, x3, x2, x1, x0
 	}
-
 	z[3], z[2], z[1], z[0] = r3, r2, r1, r0
-
 }
 
-// Neg computes the negation (additive inverse) of a residue.
-func (z *uint256) NegEq_Dg() {
-	t0, b := bits.Sub64(m.mmu1[0], z[0], 0)
-	t1, b := bits.Sub64(m.mmu1[1], z[1], b)
-	t2, b := bits.Sub64(m.mmu1[2], z[2], b)
-	t3, _ := bits.Sub64(m.mmu1[3], z[3], b)
+// Neg computes the negation (additive inverse) of a number modulo m.
+// input values don't need to be fully reduced.
+func (z *uint256) Neg() (r uint256){
+	t0, b := bits.Sub64(mmu0_0, z[0], 0)
+	t1, b := bits.Sub64(mmu0_1, z[1], b)
+	t2, b := bits.Sub64(mmu0_2, z[2], b)
+	t3, b := bits.Sub64(mmu0_3, z[3], b)
 
-	u0, b := bits.Sub64(m.mmu0[0], z[0], 0)
-	u1, b := bits.Sub64(m.mmu0[1], z[1], b)
-	u2, b := bits.Sub64(m.mmu0[2], z[2], b)
-	u3, b := bits.Sub64(m.mmu0[3], z[3], b)
-
-	if b != 0 {
-		u3, u2, u1, u0 = t3, t2, t1, t0
+	if b == 0 {
+		r[3], r[2], r[1], r[0] = t3, t2, t1, t0
+		return r
 	}
 
-	z[3], z[2], z[1], z[0] = u3, u2, u1, u0
+	t0, b = bits.Sub64(mmu1_0, z[0], 0)
+	t1, b = bits.Sub64(mmu1_1, z[1], b)
+	t2, b = bits.Sub64(mmu1_2, z[2], b)
+	t3, _ = bits.Sub64(mmu1_3, z[3], b)
+
+	r[3], r[2], r[1], r[0] = t3, t2, t1, t0
+	return
 
 }
 
-// Double computes the double of a residue.
-func (z *uint256) DoubleEq_Dg() {
+// Double computes the double of a number modulo m, weakly reduced reduce to to the interval [0..2**256)
+// input values don't need to be fully reduced.
+func (z *uint256) DoubleEq() {
 
 	t0, c := bits.Add64(z[0], z[0], 0)
 	t1, c := bits.Add64(z[1], z[1], c)
 	t2, c := bits.Add64(z[2], z[2], c)
 	t3, c := bits.Add64(z[3], z[3], c)
 
-	u0, b := bits.Sub64(t0, m.mmu1[0], 0)
-	u1, b := bits.Sub64(t1, m.mmu1[1], b)
-	u2, b := bits.Sub64(t2, m.mmu1[2], b)
-	u3, _ := bits.Sub64(t3, m.mmu1[3], b)
+	u0, b := bits.Sub64(t0, mmu1_0, 0)
+	u1, b := bits.Sub64(t1, mmu1_1, b)
+	u2, b := bits.Sub64(t2, mmu1_2, b)
+	u3, _ := bits.Sub64(t3, mmu1_3, b)
 
-	v0, b := bits.Sub64(t0, m.mmu0[0], 0)
-	v1, b := bits.Sub64(t1, m.mmu0[1], b)
-	v2, b := bits.Sub64(t2, m.mmu0[2], b)
-	v3, b := bits.Sub64(t3, m.mmu0[3], b)
+	v0, b := bits.Sub64(t0, mmu0_0, 0)
+	v1, b := bits.Sub64(t1, mmu0_1, b)
+	v2, b := bits.Sub64(t2, mmu0_2, b)
+	v3, b := bits.Sub64(t3, mmu0_3, b)
 
 	// Subtract the larger multiple of m if necessary
-
 	if b == 0 {
 		v3, v2, v1, v0 = u3, u2, u1, u0
 	}
 
 	// Subtract if overflow
-
 	if c != 0 {
 		t3, t2, t1, t0 = v3, v2, v1, v0
 	}
 
 	z[3], z[2], z[1], z[0] = t3, t2, t1, t0
-
 }
-
-////////////////////////
-//comparison functions//
-////////////////////////
-
-// TODO: This function actually modfies its arguements. In particular, calling x.IsEqual(&m.m) would change m.
-// Since the uint256 type semantically represents an integer, this function should actually go to the fieldElement type.
-// An IsEqual defined as a method on uint256 should only do the *x == *y part. The reduction is the caller's job.
-// An IsEqualModuloBaseField method should not modify x or y.
-
-/*
-// IsEqual compares one residue to another, returns true when equal.
-func (x *uint256) IsEqual(y *uint256) bool {
-	x.reduce4()
-	y.reduce4()
-
-	r := x[0] ^ y[0]
-	r |= x[1] ^ y[1]
-	r |= x[2] ^ y[2]
-	r |= x[3] ^ y[3]
-
-	return r == 0
-}
-
-// NotEqual compares one residue to another, returns true when different.
-func (x *uint256) NotEqual(y *uint256) bool {
-	return !(x.IsEqual(y))
-}
-*/
