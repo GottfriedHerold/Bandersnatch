@@ -3,6 +3,7 @@ package pointserializer
 import (
 	"bytes"
 	"errors"
+	"io"
 	"math"
 	"math/rand"
 	"reflect"
@@ -354,7 +355,8 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 			ser.SerializeCurvePoint(&goodBuf, &curvePoints.SubgroupGenerator_xtw_subgroup)
 			correctBytes := goodBuf.Bytes()
 
-			designatedError := errors.New("Designated") // IO error that we will throw
+			designatedError := errors.New("Designated") // IO error that we will throw from faulty bufs
+			// Try writing to a buf that throws an error after i steps:
 			for i := 0; i < overhead+64; i++ {
 				faultyBuf := testutils.NewFaultyBuffer(i, designatedError)
 				bytesWritten, err := ser.SerializeCurvePoint(faultyBuf, &curvePoints.SubgroupGenerator_xtw_subgroup)
@@ -366,19 +368,61 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 			}
 
 			for i := 0; i < overhead+64; i++ {
+
+				var p curvePoints.Point_axtw_subgroup
+
 				faultyBuf := testutils.NewFaultyBuffer(i, designatedError)
 				faultyBuf.SetContent(correctBytes)
-				var p curvePoints.Point_axtw_subgroup
+
 				bytesRead, err := ser.DeserializeCurvePoint(faultyBuf, UntrustedInput, &p)
+
 				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
 				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
 				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
 				var errData bandersnatchErrors.ReadErrorData = err.GetData()
-				// pr, _ := errorsWithData.GetParameterFromError(err, "PartialRead")
-				// fmt.Printf("err = %v\n", err)
-				// fmt.Printf("ErrData = %v\n i = %v\n", errData, i)
-				// fmt.Printf("pr = %v\n", pr)
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
+
+				faultyBuf = testutils.NewFaultyBuffer(i, designatedError)
+				faultyBuf.SetContent(correctBytes)
+
+				bytesRead, err = ser.AsDeserializer().DeserializeCurvePoint(faultyBuf, UntrustedInput, &p)
+
+				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
+				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
+				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
+				errData = err.GetData()
+				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
+
+				eofBuf := bytes.NewBuffer(copyByteSlice(correctBytes)[0:i])
+
+				bytesRead, err = ser.DeserializeCurvePoint(eofBuf, UntrustedInput, &p)
+
+				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
+				testutils.FatalUnless(t, err != nil, "Did not get read error on EOF buffer")
+				if i == 0 {
+					testutils.FatalUnless(t, errors.Is(err, io.EOF), "Did not get expected EOF error: Got instead:\n%v", err)
+				} else {
+					testutils.FatalUnless(t, errors.Is(err, io.ErrUnexpectedEOF), "Did not get ErrUnexpectedEOF error. Got instead:\n%v\n %v %v %v", err, headerLen, footerLen, i)
+				}
+
+				errData = err.GetData()
+				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
+
+				eofBuf = bytes.NewBuffer(copyByteSlice(correctBytes)[0:i])
+
+				bytesRead, err = ser.AsDeserializer().DeserializeCurvePoint(eofBuf, UntrustedInput, &p)
+
+				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
+				testutils.FatalUnless(t, err != nil, "Did not get read error on EOF buffer")
+				if i == 0 {
+					testutils.FatalUnless(t, errors.Is(err, io.EOF), "Did not get expected EOF error: Got instead:\n%v", err)
+				} else {
+					testutils.FatalUnless(t, errors.Is(err, io.ErrUnexpectedEOF), "Did not get ErrUnexpectedEOF error. Got instead:\n%v\n %v %v %v", err, headerLen, footerLen, i)
+				}
+
+				errData = err.GetData()
+				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
+
 			}
 		}
 	}

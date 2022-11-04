@@ -549,8 +549,8 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	bytesJustRead, err := md.basicDeserializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 	bytesRead += bytesJustRead
 	if err != nil {
-		// if we either read something before or there is data following, the correct error is UnexpectedEOF rather than EOF.
-		if bytesRead != bytesJustRead || !md.headerDeserializer.trivialSinglePointFooter() {
+		// if we read something, but are not finished, the correct error is UnexpectedEOF rather than EOF.
+		if (bytesRead > 0) && (!md.headerDeserializer.trivialSinglePointFooter() || bytesJustRead == 0) {
 			errorTransform.UnexpectEOF2(&err)
 		}
 
@@ -585,6 +585,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
 			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
+
 		return
 	}
 
@@ -593,8 +594,9 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	bytesJustRead, err := md.basicSerializer.DeserializeCurvePoint(inputStream, trustLevel, outputPoint)
 	bytesRead += bytesJustRead
 	if err != nil {
+
 		// if we either read something before or there is data following, the correct error is UnexpectedEOF rather than EOF.
-		if bytesRead != bytesJustRead || !md.headerSerializer.trivialSinglePointFooter() {
+		if (bytesRead > 0) && (bytesJustRead == 0 || !md.headerSerializer.trivialSinglePointFooter()) {
 			errorTransform.UnexpectEOF2(&err)
 		}
 
@@ -604,6 +606,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerSerializer.trivialSinglePointFooter() && bytesRead > 0) {
 			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
+
 		return
 	}
 	bytesJustRead, err = md.headerSerializer.deserializeSinglePointFooter(inputStream)
@@ -615,7 +618,6 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
-
 	return
 
 }
