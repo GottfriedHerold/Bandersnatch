@@ -34,8 +34,8 @@ func (z *uint256) undoMontgomery() uint256 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
 	}
 
-	temp.reduce_weakly()
-	temp.reduce_weak_to_full()
+	temp.reduce_ca()
+	temp.reduce_fb()
 	return temp
 }
 
@@ -187,6 +187,6 @@ func (z *uint256) MulMontgomery_Weak(x, y *uint256) {
 		Since the end result might be bigger than B, we may need to reduce by M, but once is enough.
 	*/
 
-	temp.reduce_weakly()
+	temp.reduce_ca()
 	*z = temp
 }

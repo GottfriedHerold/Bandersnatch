@@ -172,7 +172,7 @@ func (z *bsFieldElement_64) isNormalized() bool {
 // This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say)
 // or when using bsFieldElement_64 as keys for a map or when sharing a field element between multiple goroutines.
 func (z *bsFieldElement_64) Normalize() {
-	z.words.reduce_weak_to_full()
+	z.words.reduce_fb()
 }
 
 // Sign outputs the "sign" of the field element.
@@ -223,7 +223,7 @@ func (z *bsFieldElement_64) Jacobi() int {
 func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	IncrementCallCounter("AddFe")
 
-	z.words.AddAndReduce_Weak(&x.words, &y.words)
+	z.words.AddAndReduce_b_c(&x.words, &y.words)
 }
 
 // Sub is used to perform subtraction.
@@ -231,7 +231,7 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 // Use z.Sub(&x, &y) to compute x - y and store the result in z.
 func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
 	IncrementCallCounter("SubFe")
-	z.words.SubAndReduce_Weak1(&x.words, &y.words)
+	z.words.SubAndReduce_c(&x.words, &y.words)
 }
 
 var _ = callcounters.CreateAttachedCallCounter("SubFromNeg", "Subtractions called by Neg", "SubFe").
@@ -404,7 +404,7 @@ func (z *bsFieldElement_64) Multiply_by_five() {
 	z.words[2], carry = bits.Add64(z.words[2], overflow4&rModBaseField_64_2, carry)
 	z.words[3], _ = bits.Add64(z.words[3], overflow4&rModBaseField_64_3, carry) // _ == 0 is guaranteed
 
-	z.words.reduce_weakly()
+	z.words.reduce_ca()
 }
 
 // Inv computes the multiplicative Inverse:
@@ -477,7 +477,9 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 // SquareRoot computes a SquareRoot in the field.
 //
 // Use ok := z.SquareRoot(&x).
-//  The return value tells whether the operation was successful.
+//
+//	The return value tells whether the operation was successful.
+//
 // If x is not a square, the return value is false and z is untouched.
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
