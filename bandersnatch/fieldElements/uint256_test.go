@@ -6,41 +6,41 @@ import (
 	"testing"
 )
 
-var(
-testval                           [1024][4]uint64
+var (
+	testval [1024][4]uint64
 )
 
-func init(){
+func init() {
 	//initialize testval to some interesting values
 	i := 0
 	//zero
-	testval[i] = [4]uint64{0,0,0,0}
+	testval[i] = [4]uint64{0, 0, 0, 0}
 	i++
 	//single bit set
-	for j:=0; j<64; j++ {
+	for j := 0; j < 64; j++ {
 		testval[i] = [4]uint64{1 << j, 0, 0, 0}
 		i++
 	}
 
-	for j:=0; j<64; j++ {
+	for j := 0; j < 64; j++ {
 		testval[i] = [4]uint64{0, 1 << j, 0, 0}
 		i++
 	}
 
-	for j:=0; j<64; j++ {
+	for j := 0; j < 64; j++ {
 		testval[i] = [4]uint64{0, 0, 1 << j, 0}
 		i++
 	}
 
-	for j:=0; j<64; j++ {
+	for j := 0; j < 64; j++ {
 		testval[i] = [4]uint64{0, 0, 0, 1 << j}
 		i++
 	}
 
 	//single unset bit
-	for j:=0; j<256; j++ {  
+	for j := 0; j < 256; j++ {
 		tmp := testval[i+j] //For those coming from other languages, ^ is the XOR operator for ints.
-		tmp[0] = ^tmp[0]    //But on the unsigned 64, this is the bitwise negation operator. 
+		tmp[0] = ^tmp[0]    //But on the unsigned 64, this is the bitwise negation operator.
 		tmp[1] = ^tmp[1]
 		tmp[2] = ^tmp[2]
 		tmp[3] = ^tmp[3]
@@ -49,7 +49,7 @@ func init(){
 	}
 
 	//randoms
-	for i < cap(testval){
+	for i < cap(testval) {
 		testval[i][0] = mrand.Uint64()
 		testval[i][1] = mrand.Uint64()
 		testval[i][2] = mrand.Uint64()
@@ -59,7 +59,7 @@ func init(){
 
 }
 
-func TestModulus(t *testing.T){
+func TestModulus(t *testing.T) {
 	//check if the current constants used for the modulus match the computated values
 
 	var mod modulus
@@ -88,40 +88,39 @@ PROPERTY TESTS
 func TestAdditiveIdentity(t *testing.T) {
 
 	var zero uint256
-	count:=0
+	count := 0
 
-	for _, val := range(testval){
+	for _, val := range testval {
 		var x uint256 = val
 		var y uint256 = x
 
 		x.AddEq_ReduceWeak(&zero)
 
-		if x.ToUint64() != y.ToUint64() {
+		if x.toUint64() != y.toUint64() {
 			t.Fatalf("TestAdditiveIdentity failed! %v != %v", x.ToBigInt(), y.ToBigInt())
 		}
 		count++
 	}
 }
 
-//a*1 == 1*a == a
+// a*1 == 1*a == a
 func TestMultiplicativeIdentity(t *testing.T) {
-	var one = uint256{1,0,0,0}
-	count:=0
+	var one = uint256{1, 0, 0, 0}
+	count := 0
 
-	for _, val := range(testval){
+	for _, val := range testval {
 		var x uint256 = val
 		y := x
 
-		x.MulEq(&one)
+		x.MulEqAndReduce_Weak(&one)
 
-		if x.ToUint64() != y.ToUint64() {
-			t.Fatalf("TestMultiplicativeIdentity failed! %v != %v", x.ToUint64(), y.ToUint64())
+		if x.toUint64() != y.toUint64() {
+			t.Fatalf("TestMultiplicativeIdentity failed! %v != %v", x.toUint64(), y.toUint64())
 		}
 		count++
 	}
 
 }
-
 
 // a+(-a) == (-a)+a == 0
 // a == -(-(a))
@@ -130,34 +129,34 @@ func TestAdditiveInverse(t *testing.T) {
 	var a, b, u, v, w uint256
 
 	// a+(-a) == (-a)+a == 0
-	for _,val := range(testval){
-		a=val
+	for _, val := range testval {
+		a = val
 		b = a.Neg()
-		u=b
-		v=a
+		u = b
+		v = a
 
 		a.AddEq_ReduceWeak(&b)
 		u.AddEq_ReduceWeak(&v)
 
-		if a.ToUint64() != u.ToUint64(){
+		if a.toUint64() != u.toUint64() {
 			t.Fatalf("Aditive inverse is not cumutative! %v != %v", a, u)
 		}
 	}
 
 	// a == -(-(a))
-	for _,val := range(testval){
+	for _, val := range testval {
 		a = val
 		b = a.Neg()
 		b = b.Neg()
 
-		if a.ToUint64() != b.ToUint64(){
+		if a.toUint64() != b.toUint64() {
 			t.Fatalf("Double inverse does not cancel! %v != %v", a, b)
 		}
 	}
 
 	// a-b == (-b)+a == -(b-a)
-	for _,_a := range(testval){
-		for _,_b := range(testval){
+	for _, _a := range testval {
+		for _, _b := range testval {
 			a = _a
 			b = _b
 
@@ -167,11 +166,11 @@ func TestAdditiveInverse(t *testing.T) {
 			v = b.Neg()
 			v.AddEq_ReduceWeak(&a) //v=(-b)+a
 
-			w=b
-			w.SubEq_ReduceWeak(&a) 
-			w=w.Neg() //w=-(b-a)
+			w = b
+			w.SubEq_ReduceWeak(&a)
+			w = w.Neg() //w=-(b-a)
 
-			if (u.ToUint64() != v.ToUint64()) || (u.ToUint64()!=w.ToUint64()) || (v.ToUint64()!=w.ToUint64()){
+			if (u.toUint64() != v.toUint64()) || (u.toUint64() != w.toUint64()) || (v.toUint64() != w.toUint64()) {
 				t.Errorf("a-b = %v", u)
 				t.Errorf("-b+a = %v", v)
 				t.Errorf("-(b-a) = %v", w)
@@ -184,22 +183,22 @@ func TestAdditiveInverse(t *testing.T) {
 
 }
 
-//a*(1/a) == (1/a)*a == 1
+// a*(1/a) == (1/a)*a == 1
 func TestMultiplicativeInverse(t *testing.T) {
 	var a, b, one uint256
-	one = [4]uint64{1,0,0,0}
+	one = [4]uint64{1, 0, 0, 0}
 	var noninvertible int
-	for _, val := range(testval){
+	for _, val := range testval {
 		a = val
 		invertible := b.Inv(&a)
-		if invertible==false{
+		if invertible == false {
 			noninvertible++
 			continue
 		}
 
-		a.MulEq(&b)
+		a.MulEqAndReduce_Weak(&b)
 
-		if a.ToUint64() != one{
+		if a.toUint64() != one {
 			t.Fatalf("Multiplicative inverse failed with a=%v b=%v", a, b)
 		}
 	}
@@ -207,44 +206,44 @@ func TestMultiplicativeInverse(t *testing.T) {
 
 }
 
-//a+b == b+a
+// a+b == b+a
 func TestCummutativeAddition(t *testing.T) {
 	var a, b, u, v uint256
 
-	for _, v1 := range(testval){
+	for _, v1 := range testval {
 		a = v1
-		for _, v2 := range(testval){
+		for _, v2 := range testval {
 			b = v2
 
-			u=a
+			u = a
 			u.AddEq_ReduceWeak(&b)
 
-			v=b
+			v = b
 			v.AddEq_ReduceWeak(&a)
 
-			if v.ToUint64() != u.ToUint64(){
+			if v.toUint64() != u.toUint64() {
 				t.Fatalf("Addition does not commute a=%v b=%v", a, b)
 			}
 		}
 	}
 }
 
-//a*b == b*a
+// a*b == b*a
 func TestCummutativeMultiplication(t *testing.T) {
 	var a, b, u, v uint256
 
-	for _, v1 := range(testval){
+	for _, v1 := range testval {
 		a = v1
-		for _, v2 := range(testval){
+		for _, v2 := range testval {
 			b = v2
 
-			u=a
-			u.MulEq(&b)
+			u = a
+			u.MulEqAndReduce_Weak(&b)
 
-			v=b
-			v.MulEq(&a)
+			v = b
+			v.MulEqAndReduce_Weak(&a)
 
-			if v.ToUint64() != u.ToUint64(){
+			if v.toUint64() != u.toUint64() {
 				t.Fatalf("Multiplication does not commute a=%v b=%v", a, b)
 			}
 		}
@@ -255,17 +254,21 @@ func TestCummutativeMultiplication(t *testing.T) {
 func TestAssociativeAddition(t *testing.T) {
 	var a, b, c, u, v uint256
 
-	for j, _a := range(testval){
+	for j, _a := range testval {
 		a = _a
-		for k, _b := range(testval[:j]){
+		for k, _b := range testval[:j] {
 			b = _b
-			for _, _c := range(testval[:k]){
+			for _, _c := range testval[:k] {
 				c = _c
 
-				u=a; u.AddEq_ReduceWeak(&b); u.AddEq_ReduceWeak(&c)
-				v=c; v.AddEq_ReduceWeak(&b); v.AddEq_ReduceWeak(&a)
+				u = a
+				u.AddEq_ReduceWeak(&b)
+				u.AddEq_ReduceWeak(&c)
+				v = c
+				v.AddEq_ReduceWeak(&b)
+				v.AddEq_ReduceWeak(&a)
 
-				if u.ToUint64() != v.ToUint64(){
+				if u.toUint64() != v.toUint64() {
 					t.Fatalf("Addition fails associative property %v != %v", u, v)
 				}
 			}
@@ -277,17 +280,21 @@ func TestAssociativeAddition(t *testing.T) {
 func TestAssociativeMultiplication(t *testing.T) {
 	var a, b, c, u, v uint256
 
-	for j, _a := range(testval){
+	for j, _a := range testval {
 		a = _a
-		for k, _b := range(testval[:j]){
+		for k, _b := range testval[:j] {
 			b = _b
-			for _, _c := range(testval[:k]){
+			for _, _c := range testval[:k] {
 				c = _c
 
-				u=a; u.MulEq(&b); u.MulEq(&c)
-				v=c; v.MulEq(&b); v.MulEq(&a)
+				u = a
+				u.MulEqAndReduce_Weak(&b)
+				u.MulEqAndReduce_Weak(&c)
+				v = c
+				v.MulEqAndReduce_Weak(&b)
+				v.MulEqAndReduce_Weak(&a)
 
-				if u.ToUint64() != v.ToUint64(){
+				if u.toUint64() != v.toUint64() {
 					t.Fatalf("Addition fails associative property %v != %v", u, v)
 				}
 			}
@@ -299,24 +306,27 @@ func TestAssociativeMultiplication(t *testing.T) {
 func TestDistributiveLeft(t *testing.T) {
 	var a, b, c, u, v, w uint256
 
-	for j, _a := range(testval){
+	for j, _a := range testval {
 		a = _a
-		for k, _b := range(testval[:j]){
+		for k, _b := range testval[:j] {
 			b = _b
-			for _, _c := range(testval[:k]){
+			for _, _c := range testval[:k] {
 				c = _c
 
 				//u = ab+ac
-				u=a; u.MulEq(&b);
-				v=a; v.MulEq(&c);
+				u = a
+				u.MulEqAndReduce_Weak(&b)
+				v = a
+				v.MulEqAndReduce_Weak(&c)
 				u.AddEq_ReduceWeak(&v)
 
 				//v = a(b+c)
-				v=a; w=b
+				v = a
+				w = b
 				w.AddEq_ReduceWeak(&c)
-				v.MulEq(&w)
+				v.MulEqAndReduce_Weak(&w)
 
-				if u.ToUint64() != v.ToUint64(){
+				if u.toUint64() != v.toUint64() {
 					t.Fatalf("Failed left distributive property (a(b+c) == ab+ac) %v != %v", u, v)
 				}
 			}
@@ -329,24 +339,26 @@ func TestDistributiveLeft(t *testing.T) {
 func TestDistributiveRight(t *testing.T) {
 	var a, b, c, u, v uint256
 
-	for j, _a := range(testval){
+	for j, _a := range testval {
 		a = _a
-		for k, _b := range(testval[:j]){
+		for k, _b := range testval[:j] {
 			b = _b
-			for _, _c := range(testval[:k]){
+			for _, _c := range testval[:k] {
 				c = _c
 
 				//u = ac+bc
-				u=a; u.MulEq(&c);
-				v=b; v.MulEq(&c);
+				u = a
+				u.MulEqAndReduce_Weak(&c)
+				v = b
+				v.MulEqAndReduce_Weak(&c)
 				u.AddEq_ReduceWeak(&v)
 
 				//v = (a+b)c
-				v=a; 
+				v = a
 				v.AddEq_ReduceWeak(&b)
-				v.MulEq(&c)
+				v.MulEqAndReduce_Weak(&c)
 
-				if u.ToUint64() != v.ToUint64(){
+				if u.toUint64() != v.toUint64() {
 					t.Fatalf("Failed right distributive property ((a+b)c == ac+bc) %v != %v", u, v)
 				}
 			}
@@ -359,7 +371,7 @@ func TestDistributiveRight(t *testing.T) {
 func TestDoubling(t *testing.T) {
 	var a, b, u, v uint256
 	// 2a = a+a
-	for _, _a := range(testval){
+	for _, _a := range testval {
 		a = _a
 		b = _a
 
@@ -368,40 +380,39 @@ func TestDoubling(t *testing.T) {
 		//a+a
 		b.AddEq_ReduceWeak(&b)
 
-		if a.ToUint64() != b.ToUint64(){
+		if a.toUint64() != b.toUint64() {
 			t.Fatalf("Failed doubling test (2a = a+a) %v != %v", a, b)
 		}
 
 	}
 
-	for _, _a := range(testval){
+	for _, _a := range testval {
 		a = _a
-		for _, _b := range(testval){
+		for _, _b := range testval {
 			b = _b
-	
+
 			//2(a+b)
-			u = a; u.AddEq_ReduceWeak(&b); u.DoubleEq()
+			u = a
+			u.AddEq_ReduceWeak(&b)
+			u.DoubleEq()
 
 			//2a+2b
-			v = a; v.DoubleEq()
+			v = a
+			v.DoubleEq()
 			b.DoubleEq()
 			v.AddEq_ReduceWeak(&b)
 
-			if v.ToUint64() != u.ToUint64(){
+			if v.toUint64() != u.toUint64() {
 				t.Fatalf("Failed distributive in doubling test (2(a+b) == 2a + 2b) %v != %v", v, u)
 			}
 		}
 	}
 }
 
-
-
 /*
-
 BENCHMARK
-
 */
-func Benchmark_uint256(b *testing.B){
+func Benchmark_uint256(b *testing.B) {
 	b.Run("Neg", benchmarkNegEq)
 	b.Run("Double", benchmarkDoubleEq)
 	b.Run("Sub", benchmarkSubEq_ReduceWeak)
@@ -413,42 +424,41 @@ func Benchmark_uint256(b *testing.B){
 
 }
 
-
-func benchmarkAddEq_ReduceWeak(b *testing.B){
+func benchmarkAddEq_ReduceWeak(b *testing.B) {
 	x := uint256{257, 479, 487, 491}
-    y := uint256{997, 499, 503, 509}
+	y := uint256{997, 499, 503, 509}
 
-	for i :=0; i<b.N; i+=2{
+	for i := 0; i < b.N; i += 2 {
 		x.AddEq_ReduceWeak(&y)
 		y.AddEq_ReduceWeak(&x)
 	}
 
 }
 
-func benchmarkSubEq_ReduceWeak(b *testing.B){
+func benchmarkSubEq_ReduceWeak(b *testing.B) {
 	x := uint256{257, 479, 487, 491}
-    y := uint256{997, 499, 503, 509}
+	y := uint256{997, 499, 503, 509}
 
-	for i :=0; i<b.N; i+=2{
+	for i := 0; i < b.N; i += 2 {
 		x.SubEq_ReduceWeak(&y)
 		y.SubEq_ReduceWeak(&x)
 	}
 }
 
-func benchmarkInv(b *testing.B){
+func benchmarkInv(b *testing.B) {
 	var a uint256
 	count := 0
 	//runs over the test values
-	OL:
-	for{
-		for _, _a := range testval{
+OL:
+	for {
+		for _, _a := range testval {
 			a = _a
 			a.Inv(&a)
 			a.Inv(&a)
 
-			count+=2
+			count += 2
 
-			if count >= b.N{
+			if count >= b.N {
 				break OL
 			}
 		}
@@ -456,41 +466,41 @@ func benchmarkInv(b *testing.B){
 
 }
 
-func benchmarkMulEq(b *testing.B){
+func benchmarkMulEq(b *testing.B) {
 	x := uint256{257, 479, 487, 491}
-    y := uint256{997, 499, 503, 509}
+	y := uint256{997, 499, 503, 509}
 
-	for i :=0; i<b.N; i+=2{
-		x.MulEq(&y)
-		y.MulEq(&x)
+	for i := 0; i < b.N; i += 2 {
+		x.MulEqAndReduce_Weak(&y)
+		y.MulEqAndReduce_Weak(&x)
 	}
 }
 
-func benchmarkSquareEq(b *testing.B){
+func benchmarkSquareEq(b *testing.B) {
 	x := uint256{257, 479, 487, 491}
-    y := uint256{997, 499, 503, 509}
+	y := uint256{997, 499, 503, 509}
 
-	for i :=0; i<b.N; i+=2{
+	for i := 0; i < b.N; i += 2 {
 		x.SquareEq()
 		y.SquareEq()
 	}
 }
 
-func benchmarkNegEq(b *testing.B){
+func benchmarkNegEq(b *testing.B) {
 	x := uint256{257, 479, 487, 491}
-    y := uint256{997, 499, 503, 509}
+	y := uint256{997, 499, 503, 509}
 
-	for i :=0; i<b.N; i+=2{
+	for i := 0; i < b.N; i += 2 {
 		x.Neg()
 		y.Neg()
 	}
 }
 
-func benchmarkDoubleEq(b *testing.B){
+func benchmarkDoubleEq(b *testing.B) {
 	x := uint256{257, 479, 487, 491}
-    y := uint256{997, 499, 503, 509}
+	y := uint256{997, 499, 503, 509}
 
-	for i :=0; i<b.N; i+=2{
+	for i := 0; i < b.N; i += 2 {
 		x.DoubleEq()
 		y.DoubleEq()
 	}
