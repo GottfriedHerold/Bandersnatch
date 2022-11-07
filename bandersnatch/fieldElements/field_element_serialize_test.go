@@ -59,7 +59,7 @@ func TestSerializeFieldElements(t *testing.T) {
 		if fe.Sign() < 0 {
 			t.Fatal("Sign does not work as expected")
 		}
-		if bits.LeadingZeros64(fe.undoMontgomery()[3]) < 2 {
+		if bits.LeadingZeros64(fe.words.undoMontgomery()[3]) < 2 {
 			t.Fatal("Positive sign field elements do not start with 00")
 		}
 		var random_prefix common.PrefixBits = (common.PrefixBits(i) / 2) % 4

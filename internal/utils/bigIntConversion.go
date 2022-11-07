@@ -38,11 +38,11 @@ func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
 	return
 }
 
-// InitIntFromString initializes a big.Int from a given string similar to InitFieldElementFromString.
-// This internally uses big.Int's SetString and understands exactly those string formats.
+// InitIntFromString initializes a [*big.Int] from a given string similar to InitFieldElementFromString.
+// This internally uses [*big.Int]'s SetString and understands exactly those string formats.
 // This implies that the given string can be decimal, hex, octal or binary, but needs to be prefixed if not decimal.
 //
-// This essentially is equivalent to big.Int's SetString method, except that it panics on error (which is appropriate for initialization of globals from constant strings literal).
+// This essentially is equivalent to [*big.Int]'s SetString method, except that it panics on error (which is appropriate for initialization of globals from constant strings literal).
 func InitIntFromString(input string) *big.Int {
 	var t *big.Int = big.NewInt(0)
 	var success bool

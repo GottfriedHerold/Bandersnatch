@@ -119,7 +119,7 @@ type bsFieldElement_64 struct {
 	// Of course, this invariant concerns the Montgomery representation, interpreting words directly as a 256-bit integer.
 	// Since BaseFieldSize is between 1/3*2^256 and 1/2*2^256, a given field element x might have either 1 or 2 possible representations as
 	// a bsFieldElement_64, both of which are equally valid as far as this implementation is concerned.
-	words [4]uint64
+	words uint256
 }
 
 // Note: We export *copies* of these variables. Internal functions should use the original.
@@ -158,35 +158,10 @@ var _ = callcounters.CreateHierarchicalCallCounter("SqrtFe", "Square roots", "Ot
 var _ = callcounters.CreateHierarchicalCallCounter("InvFe", "Inversions", "Divisions")
 var _ = callcounters.CreateHierarchicalCallCounter("DivideFe", "generic Divisions", "Divisions")
 
-// maybe_reduce_once changes the representation of z to restore the invariant that z.words + BaseFieldSize must not overflow.
-// This is done by subtracting BaseFieldSize if the number is too large.
-func (z *bsFieldElement_64) maybe_reduce_once() {
-	var borrow uint64
-	// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words.
-	// At any rate, we do not really need to, so we don't check.
-	if z.words[3] > baseFieldSize_3 {
-		z.words[0], borrow = bits.Sub64(z.words[0], baseFieldSize_0, 0)
-		z.words[1], borrow = bits.Sub64(z.words[1], baseFieldSize_1, borrow)
-		z.words[2], borrow = bits.Sub64(z.words[2], baseFieldSize_2, borrow)
-		z.words[3], _ = bits.Sub64(z.words[3], baseFieldSize_3, borrow) // _ is guaranteed to be 0
-	}
-}
-
 // isNormalized checks whether the internal representaion is in 0<= . < BaseFieldSize.
 // This function is only used internally. Users should just call Normalize if in doubt.
 func (z *bsFieldElement_64) isNormalized() bool {
-	// Workaround for Go's lack of const-arrays. Hoping for smart-ish compiler.
-	// Note that the RHS is const and the left-hand-side is local and never written to after initialization.
-	var baseFieldSize_copy [4]uint64 = [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}
-	for i := int(3); i >= 0; i-- {
-		if z.words[i] < baseFieldSize_copy[i] {
-			return true
-		} else if z.words[i] > baseFieldSize_copy[i] {
-			return false
-		}
-	}
-	// if we get here, z.words == BaseFieldSize
-	return false
+	return z.words.is_fully_reduced()
 }
 
 // Normalize() changes the internal representation of z to a unique number in 0 <= . < BaseFieldSize
@@ -197,17 +172,7 @@ func (z *bsFieldElement_64) isNormalized() bool {
 // This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say)
 // or when using bsFieldElement_64 as keys for a map or when sharing a field element between multiple goroutines.
 func (z *bsFieldElement_64) Normalize() {
-	if z.isNormalized() {
-		return
-	}
-	var borrow uint64
-	z.words[0], borrow = bits.Sub64(z.words[0], baseFieldSize_0, 0)
-	z.words[1], borrow = bits.Sub64(z.words[1], baseFieldSize_1, borrow)
-	z.words[2], borrow = bits.Sub64(z.words[2], baseFieldSize_2, borrow)
-	z.words[3], borrow = bits.Sub64(z.words[3], baseFieldSize_3, borrow)
-	if borrow != 0 {
-		panic(ErrorPrefix + "Underflow in normalization. This was supposed to be impossible to happen.")
-	}
+	z.words.reduce_fb()
 }
 
 // Sign outputs the "sign" of the field element.
@@ -222,15 +187,14 @@ func (z *bsFieldElement_64) Sign() int {
 	// we take the sign of the non-Montgomery form.
 	// Of course, the property that Sign(z) == -Sign(-z) would hold either way (and not switching would actually be more efficient).
 	// However, Sign() enters into (De)Serialization routines for curve points. This choice is probably more portable.
-	var low_endian_words [4]uint64 = z.undoMontgomery()
+	var nonMontgomery uint256 = z.words.undoMontgomery()
 
-	// Go's lack of const-arrays is annoying.
-	var mhalf_copy [4]uint64 = [4]uint64{minusOneHalf_64_0, minusOneHalf_64_1, minusOneHalf_64_2, minusOneHalf_64_3}
+	var mhalf_copy uint256 = [4]uint64{minusOneHalf_64_0, minusOneHalf_64_1, minusOneHalf_64_2, minusOneHalf_64_3}
 
 	for i := int(3); i >= 0; i-- {
-		if low_endian_words[i] > mhalf_copy[i] {
+		if nonMontgomery[i] > mhalf_copy[i] {
 			return -1
-		} else if low_endian_words[i] < mhalf_copy[i] {
+		} else if nonMontgomery[i] < mhalf_copy[i] {
 			return 1
 		}
 	}
@@ -243,6 +207,7 @@ func (z *bsFieldElement_64) Sign() int {
 // Furthermore, the standard library does the Euclid-like algorithm with computing
 // denominator modulo numerator, but chooses the representative in 0 <= . < denominator
 // (Rather than minimal absolute value, with is better)
+// Or use a binary-gcd-like variant.
 
 // Jacobi computes the Legendre symbol of the received elements z.
 // This means that z.Jacobi() is +1 if z is a non-zero square and -1 if z is a non-square. z.Jacobi() == 0 iff z.IsZero()
@@ -258,23 +223,7 @@ func (z *bsFieldElement_64) Jacobi() int {
 func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	IncrementCallCounter("AddFe")
 
-	var carry uint64
-	z.words[0], carry = bits.Add64(x.words[0], y.words[0], 0)
-	z.words[1], carry = bits.Add64(x.words[1], y.words[1], carry)
-	z.words[2], carry = bits.Add64(x.words[2], y.words[2], carry)
-	z.words[3], carry = bits.Add64(x.words[3], y.words[3], carry)
-	// carry == 1 basically only happens here if you do it on purpose (add up *lots* of non-normalized numbers).
-	// NOTE: If carry == 1, then z.maybe_reduce_once() actually commutes with the -=mdoubled here: it won't do anything either before or after it.
-
-	if carry != 0 {
-		z.words[0], carry = bits.Sub64(z.words[0], baseFieldSizeDoubled_64_0, 0)
-		z.words[1], carry = bits.Sub64(z.words[1], baseFieldSizeDoubled_64_1, carry)
-		z.words[2], carry = bits.Sub64(z.words[2], baseFieldSizeDoubled_64_2, carry)
-		z.words[3], _ = bits.Sub64(z.words[3], baseFieldSizeDoubled_64_3, carry)
-	}
-
-	// else?
-	z.maybe_reduce_once()
+	z.words.AddAndReduce_b_c(&x.words, &y.words)
 }
 
 // Sub is used to perform subtraction.
@@ -282,26 +231,7 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 // Use z.Sub(&x, &y) to compute x - y and store the result in z.
 func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
 	IncrementCallCounter("SubFe")
-	var borrow uint64 // only takes values 0,1
-	z.words[0], borrow = bits.Sub64(x.words[0], y.words[0], 0)
-	z.words[1], borrow = bits.Sub64(x.words[1], y.words[1], borrow)
-	z.words[2], borrow = bits.Sub64(x.words[2], y.words[2], borrow)
-	z.words[3], borrow = bits.Sub64(x.words[3], y.words[3], borrow)
-	if borrow != 0 {
-		// mentally rename borrow -> carry
-		if z.words[3] > 0xFFFFFFFF_FFFFFFFF-baseFieldSize_3 {
-			z.words[0], borrow = bits.Add64(z.words[0], baseFieldSize_0, 0)
-			z.words[1], borrow = bits.Add64(z.words[1], baseFieldSize_1, borrow)
-			z.words[2], borrow = bits.Add64(z.words[2], baseFieldSize_2, borrow)
-			z.words[3], _ = bits.Add64(z.words[3], baseFieldSize_3, borrow) // _ is one
-		} else {
-			z.words[0], borrow = bits.Add64(z.words[0], baseFieldSizeDoubled_64_0, 0)
-			z.words[1], borrow = bits.Add64(z.words[1], baseFieldSizeDoubled_64_1, borrow)
-			z.words[2], borrow = bits.Add64(z.words[2], baseFieldSizeDoubled_64_2, borrow)
-			z.words[3], _ = bits.Add64(z.words[3], baseFieldSizeDoubled_64_3, borrow) // _ is one
-			// Note: z might be > BaseFieldSize, but not by much. This is fine.
-		}
-	}
+	z.words.SubAndReduce_c(&x.words, &y.words)
 }
 
 var _ = callcounters.CreateAttachedCallCounter("SubFromNeg", "Subtractions called by Neg", "SubFe").
@@ -315,80 +245,6 @@ func (z *bsFieldElement_64) Neg(x *bsFieldElement_64) {
 	IncrementCallCounter("NegFe")
 	// IncrementCallCounter("SubFromNeg") -- done automatically
 	z.Sub(&bsFieldElement_64_zero_alt, x) // using alt here makes the if borrow!=0 in Sub unlikely.
-}
-
-// mul_four_one_64 multiplies a 4x64 bit number by a 1x64 bit number. The result is 5x64 bits, split as 1x64 (low) + 4x64 (high), everything low-endian.
-func mul_four_one_64(x *[4]uint64, y uint64) (low uint64, high [4]uint64) {
-	var carry, mul_result_low uint64
-
-	high[0], low = bits.Mul64(x[0], y)
-
-	high[1], mul_result_low = bits.Mul64(x[1], y)
-	high[0], carry = bits.Add64(high[0], mul_result_low, 0)
-
-	high[2], mul_result_low = bits.Mul64(x[2], y)
-	high[1], carry = bits.Add64(high[1], mul_result_low, carry)
-
-	high[3], mul_result_low = bits.Mul64(x[3], y)
-	high[2], carry = bits.Add64(high[2], mul_result_low, carry)
-
-	high[3] += carry
-	return
-}
-
-// add_mul_shift_64 computes (target + x * y) >> 64, stores the result in target and return the uint64 shifted out (everything low-endian)
-func add_mul_shift_64(target *[4]uint64, x *[4]uint64, y uint64) (low uint64) {
-
-	// carry_mul_even resp. carry_mul_odd end up in target[even] resp. target[odd]
-	// Could do with fewer carries, but that's more error-prone (and also this is more pipeline-friendly, not that it mattered much)
-
-	var carry_mul_even uint64
-	var carry_mul_odd uint64
-	var carry_add_1 uint64
-	var carry_add_2 uint64
-
-	carry_mul_even, low = bits.Mul64(x[0], y)
-	low, carry_add_2 = bits.Add64(low, target[0], 0)
-
-	carry_mul_odd, target[0] = bits.Mul64(x[1], y)
-	target[0], carry_add_1 = bits.Add64(target[0], carry_mul_even, 0)
-	target[0], carry_add_2 = bits.Add64(target[0], target[1], carry_add_2)
-
-	carry_mul_even, target[1] = bits.Mul64(x[2], y)
-	target[1], carry_add_1 = bits.Add64(target[1], carry_mul_odd, carry_add_1)
-	target[1], carry_add_2 = bits.Add64(target[1], target[2], carry_add_2)
-
-	carry_mul_odd, target[2] = bits.Mul64(x[3], y)
-	target[2], carry_add_1 = bits.Add64(target[2], carry_mul_even, carry_add_1)
-	target[2], carry_add_2 = bits.Add64(target[2], target[3], carry_add_2)
-
-	target[3] = carry_mul_odd + carry_add_1 + carry_add_2
-	return
-}
-
-// montgomery_step_64(&t, q) performs t+= (q*BaseFieldSize)/2^64 + 1, assuming no overflow (which needs to be guaranteed by the caller).
-func montgomery_step_64(t *[4]uint64, q uint64) {
-	var low, high, carry1, carry2 uint64
-
-	high, _ = bits.Mul64(q, baseFieldSize_0)
-	t[0], carry1 = bits.Add64(t[0], high, 1) // After this, carry1 needs to go in t[1]
-
-	high, low = bits.Mul64(q, baseFieldSize_1)
-	t[0], carry2 = bits.Add64(t[0], low, 0)       // After this, carry2 needs to go in t[1]
-	t[1], carry2 = bits.Add64(t[1], high, carry2) // After this, carry2 needs to go in t[2]
-
-	high, low = bits.Mul64(q, baseFieldSize_2)
-	t[1], carry1 = bits.Add64(t[1], low, carry1)  // After this, carry1 needs to go in t[2]
-	t[2], carry1 = bits.Add64(t[2], high, carry1) // After this, carry1 needs to go in t[3]
-
-	high, low = bits.Mul64(q, baseFieldSize_3)
-	t[2], carry2 = bits.Add64(t[2], low, carry2) // After this, carry2 needs to go in t[3]
-	t[3], carry1 = bits.Add64(t[3], high+carry1, carry2)
-
-	// Cannot happen:
-	if carry1 != 0 {
-		panic("Overflow in montgomery step")
-	}
 
 }
 
@@ -397,74 +253,14 @@ func montgomery_step_64(t *[4]uint64, q uint64) {
 // Use z.Mul(&x, &y) to set z = x * y
 func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
 	IncrementCallCounter("MulFe")
-	/*
-		We perform Montgomery multiplication, i.e. we need to find x*y / r^4 bmod BaseFieldSize with r==2^64
-		To do so, note that x*y == x*(y[0] + ry[1]+r^2y[2]+r^3y[3]), so
-		x*y / r^4 == 1/r^4 x*y[0] + 1/r^3 x*y[1] + 1/r^2 x*y[2] + 1/r x*y[3],
-		which can be computed as ((((x*y[0]/r + x*y[1]) /r + x*y[1]) / r + x*y[2]) /r) + x*y[3]) /r
-		i.e by interleaving adding x*y[i] and dividing by r (everything is mod BaseFieldSize).
-		We store the intermediate results in temp
 
-		Dividing by r modulo BaseFieldSize is done by adding a suitable multiple of BaseFieldSize
-		(which we can always do mod BaseFieldSize) s.t. the result is divisible by r and just dividing by r.
-		This has the effect of reducing the size of number, thereby performing a (partial) modular reduction (Montgomery's trick)
-	*/
-
-	// temp holds the result of computation so far. We only write into z at the end, because z might alias x or y.
-	var temp [4]uint64
-
-	// -1/Modulus mod r.
-	const negativeInverseModulus = (0xFFFFFFFF_FFFFFFFF * 0x00000001_00000001) % (1 << 64)
-	const negativeInverseModulus_uint uint64 = negativeInverseModulus
-
-	var reducer uint64
-
-	reducer, temp = mul_four_one_64(&x.words, y.words[0]) // NOTE: temp <= B - floor(B/r) - 1  <= B + floor(M/r), see overflow analysis below
-
-	// If reducer == 0, then temp == x*y[0]/r.
-	// Otherwise, we need to compute temp = ([temp, reducer] + BaseFieldSize * (reducer * negativeInverseModulus mod r)) / r
-	// Note that we know exactly what happens in the least significant uint64 in the addition (result is 0, carry is 1).
-	// Be aware that carry 1 relies on reducer != 0, hence the if reducer!=0 condition
-	if reducer != 0 {
-		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
-	}
-
-	reducer = add_mul_shift_64(&temp, &x.words, y.words[1])
-	if reducer != 0 {
-		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
-	}
-
-	reducer = add_mul_shift_64(&temp, &x.words, y.words[2])
-	if reducer != 0 {
-		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
-	}
-
-	reducer = add_mul_shift_64(&temp, &x.words, y.words[3])
-	if reducer != 0 {
-		// TODO: Store directly into z?
-		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint)
-	}
-
-	/*
-		Overflow analysis:
-		Let B:= 2^256 - BaseFieldSize - 1. We know that 0<= x,y <= B and need to ensure that 0<=z<=B to maintain our invariants:
-
-		(1) If temp <= B + M (which is 2^256 - 1, so this condition is somewhat vacuous) and x <= B, then after applying add_mul_shift_64(&temp, x, y), we have
-		temp <= (B + M + B * (r-1)) / r <= B + floor(M/r)
-
-		(2) If temp <= B + floor(M/r) is satisfied and we compute montgomery_step_64(&temp, something), we afterwards obtain
-		temp <= B + floor(M/r) + floor(M*(r-1)/r) + 1 == B + M  (this implies there is no overflow inside montgomery_step_64)
-
-		Since the end result might be bigger than B, we may need to reduce by M, but once is enough.
-	*/
-
-	z.words = temp
-	z.maybe_reduce_once()
+	z.words.MulMontgomery_Weak(&x.words, &y.words)
 }
 
 // IsZero checks whether the field element is zero
 func (z *bsFieldElement_64) IsZero() bool {
-	return (z.words[0]|z.words[1]|z.words[2]|z.words[3] == 0) || (*z == bsFieldElement_64_zero_alt)
+	// return (z.words[0]|z.words[1]|z.words[2]|z.words[3] == 0) || (*z == bsFieldElement_64_zero_alt)
+	return (z.words[0]|z.words[1]|z.words[2]|z.words[3] == 0) || (z.words == [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3})
 }
 
 // IsOne checks whether the field element is 1
@@ -485,54 +281,6 @@ func (z *bsFieldElement_64) SetZero() {
 	z.words = bsFieldElement_64_zero.words
 }
 
-// shift_once shifts the internal uint64 array once (equivalent to division by 2^64) and returns the shifted-out uint64
-func (z *bsFieldElement_64) shift_once() (result uint64) {
-	result = z.words[0]
-	z.words[0] = z.words[1]
-	z.words[1] = z.words[2]
-	z.words[2] = z.words[3]
-	z.words[3] = 0
-	return
-}
-
-// undoMontgomery gives a low-endian representation of the underlying number, undoing the Montgomery form.
-func (z *bsFieldElement_64) undoMontgomery() [4]uint64 {
-
-	// What we need to do here is equivalent to
-	// temp.Mul(z, [1,0,0,0])  // where the [1,0,0,0] is the Montgomery representation of the number 1/r.
-	// temp.Normalize()
-	// return temp.words
-
-	// -1/Modulus mod r.
-	const negativeInverseModulus = (0xFFFFFFFF_FFFFFFFF * 0x00000001_00000001) % (1 << 64)
-	const negativeInverseModulus_uint uint64 = negativeInverseModulus
-
-	var reducer uint64 = z.words[0]
-	var temp bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: z.words[1], 1: z.words[2], 2: z.words[3], 3: 0}}
-
-	if reducer != 0 {
-		montgomery_step_64(&temp.words, reducer*negativeInverseModulus_uint)
-	}
-	reducer = temp.shift_once()
-	if reducer != 0 {
-		montgomery_step_64(&temp.words, reducer*negativeInverseModulus_uint)
-	}
-
-	reducer = temp.shift_once()
-	if reducer != 0 {
-		montgomery_step_64(&temp.words, reducer*negativeInverseModulus_uint)
-	}
-
-	reducer = temp.shift_once()
-	if reducer != 0 {
-		montgomery_step_64(&temp.words, reducer*negativeInverseModulus_uint)
-	}
-
-	temp.maybe_reduce_once()
-	temp.Normalize()
-	return temp.words
-}
-
 var _ = callcounters.CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
 
 // restoreMontgomery restores the internal Montgomery representation, assuming the current internal representation is *NOT* in Montgomery form.
@@ -544,8 +292,8 @@ func (z *bsFieldElement_64) restoreMontgomery() {
 
 // ToBigInt returns a *big.Int that stores a representation of (a copy of) the given field element.
 func (z *bsFieldElement_64) ToBigInt() *big.Int {
-	temp := z.undoMontgomery()
-	return utils.UIntarrayToInt(&temp)
+	temp := z.words.undoMontgomery()
+	return temp.ToBigInt()
 }
 
 // SetBigInt converts from *big.Int to a field element. The input need not be reduced modulo the field size.
@@ -568,7 +316,7 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 //
 // If z cannot be represented by a uint64, returns <something, should not be used>, ErrCannotRepresentAsUInt64
 func (z *bsFieldElement_64) ToUInt64() (result uint64, err error) {
-	temp := z.undoMontgomery()
+	temp := z.words.undoMontgomery()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
 		err = ErrCannotRepresentAsUInt64
@@ -656,7 +404,7 @@ func (z *bsFieldElement_64) Multiply_by_five() {
 	z.words[2], carry = bits.Add64(z.words[2], overflow4&rModBaseField_64_2, carry)
 	z.words[3], _ = bits.Add64(z.words[3], overflow4&rModBaseField_64_3, carry) // _ == 0 is guaranteed
 
-	z.maybe_reduce_once()
+	z.words.reduce_ca()
 }
 
 // Inv computes the multiplicative Inverse:
@@ -729,7 +477,9 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 // SquareRoot computes a SquareRoot in the field.
 //
 // Use ok := z.SquareRoot(&x).
-//  The return value tells whether the operation was successful.
+//
+//	The return value tells whether the operation was successful.
+//
 // If x is not a square, the return value is false and z is untouched.
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
@@ -763,49 +513,7 @@ var _ = callcounters.CreateAttachedCallCounter("AddEqFe", "", "AddFe")
 func (z *bsFieldElement_64) AddEq(y *bsFieldElement_64) {
 	IncrementCallCounter("AddEqFe")
 
-	// z.Add(z,x) is strangely slow (x2.5 compared to z.Add(x,y) for z!=x,y)
-	// I have no idea why, probably the writes to z stall the reads from z (even though they shouldn't).
 	z.Add(z, y)
-
-	// This should work as well, but adds complexity and error-proneness while
-	// being only slightly faster, so we use the simple approach for now.
-	// Proably, we would need to write it in assembly anyway.
-	/*
-		var carry uint64
-		var too_large bool
-		var overflow uint64
-		var temp0, temp1, temp2, temp3 uint64
-		temp3, overflow = bits.Add64(z.words[3], y.words[3], 0)
-		too_large = temp3 > m_64_3
-		way_too_large := temp3 > mdoubled_64_3
-		temp0, carry = bits.Add64(z.words[0], y.words[0], 0)
-		temp1, carry = bits.Add64(z.words[1], y.words[1], carry)
-		temp2, carry = bits.Add64(z.words[2], y.words[2], carry)
-
-		temp3 += carry // this might overflow, but that's fine, because then way_too_large is true
-
-		// overflow == true basically only happens here if you do it on purpose (add up *lots* of non-normalized numbers).
-		// Also, overflow and too_large are exclusive due to the size constraints on the input (x+BaseField, z+Basefield do not overflow)
-
-		var borrow uint64
-		// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words. At any rate, we do not really need to.
-		if too_large {
-			z.words[0], borrow = bits.Sub64(temp0, m_64_0, 0)
-			z.words[1], borrow = bits.Sub64(temp1, m_64_1, borrow)
-			z.words[2], borrow = bits.Sub64(temp2, m_64_2, borrow)
-			z.words[3], _ = bits.Sub64(temp3+carry, m_64_3, borrow) // _ is guaranteed to be 0
-		} else if way_too_large || overflow != 0 {
-			z.words[0], borrow = bits.Sub64(temp0, mdoubled_64_0, 0)
-			z.words[1], borrow = bits.Sub64(temp1, mdoubled_64_1, borrow)
-			z.words[2], borrow = bits.Sub64(temp2, mdoubled_64_2, borrow)
-			z.words[3], _ = bits.Sub64(temp3+carry, mdoubled_64_3, borrow)
-		} else {
-			z.words[0] = temp0
-			z.words[1] = temp1
-			z.words[2] = temp2
-			z.words[3] = temp3 + carry
-		}
-	*/
 }
 
 var _ = callcounters.CreateAttachedCallCounter("SubEqFe", "", "SubFe")

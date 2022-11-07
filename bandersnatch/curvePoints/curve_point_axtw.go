@@ -5,15 +5,18 @@ import (
 )
 
 // This file contains the implementation of the CurvePointPtrInterface by types
-// Point_axtw_subgroup and Point_axtw_full.
+// (pointer to) Point_axtw_subgroup and Point_axtw_full.
 // These represent points on the bandersnatch curve in *affine* (extended) coordinates.
 // The _subgroup resp. _full versions differ in whether they only store elements on the prime-order subgroup;
 //
-// NOTE: As of now, points at infinity cannot be stored by this (which is an issue only for the _full version, of course)
-// NOTE2: As of now, representations are non-unique
+// NOTE: As of now, points at infinity cannot be stored by this (which is an issue only for the _full version, of course, given that the points at infinity at not in the subgroup)
+// NOTE2: As of now, representations are non-unique at the bit-level. This is because
+//  - the FieldElement type might not be unique
+//  - the banderwagen-style representation
 
 // point_axtw_base is a struct holding x,y,t values that can be used to represent an elliptic curve point on the Bandersnatch curve.
-// Note that this is just a container for coordinates. It (or pointers to it) does not satisfy the CurvePointPtrInterface.
+// Note that sematically, this is just a container for coordinates, not an element of a group.
+// It (or pointers to it) does not satisfy the CurvePointPtrInterface.
 // Indeed, there is the question how to interpret x,y,t coordinates as coos of a point and depending on context, we
 // either work modulo A or not.
 // We use struct embedding to create point_axtw_subgroup and point_axtw_full from it.

@@ -1,5 +1,7 @@
 package fieldElements
 
+import "math/big"
+
 // Code for FieldElement (meaning the field of definition of the bandersnatch curve)
 // is in field_element_64.go and field_element_8.go
 // Only field_element_64.go is used; field_element_8.go serves as a comparison
@@ -21,7 +23,7 @@ package fieldElements
 	As as Go1.18, we have generics, but this does not change things :(
 	(without making unacceptable sacrifices in efficiency, at least)
 
-type BSFieldElement_Interface interface {
+	type BSFieldElement_Interface interface {
 	IsZero() bool
 	IsOne() bool
 	SetOne()
@@ -48,3 +50,30 @@ type BSFieldElement_Interface interface {
 
 }
 */
+
+type FieldElementInterface[SelfRead any] interface {
+	IsZero() bool
+	IsOne() bool
+	SetOne() bool
+	SetZero() bool
+	Mul(x, y SelfRead)
+	Add(x, y SelfRead)
+	Sub(x, y SelfRead)
+	Square(x SelfRead)
+	Neg(x SelfRead)
+	Inv(x SelfRead)
+	Divide(x, y SelfRead)
+	ToBigInt() *big.Int
+	SetBigInt(x *big.Int)
+	ToUInt64() (uint64, error)
+	SetUInt64(x uint64)
+	Normalize()
+	IsEqual(other SelfRead) bool
+	Sign() int
+	Jacobi() int
+	AddEq(y SelfRead)
+	SubEq(y SelfRead)
+	SquareEq()
+	DivideEq(y SelfRead)
+	NegEq()
+}
