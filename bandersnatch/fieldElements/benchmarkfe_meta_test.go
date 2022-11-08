@@ -1,11 +1,13 @@
 package fieldElements
 
 import (
+	"math/big"
 	"math/rand"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file contains code that is shared by a lot of benchmarking code
@@ -58,6 +60,30 @@ func resetBenchmarkFieldElements(b *testing.B) {
 	callcounters.ResetAllCounters()
 	b.ResetTimer()
 }
+
+type CachedPRGUint256Key struct {
+	seed         int64
+	allowedRange *big.Int
+}
+
+var CachedUint256 = testutils.MakePrecomputedCache[CachedPRGUint256Key, uint256](
+	// creating random seed:
+	func(key CachedPRGUint256Key) *rand.Rand {
+		if key.allowedRange != nil {
+			testutils.Assert(key.allowedRange.Sign() > 0)
+			testutils.Assert(key.allowedRange.BitLen() <= 256)
+		}
+		return rand.New(rand.NewSource(key.seed))
+	},
+	// sampling random uint256's
+	func(rnd *rand.Rand, key CachedPRGUint256Key) uint256 {
+		var rnd_Int *big.Int = big.NewInt(0)
+		rnd_Int.Rand(rnd, key.allowedRange)
+		return utils.BigIntToUIntArray(rnd_Int)
+	},
+	// copy function: nil is OK here; this selects a trivial function
+	nil,
+)
 
 // Benchmarks operate on random-looking field elements.
 // We generate these before the actual benchmark timer starts (resp. we reset the timer after creating them)

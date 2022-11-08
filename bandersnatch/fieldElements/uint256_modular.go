@@ -1,6 +1,34 @@
 package fieldElements
 
-import "math/bits"
+import (
+	"math/big"
+	"math/bits"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+)
+
+// This file contains methods on uint256 that interpret the elements as residues modulo BaseFieldSize and perform appropriate operations (such as addition, multiplication of residues)
+// For reasons of efficiency, neither the input nor the output of these functions have to be the smallest representative of the residue class, i.e.
+// elements are not neccessarily in [0, BaseFieldSize)
+// Instead, we need to keep track of "reduction quality", i.e. in what range the uint256 is guaranteed to be.
+// The relevant upper bounds (with strict inequality) are BaseFieldSize, 2**256-BaseFieldSize, 2*BaseFieldSize, 2**256.
+
+// Bounds for reducedness-quality
+
+var (
+	twoTo256_Int            *big.Int = common.TwoTo256_Int
+	doubleBaseFieldSize_Int *big.Int // 2 * BaseFieldSize
+	montgomeryRepBound_Int  *big.Int // 2**256 - BaseFieldSize
+	// BaseFieldSize_Int *big.Int (already defined elsewhere)
+)
+
+func init() {
+	doubleBaseFieldSize_Int = big.NewInt(0)
+	doubleBaseFieldSize_Int.Add(BaseFieldSize_Int, BaseFieldSize_Int)
+
+	montgomeryRepBound_Int = big.NewInt(0)
+	montgomeryRepBound_Int.Sub(twoTo256_Int, BaseFieldSize_Int)
+}
 
 // NOTE: Suffixes for reduction follows the following convention:
 //   - a means arbitrary, i.e. the number is in [0,2^256)

@@ -141,17 +141,14 @@ func TrustLevelFromBool(v bool) IsInputTrusted {
 
 // utility constants
 
-/*
 var (
-	One_Int      = InitIntFromString("1")
-	Two_Int      = InitIntFromString("2")
-	TwoTo32_Int  = InitIntFromString("0x1_00000000")
-	TwoTo64_Int  = InitIntFromString("0x1_00000000_00000000")
-	TwoTo128_Int = InitIntFromString("0x1_00000000_00000000_00000000_00000000")
-	TwoTo256_Int = InitIntFromString("0x1_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000")
-	MinusOne_Int = InitIntFromString("-1")
+	One_Int      = utils.InitIntFromString("1")
+	Two_Int      = utils.InitIntFromString("2")
+	TwoTo32_Int  = utils.InitIntFromString("0x1_00000000")
+	TwoTo64_Int  = utils.InitIntFromString("0x1_00000000_00000000")
+	TwoTo128_Int = utils.InitIntFromString("0x1_00000000_00000000_00000000_00000000")
+	TwoTo256_Int = utils.InitIntFromString("0x1_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000")
+	MinusOne_Int = utils.InitIntFromString("-1")
 )
-
-*/
 
 const ErrorPrefix = "bandersnatch / common: "
