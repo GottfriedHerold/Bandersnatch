@@ -44,8 +44,8 @@ func TestRetrievePrecomputedData(t *testing.T) {
 	FatalUnless(t, utils.CompareSlices(data23, data24[0:50]), "No prefix")
 	// fmt.Println(data24)  -- manually insepct that it "looks random enough"
 
-	FatalUnless(t, CheckPanic(func() { testPrecomputedCache.PrePopulateCache(key2, []uint64{}) }), "did not panic")
-	testPrecomputedCache.PrePopulateCache(key1, []uint64{1, 2, 3})
+	FatalUnless(t, CheckPanic(func() { testPrecomputedCache.PrepopulateCache(key2, []uint64{}) }), "did not panic")
+	testPrecomputedCache.PrepopulateCache(key1, []uint64{1, 2, 3})
 	data3 := testPrecomputedCache.GetElements(key1, 4)
 	FatalUnless(t, utils.CompareSlices(data3[0:3], []uint64{1, 2, 3}), "Did not get back prepopulated data")
 
