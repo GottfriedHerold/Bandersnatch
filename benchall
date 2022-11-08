@@ -9,6 +9,9 @@ if [ -z "$1" ]
     filesuffix="--$1"
 fi
 
+### NOTE: I actually use git worktree to check out an extra worktree under benchmarks that tracks a benchmark branch.
+### This way, benchmarks can be easily pushed and collected in a separate non-main branch.
+
 outfilename=$(pwd)/benchmarks/bench-$CurrentCommit@$machine$filesuffix.txt
 
 echo "running benchmark discovery (times are meaningless)"
