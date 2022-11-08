@@ -126,7 +126,7 @@ func BenchmarkAllCurveTypes_SetFromSubgroupUntrusted(bOuter *testing.B) {
 	// We need to clone the argument (or do some more complicated stuff), because
 	// receiver.SetFromSubgroup(input, trust) may actually change (e.g. normalize to affine) the argument.
 	// Results would be completely wrong for conversion to affine.
-	bOuter.Logf("INFO: Benchmarking Conversion via SetFromSubgroup includes a call to Clone()")
+	bOuter.Logf("INFO: Benchmarking Conversion via SetFromSubgroup (untrusted) includes a call to Clone()")
 	benchmarkForPointTypes(bOuter, benchSizeCurvePoint, func(b *testing.B, receivers, inputs []CurvePointPtrInterfaceTestSample) {
 		for n := 0; n < b.N; n++ {
 			_ = receivers[n%benchSizeCurvePoint].SetFromSubgroupPoint(inputs[n%benchSizeCurvePoint].Clone(), untrustedInput)
@@ -138,7 +138,7 @@ func BenchmarkAllCurveTypes_SetFromSubgroupTrusted(bOuter *testing.B) {
 	// We need to clone the argument (or do some more complicated stuff), because
 	// receiver.SetFromSubgroup(input, trust) may actually change (e.g. normalize to affine) the argument.
 	// Results would be completely wrong for conversion to affine.
-	bOuter.Logf("INFO: Benchmarking Conversion via SetFromSubgroup includes a call to Clone()")
+	bOuter.Logf("INFO: Benchmarking Conversion via SetFromSubgroup (trusted) includes a call to Clone()")
 	benchmarkForPointTypes(bOuter, benchSizeCurvePoint, func(b *testing.B, receivers, inputs []CurvePointPtrInterfaceTestSample) {
 		for i := 0; i < benchSizeCurvePoint; i++ {
 			inputs[i].DoubleEq()

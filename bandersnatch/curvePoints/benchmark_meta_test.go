@@ -129,7 +129,7 @@ func getPrecomputedCurvePointSlice(seed int64, pointType PointType, amount int) 
 	return pc.getElements(amount)
 }
 
-// currently unused:
+// currently unused (code using it is commented out):
 
 // initFromPrecomputedCurvePointSlice is equivalent to calling getPrecomputedCurvePointSlice and storing the result in writeTo.
 // writeTo must be a slice of a concrete point type implementing CurvePointPtrInterfaceTestSample.

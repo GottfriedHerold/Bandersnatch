@@ -25,19 +25,20 @@ import (
 // We provide a facility to sample slices of random-looking field elements.
 // We provide a setup function that ensures call counters are handled correctly.
 
-// size of Dump slices used in benchmarks
+// size of Dump slices used in benchmarks. The _fe is from when we had no separate packages for field elements and curve points.
 const dumpSizeBench_fe = 1 << 8
 
 // benchmark functions write to DumpXXX variables.
 // These are "exported"[*]  package-level variables to prevent the compiler from optimizations
-// based on the fact that they are never read from within the module
+// based on the fact that they are never read from within the module (I doubt the compiler would do this, but anyway...)
 //
 // [*] in non-test builds this file is ignored anyway
 var DumpBools_fe [dumpSizeBench_fe]bool // the _fe is because we use a separate global variable for benchmarking curve operations.
-// We could use the same name, but this way the code for field element and curve point benchmark is separate (package seperation or not is still unsure).
 
 var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_64
 var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
+var DumpUint256 [dumpSizeBench_fe]uint256
+var DumpUint512 [dumpSizeBench_fe]uint512
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
 // Note that it resets all counters.
