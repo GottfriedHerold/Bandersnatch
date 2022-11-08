@@ -1,0 +1,35 @@
+CurrentCommit=$(git rev-parse HEAD)
+machine=$(hostname)
+if [ -z "$1" ]
+  then
+    benchre="."
+    filesuffix=""
+  else
+    benchre="$1"
+    filesuffix="--$1"
+fi
+
+outfilename=$(pwd)/benchmarks/bench-$CurrentCommit@$machine$filesuffix.txt
+
+echo "running benchmark discovery (times are meaningless)"
+
+go test -run=^$ -bench $benchre ./... -v -benchtime=1ns
+
+echo "Use ./benchall foo XARGS to only run benchmarks matching the regular expression foo and with XARGS passed to go test as extra arguments (put quotations around the whole of XARGS, as we only take 2 positional arguments)."
+echo "Note that since the regexp also enters the output filename, the usage is limited. Copy this script and modify it if needed."
+echo "The list above is the list of benchmark that would be run with the given regexp; the times above are meaningless and it also includes minimal outputs about package tests (the lines without times) in addition to benchmarks. This is an artifact of a hack-ish way to discover which benchmarks a given command would run."
+echo "We will now creating the actual benchmark for commit $CurrentCommit on machine $machine. Results will be written to $outfilename"
+if [ -n "$2" ]
+then
+echo "Extra arguments passed to go test are $2"
+fi
+read -n 1 -p "Please confirm [y/n]" response
+if [[ "$response" =~ ^[yY]$ ]]
+ then
+  echo Starting benchmarking now. This may take quite some time for a full benchmark.
+  go test -benchmem -run=^$ -bench $benchre ./... -v $2 > $outfilename
+  echo Finished
+else
+  echo aborted
+fi
+
