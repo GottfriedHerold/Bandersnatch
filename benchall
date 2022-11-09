@@ -1,4 +1,5 @@
 CurrentCommit=$(git rev-parse HEAD)
+CurrentCommitDate=$(git show -s --format="%cs")
 machine=$(hostname)
 if [ -z "$1" ]
   then
@@ -12,7 +13,7 @@ fi
 ### NOTE: I actually use git worktree to check out an extra worktree under benchmarks that tracks a benchmark branch.
 ### This way, benchmarks can be easily pushed and collected in a separate non-main branch.
 
-outfilename=$(pwd)/benchmarks/bench-$CurrentCommit@$machine$filesuffix.txt
+outfilename=$(pwd)/benchmarks/bench-$CurrentCommitDate-$CurrentCommit@$machine$filesuffix.txt
 
 echo "running benchmark discovery (times are meaningless)"
 
@@ -22,6 +23,7 @@ echo "Use ./benchall foo XARGS to only run benchmarks matching the regular expre
 echo "Note that since the regexp also enters the output filename, the usage is limited. Copy this script and modify it if needed."
 echo "The list above is the list of benchmark that would be run with the given regexp; the times above are meaningless and it also includes minimal outputs about package tests (the lines without times) in addition to benchmarks. This is an artifact of a hack-ish way to discover which benchmarks a given command would run."
 echo "We will now creating the actual benchmark for commit $CurrentCommit on machine $machine. Results will be written to $outfilename"
+echo "Note that the timestamp in the filename is the commit date, not the time of the benchmark"
 if [ -n "$2" ]
 then
 echo "Extra arguments passed to go test are $2"
