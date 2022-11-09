@@ -3,6 +3,8 @@ package fieldElements
 import (
 	"math/big"
 	"math/rand"
+	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
@@ -84,6 +86,44 @@ var CachedUint256 = testutils.MakePrecomputedCache[CachedPRGUint256Key, uint256]
 	// copy function: nil is OK here; this selects a trivial function
 	nil,
 )
+
+func _makePrecomputedCacheForFieldElements[FieldElementType any]() testutils.PrecomputedCache[int64, FieldElementType] {
+	return testutils.MakePrecomputedCache[int64, FieldElementType](
+		func(key int64) *rand.Rand {
+			return rand.New(rand.NewSource(key))
+		},
+		func(rnd *rand.Rand, key int64) (ret FieldElementType) {
+			retPtr := &ret
+			any(retPtr).(interface{ SetRandomUnsafe(rnd *rand.Rand) }).SetRandomUnsafe(rnd)
+			return
+		},
+		nil,
+	)
+}
+
+var (
+	_cachedFieldElements      map[reflect.Type]any = make(map[reflect.Type]any) // _cachedFieldElements[feType] has dynamic type *testutils.PrecomputedCache[int64, feType]
+	_cachedFieldElementsMutex sync.RWMutex
+)
+
+func GetPrecomputedFieldElements[FieldElementType any](key int64, amount int) []FieldElementType {
+	feType := utils.TypeOfType[FieldElementType]()
+	_cachedFieldElementsMutex.RLock()
+	typedCache, ok := _cachedFieldElements[feType]
+	_cachedFieldElementsMutex.RUnlock()
+	if !ok {
+		newTypedCache := _makePrecomputedCacheForFieldElements[FieldElementType]()
+		_cachedFieldElementsMutex.Lock()
+		typedCache, ok = _cachedFieldElements[feType]
+		if !ok {
+			_cachedFieldElements[feType] = &newTypedCache
+			typedCache = &newTypedCache
+		}
+		_cachedFieldElementsMutex.Unlock()
+	}
+	cache := typedCache.(*testutils.PrecomputedCache[int64, FieldElementType])
+	return cache.GetElements(key, amount)
+}
 
 // Benchmarks operate on random-looking field elements.
 // We generate these before the actual benchmark timer starts (resp. we reset the timer after creating them)
