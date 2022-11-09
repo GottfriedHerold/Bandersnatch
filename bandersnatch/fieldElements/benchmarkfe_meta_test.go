@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
@@ -71,17 +72,34 @@ type CachedPRGUint256Key struct {
 var CachedUint256 = testutils.MakePrecomputedCache[CachedPRGUint256Key, uint256](
 	// creating random seed:
 	func(key CachedPRGUint256Key) *rand.Rand {
+		testutils.Assert(key.allowedRange != nil)
 		if key.allowedRange != nil {
 			testutils.Assert(key.allowedRange.Sign() > 0)
-			testutils.Assert(key.allowedRange.BitLen() <= 256)
+			testutils.Assert(key.allowedRange.BitLen() <= 256 || key.allowedRange.Cmp(common.TwoTo256_Int) == 0)
 		}
 		return rand.New(rand.NewSource(key.seed))
 	},
 	// sampling random uint256's
-	func(rnd *rand.Rand, key CachedPRGUint256Key) uint256 {
+	func(rng *rand.Rand, key CachedPRGUint256Key) uint256 {
 		var rnd_Int *big.Int = big.NewInt(0)
-		rnd_Int.Rand(rnd, key.allowedRange)
+		rnd_Int.Rand(rng, key.allowedRange)
 		return utils.BigIntToUIntArray(rnd_Int)
+	},
+	// copy function: nil is OK here; this selects a trivial function
+	nil,
+)
+
+var CachedUint512 = testutils.MakePrecomputedCache[int64, uint512](
+	// creating random seed:
+	func(key int64) *rand.Rand {
+		return rand.New(rand.NewSource(key))
+	},
+	// sampling random uint256's
+	func(rng *rand.Rand, key int64) (ret uint512) {
+		for i := 0; i < 8; i++ {
+			ret[i] = rng.Uint64()
+		}
+		return
 	},
 	// copy function: nil is OK here; this selects a trivial function
 	nil,

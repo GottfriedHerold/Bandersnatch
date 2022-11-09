@@ -23,6 +23,8 @@ func BenchmarkEnsureBuildFlags(b *testing.B) {
 	}
 }
 
+
+
 func BenchmarkDummyRead_64(b *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = GetPrecomputedFieldElements[bsFieldElement_64](1, benchS)
 	prepareBenchmarkFieldElements(b)
@@ -271,7 +273,7 @@ func BenchmarkSquareRoot_64(b *testing.B) {
 	}
 }
 
-func BenchmarkMultiInverseion(bOuter *testing.B) {
+func BenchmarkMultiInversion(bOuter *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = GetPrecomputedFieldElements[bsFieldElement_64](1, benchS+256)
 	testutils.Assert(benchS >= 256)
 	batchSizes := []int{1, 2, 4, 16, 64, 256}

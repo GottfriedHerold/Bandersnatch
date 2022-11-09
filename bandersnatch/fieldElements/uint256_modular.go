@@ -5,6 +5,7 @@ import (
 	"math/bits"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file contains methods on uint256 that interpret the elements as residues modulo BaseFieldSize and perform appropriate operations (such as addition, multiplication of residues)
@@ -16,19 +17,11 @@ import (
 // Bounds for reducedness-quality
 
 var (
-	twoTo256_Int            *big.Int = common.TwoTo256_Int
-	doubleBaseFieldSize_Int *big.Int // 2 * BaseFieldSize
-	montgomeryRepBound_Int  *big.Int // 2**256 - BaseFieldSize
-	// BaseFieldSize_Int *big.Int (already defined elsewhere)
+	twoTo256_Int            *big.Int = common.TwoTo256_Int                                                                                       // 2**256 == 115792089237316195423570985008687907853269984665640564039457584007913129639936
+	doubleBaseFieldSize_Int *big.Int = utils.InitIntFromString("104871750350252380958895481016371931675381105001055275645207317399877162369026") // 2 * BaseFieldSize
+	montgomeryRepBound_Int  *big.Int = utils.InitIntFromString("63356214062190004944123244500501942015579432165112926216853925307974548455423")  // 2**256 - BaseFieldSize
+	// BaseFieldSize_Int *big.Int (already defined elsewhere) // 52435875175126190479447740508185965837690552500527637822603658699938581184513
 )
-
-func init() {
-	doubleBaseFieldSize_Int = big.NewInt(0)
-	doubleBaseFieldSize_Int.Add(BaseFieldSize_Int, BaseFieldSize_Int)
-
-	montgomeryRepBound_Int = big.NewInt(0)
-	montgomeryRepBound_Int.Sub(twoTo256_Int, BaseFieldSize_Int)
-}
 
 // NOTE: Suffixes for reduction follows the following convention:
 //   - a means arbitrary, i.e. the number is in [0,2^256)
