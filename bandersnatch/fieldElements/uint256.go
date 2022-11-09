@@ -9,15 +9,18 @@ import (
 )
 
 type uint256 [4]uint64 // low-endian
-type uint512 [8]uint64
+type uint512 [8]uint64 // low-endian
 
 // ToBigInt converts the given uint256 to a [*big.Int]
 func (z *uint256) ToBigInt() *big.Int {
+	// convert uint256 to big-endian (because big.Int's SetBytes takes a big-endian byte slice)
 	var big_endian_byte_slice [32]byte
 	binary.BigEndian.PutUint64(big_endian_byte_slice[0:8], z[3])
 	binary.BigEndian.PutUint64(big_endian_byte_slice[8:16], z[2])
 	binary.BigEndian.PutUint64(big_endian_byte_slice[16:24], z[1])
 	binary.BigEndian.PutUint64(big_endian_byte_slice[24:32], z[0])
+
+	// convert to *big.Int
 	return new(big.Int).SetBytes(big_endian_byte_slice[:])
 }
 
