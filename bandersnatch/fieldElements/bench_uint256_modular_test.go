@@ -19,6 +19,8 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("DoubleEq_a (Reduce and check)", benchmark_Copy_DoubleEqAndReduce_a)
 	b.Run("MulEq_a (Barret)", benchmark_MulEqBarret_a)
 	b.Run("SquareEq_a (Barret)", benchmark_Copy_SquareEqBarret_a)
+	b.Run("LongMul256->512", benchmark_LongMul)
+	b.Run("LongSquare256->512", benchmark_LongSquare)
 
 	/*
 		b.Run("Neg", benchmarkNegEq)
@@ -222,6 +224,23 @@ func benchmark_Copy_SquareEqBarret_a(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
 		DumpUint256[n%benchS].SquareEqAndReduce_a()
+	}
+}
+
+func benchmark_LongMul(b *testing.B) {
+	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint512[n%benchS].LongMul(&bench_x[n%benchS], &bench_y[n%benchS])
+	}
+}
+
+func benchmark_LongSquare(b *testing.B) {
+	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint512[n%benchS].LongSquare(&bench_x[n%benchS])
 	}
 }
 

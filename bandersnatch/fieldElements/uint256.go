@@ -9,7 +9,7 @@ import (
 )
 
 type uint256 [4]uint64 // low-endian
-type uint512 = [8]uint64
+type uint512 [8]uint64
 
 // ToBigInt converts the given uint256 to a [*big.Int]
 func (z *uint256) ToBigInt() *big.Int {
@@ -186,4 +186,123 @@ func (z *uint256) SquareEqAndReduce_a() {
 
 	// Reduce back into uint256
 	z.ReduceUint512ToUint256_a(uint512{q0, q1, q2, q3, q4, q5, q6, q7})
+}
+
+// LongMul computes a 256 bits -> 512 multiplication, without any modular reduction. z:=x*y
+func (z *uint512) LongMul(x, y *uint256) {
+	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
+
+	q2, q1 = bits.Mul64(y[0], x[1])
+	q4, q3 = bits.Mul64(y[0], x[3])
+
+	t1, q0 = bits.Mul64(y[0], x[0])
+	q1, c = bits.Add64(q1, t1, 0)
+	t1, t0 = bits.Mul64(y[0], x[2])
+	q2, c = bits.Add64(q2, t0, c)
+	q3, c = bits.Add64(q3, t1, c)
+	q4, _ = bits.Add64(q4, 0, c)
+
+	t1, t0 = bits.Mul64(y[1], x[1])
+	q2, c = bits.Add64(q2, t0, 0)
+	q3, c = bits.Add64(q3, t1, c)
+	q5, t0 = bits.Mul64(y[1], x[3])
+	q4, c = bits.Add64(q4, t0, c)
+	q5, _ = bits.Add64(q5, 0, c)
+
+	t1, t0 = bits.Mul64(y[1], x[0])
+	q1, c = bits.Add64(q1, t0, 0)
+	q2, c = bits.Add64(q2, t1, c)
+	t1, t0 = bits.Mul64(y[1], x[2])
+	q3, c = bits.Add64(q3, t0, c)
+	q4, c = bits.Add64(q4, t1, c)
+	q5, _ = bits.Add64(q5, 0, c)
+
+	t1, t0 = bits.Mul64(y[2], x[1])
+	q3, c = bits.Add64(q3, t0, 0)
+	q4, c = bits.Add64(q4, t1, c)
+	q6, t0 = bits.Mul64(y[2], x[3])
+	q5, c = bits.Add64(q5, t0, c)
+	q6, _ = bits.Add64(q6, 0, c)
+
+	t1, t0 = bits.Mul64(y[2], x[0])
+	q2, c = bits.Add64(q2, t0, 0)
+	q3, c = bits.Add64(q3, t1, c)
+	t1, t0 = bits.Mul64(y[2], x[2])
+	q4, c = bits.Add64(q4, t0, c)
+	q5, c = bits.Add64(q5, t1, c)
+	q6, _ = bits.Add64(q6, 0, c)
+
+	t1, t0 = bits.Mul64(y[3], x[1])
+	q4, c = bits.Add64(q4, t0, 0)
+	q5, c = bits.Add64(q5, t1, c)
+	q7, t0 = bits.Mul64(y[3], x[3])
+	q6, c = bits.Add64(q6, t0, c)
+	q7, _ = bits.Add64(q7, 0, c)
+
+	t1, t0 = bits.Mul64(y[3], x[0])
+	q3, c = bits.Add64(q3, t0, 0)
+	q4, c = bits.Add64(q4, t1, c)
+	t1, t0 = bits.Mul64(y[3], x[2])
+	q5, c = bits.Add64(q5, t0, c)
+	q6, c = bits.Add64(q6, t1, c)
+	q7, _ = bits.Add64(q7, 0, c)
+	z[0] = q0
+	z[1] = q1
+	z[2] = q2
+	z[3] = q3
+	z[4] = q4
+	z[5] = q5
+	z[6] = q6
+	z[7] = q7
+}
+
+// LongSquare computes a 256-bit to 512-bit squaring operation without modular reduction. z := x*x
+func (z *uint512) LongSquare(x *uint256) {
+	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
+
+	q4, q3 = bits.Mul64(x[0], x[3])
+
+	t1, q2 = bits.Mul64(x[0], x[2])
+	q3, c = bits.Add64(q3, t1, 0)
+	q5, t0 = bits.Mul64(x[1], x[3])
+	q4, c = bits.Add64(q4, t0, c)
+	q5, _ = bits.Add64(q5, 0, c)
+
+	t1, q1 = bits.Mul64(x[0], x[1])
+	q2, c = bits.Add64(q2, t1, 0)
+	t1, t0 = bits.Mul64(x[1], x[2])
+	q3, c = bits.Add64(q3, t0, c)
+	q4, c = bits.Add64(q4, t1, c)
+	q6, t0 = bits.Mul64(x[2], x[3])
+	q5, c = bits.Add64(q5, t0, c)
+	q6, _ = bits.Add64(q6, 0, c)
+
+	q1, c = bits.Add64(q1, q1, 0)
+	q2, c = bits.Add64(q2, q2, c)
+	q3, c = bits.Add64(q3, q3, c)
+	q4, c = bits.Add64(q4, q4, c)
+	q5, c = bits.Add64(q5, q5, c)
+	q6, c = bits.Add64(q6, q6, c)
+	q7, _ = bits.Add64(0, 0, c)
+
+	t1, q0 = bits.Mul64(x[0], x[0])
+	q1, c = bits.Add64(q1, t1, 0)
+	t1, t0 = bits.Mul64(x[1], x[1])
+	q2, c = bits.Add64(q2, t0, c)
+	q3, c = bits.Add64(q3, t1, c)
+	t1, t0 = bits.Mul64(x[2], x[2])
+	q4, c = bits.Add64(q4, t0, c)
+	q5, c = bits.Add64(q5, t1, c)
+	t1, t0 = bits.Mul64(x[3], x[3])
+	q6, c = bits.Add64(q6, t0, c)
+	q7, _ = bits.Add64(q7, t1, c)
+
+	z[0] = q0
+	z[1] = q1
+	z[2] = q2
+	z[3] = q3
+	z[4] = q4
+	z[5] = q5
+	z[6] = q6
+	z[7] = q7
 }
