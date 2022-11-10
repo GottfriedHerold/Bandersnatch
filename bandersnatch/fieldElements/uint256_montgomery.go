@@ -190,3 +190,5 @@ func (z *uint256) MulMontgomery_Weak(x, y *uint256) {
 	temp.reduce_ca()
 	*z = temp
 }
+
+// unrolled Montgomery multiplication:

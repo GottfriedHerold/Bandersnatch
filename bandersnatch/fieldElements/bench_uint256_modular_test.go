@@ -19,7 +19,7 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("DoubleEq_a (Reduce and check)", benchmark_Copy_DoubleEqAndReduce_a)
 	b.Run("MulEq_a (Barret)", benchmark_MulEqBarret_a)
 	b.Run("SquareEq_a (Barret)", benchmark_Copy_SquareEqBarret_a)
-	
+
 }
 
 // TODO: Move to different file:
@@ -132,7 +132,7 @@ func benchmarkModularInverse_a(b *testing.B) {
 	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpUint256[n%benchS].ModularInverse_a(&bench_x[n%benchS])
+		DumpUint256[n%benchS].ModularInverse_a_NAIVEHAC(&bench_x[n%benchS])
 	}
 }
 
@@ -216,4 +216,3 @@ func benchmark_Copy_SquareEqBarret_a(b *testing.B) {
 		DumpUint256[n%benchS].SquareEqAndReduce_a()
 	}
 }
-

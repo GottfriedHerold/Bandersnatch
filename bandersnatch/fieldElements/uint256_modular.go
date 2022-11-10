@@ -207,49 +207,75 @@ func (z *uint256) SubEqAndReduce_a(x *uint256) {
 
 }
 
-// This function is rather slow
+// This function is rather slow.
 
-// ModularInverse_a computes the multiplicative Inverse of a residue, if it exists.
+// Written by Luan, comment by Gotti (to best understanding)
+// Removed computation of b and d. This is completely unneeded for odd modulus.
+
+// ModularInverse_a_NAIVEHAC computes the multiplicative Inverse of a residue, if it exists.
 // z := x^-1 (mod m)
 // in the case no multiplicative inverse exists, returns false, true otherwise
 // Input and output values are weakly reduced to the interval [0..2**256)
-func (z *uint256) ModularInverse_a(x *uint256) bool {
-	// check if inverse exists
-	if (x[3]|x[2]|x[1]|x[0]) == 0 || // x == 0
-		(m_3|m_2|m_1|m_0) == 0 || // modulus == 0
-		(x[0]|m_0)&1 == 0 { // 2|gcd(u,v)
+func (z *uint256) ModularInverse_a_NAIVEHAC(x *uint256) bool {
 
-		//panic("Panic! value has no multiplicative inverse")
+	// Removed in favor or correct check:
+	/*
+		// check if inverse exists
+		if (x[3]|x[2]|x[1]|x[0]) == 0 || // x == 0
+			(m_3|m_2|m_1|m_0) == 0 || // modulus == 0
+			(x[0]|m_0)&1 == 0 { // 2|gcd(u,v)
+
+			//panic("Panic! value has no multiplicative inverse")
+			return false
+		}
+	*/
+
+	x.reduceBarret_fa()
+	if x.IsZero() {
 		return false
 	}
 
 	var (
 		b, c, // Borrow & carry
 		a4, a3, a2, a1, a0,
-		b4, b3, b2, b1, b0,
-		c4, c3, c2, c1, c0,
-		d4, d3, d2, d1, d0 uint64
+		// b4, b3, b2, b1, b0,
+		c4, c3, c2, c1, c0 uint64
+		// d4, d3, d2, d1, d0 uint64
 	)
 
 	u3, u2, u1, u0 := x[3], x[2], x[1], x[0]
 	var v3, v2, v1, v0 uint64 = m_3, m_2, m_1, m_0 //cant use :=, go will infer as signed type, m_0 will overlflow
 
 	a4, a3, a2, a1, a0 = 0, 0, 0, 0, 1
-	b4, b3, b2, b1, b0 = 0, 0, 0, 0, 0
+	// b4, b3, b2, b1, b0 = 0, 0, 0, 0, 0
 	c4, c3, c2, c1, c0 = 0, 0, 0, 0, 0
-	d4, d3, d2, d1, d0 = 0, 0, 0, 0, 1
+	// d4, d3, d2, d1, d0 = 0, 0, 0, 0, 1
+
+	// invariants:
+	// u = a * x + b * m
+	// v = c * x + d * m
+	// Note that a,b,c,d can become negative, so represented using 2s complement by 5 uint64 - words  -- Gotti: Are 5 words always enough?
+	// At least one of u,v odd
 
 	done := false
 
 	for !done {
+
+		// invariant holds
+
+		// If u is even, divide u, a, b by 2
 		for u0&1 == 0 {
 
+			// u /= 2
 			u0 = (u0 >> 1) | (u1 << 63)
 			u1 = (u1 >> 1) | (u2 << 63)
 			u2 = (u2 >> 1) | (u3 << 63)
 			u3 = (u3 >> 1)
 
-			if (a0|b0)&1 == 1 {
+			// If a or b are odd, we can adjust the representation u = a*x + b*m to make both a,b even. (u refers to the value before the above halving operation)
+
+			//if (a0|b0)&1 == 1 {
+			if a0&1 == 1 {
 
 				a0, c = bits.Add64(a0, m_0, 0)
 				a1, c = bits.Add64(a1, m_1, c)
@@ -257,34 +283,40 @@ func (z *uint256) ModularInverse_a(x *uint256) bool {
 				a3, c = bits.Add64(a3, m_3, c)
 				a4, _ = bits.Add64(a4, 0, c)
 
-				b0, b = bits.Sub64(b0, x[0], 0)
-				b1, b = bits.Sub64(b1, x[1], b)
-				b2, b = bits.Sub64(b2, x[2], b)
-				b3, b = bits.Sub64(b3, x[3], b)
-				b4, _ = bits.Sub64(b4, 0, b)
+				// b0, b = bits.Sub64(b0, x[0], 0)
+				// b1, b = bits.Sub64(b1, x[1], b)
+				// b2, b = bits.Sub64(b2, x[2], b)
+				// b3, b = bits.Sub64(b3, x[3], b)
+				// b4, _ = bits.Sub64(b4, 0, b)
 			}
 
+			// a/=2, b/=2.
 			a0 = (a0 >> 1) | (a1 << 63)
 			a1 = (a1 >> 1) | (a2 << 63)
 			a2 = (a2 >> 1) | (a3 << 63)
 			a3 = (a3 >> 1) | (a4 << 63)
 			a4 = uint64(int64(a4) >> 1)
 
-			b0 = (b0 >> 1) | (b1 << 63)
-			b1 = (b1 >> 1) | (b2 << 63)
-			b2 = (b2 >> 1) | (b3 << 63)
-			b3 = (b3 >> 1) | (b4 << 63)
-			b4 = uint64(int64(b4) >> 1)
+			//b0 = (b0 >> 1) | (b1 << 63)
+			//b1 = (b1 >> 1) | (b2 << 63)
+			//b2 = (b2 >> 1) | (b3 << 63)
+			//b3 = (b3 >> 1) | (b4 << 63)
+			//b4 = uint64(int64(b4) >> 1)
+			// invariant restored
 		}
 
+		// If v is even, divide v, c, d by 2
 		for v0&1 == 0 {
 
+			// v /=2
 			v0 = (v0 >> 1) | (v1 << 63)
 			v1 = (v1 >> 1) | (v2 << 63)
 			v2 = (v2 >> 1) | (v3 << 63)
 			v3 = (v3 >> 1)
 
-			if (c0|d0)&1 == 1 {
+			// If c or d are odd, we can adjust the representation v = c * x + d *m to make both c,d even. (v refers to the value before the above halving operation)
+			//if (c0|d0)&1 == 1 {
+			if c0&1 == 1 {
 
 				c0, c = bits.Add64(c0, m_0, 0)
 				c1, c = bits.Add64(c1, m_1, c)
@@ -292,11 +324,11 @@ func (z *uint256) ModularInverse_a(x *uint256) bool {
 				c3, c = bits.Add64(c3, m_3, c)
 				c4, _ = bits.Add64(c4, 0, c)
 
-				d0, b = bits.Sub64(d0, x[0], 0)
-				d1, b = bits.Sub64(d1, x[1], b)
-				d2, b = bits.Sub64(d2, x[2], b)
-				d3, b = bits.Sub64(d3, x[3], b)
-				d4, _ = bits.Sub64(d4, 0, b)
+				// d0, b = bits.Sub64(d0, x[0], 0)
+				// d1, b = bits.Sub64(d1, x[1], b)
+				// d2, b = bits.Sub64(d2, x[2], b)
+				// d3, b = bits.Sub64(d3, x[3], b)
+				// d4, _ = bits.Sub64(d4, 0, b)
 			}
 
 			c0 = (c0 >> 1) | (c1 << 63)
@@ -305,12 +337,17 @@ func (z *uint256) ModularInverse_a(x *uint256) bool {
 			c3 = (c3 >> 1) | (c4 << 63)
 			c4 = uint64(int64(c4) >> 1)
 
-			d0 = (d0 >> 1) | (d1 << 63)
-			d1 = (d1 >> 1) | (d2 << 63)
-			d2 = (d2 >> 1) | (d3 << 63)
-			d3 = (d3 >> 1) | (d4 << 63)
-			d4 = uint64(int64(d4) >> 1)
+			// d0 = (d0 >> 1) | (d1 << 63)
+			// d1 = (d1 >> 1) | (d2 << 63)
+			// d2 = (d2 >> 1) | (d3 << 63)
+			// d3 = (d3 >> 1) | (d4 << 63)
+			// d4 = uint64(int64(d4) >> 1)
+
+			// invariant restored
 		}
+
+		// Now u,v are both odd (or zero)
+		// Replace u by u-v or v by v-u (depending on which one is larger)
 
 		t0, b := bits.Sub64(u0, v0, 0)
 		t1, b := bits.Sub64(u1, v1, b)
@@ -327,11 +364,11 @@ func (z *uint256) ModularInverse_a(x *uint256) bool {
 			a3, b = bits.Sub64(a3, c3, b)
 			a4, _ = bits.Sub64(a4, c4, b)
 
-			b0, b = bits.Sub64(b0, d0, 0)
-			b1, b = bits.Sub64(b1, d1, b)
-			b2, b = bits.Sub64(b2, d2, b)
-			b3, b = bits.Sub64(b3, d3, b)
-			b4, _ = bits.Sub64(b4, d4, b)
+			// b0, b = bits.Sub64(b0, d0, 0)
+			// b1, b = bits.Sub64(b1, d1, b)
+			// b2, b = bits.Sub64(b2, d2, b)
+			// b3, b = bits.Sub64(b3, d3, b)
+			// b4, _ = bits.Sub64(b4, d4, b)
 
 		} else { // v > u
 
@@ -346,11 +383,11 @@ func (z *uint256) ModularInverse_a(x *uint256) bool {
 			c3, b = bits.Sub64(c3, a3, b)
 			c4, _ = bits.Sub64(c4, a4, b)
 
-			d0, b = bits.Sub64(d0, b0, 0)
-			d1, b = bits.Sub64(d1, b1, b)
-			d2, b = bits.Sub64(d2, b2, b)
-			d3, b = bits.Sub64(d3, b3, b)
-			d4, _ = bits.Sub64(d4, b4, b)
+			// d0, b = bits.Sub64(d0, b0, 0)
+			// d1, b = bits.Sub64(d1, b1, b)
+			// d2, b = bits.Sub64(d2, b2, b)
+			// d3, b = bits.Sub64(d3, b3, b)
+			// d4, _ = bits.Sub64(d4, b4, b)
 		}
 
 		if (u3 | u2 | u1 | u0) == 0 {
@@ -358,11 +395,18 @@ func (z *uint256) ModularInverse_a(x *uint256) bool {
 		}
 	}
 
-	if (v3 | v2 | v1 | (v0 - 1)) != 0 { // gcd(z,m) != 1
-		//z[3], z[2], z[1], z[0] = 0, 0, 0, 0
-		//panic("Panic! value has no multiplicative inverse")
-		return false
-	}
+	// Cannot happen for m prime, we already checked for zero, so removed.
+
+	/*
+		if (v3 | v2 | v1 | (v0 - 1)) != 0 { // gcd(z,m) != 1
+			//z[3], z[2], z[1], z[0] = 0, 0, 0, 0
+			//panic("Panic! value has no multiplicative inverse")
+			return false
+		}
+	*/
+
+	// We effectively reduce the (signed!) 5-word c modulu m to a 256-bit number.
+	// This assumes that int(c4) is small in absolute value. Why is that so? -- Gotti
 
 	// Add or subtract modulus to find 256-bit inverse (<= 2 iterations expected)
 

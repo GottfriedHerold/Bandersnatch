@@ -189,7 +189,7 @@ func TestMultiplicativeInverse(t *testing.T) {
 	var noninvertible int
 	for _, val := range testval {
 		a = val
-		invertible := b.ModularInverse_a(&a)
+		invertible := b.ModularInverse_a_NAIVEHAC(&a)
 		if invertible == false {
 			noninvertible++
 			continue
