@@ -40,7 +40,7 @@ var (
 	}
 	pc_uint256_f SeedAndRange = SeedAndRange{
 		seed:         1,
-		allowedRange: BaseFieldSize_Int,
+		allowedRange: baseFieldSize_Int,
 	}
 )
 

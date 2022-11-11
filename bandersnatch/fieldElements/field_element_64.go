@@ -26,80 +26,6 @@ import (
 	Adapting this code to other moduli is, hence, extremely error-prone and is recommended against!
 */
 
-// r == 2^256 is the Montgomery multiplier.
-
-// Note: Since Go lacks const arrays,
-// we define large 256-bit constants both as untyped 256-bit constants and
-// separately as constants for every 64-bit word.
-// (Note that the language does not let one do ANYTHING with 256-bit constants other than define other constants)
-
-// baseFieldSizeDoubled_64_i denotes the i'th 64-bit word of 2 * BaseFieldSize
-const (
-	baseFieldSizeDoubled_64_0 = (2 * BaseFieldSize_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	baseFieldSizeDoubled_64_1
-	baseFieldSizeDoubled_64_2
-	baseFieldSizeDoubled_64_3
-)
-
-// minusOneHalf_64 equals 1/2 * (BaseFieldSize-1) as untyped int
-const (
-	minusOneHalf_64 = (BaseFieldSize_untyped - 1) / 2
-)
-
-// mhalved_64_i denotes the i'th 64-bit word of 1/2 * (BaseFieldSize-1)
-const (
-	minusOneHalf_64_0 = (minusOneHalf_64 >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	minusOneHalf_64_1
-	minusOneHalf_64_2
-	minusOneHalf_64_3
-)
-
-// rsquared_untyped is 2^512 mod BaseFieldSize. This is useful for converting to/from montgomery form.
-const (
-	rsquared_untyped = 0x748d9d99f59ff1105d314967254398f2b6cedcb87925c23c999e990f3f29c6d
-)
-
-// rsquared_64_i is the i'th 64-bit word of 2^512 mod BaseFieldSize.
-const (
-	rsquared_64_0 = (rsquared_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	rsquared_64_1
-	rsquared_64_2
-	rsquared_64_3
-)
-
-// 2^256 - 2*BaseFieldSize == 2^256 mod BaseFieldSize. This is also the (unique) Montgomery representation of 1.
-// Note: Value is 0x1824b159acc5056f_998c4fefecbc4ff5_5884b7fa00034802_00000001fffffffe
-// The weird computation is to avoid 1 << 256, which is not portable according to the go spec (intermediate results are too large even for untyped computations)
-
-// rModBaseField_untyped is 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1.
-const rModBaseField_untyped = 2 * ((1 << 255) - BaseFieldSize_untyped)
-
-func init() {
-	if rModBaseField_untyped != 0x1824b159acc5056f_998c4fefecbc4ff5_5884b7fa00034802_00000001fffffffe {
-		panic(0)
-	}
-}
-
-// rModBaseField_64_i is the i'th 64-bit word of (2^256 mod BaseFieldSize). Note that this corresponds to the Montgomery representation of 1.
-const (
-	rModBaseField_64_0 uint64 = (rModBaseField_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	rModBaseField_64_1
-	rModBaseField_64_2
-	rModBaseField_64_3
-)
-
-// montgomeryNegOne_untyped is the negative of rModBaseField modulo BaseFieldSize.
-// This is the Montgomery representation of -1.
-const montgomeryNegOne_untyped = BaseFieldSize_untyped - rModBaseField_untyped
-
-// montgomeryNegOne_i is the i'th 64-bit word of the negative of rModBaseField modulo BaseFieldSize.
-// This is the Montgomery representation of -1.
-const (
-	montgomeryNegOne_0 uint64 = (montgomeryNegOne_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	montgomeryNegOne_1
-	montgomeryNegOne_2
-	montgomeryNegOne_3
-)
 
 type bsFieldElement_64 struct {
 	// field elements stored in low-endian 64-bit uints in Montgomery form, i.e.
@@ -214,7 +140,7 @@ func (z *bsFieldElement_64) Sign() int {
 func (z *bsFieldElement_64) Jacobi() int {
 	IncrementCallCounter("Jacobi")
 	tempInt := z.ToBigInt()
-	return big.Jacobi(tempInt, BaseFieldSize_Int)
+	return big.Jacobi(tempInt, baseFieldSize_Int)
 }
 
 // Add is used to perform addition.
@@ -304,9 +230,9 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 
 	// Can be done much more efficiently if desired, but we do not convert often.
 	w.Lsh(w, 256) // To account for Montgomery form
-	w.Mod(w, BaseFieldSize_Int)
+	w.Mod(w, baseFieldSize_Int)
 	if sign < 0 {
-		w.Sub(BaseFieldSize_Int, w)
+		w.Sub(baseFieldSize_Int, w)
 	}
 	z.words = utils.BigIntToUIntArray(w)
 	// Note z is Normalized.
@@ -342,7 +268,7 @@ func (z *bsFieldElement_64) SetUInt64(value uint64) {
 // We do NOT guarantee that the distribution is even close to uniform.
 func (z *bsFieldElement_64) SetRandomUnsafe(rnd *rand.Rand) {
 	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
-	var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize_Int)
+	var xInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
 	z.SetBigInt(xInt)
 }
 
@@ -351,7 +277,7 @@ func (z *bsFieldElement_64) SetRandomUnsafe(rnd *rand.Rand) {
 // We do NOT guarantee that the distribution is even close to uniform.
 func (z *bsFieldElement_64) SetRandomUnsafeNonZero(rnd *rand.Rand) {
 	for {
-		var xInt *big.Int = new(big.Int).Rand(rnd, BaseFieldSize_Int)
+		var xInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
 		if xInt.Sign() != 0 {
 			z.SetBigInt(xInt)
 			return
@@ -414,7 +340,7 @@ func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
 	IncrementCallCounter("InvFe")
 	// Slow, but rarely used anyway (due to working in projective coordinates)
 	t := x.ToBigInt()
-	if t.ModInverse(t, BaseFieldSize_Int) == nil {
+	if t.ModInverse(t, baseFieldSize_Int) == nil {
 		panic(ErrDivisionByZero)
 	}
 	z.SetBigInt(t)
@@ -484,7 +410,7 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToBigInt()
-	if xInt.ModSqrt(xInt, BaseFieldSize_Int) == nil {
+	if xInt.ModSqrt(xInt, baseFieldSize_Int) == nil {
 		return false
 	}
 	z.SetBigInt(xInt)

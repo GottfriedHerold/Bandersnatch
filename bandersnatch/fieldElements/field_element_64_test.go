@@ -67,8 +67,8 @@ func TestOps_8_vs_64(t *testing.T) {
 	const iterations = 100
 
 	for i := 0; i < iterations; i++ {
-		var x *big.Int = new(big.Int).Rand(drng, BaseFieldSize_Int)
-		var y *big.Int = new(big.Int).Rand(drng, BaseFieldSize_Int)
+		var x *big.Int = new(big.Int).Rand(drng, baseFieldSize_Int)
+		var y *big.Int = new(big.Int).Rand(drng, baseFieldSize_Int)
 
 		var x_8, y_8, z_8 bsFieldElement_8
 		var x_64, y_64, z_64 bsFieldElement_64
@@ -286,7 +286,7 @@ func TestMulHelpers(testing_instance *testing.T) {
 		var q uint64 = drng.Uint64()
 		qInt := new(big.Int).SetUint64(q)
 
-		qInt.Mul(qInt, BaseFieldSize_Int)
+		qInt.Mul(qInt, baseFieldSize_Int)
 		qInt.Div(qInt, R)
 		tInt.Add(tInt, qInt)
 		tInt.Add(tInt, oneInt)
