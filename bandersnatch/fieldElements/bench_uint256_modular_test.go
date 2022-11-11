@@ -9,17 +9,18 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Sub_c (conditional subtraction)", benchmarkSubAndReduce_c)
 	b.Run("Sub_b (pre-conditional subtraction)", benchmarkSubAndReduce_b)
 	b.Run("SubEq_a (Luan's reduce and check)", benchmarkSubEqAndReduce_a)
-	b.Run("Invert_a (Luan from HAC)", benchmarkModularInverse_a)
+	b.Run("Invert_a (HAC version with standard improvement)", benchmarkModularInverse_a)
 	b.Run("Reduce_ca (conditional subtraction)", benchmark_Copy_Reduce_ca)
 	b.Run("Reduce_fb (conditional subtraction)", benchmark_Copy_Reduce_fb)
 	b.Run("IsFullyReduced_a (if-chain)", benchmark_IsFullyReduced_a)
 	b.Run("Barret512->256_a", benchmark_BarretReduction512_a)
 	b.Run("BarretReduce_fa", benchmark_Copy_Reduce_barret_fa)
-	b.Run("ComputeNeg_f (Reduce and check)", benchmark_ComputeModularNegative_f)
+	b.Run("ComputeNeg_a (Reduce and check)", benchmark_ComputeModularNegative_f)
 	b.Run("DoubleEq_a (Reduce and check)", benchmark_Copy_DoubleEqAndReduce_a)
 	b.Run("MulEq_a (Barret)", benchmark_MulEqBarret_a)
+	b.Run("Mul_a (Barret)", benchmark_MulBarret_a)
 	b.Run("SquareEq_a (Barret)", benchmark_Copy_SquareEqBarret_a)
-
+	b.Run("Square_a (Barret)", benchmark_SquareBarret_a)
 }
 
 // TODO: Move to different file:
@@ -182,10 +183,10 @@ func benchmark_BarretReduction512_a(b *testing.B) {
 
 // deprecated function:
 func benchmark_ComputeModularNegative_f(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_f, benchS)
+	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpUint256[n%benchS] = bench_x[n%benchS].ComputeModularNegative_Weak_f()
+		DumpUint256[n%benchS] = bench_x[n%benchS].ComputeModularNegative_Weak_a()
 	}
 }
 
@@ -214,5 +215,22 @@ func benchmark_Copy_SquareEqBarret_a(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
 		DumpUint256[n%benchS].SquareEqAndReduce_a()
+	}
+}
+
+func benchmark_MulBarret_a(b *testing.B) {
+	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS].MulAndReduce_a(&bench_x[n%benchS], &bench_y[n%benchS])
+	}
+}
+
+func benchmark_SquareBarret_a(b *testing.B) {
+	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS].SquareAndReduce_a(&bench_x[n%benchS])
 	}
 }

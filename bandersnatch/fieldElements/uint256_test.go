@@ -7,6 +7,10 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// We test uint256.go by running differential tests against big.Int's capabilities.
+// Note that, for now, we don't test "special values" nearly enough: -> TODO:
+// Use PrecomputedCache's capabilities to pre-seed with special elements.
+
 func TestBigIntToUint256Roundtrip(t *testing.T) {
 	const num = 1000
 

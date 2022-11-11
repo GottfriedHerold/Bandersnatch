@@ -1,7 +1,7 @@
 package fieldElements
 
 // Test by Luan for his Barret-Reduction-based uint256 implementation.
-// 
+//
 
 import (
 	mrand "math/rand"
@@ -133,7 +133,7 @@ func TestAdditiveInverse(t *testing.T) {
 	// a+(-a) == (-a)+a == 0
 	for _, val := range testval {
 		a = val
-		b = a.ComputeModularNegative_Weak_f()
+		b = a.ComputeModularNegative_Weak_a()
 		u = b
 		v = a
 
@@ -148,8 +148,8 @@ func TestAdditiveInverse(t *testing.T) {
 	// a == -(-(a))
 	for _, val := range testval {
 		a = val
-		b = a.ComputeModularNegative_Weak_f()
-		b = b.ComputeModularNegative_Weak_f()
+		b = a.ComputeModularNegative_Weak_a()
+		b = b.ComputeModularNegative_Weak_a()
 
 		if a.toUint64() != b.toUint64() {
 			t.Fatalf("Double inverse does not cancel! %v != %v", a, b)
@@ -165,12 +165,12 @@ func TestAdditiveInverse(t *testing.T) {
 			u = a
 			u.SubEqAndReduce_a(&b) //u=a-b
 
-			v = b.ComputeModularNegative_Weak_f()
+			v = b.ComputeModularNegative_Weak_a()
 			v.AddEqAndReduce_a(&a) //v=(-b)+a
 
 			w = b
 			w.SubEqAndReduce_a(&a)
-			w = w.ComputeModularNegative_Weak_f() //w=-(b-a)
+			w = w.ComputeModularNegative_Weak_a() //w=-(b-a)
 
 			if (u.toUint64() != v.toUint64()) || (u.toUint64() != w.toUint64()) || (v.toUint64() != w.toUint64()) {
 				t.Errorf("a-b = %v", u)

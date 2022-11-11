@@ -744,11 +744,11 @@ func (z *uint256) reduceBarret_fa() {
 
 // NOTE: Inconsistent syntax, since it returns a value. Therefore deprecated
 
-// ComputeModularNegative_Weak_f computes the negation (additive inverse) of a number modulo m.
+// ComputeModularNegative_Weak_a computes the negation (additive inverse) of a number modulo m.
 // input values don't need to be fully reduced.
 //
 // DEPRECATED
-func (z *uint256) ComputeModularNegative_Weak_f() (r uint256) {
+func (z *uint256) ComputeModularNegative_Weak_a() (r uint256) {
 	t0, b := bits.Sub64(mmu0_0, z[0], 0)
 	t1, b := bits.Sub64(mmu0_1, z[1], b)
 	t2, b := bits.Sub64(mmu0_2, z[2], b)
@@ -799,4 +799,45 @@ func (z *uint256) DoubleEqAndReduce_a() {
 	}
 
 	z[3], z[2], z[1], z[0] = t3, t2, t1, t0
+}
+
+// SquareEqAndReduce_a computes  z := z*x (mod m).
+//
+// Input and output values may be in the fully [0,2**256) range
+func (z *uint256) MulEqAndReduce_a(x *uint256) {
+
+	var zUnreduced uint512
+	zUnreduced.LongMul(x, z)
+	// Reduce back into uint256
+	z.ReduceUint512ToUint256_a(zUnreduced)
+
+}
+
+// SquareEqAndReduce_a computes  z := z^2 (mod m).
+//
+// Input and output values may be in the fully [0,2**256) range
+func (z *uint256) SquareEqAndReduce_a() {
+
+	var zUnreduced uint512
+	zUnreduced.LongSquare(z)
+	// Reduce back into uint256
+	z.ReduceUint512ToUint256_a(zUnreduced)
+}
+
+// MulAndReduce_a computes  z := x*y (mod m).
+//
+// Input and output values may be in the fully [0,2**256) range
+func (z *uint256) MulAndReduce_a(x *uint256, y *uint256) {
+	var zUnreduced uint512
+	zUnreduced.LongMul(x, y)
+	z.ReduceUint512ToUint256_a(zUnreduced)
+}
+
+// SquareAndReduce_a computes  z := x^2 (mod m).
+//
+// Input and output values may be in the fully [0,2**256) range
+func (z *uint256) SquareAndReduce_a(x *uint256) {
+	var zUnreduced uint512
+	zUnreduced.LongSquare(x)
+	z.ReduceUint512ToUint256_a(zUnreduced)
 }
