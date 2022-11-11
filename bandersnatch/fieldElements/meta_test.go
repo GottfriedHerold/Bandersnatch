@@ -17,7 +17,7 @@ import (
 // such as setup and/or teardown code as well as integrating call counters into go's
 // default benchmarking framework.
 
-// This file contains the code specific for benchmarking field elements;
+// This file contains the code specific for benchmarking and testing field elements;
 // (There is similar code for curve operations)
 
 // We have benchmarking code for the actual FieldElement = bsFieldElement_64 implementation
@@ -29,8 +29,12 @@ import (
 // (This is to avoid the compiler from outsmarting us -- writing to a global constant forces the compiler to actually do the computation)
 // We provide a facility to sample slices of random-looking field elements.
 // We provide a setup function that ensures call counters are handled correctly.
+// It's also nice to have a common setup code entry point. we could extend this to ensure that certain tables are in the cache etc.
 
-// size of Dump slices used in benchmarks. The _fe is from when we had no separate packages for field elements and curve points.
+// As a leftover from when everything was one package, some names are tagged with _fe to distinguish between field element and curve point code/variables/constants/types.
+// We don't bother to change that.
+
+// size of Dump slices used in benchmarks. [Note that benchS is a separate variable for which we assert benchS <= dumpSizeBench_fe]
 const dumpSizeBench_fe = 1 << 8
 
 // benchmark functions write to DumpXXX variables.
@@ -38,12 +42,18 @@ const dumpSizeBench_fe = 1 << 8
 // based on the fact that they are never read from within the module (I doubt the compiler would do this, but anyway...)
 //
 // [*] in non-test builds this file is ignored anyway
-var DumpBools_fe [dumpSizeBench_fe]bool // the _fe is because we use a separate global variable for benchmarking curve operations.
+var DumpBools_fe [dumpSizeBench_fe]bool
 
 var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_64
 var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
 var DumpUint256 [dumpSizeBench_fe]uint256
 var DumpUint512 [dumpSizeBench_fe]uint512
+var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_fe]*big.Int) {
+	for i := 0; i < dumpSizeBench_fe; i++ {
+		_DumpBigInt[i] = big.NewInt(0)
+	}
+	return
+}()
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
 // Note that it resets all counters.
@@ -64,23 +74,22 @@ func resetBenchmarkFieldElements(b *testing.B) {
 	b.ResetTimer()
 }
 
-type CachedPRGUint256Key struct {
+type SeedAndRange struct {
 	seed         int64
 	allowedRange *big.Int
 }
 
-var CachedUint256 = testutils.MakePrecomputedCache[CachedPRGUint256Key, uint256](
+var CachedUint256 = testutils.MakePrecomputedCache[SeedAndRange, uint256](
 	// creating random seed:
-	func(key CachedPRGUint256Key) *rand.Rand {
+	func(key SeedAndRange) *rand.Rand {
 		testutils.Assert(key.allowedRange != nil)
-		if key.allowedRange != nil {
-			testutils.Assert(key.allowedRange.Sign() > 0)
-			testutils.Assert(key.allowedRange.BitLen() <= 256 || key.allowedRange.Cmp(common.TwoTo256_Int) == 0)
-		}
+		testutils.Assert(key.allowedRange.Sign() > 0)
+		testutils.Assert(key.allowedRange.BitLen() <= 256 || key.allowedRange.Cmp(common.TwoTo256_Int) == 0)
+
 		return rand.New(rand.NewSource(key.seed))
 	},
 	// sampling random uint256's
-	func(rng *rand.Rand, key CachedPRGUint256Key) uint256 {
+	func(rng *rand.Rand, key SeedAndRange) uint256 {
 		var rnd_Int *big.Int = big.NewInt(0)
 		rnd_Int.Rand(rng, key.allowedRange)
 		return utils.BigIntToUIntArray(rnd_Int)
@@ -91,9 +100,7 @@ var CachedUint256 = testutils.MakePrecomputedCache[CachedPRGUint256Key, uint256]
 
 var CachedUint512 = testutils.MakePrecomputedCache[int64, uint512](
 	// creating random seed:
-	func(key int64) *rand.Rand {
-		return rand.New(rand.NewSource(key))
-	},
+	testutils.DefaultCreateRandFromSeed,
 	// sampling random uint256's
 	func(rng *rand.Rand, key int64) (ret uint512) {
 		for i := 0; i < 8; i++ {
@@ -103,6 +110,23 @@ var CachedUint512 = testutils.MakePrecomputedCache[int64, uint512](
 	},
 	// copy function: nil is OK here; this selects a trivial function
 	nil,
+)
+
+var CachedBigInt = testutils.MakePrecomputedCache[SeedAndRange, *big.Int](
+	// create rng
+	func(key SeedAndRange) *rand.Rand {
+		testutils.Assert(key.allowedRange != nil)
+		testutils.Assert(key.allowedRange.Sign() > 0)
+		return rand.New(rand.NewSource(key.seed))
+	},
+	// sample *big.Int's
+	func(rng *rand.Rand, key SeedAndRange) *big.Int {
+		return new(big.Int).Rand(rng, key.allowedRange)
+	},
+	// copying: We return a clone
+	func(in *big.Int) (ret *big.Int) {
+		return new(big.Int).Set(in)
+	},
 )
 
 func _makePrecomputedCacheForFieldElements[FieldElementType any]() testutils.PrecomputedCache[int64, FieldElementType] {
@@ -151,11 +175,6 @@ func GetPrecomputedFieldElements[FieldElementType any](key int64, amount int) []
 
 // pseudoRandomFieldElementCache_64 resp. pseudoRandomFieldElementCache_8 is a cache for the outpt of a slice of field elements for a given random seed.
 type (
-	pseudoRandomFieldElementCache_64 struct {
-		rng      *rand.Rand
-		elements []bsFieldElement_64
-	}
-
 	pseudoRandomFieldElementCache_8 struct {
 		rng      *rand.Rand
 		elements []bsFieldElement_8
@@ -167,29 +186,8 @@ type (
 
 // cachedPseudoRandomFieldElements_64 resp. _8 hold per-seed caches (the map key) of pseudo-random field elements.
 var (
-	cachedPseudoRandomFieldElements_64 map[int64]*pseudoRandomFieldElementCache_64 = make(map[int64]*pseudoRandomFieldElementCache_64)
-	cachedPseudoRandomFieldElements_8  map[int64]*pseudoRandomFieldElementCache_8  = make(map[int64]*pseudoRandomFieldElementCache_8)
+	cachedPseudoRandomFieldElements_8 map[int64]*pseudoRandomFieldElementCache_8 = make(map[int64]*pseudoRandomFieldElementCache_8)
 )
-
-// getElements retrieves the first amount many elements from the given cache, expanding the cache as needed.
-func (pc *pseudoRandomFieldElementCache_64) getElements(amount int) (ret []bsFieldElement_64) {
-	testutils.Assert(pc.rng != nil)
-	testutils.Assert(pc.elements != nil)
-	currentLen := len(pc.elements)
-	if amount > currentLen {
-		var temp bsFieldElement_64
-		for i := 0; i < amount-currentLen; i++ {
-			temp.SetRandomUnsafe(pc.rng)
-			pc.elements = append(pc.elements, temp)
-		}
-	}
-	testutils.Assert(len(pc.elements) >= amount)
-
-	ret = make([]bsFieldElement_64, amount)
-	copied := copy(ret, pc.elements)
-	testutils.Assert(copied == amount)
-	return
-}
 
 // getElements retrieves the first amount many elements from the given cache, expanding the cache as needed.
 func (pc *pseudoRandomFieldElementCache_8) getElements(number int) (ret []bsFieldElement_8) {
@@ -211,30 +209,12 @@ func (pc *pseudoRandomFieldElementCache_8) getElements(number int) (ret []bsFiel
 	return
 }
 
-// newPrecomputedFieldElementSlice_64 generates a new pseduoRandomFieldElementCache_64 and returns a pointer to it.
-func newPrecomputedFieldElementSlice_64(seed int64) (pc *pseudoRandomFieldElementCache_64) {
-	pc = new(pseudoRandomFieldElementCache_64)
-	pc.rng = rand.New(rand.NewSource(seed))
-	pc.elements = make([]bsFieldElement_64, 0)
-	return
-}
-
 // newPrecomputedFieldElementSlice_8 generates a new pseduoRandomFieldElementCache_8 and returns a pointer to it.
 func newPrecomputedFieldElementSlice_8(seed int64) (pc *pseudoRandomFieldElementCache_8) {
 	pc = new(pseudoRandomFieldElementCache_8)
 	pc.rng = rand.New(rand.NewSource(seed))
 	pc.elements = make([]bsFieldElement_8, 0)
 	return
-}
-
-// getPrecomptedFieldElementSlice_64 returns a slice of amount many pseudo-random field elements generated using the given seed value.
-func getPrecomputedFieldElementSlice_64(seed int64, amount int) []bsFieldElement_64 {
-	pc := cachedPseudoRandomFieldElements_64[seed]
-	if pc == nil {
-		pc = newPrecomputedFieldElementSlice_64(seed)
-		cachedPseudoRandomFieldElements_64[seed] = pc
-	}
-	return pc.getElements(amount)
 }
 
 // getPrecomptedFieldElementSlice_8 returns a slice of amount many pseudo-random field elements generated using the given seed value.

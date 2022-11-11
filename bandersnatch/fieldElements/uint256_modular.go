@@ -23,6 +23,8 @@ var (
 	// BaseFieldSize_Int *big.Int (already defined elsewhere) // 52435875175126190479447740508185965837690552500527637822603658699938581184513
 )
 
+var twoTo512_Int *big.Int = common.TwoTo512_Int
+
 // NOTE: Suffixes for reduction follows the following convention:
 //   - a means arbitrary, i.e. the number is in [0,2^256)
 //   - b means double-range, i.e. the number is in [0, 2*BaseFieldSize). Every residue class has exactly 2 possible representations

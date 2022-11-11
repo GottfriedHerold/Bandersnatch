@@ -26,7 +26,7 @@ import (
 // to MakePrecomputedCache that control the process.
 //
 // (*) We could instead just support a datastructure for a single list and have the user create a map[KeyType] -> this datastructure.
-// However, then the user would need to deal with concurrency issues when accessing/adding new keys.
+// However, then we would need to deal with concurrency issues when accessing/adding new keys for each such map. Doing this just *once* properly is better.
 
 // precomputedCachePage is the data structure holding the cache for a single given key
 type precomputedCachePage[MapType comparable, ElementType any] struct {
@@ -106,6 +106,8 @@ func (pc *PrecomputedCache[KeyType, ElementType]) PrepopulateCache(key KeyType, 
 
 }
 
+// GetElements returns (a copy of) the first amount many precomputed elements that are stored under the given key.
+// If there are not enough or no elements stored, we extend the cache automatically.
 func (pc *PrecomputedCache[KeyType, ElementType]) GetElements(key KeyType, amount int) (ret []ElementType) {
 	if amount == 0 {
 		return make([]ElementType, 0)
@@ -139,7 +141,7 @@ func (pc *PrecomputedCache[KeyType, ElementType]) GetElements(key KeyType, amoun
 	return page.getElements(amount, pc)
 }
 
-// newCachePage is in internal function used to populate the actual map entries (pointer-to-page) stored inside PrecomputedCache.
+// newCachePage is an internal function used to populate the actual map entries (pointer-to-page) stored inside PrecomputedCache.
 // This is used to make sure all these entries are in a valid state.
 func (pc *PrecomputedCache[KeyType, ElementType]) newCachePage(key KeyType) (ret *precomputedCachePage[KeyType, ElementType]) {
 	ret = new(precomputedCachePage[KeyType, ElementType])
@@ -191,4 +193,10 @@ func (pc *precomputedCachePage[KeyType, ElementType]) getElements(
 	}
 	pc.pageMutex.RUnlock()
 	return
+}
+
+// DefaultCreateRandFromSeed is a default function that can be used as an argument to [MakePrecomputedCache] if the KeyType is int64.
+// Note that this differs from given a nil argument to [MakePrecomputedCache].
+func DefaultCreateRandFromSeed(key int64) *rand.Rand {
+	return rand.New(rand.NewSource(key))
 }

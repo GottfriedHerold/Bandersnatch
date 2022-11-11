@@ -24,12 +24,81 @@ func (z *uint256) ToBigInt() *big.Int {
 	return new(big.Int).SetBytes(big_endian_byte_slice[:])
 }
 
+// ToBigInt converts the given uint512 to a [*big.Int]
+func (z *uint512) ToBigInt() *big.Int {
+	// convert uint256 to big-endian (because big.Int's SetBytes takes a big-endian byte slice)
+	var big_endian_byte_slice [64]byte
+	binary.BigEndian.PutUint64(big_endian_byte_slice[0:8], z[7])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[8:16], z[6])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[16:24], z[5])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[24:32], z[4])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[32:40], z[3])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[40:48], z[2])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[48:56], z[1])
+	binary.BigEndian.PutUint64(big_endian_byte_slice[56:64], z[0])
+
+	// convert to *big.Int
+	return new(big.Int).SetBytes(big_endian_byte_slice[:])
+}
+
+// TODO: Move BigIntToUIntArray into this package.
+// (Currently not done this way because of overlapping use in the exponents package -- this will change)
+
 // BigIntToUInt256 converts a [*big.Int] to a uint256.
 //
 // This function panics if x is not between 0 and 2^256 - 1.
 func BigIntToUInt256(x *big.Int) (result uint256) {
 	return utils.BigIntToUIntArray(x)
 }
+
+func BigIntToUint512(x *big.Int) (result uint512) {
+	if x.Sign() < 0 {
+		panic(ErrorPrefix + "Uint512.FromBigInt: Trying to convert negative big.Int")
+	}
+	if x.BitLen() > 512 {
+		panic(ErrorPrefix + "Uint512.FromBigInt: big int too large to fit into uint512")
+	}
+	var bigEndianByteSlice [64]byte
+	x.FillBytes(bigEndianByteSlice[:])
+	result[0] = binary.BigEndian.Uint64(bigEndianByteSlice[56:64])
+	result[1] = binary.BigEndian.Uint64(bigEndianByteSlice[48:56])
+	result[2] = binary.BigEndian.Uint64(bigEndianByteSlice[40:48])
+	result[3] = binary.BigEndian.Uint64(bigEndianByteSlice[32:40])
+	result[4] = binary.BigEndian.Uint64(bigEndianByteSlice[24:32])
+	result[5] = binary.BigEndian.Uint64(bigEndianByteSlice[16:24])
+	result[6] = binary.BigEndian.Uint64(bigEndianByteSlice[8:16])
+	result[7] = binary.BigEndian.Uint64(bigEndianByteSlice[0:8])
+	return
+}
+
+func (z *uint256) FromBigInt(x *big.Int) {
+	*z = utils.BigIntToUIntArray(x)
+}
+
+func (z *uint512) FromBigInt(x *big.Int) {
+	*z = BigIntToUint512(x)
+}
+
+/*
+// BigIntToUIntArray converts a big.Int to a low-endian [4]uint64 array without Montgomery conversions.
+// We assume 0 <= x < 2^256
+func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
+	// As this is an internal function, panic is OK for error handling.
+	if x.Sign() < 0 {
+		panic(ErrorPrefix + "bigIntToUIntArray: Trying to convert negative big Int")
+	}
+	if x.BitLen() > 256 {
+		panic(ErrorPrefix + "bigIntToUIntArray: big Int too large to fit into 32 bytes.")
+	}
+	var big_endian_byte_slice [32]byte
+	x.FillBytes(big_endian_byte_slice[:])
+	result[0] = binary.BigEndian.Uint64(big_endian_byte_slice[24:32])
+	result[1] = binary.BigEndian.Uint64(big_endian_byte_slice[16:24])
+	result[2] = binary.BigEndian.Uint64(big_endian_byte_slice[8:16])
+	result[3] = binary.BigEndian.Uint64(big_endian_byte_slice[0:8])
+	return
+}
+*/
 
 // Add computes an addition z := x + y.
 // The addition is carried out modulo 2^256

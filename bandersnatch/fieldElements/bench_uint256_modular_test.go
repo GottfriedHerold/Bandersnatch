@@ -25,19 +25,19 @@ func Benchmark_uint256_Modular(b *testing.B) {
 // TODO: Move to different file:
 
 var (
-	pc_uint256_a CachedPRGUint256Key = CachedPRGUint256Key{
+	pc_uint256_a SeedAndRange = SeedAndRange{
 		seed:         1,
 		allowedRange: twoTo256_Int,
 	}
-	pc_uint256_b CachedPRGUint256Key = CachedPRGUint256Key{
+	pc_uint256_b SeedAndRange = SeedAndRange{
 		seed:         1,
 		allowedRange: doubleBaseFieldSize_Int,
 	}
-	pc_uint256_c CachedPRGUint256Key = CachedPRGUint256Key{
+	pc_uint256_c SeedAndRange = SeedAndRange{
 		seed:         1,
 		allowedRange: montgomeryRepBound_Int,
 	}
-	pc_uint256_f CachedPRGUint256Key = CachedPRGUint256Key{
+	pc_uint256_f SeedAndRange = SeedAndRange{
 		seed:         1,
 		allowedRange: BaseFieldSize_Int,
 	}
