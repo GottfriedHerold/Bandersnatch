@@ -23,8 +23,6 @@ func BenchmarkEnsureBuildFlags(b *testing.B) {
 	}
 }
 
-
-
 func BenchmarkDummyRead_64(b *testing.B) {
 	var bench_x_64 []bsFieldElement_64 = GetPrecomputedFieldElements[bsFieldElement_64](1, benchS)
 	prepareBenchmarkFieldElements(b)
