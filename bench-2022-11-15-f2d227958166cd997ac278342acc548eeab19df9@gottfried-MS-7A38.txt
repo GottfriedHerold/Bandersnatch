@@ -1,0 +1,899 @@
+?   	github.com/GottfriedHerold/Bandersnatch/bandersnatch	[no test files]
+?   	github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors	[no test files]
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/common	0.002s
+goos: linux
+goarch: amd64
+pkg: github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints
+cpu: AMD Ryzen 5 1600X Six-Core Processor           
+BenchmarkAllCurveTypes_Neg
+    bench_curveops_test.go:52: INFO: Benchmarking Negation includes a call to Clone()
+BenchmarkAllCurveTypes_Neg/Neg(tf)->tf
+BenchmarkAllCurveTypes_Neg/Neg(tf)->tf-12             	10761556	       115.6 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(tf)->af
+BenchmarkAllCurveTypes_Neg/Neg(tf)->af-12             	  166694	      6680 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(tf)->sf
+BenchmarkAllCurveTypes_Neg/Neg(tf)->sf-12             	 8841660	       133.4 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(ts)->ts
+BenchmarkAllCurveTypes_Neg/Neg(ts)->ts-12             	 9779247	       120.8 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(ts)->as
+BenchmarkAllCurveTypes_Neg/Neg(ts)->as-12             	  167925	      7044 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(ts)->ss
+BenchmarkAllCurveTypes_Neg/Neg(ts)->ss-12             	10040110	       116.5 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(af)->tf
+BenchmarkAllCurveTypes_Neg/Neg(af)->tf-12             	10312399	       112.5 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(af)->af
+BenchmarkAllCurveTypes_Neg/Neg(af)->af-12             	 8383122	       148.2 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(af)->sf
+BenchmarkAllCurveTypes_Neg/Neg(af)->sf-12             	 9509277	       125.1 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(as)->ts
+BenchmarkAllCurveTypes_Neg/Neg(as)->ts-12             	11178394	       108.9 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(as)->as
+BenchmarkAllCurveTypes_Neg/Neg(as)->as-12             	11465598	       108.6 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(as)->ss
+BenchmarkAllCurveTypes_Neg/Neg(as)->ss-12             	10271806	       117.9 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(sf)->tf
+BenchmarkAllCurveTypes_Neg/Neg(sf)->tf-12             	 2330649	       529.5 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(sf)->af
+BenchmarkAllCurveTypes_Neg/Neg(sf)->af-12             	  157791	      7091 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(sf)->sf
+BenchmarkAllCurveTypes_Neg/Neg(sf)->sf-12             	11308275	       103.7 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(ss)->ts
+BenchmarkAllCurveTypes_Neg/Neg(ss)->ts-12             	 2317977	       519.8 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(ss)->as
+BenchmarkAllCurveTypes_Neg/Neg(ss)->as-12             	  158601	      7325 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Neg/Neg(ss)->ss
+BenchmarkAllCurveTypes_Neg/Neg(ss)->ss-12             	11547984	       102.5 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Clone
+BenchmarkAllCurveTypes_Clone/Clone(tf)
+BenchmarkAllCurveTypes_Clone/Clone(tf)-12             	13451214	        89.34 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Clone/Clone(ts)
+BenchmarkAllCurveTypes_Clone/Clone(ts)-12             	15660771	        81.41 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Clone/Clone(af)
+BenchmarkAllCurveTypes_Clone/Clone(af)-12             	14290466	        85.77 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Clone/Clone(as)
+BenchmarkAllCurveTypes_Clone/Clone(as)-12             	16060706	        72.12 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Clone/Clone(sf)
+BenchmarkAllCurveTypes_Clone/Clone(sf)-12             	12288796	        97.07 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Clone/Clone(ss)
+BenchmarkAllCurveTypes_Clone/Clone(ss)-12             	14573676	        81.51 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo
+BenchmarkAllCurveTypes_Endo/Endo(tf)->tf
+BenchmarkAllCurveTypes_Endo/Endo(tf)->tf-12           	  970701	      1147 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(tf)->af
+BenchmarkAllCurveTypes_Endo/Endo(tf)->af-12           	  163024	      7759 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(tf)->sf
+BenchmarkAllCurveTypes_Endo/Endo(tf)->sf-12           	 2755716	       391.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(ts)->ts
+BenchmarkAllCurveTypes_Endo/Endo(ts)->ts-12           	  989895	      1140 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(ts)->as
+BenchmarkAllCurveTypes_Endo/Endo(ts)->as-12           	  143028	      7904 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(ts)->ss
+BenchmarkAllCurveTypes_Endo/Endo(ts)->ss-12           	 2976018	       375.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(af)->tf
+BenchmarkAllCurveTypes_Endo/Endo(af)->tf-12           	 1461900	       847.3 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(af)->af
+BenchmarkAllCurveTypes_Endo/Endo(af)->af-12           	  146202	      7563 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(af)->sf
+BenchmarkAllCurveTypes_Endo/Endo(af)->sf-12           	 4655659	       217.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(as)->ts
+BenchmarkAllCurveTypes_Endo/Endo(as)->ts-12           	 1519010	       812.0 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(as)->as
+BenchmarkAllCurveTypes_Endo/Endo(as)->as-12           	  158052	      7538 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(as)->ss
+BenchmarkAllCurveTypes_Endo/Endo(as)->ss-12           	 5306188	       203.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(sf)->tf
+BenchmarkAllCurveTypes_Endo/Endo(sf)->tf-12           	  779280	      1311 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(sf)->af
+BenchmarkAllCurveTypes_Endo/Endo(sf)->af-12           	  144812	      7861 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(sf)->sf
+BenchmarkAllCurveTypes_Endo/Endo(sf)->sf-12           	 2099134	       540.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(ss)->ts
+BenchmarkAllCurveTypes_Endo/Endo(ss)->ts-12           	 1000000	      1257 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(ss)->as
+BenchmarkAllCurveTypes_Endo/Endo(ss)->as-12           	  143618	      7759 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Endo/Endo(ss)->ss
+BenchmarkAllCurveTypes_Endo/Endo(ss)->ss-12           	 2436948	       472.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_EndoEq
+BenchmarkAllCurveTypes_EndoEq/EndoEq(tf)
+BenchmarkAllCurveTypes_EndoEq/EndoEq(tf)-12           	 1000000	      1117 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_EndoEq/EndoEq(ts)
+BenchmarkAllCurveTypes_EndoEq/EndoEq(ts)-12           	 1000000	      1069 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_EndoEq/EndoEq(af)
+BenchmarkAllCurveTypes_EndoEq/EndoEq(af)-12           	  162352	      7407 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_EndoEq/EndoEq(as)
+BenchmarkAllCurveTypes_EndoEq/EndoEq(as)-12           	  155575	      7196 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_EndoEq/EndoEq(sf)
+BenchmarkAllCurveTypes_EndoEq/EndoEq(sf)-12           	 2406554	       484.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_EndoEq/EndoEq(ss)
+BenchmarkAllCurveTypes_EndoEq/EndoEq(ss)-12           	 2397454	       467.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SetFrom
+    bench_curveops_test.go:117: INFO: Benchmarking Conversion via SetFrom includes a call to Clone()
+BenchmarkAllCurveTypes_SetFrom/SetFrom(tf)->tf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(tf)->tf-12     	13666017	        87.91 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(tf)->af
+BenchmarkAllCurveTypes_SetFrom/SetFrom(tf)->af-12     	  166549	      6631 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(tf)->sf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(tf)->sf-12     	10478065	       112.2 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->tf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->tf-12     	   47463	     26847 ns/op	    1275 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->ts
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->ts-12     	13228399	        87.48 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->af
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->af-12     	   32062	     36181 ns/op	    2221 B/op	     117 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->as
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->as-12     	  166602	      6844 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->sf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->sf-12     	   39058	     27649 ns/op	    1275 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->ss
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ts)->ss-12     	13988671	        85.04 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(af)->tf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(af)->tf-12     	11518192	       100.1 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(af)->af
+BenchmarkAllCurveTypes_SetFrom/SetFrom(af)->af-12     	 9591696	       125.5 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(af)->sf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(af)->sf-12     	11231007	        99.77 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->tf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->tf-12     	   40398	     29399 ns/op	    1250 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->ts
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->ts-12     	14752581	        78.64 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->af
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->af-12     	   49008	     27456 ns/op	    1250 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->as
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->as-12     	15421466	        90.97 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->sf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->sf-12     	   48784	     27206 ns/op	    1250 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->ss
+BenchmarkAllCurveTypes_SetFrom/SetFrom(as)->ss-12     	14130001	        82.21 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(sf)->tf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(sf)->tf-12     	 2444251	       480.0 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(sf)->af
+BenchmarkAllCurveTypes_SetFrom/SetFrom(sf)->af-12     	  161859	      7091 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(sf)->sf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(sf)->sf-12     	13663228	        87.28 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->tf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->tf-12     	   45162	     27337 ns/op	    1281 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->ts
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->ts-12     	 2435431	       503.0 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->af
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->af-12     	   30849	     35381 ns/op	    2225 B/op	     118 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->as
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->as-12     	  153998	      6581 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->sf
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->sf-12     	   46424	     27793 ns/op	    1281 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->ss
+BenchmarkAllCurveTypes_SetFrom/SetFrom(ss)->ss-12     	14336337	        87.07 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted
+    bench_curveops_test.go:129: INFO: Benchmarking Conversion via SetFromSubgroup (untrusted) includes a call to Clone()
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->tf-12         	   26988	     42929 ns/op	    1797 B/op	     142 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->ts-12         	   31654	     40250 ns/op	    1797 B/op	     142 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->af-12         	   26222	     43400 ns/op	    2040 B/op	     147 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->as-12         	   27736	     43754 ns/op	    2040 B/op	     147 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->sf-12         	   37434	     36450 ns/op	    1797 B/op	     142 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(tf,Untrusted)->ss-12         	   26796	     37882 ns/op	    1797 B/op	     142 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->tf-12         	   38740	     27075 ns/op	    1275 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->ts-12         	10555220	       114.4 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->af-12         	   33057	     36690 ns/op	    2221 B/op	     117 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->as-12         	  194702	      6787 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->sf-12         	   38348	     29042 ns/op	    1275 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ts,Untrusted)->ss-12         	11161726	       106.8 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->tf-12         	   26725	     40419 ns/op	    1873 B/op	     152 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->ts-12         	   23356	     43259 ns/op	    1873 B/op	     151 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->af-12         	   23578	     43875 ns/op	    1872 B/op	     151 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->as-12         	   29104	     42054 ns/op	    1873 B/op	     152 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->sf-12         	   32250	     41476 ns/op	    1872 B/op	     151 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(af,Untrusted)->ss-12         	   28908	     41764 ns/op	    1873 B/op	     152 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->tf-12         	   40030	     27327 ns/op	    1250 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->ts-12         	12021501	        99.99 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->af-12         	   47090	     28106 ns/op	    1250 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->as-12         	10478263	       114.1 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->sf-12         	   40611	     28770 ns/op	    1250 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(as,Untrusted)->ss-12         	12035346	       105.0 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->tf-12         	   30201	     40296 ns/op	    1870 B/op	     149 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->ts-12         	   28020	     42022 ns/op	    1869 B/op	     149 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->af-12         	   25808	     46239 ns/op	    2094 B/op	     153 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->as-12         	   27232	     47510 ns/op	    2094 B/op	     153 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->sf-12         	   28884	     42867 ns/op	    1869 B/op	     149 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(sf,Untrusted)->ss-12         	   27510	     39216 ns/op	    1870 B/op	     149 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->tf-12         	   44943	     29871 ns/op	    1281 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->ts-12         	 2252701	       515.9 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->af-12         	   32246	     40054 ns/op	    2225 B/op	     118 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->as-12         	  164524	      7113 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->sf-12         	   43825	     28267 ns/op	    1281 B/op	      99 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupUntrusted/SetFromSubgroup(ss,Untrusted)->ss-12         	 9419374	       127.6 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted
+    bench_curveops_test.go:141: INFO: Benchmarking Conversion via SetFromSubgroup (trusted) includes a call to Clone()
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->tf-12             	11378335	       105.1 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->ts-12             	10665123	       112.3 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->af-12             	  169893	      6666 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->as-12             	  169387	      6845 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->sf-12             	 9565432	       122.7 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(tf,Trusted)->ss-12             	11134988	       105.0 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->tf-12             	   38577	     26240 ns/op	    1289 B/op	     100 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->ts-12             	10863979	       107.5 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->af-12             	   36645	     38810 ns/op	    2219 B/op	     117 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->as-12             	  172173	      6846 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->sf-12             	   39038	     30936 ns/op	    1289 B/op	     100 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ts,Trusted)->ss-12             	11452702	       107.3 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->tf-12             	10697810	       111.5 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->ts-12             	11766398	        99.39 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->af-12             	 8699356	       137.0 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->as-12             	12232150	        95.82 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->sf-12             	10122356	       116.6 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(af,Trusted)->ss-12             	12031710	       100.8 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->tf-12             	   46213	     27483 ns/op	    1241 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->ts-12             	12358191	       102.2 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->af-12             	   42922	     27405 ns/op	    1241 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->as-12             	 9858226	       117.0 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->sf-12             	   39849	     28028 ns/op	    1241 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(as,Trusted)->ss-12             	11186857	       105.1 ns/op	      96 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->tf-12             	 2334619	       504.1 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->ts-12             	 2306989	       529.4 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->af-12             	  163546	      6995 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->as-12             	  162637	      7053 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->sf-12             	10137615	       119.4 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(sf,Trusted)->ss-12             	 9889933	       121.3 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->tf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->tf-12             	   38302	     28171 ns/op	    1279 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->ts
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->ts-12             	 2238523	       517.8 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->af
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->af-12             	   30351	     39804 ns/op	    2224 B/op	     117 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->as
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->as-12             	  161131	      7253 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->sf
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->sf-12             	   40012	     28982 ns/op	    1279 B/op	      98 allocs/op
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->ss
+BenchmarkAllCurveTypes_SetFromSubgroupTrusted/SetFromSubgroup(ss,Trusted)->ss-12             	 9965463	       119.2 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Double
+BenchmarkAllCurveTypes_Double/Double(tf)->tf
+BenchmarkAllCurveTypes_Double/Double(tf)->tf-12                                              	 2146728	       525.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(tf)->ts
+BenchmarkAllCurveTypes_Double/Double(tf)->ts-12                                              	 2185584	       537.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(tf)->af
+BenchmarkAllCurveTypes_Double/Double(tf)->af-12                                              	  151621	      7656 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(tf)->as
+BenchmarkAllCurveTypes_Double/Double(tf)->as-12                                              	  157777	      7711 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(tf)->sf
+BenchmarkAllCurveTypes_Double/Double(tf)->sf-12                                              	 3775344	       294.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(tf)->ss
+BenchmarkAllCurveTypes_Double/Double(tf)->ss-12                                              	 3588636	       303.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ts)->tf
+BenchmarkAllCurveTypes_Double/Double(ts)->tf-12                                              	 2158390	       538.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ts)->ts
+BenchmarkAllCurveTypes_Double/Double(ts)->ts-12                                              	 2131834	       538.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ts)->af
+BenchmarkAllCurveTypes_Double/Double(ts)->af-12                                              	  202831	      7651 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ts)->as
+BenchmarkAllCurveTypes_Double/Double(ts)->as-12                                              	  153998	      7676 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ts)->sf
+BenchmarkAllCurveTypes_Double/Double(ts)->sf-12                                              	 3642230	       304.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ts)->ss
+BenchmarkAllCurveTypes_Double/Double(ts)->ss-12                                              	 4077106	       301.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(af)->tf
+BenchmarkAllCurveTypes_Double/Double(af)->tf-12                                              	 2735084	       399.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(af)->ts
+BenchmarkAllCurveTypes_Double/Double(af)->ts-12                                              	 2784750	       408.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(af)->af
+BenchmarkAllCurveTypes_Double/Double(af)->af-12                                              	  191324	      7178 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(af)->as
+BenchmarkAllCurveTypes_Double/Double(af)->as-12                                              	  159642	      7248 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(af)->sf
+BenchmarkAllCurveTypes_Double/Double(af)->sf-12                                              	 5923078	       176.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(af)->ss
+BenchmarkAllCurveTypes_Double/Double(af)->ss-12                                              	 6922470	       172.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(as)->tf
+BenchmarkAllCurveTypes_Double/Double(as)->tf-12                                              	 2759204	       408.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(as)->ts
+BenchmarkAllCurveTypes_Double/Double(as)->ts-12                                              	 2866796	       407.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(as)->af
+BenchmarkAllCurveTypes_Double/Double(as)->af-12                                              	  173356	      7486 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(as)->as
+BenchmarkAllCurveTypes_Double/Double(as)->as-12                                              	  159494	      7081 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(as)->sf
+BenchmarkAllCurveTypes_Double/Double(as)->sf-12                                              	 7148446	       167.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(as)->ss
+BenchmarkAllCurveTypes_Double/Double(as)->ss-12                                              	 7103414	       167.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(sf)->tf
+BenchmarkAllCurveTypes_Double/Double(sf)->tf-12                                              	 1677194	       706.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(sf)->ts
+BenchmarkAllCurveTypes_Double/Double(sf)->ts-12                                              	 1673696	       714.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(sf)->af
+BenchmarkAllCurveTypes_Double/Double(sf)->af-12                                              	  150565	      7958 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(sf)->as
+BenchmarkAllCurveTypes_Double/Double(sf)->as-12                                              	  149100	      7904 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(sf)->sf
+BenchmarkAllCurveTypes_Double/Double(sf)->sf-12                                              	 2606324	       470.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(sf)->ss
+BenchmarkAllCurveTypes_Double/Double(sf)->ss-12                                              	 2486523	       451.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ss)->tf
+BenchmarkAllCurveTypes_Double/Double(ss)->tf-12                                              	 1637664	       710.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ss)->ts
+BenchmarkAllCurveTypes_Double/Double(ss)->ts-12                                              	 1611108	       726.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ss)->af
+BenchmarkAllCurveTypes_Double/Double(ss)->af-12                                              	  141873	      8010 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ss)->as
+BenchmarkAllCurveTypes_Double/Double(ss)->as-12                                              	  149056	      7947 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ss)->sf
+BenchmarkAllCurveTypes_Double/Double(ss)->sf-12                                              	 2497882	       473.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Double/Double(ss)->ss
+BenchmarkAllCurveTypes_Double/Double(ss)->ss-12                                              	 2406121	       460.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_DoubleEq
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(tf)
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(tf)-12                                              	 2179351	       534.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(ts)
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(ts)-12                                              	 2179960	       537.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(af)
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(af)-12                                              	  163497	      7376 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(as)
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(as)-12                                              	  167748	      7606 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(sf)
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(sf)-12                                              	 2469073	       453.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(ss)
+BenchmarkAllCurveTypes_DoubleEq/DoubleEq(ss)-12                                              	 2485533	       459.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add
+BenchmarkAllCurveTypes_Add/Add(tf,tf)->tf
+BenchmarkAllCurveTypes_Add/Add(tf,tf)->tf-12                                                 	  912182	      1220 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,tf)->af
+BenchmarkAllCurveTypes_Add/Add(tf,tf)->af-12                                                 	  147985	      7739 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,tf)->sf
+BenchmarkAllCurveTypes_Add/Add(tf,tf)->sf-12                                                 	 2589992	       436.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,tf)->tf
+BenchmarkAllCurveTypes_Add/Add(af,tf)->tf-12                                                 	  817512	      1239 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,tf)->af
+BenchmarkAllCurveTypes_Add/Add(af,tf)->af-12                                                 	  150246	      7777 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,tf)->sf
+BenchmarkAllCurveTypes_Add/Add(af,tf)->sf-12                                                 	 2546342	       429.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,tf)->tf
+BenchmarkAllCurveTypes_Add/Add(sf,tf)->tf-12                                                 	  716931	      1590 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,tf)->af
+BenchmarkAllCurveTypes_Add/Add(sf,tf)->af-12                                                 	  142633	      8175 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,tf)->sf
+BenchmarkAllCurveTypes_Add/Add(sf,tf)->sf-12                                                 	 1765843	       668.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,ts)->ts
+BenchmarkAllCurveTypes_Add/Add(ts,ts)->ts-12                                                 	  983245	      1116 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,ts)->as
+BenchmarkAllCurveTypes_Add/Add(ts,ts)->as-12                                                 	  168211	      7595 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,ts)->ss
+BenchmarkAllCurveTypes_Add/Add(ts,ts)->ss-12                                                 	 2667450	       428.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,ts)->ts
+BenchmarkAllCurveTypes_Add/Add(as,ts)->ts-12                                                 	 1000000	      1070 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,ts)->as
+BenchmarkAllCurveTypes_Add/Add(as,ts)->as-12                                                 	  150890	      7766 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,ts)->ss
+BenchmarkAllCurveTypes_Add/Add(as,ts)->ss-12                                                 	 3009646	       367.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,ts)->ts
+BenchmarkAllCurveTypes_Add/Add(ss,ts)->ts-12                                                 	  729618	      1583 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,ts)->as
+BenchmarkAllCurveTypes_Add/Add(ss,ts)->as-12                                                 	  141402	      8325 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,ts)->ss
+BenchmarkAllCurveTypes_Add/Add(ss,ts)->ss-12                                                 	 1724916	       676.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,af)->tf
+BenchmarkAllCurveTypes_Add/Add(tf,af)->tf-12                                                 	  907105	      1218 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,af)->af
+BenchmarkAllCurveTypes_Add/Add(tf,af)->af-12                                                 	  210127	      7619 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,af)->sf
+BenchmarkAllCurveTypes_Add/Add(tf,af)->sf-12                                                 	 2598190	       430.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,af)->tf
+BenchmarkAllCurveTypes_Add/Add(af,af)->tf-12                                                 	  942501	      1143 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,af)->af
+BenchmarkAllCurveTypes_Add/Add(af,af)->af-12                                                 	  159478	      7594 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,af)->sf
+BenchmarkAllCurveTypes_Add/Add(af,af)->sf-12                                                 	 2633259	       432.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,af)->tf
+BenchmarkAllCurveTypes_Add/Add(sf,af)->tf-12                                                 	  617790	      1643 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,af)->af
+BenchmarkAllCurveTypes_Add/Add(sf,af)->af-12                                                 	  142935	      8361 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,af)->sf
+BenchmarkAllCurveTypes_Add/Add(sf,af)->sf-12                                                 	 1700494	       671.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,as)->ts
+BenchmarkAllCurveTypes_Add/Add(ts,as)->ts-12                                                 	 1000000	      1017 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,as)->as
+BenchmarkAllCurveTypes_Add/Add(ts,as)->as-12                                                 	  149918	      7584 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,as)->ss
+BenchmarkAllCurveTypes_Add/Add(ts,as)->ss-12                                                 	 3036944	       368.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,as)->ts
+BenchmarkAllCurveTypes_Add/Add(as,as)->ts-12                                                 	 1000000	      1088 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,as)->as
+BenchmarkAllCurveTypes_Add/Add(as,as)->as-12                                                 	  152670	      7679 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,as)->ss
+BenchmarkAllCurveTypes_Add/Add(as,as)->ss-12                                                 	 3162693	       361.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,as)->ts
+BenchmarkAllCurveTypes_Add/Add(ss,as)->ts-12                                                 	  773859	      1418 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,as)->as
+BenchmarkAllCurveTypes_Add/Add(ss,as)->as-12                                                 	  143170	      8155 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,as)->ss
+BenchmarkAllCurveTypes_Add/Add(ss,as)->ss-12                                                 	 1904654	       612.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,sf)->tf
+BenchmarkAllCurveTypes_Add/Add(tf,sf)->tf-12                                                 	  709551	      1626 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,sf)->af
+BenchmarkAllCurveTypes_Add/Add(tf,sf)->af-12                                                 	  143305	      8195 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(tf,sf)->sf
+BenchmarkAllCurveTypes_Add/Add(tf,sf)->sf-12                                                 	 1775292	       663.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,sf)->tf
+BenchmarkAllCurveTypes_Add/Add(af,sf)->tf-12                                                 	 1000000	      1592 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,sf)->af
+BenchmarkAllCurveTypes_Add/Add(af,sf)->af-12                                                 	  138375	      8147 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(af,sf)->sf
+BenchmarkAllCurveTypes_Add/Add(af,sf)->sf-12                                                 	 1768939	       643.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,sf)->tf
+BenchmarkAllCurveTypes_Add/Add(sf,sf)->tf-12                                                 	  976346	      1830 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,sf)->af
+BenchmarkAllCurveTypes_Add/Add(sf,sf)->af-12                                                 	  146344	      8671 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(sf,sf)->sf
+BenchmarkAllCurveTypes_Add/Add(sf,sf)->sf-12                                                 	 1304709	       908.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,ss)->ts
+BenchmarkAllCurveTypes_Add/Add(ts,ss)->ts-12                                                 	  709317	      1606 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,ss)->as
+BenchmarkAllCurveTypes_Add/Add(ts,ss)->as-12                                                 	  142408	      8235 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ts,ss)->ss
+BenchmarkAllCurveTypes_Add/Add(ts,ss)->ss-12                                                 	 1760998	       650.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,ss)->ts
+BenchmarkAllCurveTypes_Add/Add(as,ss)->ts-12                                                 	  777326	      1523 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,ss)->as
+BenchmarkAllCurveTypes_Add/Add(as,ss)->as-12                                                 	  144278	      8164 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(as,ss)->ss
+BenchmarkAllCurveTypes_Add/Add(as,ss)->ss-12                                                 	 1916438	       626.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,ss)->ts
+BenchmarkAllCurveTypes_Add/Add(ss,ss)->ts-12                                                 	  691771	      1783 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,ss)->as
+BenchmarkAllCurveTypes_Add/Add(ss,ss)->as-12                                                 	  149468	      8434 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Add/Add(ss,ss)->ss
+BenchmarkAllCurveTypes_Add/Add(ss,ss)->ss-12                                                 	 1235431	       908.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_AddEq
+BenchmarkAllCurveTypes_AddEq/AddEq(tf,tf)->tf
+BenchmarkAllCurveTypes_AddEq/AddEq(tf,tf)->tf-12                                             	  943116	      1175 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(af,tf)->af
+BenchmarkAllCurveTypes_AddEq/AddEq(af,tf)->af-12                                             	  146572	      7800 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(sf,tf)->sf
+BenchmarkAllCurveTypes_AddEq/AddEq(sf,tf)->sf-12                                             	 1748791	       670.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(ts,ts)->ts
+BenchmarkAllCurveTypes_AddEq/AddEq(ts,ts)->ts-12                                             	  958790	      1177 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(as,ts)->as
+BenchmarkAllCurveTypes_AddEq/AddEq(as,ts)->as-12                                             	  151981	      7713 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(ss,ts)->ss
+BenchmarkAllCurveTypes_AddEq/AddEq(ss,ts)->ss-12                                             	 1717371	       693.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(tf,af)->tf
+BenchmarkAllCurveTypes_AddEq/AddEq(tf,af)->tf-12                                             	 1023138	      1231 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(af,af)->af
+BenchmarkAllCurveTypes_AddEq/AddEq(af,af)->af-12                                             	  147004	      8017 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(sf,af)->sf
+BenchmarkAllCurveTypes_AddEq/AddEq(sf,af)->sf-12                                             	 1761254	       657.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(ts,as)->ts
+BenchmarkAllCurveTypes_AddEq/AddEq(ts,as)->ts-12                                             	 1120464	      1070 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(as,as)->as
+BenchmarkAllCurveTypes_AddEq/AddEq(as,as)->as-12                                             	  142372	      7738 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(ss,as)->ss
+BenchmarkAllCurveTypes_AddEq/AddEq(ss,as)->ss-12                                             	 1956165	       626.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(tf,sf)->tf
+BenchmarkAllCurveTypes_AddEq/AddEq(tf,sf)->tf-12                                             	  799522	      1594 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(af,sf)->af
+BenchmarkAllCurveTypes_AddEq/AddEq(af,sf)->af-12                                             	  143574	      8302 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(sf,sf)->sf
+BenchmarkAllCurveTypes_AddEq/AddEq(sf,sf)->sf-12                                             	 1306530	       909.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(ts,ss)->ts
+BenchmarkAllCurveTypes_AddEq/AddEq(ts,ss)->ts-12                                             	  786700	      1496 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(as,ss)->as
+BenchmarkAllCurveTypes_AddEq/AddEq(as,ss)->as-12                                             	  143756	      8096 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_AddEq/AddEq(ss,ss)->ss
+BenchmarkAllCurveTypes_AddEq/AddEq(ss,ss)->ss-12                                             	 1298216	       909.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub
+BenchmarkAllCurveTypes_Sub/Sub(tf,tf)->tf
+BenchmarkAllCurveTypes_Sub/Sub(tf,tf)->tf-12                                                 	  939164	      1268 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,tf)->af
+BenchmarkAllCurveTypes_Sub/Sub(tf,tf)->af-12                                                 	  149161	      7944 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,tf)->sf
+BenchmarkAllCurveTypes_Sub/Sub(tf,tf)->sf-12                                                 	 2492461	       467.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,tf)->tf
+BenchmarkAllCurveTypes_Sub/Sub(af,tf)->tf-12                                                 	 1000000	      1147 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,tf)->af
+BenchmarkAllCurveTypes_Sub/Sub(af,tf)->af-12                                                 	  147843	      7977 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,tf)->sf
+BenchmarkAllCurveTypes_Sub/Sub(af,tf)->sf-12                                                 	 2626753	       462.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,tf)->tf
+BenchmarkAllCurveTypes_Sub/Sub(sf,tf)->tf-12                                                 	  705950	      1580 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,tf)->af
+BenchmarkAllCurveTypes_Sub/Sub(sf,tf)->af-12                                                 	  139003	      8356 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,tf)->sf
+BenchmarkAllCurveTypes_Sub/Sub(sf,tf)->sf-12                                                 	 1710334	       687.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,ts)->ts
+BenchmarkAllCurveTypes_Sub/Sub(ts,ts)->ts-12                                                 	 1000000	      1218 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,ts)->as
+BenchmarkAllCurveTypes_Sub/Sub(ts,ts)->as-12                                                 	  149412	      7619 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,ts)->ss
+BenchmarkAllCurveTypes_Sub/Sub(ts,ts)->ss-12                                                 	 2782384	       432.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,ts)->ts
+BenchmarkAllCurveTypes_Sub/Sub(as,ts)->ts-12                                                 	 1000000	      1108 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,ts)->as
+BenchmarkAllCurveTypes_Sub/Sub(as,ts)->as-12                                                 	  165038	      7550 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,ts)->ss
+BenchmarkAllCurveTypes_Sub/Sub(as,ts)->ss-12                                                 	 3192301	       372.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,ts)->ts
+BenchmarkAllCurveTypes_Sub/Sub(ss,ts)->ts-12                                                 	  711164	      1628 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,ts)->as
+BenchmarkAllCurveTypes_Sub/Sub(ss,ts)->as-12                                                 	  139484	      8317 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,ts)->ss
+BenchmarkAllCurveTypes_Sub/Sub(ss,ts)->ss-12                                                 	 1747245	       653.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,af)->tf
+BenchmarkAllCurveTypes_Sub/Sub(tf,af)->tf-12                                                 	  930012	      1241 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,af)->af
+BenchmarkAllCurveTypes_Sub/Sub(tf,af)->af-12                                                 	  164448	      7692 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,af)->sf
+BenchmarkAllCurveTypes_Sub/Sub(tf,af)->sf-12                                                 	 2523865	       458.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,af)->tf
+BenchmarkAllCurveTypes_Sub/Sub(af,af)->tf-12                                                 	  820928	      1234 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,af)->af
+BenchmarkAllCurveTypes_Sub/Sub(af,af)->af-12                                                 	  150120	      7969 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,af)->sf
+BenchmarkAllCurveTypes_Sub/Sub(af,af)->sf-12                                                 	 2554334	       452.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,af)->tf
+BenchmarkAllCurveTypes_Sub/Sub(sf,af)->tf-12                                                 	  672774	      1616 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,af)->af
+BenchmarkAllCurveTypes_Sub/Sub(sf,af)->af-12                                                 	  143248	      8257 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,af)->sf
+BenchmarkAllCurveTypes_Sub/Sub(sf,af)->sf-12                                                 	 1721338	       658.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,as)->ts
+BenchmarkAllCurveTypes_Sub/Sub(ts,as)->ts-12                                                 	 1000000	      1077 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,as)->as
+BenchmarkAllCurveTypes_Sub/Sub(ts,as)->as-12                                                 	  150385	      7734 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,as)->ss
+BenchmarkAllCurveTypes_Sub/Sub(ts,as)->ss-12                                                 	 3122157	       377.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,as)->ts
+BenchmarkAllCurveTypes_Sub/Sub(as,as)->ts-12                                                 	 1000000	      1103 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,as)->as
+BenchmarkAllCurveTypes_Sub/Sub(as,as)->as-12                                                 	  148136	      7528 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,as)->ss
+BenchmarkAllCurveTypes_Sub/Sub(as,as)->ss-12                                                 	 3053217	       365.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,as)->ts
+BenchmarkAllCurveTypes_Sub/Sub(ss,as)->ts-12                                                 	 1000000	      1518 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,as)->as
+BenchmarkAllCurveTypes_Sub/Sub(ss,as)->as-12                                                 	  176319	      7727 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,as)->ss
+BenchmarkAllCurveTypes_Sub/Sub(ss,as)->ss-12                                                 	 1965102	       618.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,sf)->tf
+BenchmarkAllCurveTypes_Sub/Sub(tf,sf)->tf-12                                                 	  911446	      1519 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,sf)->af
+BenchmarkAllCurveTypes_Sub/Sub(tf,sf)->af-12                                                 	  139794	      8347 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(tf,sf)->sf
+BenchmarkAllCurveTypes_Sub/Sub(tf,sf)->sf-12                                                 	 1730618	       693.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,sf)->tf
+BenchmarkAllCurveTypes_Sub/Sub(af,sf)->tf-12                                                 	 1000000	      1529 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,sf)->af
+BenchmarkAllCurveTypes_Sub/Sub(af,sf)->af-12                                                 	  161922	      8254 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(af,sf)->sf
+BenchmarkAllCurveTypes_Sub/Sub(af,sf)->sf-12                                                 	 1702826	       691.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,sf)->tf
+BenchmarkAllCurveTypes_Sub/Sub(sf,sf)->tf-12                                                 	  583195	      1945 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,sf)->af
+BenchmarkAllCurveTypes_Sub/Sub(sf,sf)->af-12                                                 	  136064	      8564 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(sf,sf)->sf
+BenchmarkAllCurveTypes_Sub/Sub(sf,sf)->sf-12                                                 	 1252215	       919.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,ss)->ts
+BenchmarkAllCurveTypes_Sub/Sub(ts,ss)->ts-12                                                 	  890347	      1554 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,ss)->as
+BenchmarkAllCurveTypes_Sub/Sub(ts,ss)->as-12                                                 	  141986	      8017 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ts,ss)->ss
+BenchmarkAllCurveTypes_Sub/Sub(ts,ss)->ss-12                                                 	 1695344	       671.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,ss)->ts
+BenchmarkAllCurveTypes_Sub/Sub(as,ss)->ts-12                                                 	  798302	      1595 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,ss)->as
+BenchmarkAllCurveTypes_Sub/Sub(as,ss)->as-12                                                 	  140132	      8140 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(as,ss)->ss
+BenchmarkAllCurveTypes_Sub/Sub(as,ss)->ss-12                                                 	 1711856	       637.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,ss)->ts
+BenchmarkAllCurveTypes_Sub/Sub(ss,ss)->ts-12                                                 	  579289	      1840 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,ss)->as
+BenchmarkAllCurveTypes_Sub/Sub(ss,ss)->as-12                                                 	  163368	      8335 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_Sub/Sub(ss,ss)->ss
+BenchmarkAllCurveTypes_Sub/Sub(ss,ss)->ss-12                                                 	 1326255	       915.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SubEq
+BenchmarkAllCurveTypes_SubEq/SubEq(tf,tf)->tf
+BenchmarkAllCurveTypes_SubEq/SubEq(tf,tf)->tf-12                                             	  944995	      1248 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(af,tf)->af
+BenchmarkAllCurveTypes_SubEq/SubEq(af,tf)->af-12                                             	  149035	      7480 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(sf,tf)->sf
+BenchmarkAllCurveTypes_SubEq/SubEq(sf,tf)->sf-12                                             	 1702208	       687.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(ts,ts)->ts
+BenchmarkAllCurveTypes_SubEq/SubEq(ts,ts)->ts-12                                             	 1051423	      1212 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(as,ts)->as
+BenchmarkAllCurveTypes_SubEq/SubEq(as,ts)->as-12                                             	  170845	      7639 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(ss,ts)->ss
+BenchmarkAllCurveTypes_SubEq/SubEq(ss,ts)->ss-12                                             	 1817786	       677.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(tf,af)->tf
+BenchmarkAllCurveTypes_SubEq/SubEq(tf,af)->tf-12                                             	  915968	      1118 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(af,af)->af
+BenchmarkAllCurveTypes_SubEq/SubEq(af,af)->af-12                                             	  177649	      7476 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(sf,af)->sf
+BenchmarkAllCurveTypes_SubEq/SubEq(sf,af)->sf-12                                             	 1733901	       662.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(ts,as)->ts
+BenchmarkAllCurveTypes_SubEq/SubEq(ts,as)->ts-12                                             	 1000000	      1127 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(as,as)->as
+BenchmarkAllCurveTypes_SubEq/SubEq(as,as)->as-12                                             	  151406	      7758 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(ss,as)->ss
+BenchmarkAllCurveTypes_SubEq/SubEq(ss,as)->ss-12                                             	 1923082	       625.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(tf,sf)->tf
+BenchmarkAllCurveTypes_SubEq/SubEq(tf,sf)->tf-12                                             	 1000000	      1585 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(af,sf)->af
+BenchmarkAllCurveTypes_SubEq/SubEq(af,sf)->af-12                                             	  140709	      8335 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(sf,sf)->sf
+BenchmarkAllCurveTypes_SubEq/SubEq(sf,sf)->sf-12                                             	 1268474	       895.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(ts,ss)->ts
+BenchmarkAllCurveTypes_SubEq/SubEq(ts,ss)->ts-12                                             	  671432	      1560 ns/op	     128 B/op	       1 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(as,ss)->as
+BenchmarkAllCurveTypes_SubEq/SubEq(as,ss)->as-12                                             	  143787	      8202 ns/op	    1072 B/op	      20 allocs/op
+BenchmarkAllCurveTypes_SubEq/SubEq(ss,ss)->ss
+BenchmarkAllCurveTypes_SubEq/SubEq(ss,ss)->ss-12                                             	 1317217	       903.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess
+BenchmarkCurvePointSliceAccess/direct_access
+BenchmarkCurvePointSliceAccess/direct_access-12                                              	368481254	         2.994 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess/SetFrom
+BenchmarkCurvePointSliceAccess/SetFrom-12                                                    	223292422	         5.137 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess/SetFrom_via_PointSliceReader_interface
+BenchmarkCurvePointSliceAccess/SetFrom_via_PointSliceReader_interface-12                     	100871773	        11.43 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice-12                              	89125525	        12.76 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice_with_type_assertion
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice_with_type_assertion-12          	182405523	         6.877 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice_with_typed_getter
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice_with_typed_getter-12            	210863914	         5.400 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice_(concrete_type_erased)
+BenchmarkCurvePointSliceAccess/SetFrom_via_AsCurvePointSlice_(concrete_type_erased)-12       	88420771	        13.39 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints	499.430s
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData	0.003s
+goos: linux
+goarch: amd64
+pkg: github.com/GottfriedHerold/Bandersnatch/bandersnatch/exponents
+cpu: AMD Ryzen 5 1600X Six-Core Processor           
+BenchmarkGLVDecomposition
+BenchmarkGLVDecomposition-12    	  268833	      4204 ns/op	    1248 B/op	      21 allocs/op
+BenchmarkBitDecomposition
+BenchmarkBitDecomposition-12    	 1213494	       886.5 ns/op	     896 B/op	       1 allocs/op
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/exponents	3.774s
+goos: linux
+goarch: amd64
+pkg: github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements
+cpu: AMD Ryzen 5 1600X Six-Core Processor           
+Benchmark_uint256_Modular
+Benchmark_uint256_Modular/Add_b_(conditional_subtraction)
+Benchmark_uint256_Modular/Add_b_(conditional_subtraction)-12         	220737793	         5.279 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Add_c_(conditional_subtraction)
+Benchmark_uint256_Modular/Add_c_(conditional_subtraction)-12         	185209402	         6.420 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/AddEq_a_(Luan's_reduce_and_check)
+Benchmark_uint256_Modular/AddEq_a_(Luan's_reduce_and_check)-12       	146124028	         7.902 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Sub_c_(conditional_subtraction)
+Benchmark_uint256_Modular/Sub_c_(conditional_subtraction)-12         	314962436	         3.591 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Sub_b_(pre-conditional_subtraction)
+Benchmark_uint256_Modular/Sub_b_(pre-conditional_subtraction)-12     	313643252	         3.528 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/SubEq_a_(Luan's_reduce_and_check)
+Benchmark_uint256_Modular/SubEq_a_(Luan's_reduce_and_check)-12       	143811030	         7.921 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Invert_a_(HAC_version_with_standard_improvement)
+Benchmark_uint256_Modular/Invert_a_(HAC_version_with_standard_improvement)-12         	  253191	      4722 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Reduce_ca_(conditional_subtraction)
+Benchmark_uint256_Modular/Reduce_ca_(conditional_subtraction)-12                      	192905556	         6.055 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Reduce_fb_(conditional_subtraction)
+Benchmark_uint256_Modular/Reduce_fb_(conditional_subtraction)-12                      	132318084	         9.128 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/IsFullyReduced_a_(if-chain)
+Benchmark_uint256_Modular/IsFullyReduced_a_(if-chain)-12                              	231133261	         5.043 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Barret512->256_a
+Benchmark_uint256_Modular/Barret512->256_a-12                                         	27642199	        44.67 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/BarretReduce_fa
+Benchmark_uint256_Modular/BarretReduce_fa-12                                          	117152764	        10.40 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/ComputeNeg_a_(Reduce_and_check)
+Benchmark_uint256_Modular/ComputeNeg_a_(Reduce_and_check)-12                          	108553812	        10.46 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/DoubleEq_a_(Reduce_and_check)
+Benchmark_uint256_Modular/DoubleEq_a_(Reduce_and_check)-12                            	118427048	         9.588 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/MulEq_a_(Barret)
+Benchmark_uint256_Modular/MulEq_a_(Barret)-12                                         	18568251	        61.81 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Mul_a_(Barret)
+Benchmark_uint256_Modular/Mul_a_(Barret)-12                                           	19066063	        60.00 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/SquareEq_a_(Barret)
+Benchmark_uint256_Modular/SquareEq_a_(Barret)-12                                      	20607763	        57.51 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256_Modular/Square_a_(Barret)
+Benchmark_uint256_Modular/Square_a_(Barret)-12                                        	21114594	        55.72 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256
+Benchmark_uint256/LongMul256->512
+Benchmark_uint256/LongMul256->512-12                                                  	81400533	        14.70 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256/LongSquare256->512
+Benchmark_uint256/LongSquare256->512-12                                               	100000000	        11.42 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256/Add256_(no_modular_reduction)
+Benchmark_uint256/Add256_(no_modular_reduction)-12                                    	620419267	         1.981 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256/Add256C_(no_modular_reduction,_retain_carry
+Benchmark_uint256/Add256C_(no_modular_reduction,_retain_carry-12                      	532647888	         1.970 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256/Sub256_(no_modular_reduction)
+Benchmark_uint256/Sub256_(no_modular_reduction)-12                                    	518187770	         1.966 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256/Sub256B_(no_modular_reduction,_retain_borrow
+Benchmark_uint256/Sub256B_(no_modular_reduction,_retain_borrow-12                     	633841320	         2.000 ns/op	       0 B/op	       0 allocs/op
+Benchmark_uint256/IsZero_(test_for_exactly_0,_no_reduction)
+Benchmark_uint256/IsZero_(test_for_exactly_0,_no_reduction)-12                        	871228364	         1.364 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEnsureBuildFlags
+--- SKIP: BenchmarkEnsureBuildFlags
+BenchmarkDummyRead_64
+BenchmarkDummyRead_64-12                                                              	1000000000	         0.5494 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDummyReadStore_64
+BenchmarkDummyReadStore_64-12                                                         	1000000000	         1.119 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdd_64
+BenchmarkAdd_64-12                                                                    	170332610	         6.901 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAddEq_64
+BenchmarkAddEq_64-12                                                                  	127539147	         9.037 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSub_64
+BenchmarkSub_64-12                                                                    	153637694	         7.695 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSubEq_64
+BenchmarkSubEq_64-12                                                                  	143559032	         8.077 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMul_64
+BenchmarkMul_64-12                                                                    	21151556	        54.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMulEq_64
+BenchmarkMulEq_64-12                                                                  	22395350	        55.52 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMultiplyByFive_64
+BenchmarkMultiplyByFive_64-12                                                         	89206290	        13.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMultiplyByFiveNaive_64
+BenchmarkMultiplyByFiveNaive_64-12                                                    	54069193	        22.09 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquare_64
+BenchmarkSquare_64-12                                                                 	21944588	        55.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSquareEq_64
+BenchmarkSquareEq_64-12                                                               	20744019	        55.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkInv_64
+BenchmarkInv_64-12                                                                    	  244875	      5891 ns/op	     944 B/op	      19 allocs/op
+BenchmarkInvEq_64
+BenchmarkInvEq_64-12                                                                  	  194493	      5940 ns/op	     944 B/op	      19 allocs/op
+BenchmarkDivide_64
+BenchmarkDivide_64-12                                                                 	  190172	      6104 ns/op	     944 B/op	      19 allocs/op
+BenchmarkDivideEq_64
+BenchmarkDivideEq_64-12                                                               	  192084	      6117 ns/op	     944 B/op	      19 allocs/op
+BenchmarkIsEqual_64
+BenchmarkIsEqual_64-12                                                                	171822216	         6.883 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNeg_64
+BenchmarkNeg_64-12                                                                    	343882089	         3.254 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNegEq_64
+BenchmarkNegEq_64-12                                                                  	276979354	         4.139 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSign_64
+BenchmarkSign_64-12                                                                   	22516126	        51.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkJacobi_64
+BenchmarkJacobi_64-12                                                                 	   39930	     27359 ns/op	    1153 B/op	      98 allocs/op
+BenchmarkSquareRoot_64
+BenchmarkSquareRoot_64-12                                                             	    3566	    403675 ns/op	   62237 B/op	     811 allocs/op
+BenchmarkMultiInversion
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_1
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_1-12                               	  206013	      6003 ns/op	     944 B/op	      19 allocs/op
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_2
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_2-12                               	  182193	      6203 ns/op	     976 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_4
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_4-12                               	  170930	      6639 ns/op	    1040 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_16
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_16-12                              	  137767	     10339 ns/op	    1424 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_64
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_64-12                              	   48211	     24543 ns/op	    2993 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_256
+BenchmarkMultiInversion/MultiInvertEqSlice_of_size_256-12                             	   15657	     75742 ns/op	    9141 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEq_of_size_1
+BenchmarkMultiInversion/MultiInvertEq_of_size_1-12                                    	  194191	      6023 ns/op	     944 B/op	      19 allocs/op
+BenchmarkMultiInversion/MultiInvertEq_of_size_2
+BenchmarkMultiInversion/MultiInvertEq_of_size_2-12                                    	  185596	      6237 ns/op	     976 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEq_of_size_4
+BenchmarkMultiInversion/MultiInvertEq_of_size_4-12                                    	  169398	      6938 ns/op	    1040 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEq_of_size_16
+BenchmarkMultiInversion/MultiInvertEq_of_size_16-12                                   	  112857	     10477 ns/op	    1424 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEq_of_size_64
+BenchmarkMultiInversion/MultiInvertEq_of_size_64-12                                   	   48082	     24587 ns/op	    2993 B/op	      20 allocs/op
+BenchmarkMultiInversion/MultiInvertEq_of_size_256
+BenchmarkMultiInversion/MultiInvertEq_of_size_256-12                                  	   14802	     81725 ns/op	    9141 B/op	      20 allocs/op
+BenchmarkDummyRead_8
+BenchmarkDummyRead_8-12                                                               	1000000000	         0.5378 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDummyReadStore_8
+BenchmarkDummyReadStore_8-12                                                          	1000000000	         1.121 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAdd_8
+BenchmarkAdd_8-12                                                                     	 2712442	       443.1 ns/op	     131 B/op	       2 allocs/op
+BenchmarkAddEq_8
+BenchmarkAddEq_8-12                                                                   	 2642654	       452.4 ns/op	     132 B/op	       2 allocs/op
+BenchmarkSub_8
+BenchmarkSub_8-12                                                                     	 3673905	       325.6 ns/op	     128 B/op	       2 allocs/op
+BenchmarkSubEq_8
+BenchmarkSubEq_8-12                                                                   	 3653768	       327.3 ns/op	     128 B/op	       2 allocs/op
+BenchmarkMul_8
+BenchmarkMul_8-12                                                                     	 1269348	       958.1 ns/op	     304 B/op	       4 allocs/op
+BenchmarkMulEq_8
+BenchmarkMulEq_8-12                                                                   	 1249034	       960.6 ns/op	     304 B/op	       4 allocs/op
+BenchmarkSquare_8
+BenchmarkSquare_8-12                                                                  	 1258060	       947.6 ns/op	     304 B/op	       4 allocs/op
+BenchmarkSquareEq_8
+BenchmarkSquareEq_8-12                                                                	 1289026	       945.4 ns/op	     304 B/op	       4 allocs/op
+BenchmarkInv_8
+BenchmarkInv_8-12                                                                     	  239245	      4871 ns/op	     656 B/op	      15 allocs/op
+BenchmarkInvEq_8
+BenchmarkInvEq_8-12                                                                   	  346808	      4814 ns/op	     656 B/op	      15 allocs/op
+BenchmarkDivide_8
+BenchmarkDivide_8-12                                                                  	  195841	      5884 ns/op	     960 B/op	      19 allocs/op
+BenchmarkDivideEq_8
+BenchmarkDivideEq_8-12                                                                	  204609	      5983 ns/op	     960 B/op	      19 allocs/op
+BenchmarkIsEqual_8
+BenchmarkIsEqual_8-12                                                                 	344712910	         3.180 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNeg_8
+BenchmarkNeg_8-12                                                                     	 6344673	       194.5 ns/op	      64 B/op	       1 allocs/op
+BenchmarkNegEq_8
+BenchmarkNegEq_8-12                                                                   	 6098510	       194.6 ns/op	      64 B/op	       1 allocs/op
+BenchmarkSign_8
+BenchmarkSign_8-12                                                                    	12440260	        94.65 ns/op	      64 B/op	       1 allocs/op
+BenchmarkJacobi_8
+BenchmarkJacobi_8-12                                                                  	   44769	     24826 ns/op	    1121 B/op	      97 allocs/op
+BenchmarkSquareRoot_8
+BenchmarkSquareRoot_8-12                                                              	    2781	    401343 ns/op	   61925 B/op	     806 allocs/op
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements	130.963s
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/playground	0.003s
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/bandersnatch/pointserializer	0.003s
+?   	github.com/GottfriedHerold/Bandersnatch/internal/callcounters	[no test files]
+?   	github.com/GottfriedHerold/Bandersnatch/internal/errorTransform	[no test files]
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/internal/testutils	0.002s
+PASS
+ok  	github.com/GottfriedHerold/Bandersnatch/internal/utils	0.002s
