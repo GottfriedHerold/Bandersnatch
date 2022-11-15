@@ -55,11 +55,16 @@ var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_f
 	return
 }()
 
-// prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)test before the actual code that is to be benchmarked.
+// prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)benchmark before the actual code that is to be benchmarked.
 // Note that it resets all counters.
 func prepareBenchmarkFieldElements(b *testing.B) {
 	b.Cleanup(func() { postProcessBenchmarkFieldElements(b) })
 	resetBenchmarkFieldElements(b)
+}
+
+// prepareTestFieldElements run common setup code and should be called in every (sub-)test for field elements.
+func prepareTestFieldElements(t *testing.T) {
+	t.Cleanup(ensureFieldElementConstantsWereNotChanged)
 }
 
 // postProcessBenchmarkFieldElements should be called at the end of each sub-test (preferably using b.Cleanup(...) )

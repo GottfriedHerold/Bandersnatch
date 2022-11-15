@@ -51,6 +51,9 @@ func BigIntToUInt256(x *big.Int) (result uint256) {
 	return utils.BigIntToUIntArray(x)
 }
 
+// BigIntToUint512 converts a [*big.Int] to a uint512
+//
+// This function panics if x is not between 0 and 2^512 - 1
 func BigIntToUint512(x *big.Int) (result uint512) {
 	if x.Sign() < 0 {
 		panic(ErrorPrefix + "Uint512.FromBigInt: Trying to convert negative big.Int")
@@ -71,6 +74,9 @@ func BigIntToUint512(x *big.Int) (result uint512) {
 	return
 }
 
+// FromBigInt sets z:=x, where x is a [*big.Int].
+//
+// We assume that 0 <= x < 2**256
 func (z *uint256) FromBigInt(x *big.Int) {
 	*z = utils.BigIntToUIntArray(x)
 }
@@ -263,4 +269,28 @@ func (z *uint512) LongSquare(x *uint256) {
 	z[5] = q5
 	z[6] = q6
 	z[7] = q7
+}
+
+// Cmp compares x and z. More precisely, z.Cmp(&x) returns
+//
+//	-1 if z < x
+//	 0 if z ==x
+//	+1 if z > x
+//
+// Note that this behaviour matches [*big.Int]'s Cmp method
+func (z *uint256) Cmp(x *uint256) int {
+	for i := int(3); i >= 0; i-- {
+		if z[i] < x[i] {
+			return -1
+		}
+		if z[i] > x[i] {
+			return +1
+		}
+	}
+	return 0
+}
+
+// IsLessThan
+func (z *uint256) IsLessThan(x *uint256) bool {
+	return z.Cmp(x) == -1
 }

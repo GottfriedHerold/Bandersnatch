@@ -32,11 +32,11 @@ var (
 	}
 	pc_uint256_b SeedAndRange = SeedAndRange{
 		seed:         1,
-		allowedRange: doubleBaseFieldSize_Int,
+		allowedRange: twiceBaseFieldSize_Int,
 	}
 	pc_uint256_c SeedAndRange = SeedAndRange{
 		seed:         1,
-		allowedRange: montgomeryRepBound_Int,
+		allowedRange: montgomeryBound_Int,
 	}
 	pc_uint256_f SeedAndRange = SeedAndRange{
 		seed:         1,

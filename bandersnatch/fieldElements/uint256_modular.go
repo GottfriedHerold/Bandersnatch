@@ -1,11 +1,7 @@
 package fieldElements
 
 import (
-	"math/big"
 	"math/bits"
-
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file contains methods on uint256 that interpret the elements as residues modulo BaseFieldSize and perform appropriate operations (such as addition, multiplication of residues)
@@ -15,15 +11,6 @@ import (
 // The relevant upper bounds (with strict inequality) are BaseFieldSize, 2**256-BaseFieldSize, 2*BaseFieldSize, 2**256.
 
 // Bounds for reducedness-quality
-
-var (
-	twoTo256_Int            *big.Int = common.TwoTo256_Int                                                                                       // 2**256 == 115792089237316195423570985008687907853269984665640564039457584007913129639936
-	doubleBaseFieldSize_Int *big.Int = utils.InitIntFromString("104871750350252380958895481016371931675381105001055275645207317399877162369026") // 2 * BaseFieldSize
-	montgomeryRepBound_Int  *big.Int = utils.InitIntFromString("63356214062190004944123244500501942015579432165112926216853925307974548455423")  // 2**256 - BaseFieldSize
-	// BaseFieldSize_Int *big.Int (already defined elsewhere) // 52435875175126190479447740508185965837690552500527637822603658699938581184513
-)
-
-var twoTo512_Int *big.Int = common.TwoTo512_Int
 
 // NOTE: Suffixes for reduction follows the following convention:
 //   - a means arbitrary, i.e. the number is in [0,2^256)
@@ -60,10 +47,10 @@ func (z *uint256) AddAndReduce_b_c(x, y *uint256) {
 	// On overflow, subtract an appropriate multiple of BaseFieldSize.
 	// The preconditions guarantee that subtracting 2*BaseFieldSize always remedies the overflow.
 	if carry != 0 {
-		z[0], carry = bits.Sub64(z[0], baseFieldSizeDoubled_64_0, 0)
-		z[1], carry = bits.Sub64(z[1], baseFieldSizeDoubled_64_1, carry)
-		z[2], carry = bits.Sub64(z[2], baseFieldSizeDoubled_64_2, carry)
-		z[3], _ = bits.Sub64(z[3], baseFieldSizeDoubled_64_3, carry)
+		z[0], carry = bits.Sub64(z[0], twiceBaseFieldSize_64_0, 0)
+		z[1], carry = bits.Sub64(z[1], twiceBaseFieldSize_64_1, carry)
+		z[2], carry = bits.Sub64(z[2], twiceBaseFieldSize_64_2, carry)
+		z[3], _ = bits.Sub64(z[3], twiceBaseFieldSize_64_3, carry)
 	}
 	// NOTE: We could do an else if here! This works for both cases of preconditions.
 	if z[3] > baseFieldSize_3 {
@@ -138,10 +125,10 @@ func (z *uint256) SubAndReduce_c(x, y *uint256) {
 			// when z[3] == 0xFFFFFFFF_FFFFFFFF-baseFieldSize_3 in the condition above (and we would need to look at the other words to decide)
 			// In this case, after adding +=2*BaseFieldSize, the resulting z' has
 			// z'[3] == baseFieldSize_3 or z'[3]== baseFieldSize_3+1. Each case guarantees that z is in [0, UINT256MAX-BaseFieldSize)
-			z[0], borrow = bits.Add64(z[0], baseFieldSizeDoubled_64_0, 0)
-			z[1], borrow = bits.Add64(z[1], baseFieldSizeDoubled_64_1, borrow)
-			z[2], borrow = bits.Add64(z[2], baseFieldSizeDoubled_64_2, borrow)
-			z[3], _ = bits.Add64(z[3], baseFieldSizeDoubled_64_3, borrow) // _ is guaranteed to be 1
+			z[0], borrow = bits.Add64(z[0], twiceBaseFieldSize_64_0, 0)
+			z[1], borrow = bits.Add64(z[1], twiceBaseFieldSize_64_1, borrow)
+			z[2], borrow = bits.Add64(z[2], twiceBaseFieldSize_64_2, borrow)
+			z[3], _ = bits.Add64(z[3], twiceBaseFieldSize_64_3, borrow) // _ is guaranteed to be 1
 		}
 	}
 
@@ -167,10 +154,10 @@ func (z *uint256) SubAndReduce_b(x, y *uint256) {
 		// Note that the result is in the correct range.
 
 		// Mentally rename borrow -> carry
-		z[0], borrow = bits.Add64(z[0], baseFieldSizeDoubled_64_0, 0)
-		z[1], borrow = bits.Add64(z[1], baseFieldSizeDoubled_64_1, borrow)
-		z[2], borrow = bits.Add64(z[2], baseFieldSizeDoubled_64_2, borrow)
-		z[3], _ = bits.Add64(z[3], baseFieldSizeDoubled_64_3, borrow) // _ is one
+		z[0], borrow = bits.Add64(z[0], twiceBaseFieldSize_64_0, 0)
+		z[1], borrow = bits.Add64(z[1], twiceBaseFieldSize_64_1, borrow)
+		z[2], borrow = bits.Add64(z[2], twiceBaseFieldSize_64_2, borrow)
+		z[3], _ = bits.Add64(z[3], twiceBaseFieldSize_64_3, borrow) // _ is one
 	}
 
 }
@@ -397,7 +384,7 @@ func (z *uint256) ModularInverse_a_NAIVEHAC(x *uint256) bool {
 		}
 	}
 
-	// Cannot happen for m prime, we already checked for zero, so removed.
+	// Cannot happen for m prime, we already checked for zero, so removed. -- Gotti
 
 	/*
 		if (v3 | v2 | v1 | (v0 - 1)) != 0 { // gcd(z,m) != 1
@@ -840,4 +827,20 @@ func (z *uint256) SquareAndReduce_a(x *uint256) {
 	var zUnreduced uint512
 	zUnreduced.LongSquare(x)
 	z.ReduceUint512ToUint256_a(zUnreduced)
+}
+
+func (z *uint256) IsReduced_a() bool {
+	return true
+}
+
+func (z *uint256) IsReduced_f() bool {
+	return z.is_fully_reduced()
+}
+
+func (z *uint256) IsReduced_b() bool {
+	return z.IsLessThan(&twiceBaseFieldSize_uint256)
+}
+
+func (z *uint256) IsReduced_c() bool {
+	return z.IsLessThan(&montgomeryBound_uint256)
 }

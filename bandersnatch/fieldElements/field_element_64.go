@@ -26,7 +26,6 @@ import (
 	Adapting this code to other moduli is, hence, extremely error-prone and is recommended against!
 */
 
-
 type bsFieldElement_64 struct {
 	// field elements stored in low-endian 64-bit uints in Montgomery form, i.e.
 	// a bsFieldElement_64 encodes a field element x if
@@ -58,13 +57,13 @@ var bsFieldElement_64_zero bsFieldElement_64
 var bsFieldElement_64_zero_alt bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}}
 
 // The field element 1.
-var bsFieldElement_64_one bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{rModBaseField_64_0, rModBaseField_64_1, rModBaseField_64_2, rModBaseField_64_3}}
+var bsFieldElement_64_one bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{twoTo256ModBaseField_64_0, twoTo256ModBaseField_64_1, twoTo256ModBaseField_64_2, twoTo256ModBaseField_64_3}}
 
 // The field element -1
-var bsFieldElement_64_minusone bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{montgomeryNegOne_0, montgomeryNegOne_1, montgomeryNegOne_2, montgomeryNegOne_3}}
+var bsFieldElement_64_minusone bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{minus2To256ModBaseField_64_0, minus2To256ModBaseField_64_1, minus2To256ModBaseField_64_2, minus2To256ModBaseField_64_3}}
 
 // The number 2^256 in Montgomery form.
-var bsFieldElement_64_r bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: rsquared_64_0, 1: rsquared_64_1, 2: rsquared_64_2, 3: rsquared_64_3}}
+var bsFieldElement_64_r bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: twoTo512ModBaseField_64_0, 1: twoTo512ModBaseField_64_1, 2: twoTo512ModBaseField_64_2, 3: twoTo512ModBaseField_64_3}}
 
 // Benchmarking only:
 
@@ -115,7 +114,7 @@ func (z *bsFieldElement_64) Sign() int {
 	// However, Sign() enters into (De)Serialization routines for curve points. This choice is probably more portable.
 	var nonMontgomery uint256 = z.words.undoMontgomery()
 
-	var mhalf_copy uint256 = [4]uint64{minusOneHalf_64_0, minusOneHalf_64_1, minusOneHalf_64_2, minusOneHalf_64_3}
+	var mhalf_copy uint256 = [4]uint64{minusOneHalfModBaseField_64_0, minusOneHalfModBaseField_64_1, minusOneHalfModBaseField_64_2, minusOneHalfModBaseField_64_3}
 
 	for i := int(3); i >= 0; i-- {
 		if nonMontgomery[i] > mhalf_copy[i] {
@@ -307,13 +306,13 @@ func (z *bsFieldElement_64) Multiply_by_five() {
 	// splitting this into words gives the following contributions
 
 	// contributions due to overflows:
-	overflow1 += overflow4 * rModBaseField_64_1 // This computations itself cannot overflow, because 2*rModBaseField_1 + 2 is not large enough
-	overflow2 += overflow4 * rModBaseField_64_2 // this overflows itself iff overflow4 == 2
-	overflow3 += overflow4*rModBaseField_64_3 + (overflow4 / 2)
+	overflow1 += overflow4 * twoTo256ModBaseField_64_1 // This computations itself cannot overflow, because 2*rModBaseField_1 + 2 is not large enough
+	overflow2 += overflow4 * twoTo256ModBaseField_64_2 // this overflows itself iff overflow4 == 2
+	overflow3 += overflow4*twoTo256ModBaseField_64_3 + (overflow4 / 2)
 
 	// Read this as overflow0 := overflow4 * rModBaseField_64_0
 	// and mentally rename overflow4 -> overflow0 from here on
-	overflow4 *= rModBaseField_64_0
+	overflow4 *= twoTo256ModBaseField_64_0
 
 	z.words[0], carry = bits.Add64(z.words[0], overflow4, 0)
 	z.words[1], carry = bits.Add64(z.words[1], overflow1, carry)
@@ -325,10 +324,10 @@ func (z *bsFieldElement_64) Multiply_by_five() {
 
 	overflow4 = -carry // == carry * 0xFFFFFFFF_FFFFFFFF
 
-	z.words[0], carry = bits.Add64(z.words[0], overflow4&rModBaseField_64_0, 0)
-	z.words[1], carry = bits.Add64(z.words[1], overflow4&rModBaseField_64_1, carry)
-	z.words[2], carry = bits.Add64(z.words[2], overflow4&rModBaseField_64_2, carry)
-	z.words[3], _ = bits.Add64(z.words[3], overflow4&rModBaseField_64_3, carry) // _ == 0 is guaranteed
+	z.words[0], carry = bits.Add64(z.words[0], overflow4&twoTo256ModBaseField_64_0, 0)
+	z.words[1], carry = bits.Add64(z.words[1], overflow4&twoTo256ModBaseField_64_1, carry)
+	z.words[2], carry = bits.Add64(z.words[2], overflow4&twoTo256ModBaseField_64_2, carry)
+	z.words[3], _ = bits.Add64(z.words[3], overflow4&twoTo256ModBaseField_64_3, carry) // _ == 0 is guaranteed
 
 	z.words.reduce_ca()
 }
