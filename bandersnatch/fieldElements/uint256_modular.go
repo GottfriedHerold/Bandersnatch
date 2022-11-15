@@ -205,7 +205,7 @@ func (z *uint256) SubEqAndReduce_a(x *uint256) {
 // z := x^-1 (mod m)
 // in the case no multiplicative inverse exists, returns false, true otherwise
 // Input and output values are weakly reduced to the interval [0..2**256)
-func (z *uint256) ModularInverse_a_NAIVEHAC(x *uint256) bool {
+func (z *uint256) ModularInverse_a_NAIVEHAC(xIn *uint256) bool {
 
 	// Removed in favor or correct check:
 	/*
@@ -218,6 +218,7 @@ func (z *uint256) ModularInverse_a_NAIVEHAC(x *uint256) bool {
 			return false
 		}
 	*/
+	x := *xIn
 
 	x.reduceBarret_fa()
 	if x.IsZero() {
