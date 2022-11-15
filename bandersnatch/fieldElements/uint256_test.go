@@ -12,6 +12,7 @@ import (
 // Use PrecomputedCache's capabilities to pre-seed with special elements.
 
 func TestBigIntToUint256Roundtrip(t *testing.T) {
+	prepareTestFieldElements(t)
 	const num = 1000
 
 	BigSamples := CachedBigInt.GetElements(SeedAndRange{1, twoTo256_Int}, num)
@@ -35,6 +36,8 @@ func TestBigIntToUint256Roundtrip(t *testing.T) {
 }
 
 func TestBigIntToUint512Roundtrip(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 1000
 
 	BigSamples := CachedBigInt.GetElements(SeedAndRange{2, twoTo512_Int}, num)
@@ -59,6 +62,8 @@ func TestBigIntToUint512Roundtrip(t *testing.T) {
 }
 
 func TestUint256Add(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
@@ -77,6 +82,8 @@ func TestUint256Add(t *testing.T) {
 }
 
 func TestUint256AddWithCarry(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
@@ -97,6 +104,8 @@ func TestUint256AddWithCarry(t *testing.T) {
 }
 
 func TestUint256Sub(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
@@ -115,6 +124,8 @@ func TestUint256Sub(t *testing.T) {
 }
 
 func TestUint256SubWithBorrow(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
@@ -135,6 +146,8 @@ func TestUint256SubWithBorrow(t *testing.T) {
 }
 
 func TestUint256IsZero(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 1000
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	for _, x := range xs {
@@ -155,6 +168,8 @@ func TestUint256IsZero(t *testing.T) {
 }
 
 func TestUint256LongMul(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
@@ -173,6 +188,8 @@ func TestUint256LongMul(t *testing.T) {
 }
 
 func TestUint256Square(t *testing.T) {
+	prepareTestFieldElements(t)
+
 	const num = 2048
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	var z1, z2 uint512
@@ -185,4 +202,19 @@ func TestUint256Square(t *testing.T) {
 		testutils.FatalUnless(t, z1 == z2, "LongSquare result differs from big.Int")
 	}
 
+}
+
+func TestUint256Cmp(t *testing.T) {
+	prepareTestFieldElements(t)
+
+	const num = 256
+	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	for _, x := range xs {
+		for _, y := range ys {
+			xInt := x.ToBigInt()
+			yInt := y.ToBigInt()
+			testutils.FatalUnless(t, xInt.Cmp(yInt) == x.Cmp(&y), "Cmp differs from big.Int")
+		}
+	}
 }
