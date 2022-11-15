@@ -11,7 +11,9 @@ import (
 //
 // This function panics on failure, which is appropriate for its use case:
 // It is supposed to be used to initialize package-level variables (probably intendend to be constant) from constant string literals.
-func InitFieldElementFromString(input string) (output bsFieldElement_64) {
+//
+// The input string does not have to represent a number in [0, BaseFieldSize). It may represent any integer, possibly negative.
+func InitFieldElementFromString(input string) (output FieldElement) {
 	var t *big.Int = big.NewInt(0)
 	var success bool
 	t, success = t.SetString(input, 0)

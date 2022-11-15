@@ -23,26 +23,7 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Square_a (Barret)", benchmark_SquareBarret_a)
 }
 
-// TODO: Move to different file:
 
-var (
-	pc_uint256_a SeedAndRange = SeedAndRange{
-		seed:         1,
-		allowedRange: twoTo256_Int,
-	}
-	pc_uint256_b SeedAndRange = SeedAndRange{
-		seed:         1,
-		allowedRange: twiceBaseFieldSize_Int,
-	}
-	pc_uint256_c SeedAndRange = SeedAndRange{
-		seed:         1,
-		allowedRange: montgomeryBound_Int,
-	}
-	pc_uint256_f SeedAndRange = SeedAndRange{
-		seed:         1,
-		allowedRange: baseFieldSize_Int,
-	}
-)
 
 // For Copy-And-Pasting
 /*

@@ -86,6 +86,25 @@ type SeedAndRange struct {
 	allowedRange *big.Int // created elements are in [0, allowedRange)
 }
 
+var (
+	pc_uint256_a SeedAndRange = SeedAndRange{
+		seed:         1,
+		allowedRange: twoTo256_Int,
+	}
+	pc_uint256_b SeedAndRange = SeedAndRange{
+		seed:         1,
+		allowedRange: twiceBaseFieldSize_Int,
+	}
+	pc_uint256_c SeedAndRange = SeedAndRange{
+		seed:         1,
+		allowedRange: montgomeryBound_Int,
+	}
+	pc_uint256_f SeedAndRange = SeedAndRange{
+		seed:         1,
+		allowedRange: baseFieldSize_Int,
+	}
+)
+
 // CachedUint256 is used to retrieved precomputed slices of uint256's. The key of type SeedAndRange allows to select an rng seed an a range.
 //
 // Usage: CachedUint256.GetElements(key, amount)

@@ -1,7 +1,9 @@
+//go:build ignore
+
 package fieldElements
 
 // Test by Luan for his Barret-Reduction-based uint256 implementation.
-//
+// These tests do work, but are too inefficient to be run on my machine -- Gotti
 
 import (
 	mrand "math/rand"

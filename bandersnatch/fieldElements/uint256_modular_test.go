@@ -7,6 +7,12 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// This file contains tests for uint256_modular.go
+//
+// We test that
+//  - the function defined there preserve the reducedness as specified
+//  - the function matches the behaviour of big.Int, which we assume to be correct.
+
 func TestUint256AddAndReduce_b(t *testing.T) {
 	prepareTestFieldElements(t)
 
