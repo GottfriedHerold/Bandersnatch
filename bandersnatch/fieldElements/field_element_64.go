@@ -179,7 +179,7 @@ func (z *bsFieldElement_64) Neg(x *bsFieldElement_64) {
 func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
 	IncrementCallCounter("MulFe")
 
-	z.words.MulMontgomery_c(&x.words, &y.words)
+	z.words.MulMontgomerySlow_c(&x.words, &y.words)
 }
 
 // IsZero checks whether the field element is zero

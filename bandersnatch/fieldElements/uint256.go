@@ -172,6 +172,25 @@ func (z *uint256) ShiftLeft_64() (ShiftOut uint64) {
 	return
 }
 
+// LongMul256By64 multiplies a 256bit by a 64 bit uint, resulting in a 320-bit uint (stored as low-endian [5]uint64)
+//
+// Usage is LongMul256By64(&z, &x, y) to compute z := x * y
+func LongMul256By64(target *[5]uint64, x *uint256, y uint64) {
+	var carry, mul_low uint64
+	target[1], target[0] = bits.Mul64(x[0], y)
+
+	target[2], mul_low = bits.Mul64(x[1], y)
+	target[1], carry = bits.Add64(target[1], mul_low, 0)
+
+	target[3], mul_low = bits.Mul64(x[2], y)
+	target[2], carry = bits.Add64(target[2], mul_low, carry)
+
+	target[4], mul_low = bits.Mul64(x[3], y)
+	target[3], carry = bits.Add64(target[3], mul_low, carry)
+
+	target[4] += carry
+}
+
 // LongMul computes a 256 bit x 256 bit -> 512 multiplication, without any modular reduction. z:=x*y
 func (z *uint512) LongMul(x, y *uint256) {
 	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64

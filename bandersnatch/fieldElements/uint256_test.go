@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // We test uint256.go by running differential tests against big.Int's capabilities.
@@ -164,6 +165,37 @@ func TestUint256IsZero(t *testing.T) {
 		res2 := xInt.Sign() == 0
 		testutils.FatalUnless(t, res1 == res2, "IsZero differs from big.Int")
 		testutils.FatalUnless(t, res1 == res0, "IsZero wrong")
+	}
+}
+
+func TestLongMul256By64(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+	xs := CachedUint256.GetElements(pc_uint256_a, num)
+	ys := CachedUint64.GetElements(1, num)
+
+	for _, x := range xs {
+		for _, y := range ys {
+			xInt := x.ToBigInt()
+			yInt := new(big.Int).SetUint64(y)
+			zInt := new(big.Int).Mul(xInt, yInt)
+			var z [5]uint64
+			LongMul256By64(&z, &x, y)
+
+			// convert z to resInt of type *big.Int. This is somewhat involved.
+			var zLow uint256 = *(*[4]uint64)(z[0:4]) // lower-order words of z
+			zLowInt := zLow.ToBigInt()
+			resInt := new(big.Int).SetUint64(z[4]) // high-order word of z
+			resInt.Mul(resInt, twoTo256_Int)
+			resInt.Add(resInt, zLowInt) // add up high- and low-order words
+
+			testutils.FatalUnless(t, zInt.Cmp(resInt) == 0, "256bit x 64bit -> 320bit multiplication is wrong")
+
+			// compare with deprecated function
+			low2, high2 := mul_four_one_64(&x, y)
+			testutils.FatalUnless(t, low2 == z[0], "")
+			testutils.FatalUnless(t, utils.CompareSlices(high2[:], z[1:5]), "")
+		}
 	}
 }
 
