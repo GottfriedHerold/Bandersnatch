@@ -152,7 +152,27 @@ func (z *uint256) IsZero() bool {
 
 }
 
-// LongMul computes a 256 bits -> 512 multiplication, without any modular reduction. z:=x*y
+// ShiftRight_64 shifts the internal uint64 array once (equivalent to division by 2^64) and returns the shifted-out uint64
+func (z *uint256) ShiftRight_64() (ShiftOut uint64) {
+	ShiftOut = z[0]
+	z[0] = z[1]
+	z[1] = z[2]
+	z[2] = z[3]
+	z[3] = 0
+	return
+}
+
+// ShiftLeft_64 shifts the internal uint64 array once (equivalent to multiplication by 2^64) and returns the shifted-out uint64
+func (z *uint256) ShiftLeft_64() (ShiftOut uint64) {
+	ShiftOut = z[3]
+	z[3] = z[2]
+	z[2] = z[1]
+	z[1] = z[0]
+	z[0] = 0
+	return
+}
+
+// LongMul computes a 256 bit x 256 bit -> 512 multiplication, without any modular reduction. z:=x*y
 func (z *uint512) LongMul(x, y *uint256) {
 	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
 
@@ -277,7 +297,7 @@ func (z *uint512) LongSquare(x *uint256) {
 //	 0 if z ==x
 //	+1 if z > x
 //
-// Note that this behaviour matches [*big.Int]'s Cmp method
+// Note that the returned value matches [*big.Int]'s Cmp method
 func (z *uint256) Cmp(x *uint256) int {
 	for i := int(3); i >= 0; i-- {
 		if z[i] < x[i] {
@@ -290,7 +310,9 @@ func (z *uint256) Cmp(x *uint256) int {
 	return 0
 }
 
-// IsLessThan
+// IsLessThan compares two uin256's.
+//
+// The behaviour is as the name suggests: z.IsLessThan(x) is true iff z < x.
 func (z *uint256) IsLessThan(x *uint256) bool {
 	return z.Cmp(x) == -1
 }

@@ -5,8 +5,6 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
-
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 var _ fmt.Formatter = bsFieldElement_64{}
@@ -240,100 +238,6 @@ func TestSign(t *testing.T) {
 	if x.Sign() != +1 {
 		t.Fatalf("Sign(1/2 - 1) != +1")
 	}
-}
-
-func TestMulHelpers(testing_instance *testing.T) {
-	var drng *rand.Rand = rand.New(rand.NewSource(11141))
-	const iterations = 1000
-	bound := big.NewInt(1)
-	bound.Lsh(bound, 256) // bound = 2^256
-
-	R := big.NewInt(1)
-	R.Lsh(R, 64) // R = 2^64
-
-	oneInt := big.NewInt(1)
-
-	// Test mul_four_one_64 by comparing to big.Int computation on random inputs x, y
-	for i := 1; i < iterations; i++ {
-		xInt := new(big.Int).Rand(drng, bound)
-		var x uint256 = utils.BigIntToUIntArray(xInt)
-
-		var y uint64 = drng.Uint64()
-		yInt := new(big.Int).SetUint64(y)
-
-		// x*y as computed via big.Int.Mul
-		resultInt := new(big.Int).Mul(xInt, yInt)
-
-		low, high := mul_four_one_64(&x, y)
-		lowInt := new(big.Int).SetUint64(low)
-		highInt := utils.UIntarrayToInt((*[4]uint64)(&high))
-		resultInt2 := new(big.Int).Mul(highInt, R)
-
-		// x*y as computed using mul_four_one
-		resultInt2.Add(resultInt2, lowInt)
-
-		if resultInt.Cmp(resultInt2) != 0 {
-			testing_instance.Error("mul_four_one is incorrect")
-			break
-		}
-	}
-
-	// Test montgomery_step_64
-	for i := 1; i < iterations; i++ {
-		tInt := new(big.Int).Rand(drng, bound)
-		var t uint256 = utils.BigIntToUIntArray(tInt)
-
-		var q uint64 = drng.Uint64()
-		qInt := new(big.Int).SetUint64(q)
-
-		qInt.Mul(qInt, baseFieldSize_Int)
-		qInt.Div(qInt, R)
-		tInt.Add(tInt, qInt)
-		tInt.Add(tInt, oneInt)
-		if tInt.BitLen() > 256 {
-			// In case of overflow, we do not guarantee anything anyway.
-			continue
-		}
-		montgomery_step_64(&t, q)
-		tInt2 := utils.UIntarrayToInt((*[4]uint64)(&t))
-		if tInt.Cmp(tInt2) != 0 {
-			testing_instance.Error("montgomery_step_64 is incorrect", *tInt, *tInt2)
-			break
-		}
-
-	}
-
-	// Test add_mul_shift_64
-	for i := 1; i < iterations; i++ {
-		targetInt := new(big.Int).Rand(drng, bound)
-		var target uint256 = utils.BigIntToUIntArray(targetInt)
-
-		xInt := new(big.Int).Rand(drng, bound)
-		var x uint256 = utils.BigIntToUIntArray(xInt)
-
-		var y uint64 = drng.Uint64()
-		yInt := new(big.Int).SetUint64(y)
-
-		// compute using big.Int (result_low1, result_target2 return value/new target)
-		resultInt := new(big.Int)
-		resultInt.Mul(xInt, yInt)
-		resultInt.Add(resultInt, targetInt)
-		resultlowInt := new(big.Int).Mod(resultInt, R)
-		var result_low1 uint64 = resultlowInt.Uint64()
-		resultInt.Rsh(resultInt, 64)
-		result_target1 := utils.BigIntToUIntArray(resultInt)
-
-		result_low2 := add_mul_shift_64(&target, &x, y)
-		if target != result_target1 {
-			testing_instance.Error("add_mul_shift_64 is wrong (target)")
-			break
-		}
-		if result_low1 != result_low2 {
-			testing_instance.Error("add_mul_shift_64 is wrong (low)", result_low1, result_low2)
-			break
-		}
-	}
-
 }
 
 func TestSerializeInt_64(t *testing.T) {

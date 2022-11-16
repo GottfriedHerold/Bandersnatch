@@ -43,7 +43,7 @@ var (
 // Possible errors: io errors and ErrPrefixDoesNotFit (all possibly wrapped)
 // The error data's BytesWritten always equals the directly returned bytesWritten
 func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	var low_endian_words [4]uint64 = z.words.undoMontgomery() // words in low endian order in the "obvious" representation.
+	var low_endian_words [4]uint64 = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(low_endian_words[3]) < int(prefix_length) {

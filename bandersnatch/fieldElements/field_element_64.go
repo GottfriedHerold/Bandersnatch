@@ -112,7 +112,7 @@ func (z *bsFieldElement_64) Sign() int {
 	// we take the sign of the non-Montgomery form.
 	// Of course, the property that Sign(z) == -Sign(-z) would hold either way (and not switching would actually be more efficient).
 	// However, Sign() enters into (De)Serialization routines for curve points. This choice is probably more portable.
-	var nonMontgomery uint256 = z.words.undoMontgomery()
+	var nonMontgomery uint256 = z.words.ToNonMontgomery_fc()
 
 	var mhalf_copy uint256 = [4]uint64{minusOneHalfModBaseField_64_0, minusOneHalfModBaseField_64_1, minusOneHalfModBaseField_64_2, minusOneHalfModBaseField_64_3}
 
@@ -179,7 +179,7 @@ func (z *bsFieldElement_64) Neg(x *bsFieldElement_64) {
 func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
 	IncrementCallCounter("MulFe")
 
-	z.words.MulMontgomery_Weak(&x.words, &y.words)
+	z.words.MulMontgomery_c(&x.words, &y.words)
 }
 
 // IsZero checks whether the field element is zero
@@ -217,7 +217,7 @@ func (z *bsFieldElement_64) restoreMontgomery() {
 
 // ToBigInt returns a *big.Int that stores a representation of (a copy of) the given field element.
 func (z *bsFieldElement_64) ToBigInt() *big.Int {
-	temp := z.words.undoMontgomery()
+	temp := z.words.ToNonMontgomery_fc()
 	return temp.ToBigInt()
 }
 
@@ -241,7 +241,7 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 //
 // If z cannot be represented by a uint64, returns <something, should not be used>, ErrCannotRepresentAsUInt64
 func (z *bsFieldElement_64) ToUInt64() (result uint64, err error) {
-	temp := z.words.undoMontgomery()
+	temp := z.words.ToNonMontgomery_fc()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
 		err = ErrCannotRepresentAsUInt64

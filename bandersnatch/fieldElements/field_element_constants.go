@@ -177,6 +177,10 @@ var (
 	minus2To256ModBaseField_uint256 = uint256{minus2To256ModBaseField_64_0, minus2To256ModBaseField_64_1, minus2To256ModBaseField_64_2, minus2To256ModBaseField_64_3}
 )
 
+// neativeInverseModulus_uint64 is -1/BaseFieldSize mod 2**64.
+// This constant is used during montgomery multiplication.
+const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFFFFFFF * 0x00000001_00000001) % (1<<64)
+
 /****************************
 	Exported Field Elements
 ****************************/

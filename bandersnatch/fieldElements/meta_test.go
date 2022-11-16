@@ -55,6 +55,8 @@ var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_f
 	}
 	return
 }()
+var DumpUint64 [dumpSizeBench_fe]uint64
+var DumpUint320 [dumpSizeBench_fe][5]uint64
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)benchmark before the actual code that is to be benchmarked.
 // Note that it resets all counters.
@@ -164,6 +166,15 @@ var CachedBigInt = testutils.MakePrecomputedCache[SeedAndRange, *big.Int](
 	func(in *big.Int) (ret *big.Int) {
 		return new(big.Int).Set(in)
 	},
+)
+
+// CachedUint64 is used to retrieve precomputed slices of random (seeded by int64 key) uint64's.
+var CachedUint64 = testutils.MakePrecomputedCache[int64, uint64](
+	testutils.DefaultCreateRandFromSeed,
+	func(rng *rand.Rand, key int64) uint64 {
+		return rng.Uint64()
+	},
+	nil,
 )
 
 // _makePrecomputedCacheForFieldElements is an utility function for GetPrecomputedFieldElements.

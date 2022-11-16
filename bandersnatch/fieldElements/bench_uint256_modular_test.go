@@ -23,8 +23,6 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Square_a (Barret)", benchmark_SquareBarret_a)
 }
 
-
-
 // For Copy-And-Pasting
 /*
 	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_, benchS)

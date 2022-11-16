@@ -162,6 +162,8 @@ func TestValidityOfConstants(t *testing.T) {
 	testutils.FatalUnless(t, FieldElementOne.IsOne(), "Exported FieldElementOne is not 1")
 	testutils.FatalUnless(t, FieldElementZero.IsZero(), "Exported FieldElementZero is not 0")
 
+	testutils.Assert((negativeInverseModulus_uint64*baseFieldSize_0+1)%(1<<64) == 0)
+
 	testutils.FatalUnless(t, FieldElementZero.IsZero(), "0 is not zero")
 	testutils.FatalUnless(t, FieldElementOne.IsOne(), "1 is not one")
 	temp_fe.Add(&FieldElementOne, &FieldElementOne)
