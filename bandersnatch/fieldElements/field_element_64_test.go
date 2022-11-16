@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-var _ fmt.Formatter = bsFieldElement_64{}
-var _ fmt.Stringer = bsFieldElement_64{}
+var _ fmt.Formatter = bsFieldElement_MontgomeryNonUnique{}
+var _ fmt.Stringer = bsFieldElement_MontgomeryNonUnique{}
 
 func TestInit_64(t *testing.T) {
-	var x, y, z bsFieldElement_64
+	var x, y, z bsFieldElement_MontgomeryNonUnique
 	if !x.IsZero() {
 		t.Fatal("Initialization is not Zero")
 	}
@@ -69,7 +69,7 @@ func TestOps_8_vs_64(t *testing.T) {
 		var y *big.Int = new(big.Int).Rand(drng, baseFieldSize_Int)
 
 		var x_8, y_8, z_8 bsFieldElement_8
-		var x_64, y_64, z_64 bsFieldElement_64
+		var x_64, y_64, z_64 bsFieldElement_MontgomeryNonUnique
 		var result_8, result_64 *big.Int
 		x_8.SetBigInt(x)
 		y_8.SetBigInt(y)
@@ -127,7 +127,7 @@ func TestDivision(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(13513))
 	const iterations = 50
 	for i := 0; i < iterations; i++ {
-		var num, denom, result bsFieldElement_64
+		var num, denom, result bsFieldElement_MontgomeryNonUnique
 		num.SetRandomUnsafe(drng)
 		denom.SetRandomUnsafe(drng)
 		result.Divide(&num, &denom)
@@ -144,7 +144,7 @@ func TestDivision(t *testing.T) {
 
 func TestAssign_64(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(123523))
-	var x, y, z bsFieldElement_64
+	var x, y, z bsFieldElement_MontgomeryNonUnique
 	x.SetRandomUnsafe(drng)
 	y.SetOne()
 	z = x
@@ -159,7 +159,7 @@ func TestOpsOnRandomValues_64(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(555))
 	const iterations = 1000
 
-	var x, y, z, res1, res2 bsFieldElement_64
+	var x, y, z, res1, res2 bsFieldElement_MontgomeryNonUnique
 
 	for i := 0; i < iterations; i++ {
 		x.SetRandomUnsafe(drng)
@@ -243,13 +243,13 @@ func TestSign(t *testing.T) {
 func TestSerializeInt_64(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(123523))
 	const iterations = 1000
-	var x bsFieldElement_64
+	var x bsFieldElement_MontgomeryNonUnique
 	for i := 0; i < iterations; i++ {
 		// Try zero in first case
 		if i != 0 {
 			x.SetRandomUnsafe(drng)
 		}
-		var y bsFieldElement_64 = x
+		var y bsFieldElement_MontgomeryNonUnique = x
 		var xInt *big.Int = x.ToBigInt()
 		x.SetBigInt(xInt)
 		if !y.IsEqual(&x) {
@@ -265,7 +265,7 @@ func TestSetUIunt(t *testing.T) {
 		var x uint64 = drng.Uint64()
 		xInt := big.NewInt(0)
 		xInt.SetUint64(x)
-		var a, b bsFieldElement_64
+		var a, b bsFieldElement_MontgomeryNonUnique
 		a.SetBigInt(xInt)
 		b.SetUInt64(x)
 
@@ -288,7 +288,7 @@ func TestMultiplyByFive(t *testing.T) {
 	var drng *rand.Rand = rand.New(rand.NewSource(444))
 	const iterations = 10000
 
-	var five, x, y bsFieldElement_64
+	var five, x, y bsFieldElement_MontgomeryNonUnique
 	five.SetUInt64(5)
 
 	for i := 0; i < iterations; i++ {
@@ -307,7 +307,7 @@ func TestConstants(t *testing.T) {
 	if !bsFieldElement_64_zero.IsEqual(&altzero) {
 		t.Fatal("Different representations of zero do not compare equal")
 	}
-	var temp bsFieldElement_64 = bsFieldElement_64_zero
+	var temp bsFieldElement_MontgomeryNonUnique = bsFieldElement_64_zero
 	if !temp.IsZero() {
 		t.Fatal("Zero is not recognized as zero")
 	}

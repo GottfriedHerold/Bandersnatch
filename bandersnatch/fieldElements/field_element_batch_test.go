@@ -12,7 +12,7 @@ import (
 func TestMultiInvert(t *testing.T) {
 	const MAXSIZE = 20
 	var drng *rand.Rand = rand.New(rand.NewSource(87))
-	empty := make([]bsFieldElement_64, 0)
+	empty := make([]bsFieldElement_MontgomeryNonUnique, 0)
 
 	// Test on empty lists / slices
 	MultiInvertEq()
@@ -21,7 +21,7 @@ func TestMultiInvert(t *testing.T) {
 	MultiInvertEqSkipZeros()
 
 	// prepare random non-zero elements and individually invert them (for testing)
-	var numsArray, numsArrayInv [MAXSIZE]bsFieldElement_64
+	var numsArray, numsArrayInv [MAXSIZE]bsFieldElement_MontgomeryNonUnique
 	for i := 0; i < MAXSIZE; i++ {
 		numsArray[i].SetRandomUnsafeNonZero(drng)
 		numsArrayInv[i].Inv(&numsArray[i])
@@ -37,7 +37,7 @@ func TestMultiInvert(t *testing.T) {
 	// Test whether MultiInvertEqSlice matches individual inversion results
 	// NOTE: We check this for every sub-slice [0:size] for 0<=size < MAXSIZE
 	for size := 0; size < MAXSIZE; size++ {
-		var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray // deep copy, because this is array, not slice!
+		var numsArrayCopy [MAXSIZE]bsFieldElement_MontgomeryNonUnique = numsArray // deep copy, because this is array, not slice!
 		err := MultiInvertEqSlice(numsArrayCopy[0:size])
 		if err != nil {
 			t.Fatalf("Error during Multi-Invert (Slice): %v", err)
@@ -59,9 +59,9 @@ func TestMultiInvert(t *testing.T) {
 
 	// Same test with MultiInvertEq and MultiInvertEqSkipZeros.
 	for size := 0; size < MAXSIZE; size++ {
-		var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray
+		var numsArrayCopy [MAXSIZE]bsFieldElement_MontgomeryNonUnique = numsArray
 		// We need to make a slice of Pointer first to work with the variadic functions.
-		Ptrs := make([]*bsFieldElement_64, size)
+		Ptrs := make([]*bsFieldElement_MontgomeryNonUnique, size)
 		for i := 0; i < size; i++ {
 			Ptrs[i] = &numsArrayCopy[i]
 		}
@@ -92,8 +92,8 @@ func TestMultiInvert(t *testing.T) {
 	}
 
 	// Check behaviour on single zero element:
-	var zero bsFieldElement_64 = FieldElementZero
-	SizeOneZeroSlice := []bsFieldElement_64{zero}
+	var zero bsFieldElement_MontgomeryNonUnique = FieldElementZero
+	SizeOneZeroSlice := []bsFieldElement_MontgomeryNonUnique{zero}
 	err := MultiInvertEq(&zero)
 	err2 := MultiInvertEqSlice(SizeOneZeroSlice)
 	if !zero.IsZero() {
@@ -170,7 +170,7 @@ func TestMultiInvert(t *testing.T) {
 	numsArrayInv[5].SetOne()
 
 	// make a copy of the above
-	var numsArrayCopy [MAXSIZE]bsFieldElement_64 = numsArray
+	var numsArrayCopy [MAXSIZE]bsFieldElement_MontgomeryNonUnique = numsArray
 
 	err = MultiInvertEqSlice(numsArray[:])
 	if err == nil {
@@ -189,7 +189,7 @@ func TestMultiInvert(t *testing.T) {
 		t.Fatalf("MultiInvertEqSlice modified data on error")
 	}
 
-	var ArrPtrs [MAXSIZE]*bsFieldElement_64
+	var ArrPtrs [MAXSIZE]*bsFieldElement_MontgomeryNonUnique
 	for i := 0; i < MAXSIZE; i++ {
 		ArrPtrs[i] = &numsArray[i]
 	}
@@ -235,9 +235,9 @@ func TestMultiInvert(t *testing.T) {
 func TestSummationSlice(t *testing.T) {
 	const size = 20
 	var drng *rand.Rand = rand.New(rand.NewSource(100))
-	empty := make([]bsFieldElement_64, 0)
-	var result bsFieldElement_64
-	var a, b, c bsFieldElement_64
+	empty := make([]bsFieldElement_MontgomeryNonUnique, 0)
+	var result bsFieldElement_MontgomeryNonUnique
+	var a, b, c bsFieldElement_MontgomeryNonUnique
 	result.SetRandomUnsafe(drng) // arbitrary value, really.
 	a.SetRandomUnsafe(drng)
 	b.SetRandomUnsafe(drng)
@@ -262,9 +262,9 @@ func TestSummationSlice(t *testing.T) {
 	if !result.IsZero() {
 		t.Fatal("SummationMany with 3 arguments does not match expected result")
 	}
-	var summands [size]bsFieldElement_64
-	var acc bsFieldElement_64
-	var Ptrs [size]*bsFieldElement_64
+	var summands [size]bsFieldElement_MontgomeryNonUnique
+	var acc bsFieldElement_MontgomeryNonUnique
+	var Ptrs [size]*bsFieldElement_MontgomeryNonUnique
 	for i := 0; i < size; i++ {
 		summands[i].SetRandomUnsafe(drng)
 		Ptrs[i] = &summands[i]
@@ -310,9 +310,9 @@ func TestSummationSlice(t *testing.T) {
 func TestMultiplySlice(t *testing.T) {
 	const size = 20
 	var drng *rand.Rand = rand.New(rand.NewSource(100))
-	empty := make([]bsFieldElement_64, 0)
-	var result bsFieldElement_64
-	var a, b, c bsFieldElement_64
+	empty := make([]bsFieldElement_MontgomeryNonUnique, 0)
+	var result bsFieldElement_MontgomeryNonUnique
+	var a, b, c bsFieldElement_MontgomeryNonUnique
 	result.SetRandomUnsafe(drng) // arbitrary value, really.
 	a.SetRandomUnsafe(drng)
 	b.SetRandomUnsafe(drng)
@@ -331,15 +331,15 @@ func TestMultiplySlice(t *testing.T) {
 		t.Fatal("MultiplyMany with 1 argument does not copy")
 	}
 	result.MultiplyMany(&a, &b, &c)
-	var result2 bsFieldElement_64
+	var result2 bsFieldElement_MontgomeryNonUnique
 	result2.Mul(&a, &b)
 	result2.MulEq(&c)
 	if !result.IsEqual(&result2) {
 		t.Fatal("MultiplyMany with 3 arguments does not match expected result")
 	}
-	var factors [size]bsFieldElement_64
-	var acc bsFieldElement_64
-	var Ptrs [size]*bsFieldElement_64
+	var factors [size]bsFieldElement_MontgomeryNonUnique
+	var acc bsFieldElement_MontgomeryNonUnique
+	var Ptrs [size]*bsFieldElement_MontgomeryNonUnique
 	for i := 0; i < size; i++ {
 		factors[i].SetRandomUnsafe(drng)
 		Ptrs[i] = &factors[i]

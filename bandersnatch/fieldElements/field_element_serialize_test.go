@@ -21,7 +21,7 @@ func TestSerializeFieldElements(t *testing.T) {
 
 	for i := 0; i < iterations; i++ {
 		var buf bytes.Buffer
-		var fe bsFieldElement_64
+		var fe bsFieldElement_MontgomeryNonUnique
 		fe.SetRandomUnsafe(drng)
 		// do little endian and big endian half the time
 		var byteOrder FieldElementEndianness = LittleEndian
@@ -36,7 +36,7 @@ func TestSerializeFieldElements(t *testing.T) {
 		if bytes_written != BaseFieldByteLength {
 			t.Fatal("Serialization of field element did not write exptected number of bytes")
 		}
-		var fe2 bsFieldElement_64
+		var fe2 bsFieldElement_MontgomeryNonUnique
 		bytes_read, err = fe2.Deserialize(&buf, byteOrder)
 		if err != nil {
 			t.Fatal("Deserialization of field element failed with error ", err)
@@ -51,7 +51,7 @@ func TestSerializeFieldElements(t *testing.T) {
 	}
 	for i := 0; i < iterations; i++ {
 		var buf bytes.Buffer
-		var fe, fe2 bsFieldElement_64
+		var fe, fe2 bsFieldElement_MontgomeryNonUnique
 		fe.SetRandomUnsafe(drng)
 		if fe.Sign() < 0 {
 			fe.NegEq()

@@ -42,7 +42,7 @@ var (
 //
 // Possible errors: io errors and ErrPrefixDoesNotFit (all possibly wrapped)
 // The error data's BytesWritten always equals the directly returned bytesWritten
-func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	var low_endian_words [4]uint64 = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
@@ -76,7 +76,7 @@ func (z *bsFieldElement_64) SerializeWithPrefix(output io.Writer, prefix BitHead
 //
 // possible errors: errors wrapping ErrPrefixLengthInvalid, ErrInvalidByteOrder, ErrNonNormalizedDeserialization, io errors
 // The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read; ActuallyRead is nil if no read attempt was made due to invalid function arguments.
-func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits {
 		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
@@ -133,7 +133,7 @@ func (z *bsFieldElement_64) DeserializeAndGetPrefix(input io.Reader, prefixLengt
 // NOTE2: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
 // For the little endian case, we always try to read 32 bytes.
 // This behaviour might change in the future. Do not rely on it and check the returned bytesRead.
-func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 
 	// var fieldElementBuffer bsFieldElement_64
 	var little_endian_words [4]uint64 // we do not write to z directly, because we need to check for errors first.
@@ -210,7 +210,7 @@ func (z *bsFieldElement_64) DeserializeWithPrefix(input io.Reader, expectedPrefi
 // Other values for err are possible: in particular io errors from input.
 //
 // If any error other than ErrNonNormalizedDeserialization occurs, we keep z untouched.
-func (z *bsFieldElement_64) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 	bytesRead, _, err = z.DeserializeAndGetPrefix(input, 0, byteOrder) // The ignored _ is guaranteed to be 0
 	return
 }
@@ -219,7 +219,7 @@ func (z *bsFieldElement_64) Deserialize(input io.Reader, byteOrder FieldElementE
 // 32 bytes to output. byteOrder should be BigEndian or LittleEndian and refers to the ordering of bytes (not words) in output.
 // The return values are the actual number of bytes written and a potential error (such as io errors).
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
-func (z *bsFieldElement_64) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	bytesWritten, err = z.SerializeWithPrefix(output, BitHeader{}, byteOrder)
 	return
 }

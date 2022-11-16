@@ -1,6 +1,9 @@
 package fieldElements
 
-import "math/big"
+import (
+	"math/big"
+	"math/rand"
+)
 
 // Code for FieldElement (meaning the field of definition of the bandersnatch curve)
 // is in field_element_64.go and field_element_8.go
@@ -51,11 +54,25 @@ import "math/big"
 }
 */
 
-type FieldElementInterface[SelfRead any] interface {
+type FieldElementInterface_common interface {
 	IsZero() bool
 	IsOne() bool
 	SetOne() bool
 	SetZero() bool
+	Normalize()
+	Sign() int
+	Jacobi() int
+	SquareEq()
+	NegEq()
+	ToUInt64() (uint64, error)
+	SetUInt64(x uint64)
+	ToBigInt() *big.Int
+	SetBigInt(x *big.Int)
+	SetRandomUnsafe(rnd *rand.Rand)
+}
+
+type FieldElementInterface[SelfRead any] interface {
+	FieldElementInterface_common
 	Mul(x, y SelfRead)
 	Add(x, y SelfRead)
 	Sub(x, y SelfRead)
@@ -63,17 +80,8 @@ type FieldElementInterface[SelfRead any] interface {
 	Neg(x SelfRead)
 	Inv(x SelfRead)
 	Divide(x, y SelfRead)
-	ToBigInt() *big.Int
-	SetBigInt(x *big.Int)
-	ToUInt64() (uint64, error)
-	SetUInt64(x uint64)
-	Normalize()
 	IsEqual(other SelfRead) bool
-	Sign() int
-	Jacobi() int
 	AddEq(y SelfRead)
 	SubEq(y SelfRead)
-	SquareEq()
 	DivideEq(y SelfRead)
-	NegEq()
 }

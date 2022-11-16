@@ -191,7 +191,7 @@ const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFF
 // FieldElement is an element of the field of definition of the Bandersnatch curve.
 //
 // The size of this field matches (by design) the size of the prime-order subgroup of the BLS12-381 curve.
-type FieldElement = bsFieldElement_64
+type FieldElement = bsFieldElement_MontgomeryNonUnique
 
 var (
 	// Important constants of type FieldElement

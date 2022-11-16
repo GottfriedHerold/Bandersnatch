@@ -26,7 +26,7 @@ import (
 	Adapting this code to other moduli is, hence, extremely error-prone and is recommended against!
 */
 
-type bsFieldElement_64 struct {
+type bsFieldElement_MontgomeryNonUnique struct {
 	// field elements stored in low-endian 64-bit uints in Montgomery form, i.e.
 	// a bsFieldElement_64 encodes a field element x if
 	// words - x * 2^256 == 0 (mod BaseFieldSize), where words is interpreted in LowEndiant as a 256-bit number.
@@ -51,19 +51,19 @@ type bsFieldElement_64 struct {
 // This way the compiler has a chance to determine that these value never change and optimize for it.
 
 // representation of zero. This is supposedly a constant.
-var bsFieldElement_64_zero bsFieldElement_64
+var bsFieldElement_64_zero bsFieldElement_MontgomeryNonUnique
 
 // alternative representation of zero. Note that we must never call Normalize() on it, which e.g. IsEqual may do.
-var bsFieldElement_64_zero_alt bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}}
+var bsFieldElement_64_zero_alt bsFieldElement_MontgomeryNonUnique = bsFieldElement_MontgomeryNonUnique{words: [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}}
 
 // The field element 1.
-var bsFieldElement_64_one bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{twoTo256ModBaseField_64_0, twoTo256ModBaseField_64_1, twoTo256ModBaseField_64_2, twoTo256ModBaseField_64_3}}
+var bsFieldElement_64_one bsFieldElement_MontgomeryNonUnique = bsFieldElement_MontgomeryNonUnique{words: [4]uint64{twoTo256ModBaseField_64_0, twoTo256ModBaseField_64_1, twoTo256ModBaseField_64_2, twoTo256ModBaseField_64_3}}
 
 // The field element -1
-var bsFieldElement_64_minusone bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{minus2To256ModBaseField_64_0, minus2To256ModBaseField_64_1, minus2To256ModBaseField_64_2, minus2To256ModBaseField_64_3}}
+var bsFieldElement_64_minusone bsFieldElement_MontgomeryNonUnique = bsFieldElement_MontgomeryNonUnique{words: [4]uint64{minus2To256ModBaseField_64_0, minus2To256ModBaseField_64_1, minus2To256ModBaseField_64_2, minus2To256ModBaseField_64_3}}
 
 // The number 2^256 in Montgomery form.
-var bsFieldElement_64_r bsFieldElement_64 = bsFieldElement_64{words: [4]uint64{0: twoTo512ModBaseField_64_0, 1: twoTo512ModBaseField_64_1, 2: twoTo512ModBaseField_64_2, 3: twoTo512ModBaseField_64_3}}
+var bsFieldElement_64_r bsFieldElement_MontgomeryNonUnique = bsFieldElement_MontgomeryNonUnique{words: [4]uint64{0: twoTo512ModBaseField_64_0, 1: twoTo512ModBaseField_64_1, 2: twoTo512ModBaseField_64_2, 3: twoTo512ModBaseField_64_3}}
 
 // Benchmarking only:
 
@@ -85,7 +85,7 @@ var _ = callcounters.CreateHierarchicalCallCounter("DivideFe", "generic Division
 
 // isNormalized checks whether the internal representaion is in 0<= . < BaseFieldSize.
 // This function is only used internally. Users should just call Normalize if in doubt.
-func (z *bsFieldElement_64) isNormalized() bool {
+func (z *bsFieldElement_MontgomeryNonUnique) isNormalized() bool {
 	return z.words.is_fully_reduced()
 }
 
@@ -96,7 +96,7 @@ func (z *bsFieldElement_64) isNormalized() bool {
 // After a call to Normalize on both operands, the default == operator does the right thing.
 // This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say)
 // or when using bsFieldElement_64 as keys for a map or when sharing a field element between multiple goroutines.
-func (z *bsFieldElement_64) Normalize() {
+func (z *bsFieldElement_MontgomeryNonUnique) Normalize() {
 	z.words.Reduce_fb()
 }
 
@@ -105,7 +105,7 @@ func (z *bsFieldElement_64) Normalize() {
 // The return value is in {-1,0,+1}.
 // This is not compatible with addition or multiplication. It has the property that Sign(z) == -Sign(-z), which is the main thing we need.
 // We also might use the fact that positive-sign field elements start with 00 in their high-endian serializiation.
-func (z *bsFieldElement_64) Sign() int {
+func (z *bsFieldElement_MontgomeryNonUnique) Sign() int {
 	if z.IsZero() {
 		return 0
 	}
@@ -136,7 +136,7 @@ func (z *bsFieldElement_64) Sign() int {
 
 // Jacobi computes the Legendre symbol of the received elements z.
 // This means that z.Jacobi() is +1 if z is a non-zero square and -1 if z is a non-square. z.Jacobi() == 0 iff z.IsZero()
-func (z *bsFieldElement_64) Jacobi() int {
+func (z *bsFieldElement_MontgomeryNonUnique) Jacobi() int {
 	IncrementCallCounter("Jacobi")
 	tempInt := z.ToBigInt()
 	return big.Jacobi(tempInt, baseFieldSize_Int)
@@ -145,7 +145,7 @@ func (z *bsFieldElement_64) Jacobi() int {
 // Add is used to perform addition.
 //
 // Use z.Add(&x, &y) to add x + y and store the result in z.
-func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Add(x, y *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("AddFe")
 
 	z.words.addAndReduce_b_c(&x.words, &y.words)
@@ -154,7 +154,7 @@ func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 // Sub is used to perform subtraction.
 //
 // Use z.Sub(&x, &y) to compute x - y and store the result in z.
-func (z *bsFieldElement_64) Sub(x, y *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Sub(x, y *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("SubFe")
 	z.words.SubAndReduce_c(&x.words, &y.words)
 }
@@ -166,7 +166,7 @@ var _ = callcounters.CreateAttachedCallCounter("SubFromNeg", "Subtractions calle
 // Neg computes the additive inverse (i.e. -x)
 //
 // Use z.Neg(&x) to set z = -x
-func (z *bsFieldElement_64) Neg(x *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Neg(x *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("NegFe")
 	// IncrementCallCounter("SubFromNeg") -- done automatically
 	z.Sub(&bsFieldElement_64_zero_alt, x) // using alt here makes the if borrow!=0 in Sub unlikely.
@@ -176,20 +176,20 @@ func (z *bsFieldElement_64) Neg(x *bsFieldElement_64) {
 // Mul computes multiplication in the field.
 //
 // Use z.Mul(&x, &y) to set z = x * y
-func (z *bsFieldElement_64) Mul(x, y *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Mul(x, y *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("MulFe")
 
 	z.words.MulMontgomerySlow_c(&x.words, &y.words)
 }
 
 // IsZero checks whether the field element is zero
-func (z *bsFieldElement_64) IsZero() bool {
+func (z *bsFieldElement_MontgomeryNonUnique) IsZero() bool {
 	// return (z.words[0]|z.words[1]|z.words[2]|z.words[3] == 0) || (*z == bsFieldElement_64_zero_alt)
 	return (z.words[0]|z.words[1]|z.words[2]|z.words[3] == 0) || (z.words == [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3})
 }
 
 // IsOne checks whether the field element is 1
-func (z *bsFieldElement_64) IsOne() bool {
+func (z *bsFieldElement_MontgomeryNonUnique) IsOne() bool {
 	// Note: The representation of 1 is unique:
 	// bsFieldElement_64_one.words corresponds to 2^256 - 2*BaseField, so the other (potential) Montgomery representation
 	// would be 2^256-1*BaseFieldSize, which (barely) violates our invariant that addition of BaseFieldSize does not overflow.
@@ -197,32 +197,32 @@ func (z *bsFieldElement_64) IsOne() bool {
 }
 
 // SetOne sets the field element to 1.
-func (z *bsFieldElement_64) SetOne() {
+func (z *bsFieldElement_MontgomeryNonUnique) SetOne() {
 	z.words = bsFieldElement_64_one.words
 }
 
 // SetZero sets the field element to 0.
-func (z *bsFieldElement_64) SetZero() {
-	z.words = bsFieldElement_64_zero.words
+func (z *bsFieldElement_MontgomeryNonUnique) SetZero() {
+	z.words = Uint256{}
 }
 
 var _ = callcounters.CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
 
 // restoreMontgomery restores the internal Montgomery representation, assuming the current internal representation is *NOT* in Montgomery form.
 // This must only be used internally.
-func (z *bsFieldElement_64) restoreMontgomery() {
+func (z *bsFieldElement_MontgomeryNonUnique) restoreMontgomery() {
 	IncrementCallCounter("MulEqFromMontgomery")
 	z.MulEq(&bsFieldElement_64_r)
 }
 
 // ToBigInt returns a *big.Int that stores a representation of (a copy of) the given field element.
-func (z *bsFieldElement_64) ToBigInt() *big.Int {
+func (z *bsFieldElement_MontgomeryNonUnique) ToBigInt() *big.Int {
 	temp := z.words.ToNonMontgomery_fc()
 	return temp.ToBigInt()
 }
 
 // SetBigInt converts from *big.Int to a field element. The input need not be reduced modulo the field size.
-func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
+func (z *bsFieldElement_MontgomeryNonUnique) SetBigInt(v *big.Int) {
 	sign := v.Sign()
 	w := new(big.Int).Set(v)
 	w.Abs(w)
@@ -237,10 +237,27 @@ func (z *bsFieldElement_64) SetBigInt(v *big.Int) {
 	// Note z is Normalized.
 }
 
+// TODO: Replace SetBigInt by this
+
+// _fromBigInt converts from a [*big.Int] to a field element.
+//
+// The input may be arbitrariliy large or negative and will automatically be reduced modulo BaseFieldSize.
+func (z *bsFieldElement_MontgomeryNonUnique) _fromBigInt(v *big.Int) {
+	sign := v.Sign()
+	w := new(big.Int).Abs(v)
+	w.Mod(w, baseFieldSize_Int)
+	z.words.FromBigInt(w)
+	z.words.FromMontgomeryRepresentation_fc(&z.words)
+	if sign < 0 {
+		z.words.Sub(&baseFieldSize_uint256, &z.words)
+	}
+	// Note: z is fully normalized
+}
+
 // ToUInt64 returns z with err==nil if z can be represented by a uint64.
 //
 // If z cannot be represented by a uint64, returns <something, should not be used>, ErrCannotRepresentAsUInt64
-func (z *bsFieldElement_64) ToUInt64() (result uint64, err error) {
+func (z *bsFieldElement_MontgomeryNonUnique) ToUInt64() (result uint64, err error) {
 	temp := z.words.ToNonMontgomery_fc()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
@@ -250,14 +267,14 @@ func (z *bsFieldElement_64) ToUInt64() (result uint64, err error) {
 }
 
 // SetUInt64 sets z to the given value.
-func (z *bsFieldElement_64) SetUInt64(value uint64) {
+func (z *bsFieldElement_MontgomeryNonUnique) SetUInt64(value uint64) {
 	// Sets z.words to the correct value (not in Montgomery form)
 	z.words[0] = value
 	z.words[1] = 0
 	z.words[2] = 0
 	z.words[3] = 0
 	// put in Montgomery form
-	z.restoreMontgomery()
+	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
 }
 
 // temporarily exported. Needs some restructing to unexport.
@@ -265,16 +282,42 @@ func (z *bsFieldElement_64) SetUInt64(value uint64) {
 // SetRandomUnsafe generates a uniformly random field element.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
-func (z *bsFieldElement_64) SetRandomUnsafe(rnd *rand.Rand) {
+func (z *bsFieldElement_MontgomeryNonUnique) SetRandomUnsafe(rnd *rand.Rand) {
 	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
 	var xInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
 	z.SetBigInt(xInt)
 }
 
+// NOTE: The bsFieldElement_MontgomeryNonUnique implementation actually works for x c-reduced,
+// but we don't want to promise that.
+
+// SetUint256 sets the field element z from the Uint256 x.
+//
+// This method requires that x is in [0, BaseFieldSize).
+// If not, we will get wrong results.
+func (z *bsFieldElement_MontgomeryNonUnique) SetUint256(x *Uint256) {
+	z.words.ConvertToMontgomeryRepresentation_c(x)
+}
+
+//
+
+// ToUint256 converts a field element z to a Uint256 in the range [0, BaseFieldSize)
+//
+// Use z.ToUint256(&x) for x := z.
+//
+// NOTE: Having the caller provide a pointer to x (rather than returning a Uint256) is done for effiency during internal usage.
+func (z *bsFieldElement_MontgomeryNonUnique) ToUint256(x *Uint256) {
+	if z == nil {
+		x.FromMontgomeryRepresentation_fc(nil)
+	} else {
+		x.FromMontgomeryRepresentation_fc(&z.words)
+	}
+}
+
 // SetRandomUnsafeNonZero generates uniformly random non-zero field elements.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
-func (z *bsFieldElement_64) SetRandomUnsafeNonZero(rnd *rand.Rand) {
+func (z *bsFieldElement_MontgomeryNonUnique) SetRandomUnsafeNonZero(rnd *rand.Rand) {
 	for {
 		var xInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
 		if xInt.Sign() != 0 {
@@ -288,7 +331,7 @@ func (z *bsFieldElement_64) SetRandomUnsafeNonZero(rnd *rand.Rand) {
 
 // Multiply_by_five computes z *= 5.
 // This is useful, because the coefficient of a in the twisted Edwards representation of Bandersnatch is a=-5
-func (z *bsFieldElement_64) Multiply_by_five() {
+func (z *bsFieldElement_MontgomeryNonUnique) Multiply_by_five() {
 	IncrementCallCounter("MulByFive")
 
 	// We multiply by five by multiplying each individual word by 5 and then correcting the overflows later.
@@ -335,7 +378,7 @@ func (z *bsFieldElement_64) Multiply_by_five() {
 // Inv computes the multiplicative Inverse:
 //
 // z.Inv(x) performs z:= 1/x. If x is 0, the behaviour is undefined (possibly panic)
-func (z *bsFieldElement_64) Inv(x *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Inv(x *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("InvFe")
 	// Slow, but rarely used anyway (due to working in projective coordinates)
 	t := x.ToBigInt()
@@ -359,16 +402,16 @@ var _ = callcounters.CreateAttachedCallCounter("MulFromDivide", "Multiplications
 // Divide performs division: z.Divide(num, denom) means z = num/denom
 //
 // Division by zero causes undefined behaviour (possibly panic, possibly returns 0)
-func (z *bsFieldElement_64) Divide(num *bsFieldElement_64, denom *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Divide(num *bsFieldElement_MontgomeryNonUnique, denom *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("DivideFe")
 
-	var temp bsFieldElement_64 // needed, because some of z, num, denom might alias
+	var temp bsFieldElement_MontgomeryNonUnique // needed, because some of z, num, denom might alias
 	temp.Inv(denom)
 	z.Mul(num, &temp)
 }
 
 // IsEqual compares two field elements for equality, i.e. it checks whether z == x (mod BaseFieldSize)
-func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
+func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_MontgomeryNonUnique) bool {
 	// There are at most 2 possible representations per field element and they differ by exactly BaseFieldSize.
 	// So it is enough to reduce the larger one, provided it is much larger.
 
@@ -406,7 +449,7 @@ func (z *bsFieldElement_64) IsEqual(x *bsFieldElement_64) bool {
 //	The return value tells whether the operation was successful.
 //
 // If x is not a square, the return value is false and z is untouched.
-func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
+func (z *bsFieldElement_MontgomeryNonUnique) SquareRoot(x *bsFieldElement_MontgomeryNonUnique) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToBigInt()
 	if xInt.ModSqrt(xInt, baseFieldSize_Int) == nil {
@@ -418,12 +461,12 @@ func (z *bsFieldElement_64) SquareRoot(x *bsFieldElement_64) (ok bool) {
 
 // Format is provided to satisfy the fmt.Formatter interface. Note that this is defined on value receivers.
 // We internally convert to big.Int and hence support the same formats as big.Int.
-func (z bsFieldElement_64) Format(s fmt.State, ch rune) {
+func (z bsFieldElement_MontgomeryNonUnique) Format(s fmt.State, ch rune) {
 	z.ToBigInt().Format(s, ch)
 }
 
 // String is provided to satisfy the fmt.Stringer interface. Note that this is defined on a *value* receiver.
-func (z bsFieldElement_64) String() string {
+func (z bsFieldElement_MontgomeryNonUnique) String() string {
 	z.Normalize()
 	return z.ToBigInt().String()
 }
@@ -435,7 +478,7 @@ var _ = callcounters.CreateAttachedCallCounter("AddEqFe", "", "AddFe")
 // AddEq implements += for field elements.
 //
 // z.AddEq(&x) is equvalent to z.Add(&z, &x)
-func (z *bsFieldElement_64) AddEq(y *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) AddEq(y *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("AddEqFe")
 
 	z.Add(z, y)
@@ -446,7 +489,7 @@ var _ = callcounters.CreateAttachedCallCounter("SubEqFe", "", "SubFe")
 // SubEq implements the -= operation.
 //
 // z.SubEq(&x) is equivalent to z.Add(&z, &x)
-func (z *bsFieldElement_64) SubEq(x *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) SubEq(x *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("SubEqFe")
 	z.Sub(z, x)
 }
@@ -456,7 +499,7 @@ var _ = callcounters.CreateAttachedCallCounter("MulEqFe", "", "MulFe")
 // MulEq implements the *= operation.
 //
 // z.MulEq(&x) is equivalent to z.Mul(&z, &x)
-func (z *bsFieldElement_64) MulEq(x *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) MulEq(x *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("MulEqFe")
 	z.Mul(z, x)
 }
@@ -468,7 +511,7 @@ var _ = callcounters.CreateAttachedCallCounter("MulFromSquare", "as part of non-
 // Square squares the field element, computing z = x * x
 //
 // z.Square(&x) is equivalent to z.Mul(&x, &x)
-func (z *bsFieldElement_64) Square(x *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Square(x *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("Squarings")
 	z.Mul(x, x)
 }
@@ -476,7 +519,7 @@ func (z *bsFieldElement_64) Square(x *bsFieldElement_64) {
 // SquareEq replaces the field element by its squared value.
 //
 // z.SquareEq() is equivalent to z.Square(&z)
-func (z *bsFieldElement_64) SquareEq() {
+func (z *bsFieldElement_MontgomeryNonUnique) SquareEq() {
 	IncrementCallCounter("Squarings")
 	z.Mul(z, z) // or z.Square(z), but it's the same for now (except for the need to adjust call counters)
 }
@@ -484,14 +527,14 @@ func (z *bsFieldElement_64) SquareEq() {
 // Double computes the double of a point, i.e. z = 2*x == x + x
 //
 // z.Double(&x) is equivalent to z.Add(&x, &x)
-func (z *bsFieldElement_64) Double(x *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) Double(x *bsFieldElement_MontgomeryNonUnique) {
 	z.Add(x, x)
 }
 
 // DoubleEq replaces the provided field element by its doubled value, i.e. computes z *= 2
 //
 // z.DoubleEq() is equivalent to z.Double(&z)
-func (z *bsFieldElement_64) DoubleEq() {
+func (z *bsFieldElement_MontgomeryNonUnique) DoubleEq() {
 	z.Add(z, z)
 }
 
@@ -500,7 +543,7 @@ var _ = callcounters.CreateAttachedCallCounter("NegEqFe", "", "NegFe")
 // NegEq replaces the provided field element by its negative.
 //
 // z.NegEq() is equivalent to z.Neg(&z)
-func (z *bsFieldElement_64) NegEq() {
+func (z *bsFieldElement_MontgomeryNonUnique) NegEq() {
 	IncrementCallCounter("NegEqFe")
 	z.Neg(z)
 }
@@ -513,7 +556,7 @@ var _ = callcounters.CreateAttachedCallCounter("InvEqFe", "", "InvFe")
 // The behaviour is unspecified (potentially panic) if z is zero.
 //
 // z.InvEq is equivalent to z.Inv(&z)
-func (z *bsFieldElement_64) InvEq() {
+func (z *bsFieldElement_MontgomeryNonUnique) InvEq() {
 	z.Inv(z)
 }
 
@@ -523,7 +566,7 @@ var _ = callcounters.CreateAttachedCallCounter("DivideEqFe", "", "DivideFe")
 // The behaviour is undefined (potentially panic) if x is zero.
 //
 // z.DivideEq(&x) is equivalent to z.Divide(&z, &x) for non-zero x
-func (z *bsFieldElement_64) DivideEq(denom *bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) DivideEq(denom *bsFieldElement_MontgomeryNonUnique) {
 	z.Divide(z, denom)
 }
 
@@ -533,11 +576,11 @@ func (z *bsFieldElement_64) DivideEq(denom *bsFieldElement_64) {
 //
 // absEqual is true iff x == +/- z
 // exactly equal is true iff x == z
-func (z *bsFieldElement_64) CmpAbs(x *bsFieldElement_64) (absEqual bool, exactlyEqual bool) {
+func (z *bsFieldElement_MontgomeryNonUnique) CmpAbs(x *bsFieldElement_MontgomeryNonUnique) (absEqual bool, exactlyEqual bool) {
 	if z.IsEqual(x) {
 		return true, true
 	}
-	var tmp bsFieldElement_64
+	var tmp bsFieldElement_MontgomeryNonUnique
 	tmp.Neg(x)
 	if tmp.IsEqual(z) {
 		return true, false

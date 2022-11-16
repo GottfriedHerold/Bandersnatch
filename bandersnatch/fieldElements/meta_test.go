@@ -44,7 +44,7 @@ const dumpSizeBench_fe = 1 << 8
 // [*] in non-test builds this file is ignored anyway
 var DumpBools_fe [dumpSizeBench_fe]bool
 
-var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_64
+var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_MontgomeryNonUnique
 var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
 var DumpUint256 [dumpSizeBench_fe]Uint256
 var DumpUint512 [dumpSizeBench_fe]Uint512

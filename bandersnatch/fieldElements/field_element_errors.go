@@ -46,7 +46,7 @@ func init() {
 // If none of the fieldElements are zero, returns nil
 //
 // NOTE: This is an internal function that is exported for cross-package usage.
-func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_64, prefixForError string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
+func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_MontgomeryNonUnique, prefixForError string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
 	var errorData MultiInversionErrorData
 	errorData.ZeroIndices = make([]int, 0)
 	for i, fe := range fieldElements {

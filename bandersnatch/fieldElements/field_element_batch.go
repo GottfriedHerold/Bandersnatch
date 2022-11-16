@@ -7,7 +7,7 @@ package fieldElements
 // MultiplySlice sets the receiver to the product of all the given elements.
 //
 // An empty product results in a result of 1. Note: Use MultiplyMany for a variadic version.
-func (z *bsFieldElement_64) MultiplySlice(factors []bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) MultiplySlice(factors []bsFieldElement_MontgomeryNonUnique) {
 	L := len(factors)
 	if L == 0 {
 		z.SetOne()
@@ -16,7 +16,7 @@ func (z *bsFieldElement_64) MultiplySlice(factors []bsFieldElement_64) {
 
 	// We need to store the eventual result in a temporary rather than z directly, due to potential aliasing of z with a factor.
 	// Since L >= 1, we can initialize with factors[0] and start the following loop from i==1; this means we only have L-1 multiplications.
-	var result bsFieldElement_64 = factors[0]
+	var result bsFieldElement_MontgomeryNonUnique = factors[0]
 	for i := 1; i < L; i++ {
 		result.MulEq(&factors[i])
 	}
@@ -26,13 +26,13 @@ func (z *bsFieldElement_64) MultiplySlice(factors []bsFieldElement_64) {
 // MultiplyMany sets the receiver to the product of the factors.
 //
 // An empty product gives a result of 1. Note: Use MultiplySlice if you have the non-pointer factors stored in a slice.
-func (z *bsFieldElement_64) MultiplyMany(factors ...*bsFieldElement_64) {
+func (z *bsFieldElement_MontgomeryNonUnique) MultiplyMany(factors ...*bsFieldElement_MontgomeryNonUnique) {
 	L := len(factors)
 	if L == 0 {
 		z.SetOne()
 		return
 	}
-	var result bsFieldElement_64 = *factors[0] // due to potential aliasing of z with a factor, we cannot directly write into z yet.
+	var result bsFieldElement_MontgomeryNonUnique = *factors[0] // due to potential aliasing of z with a factor, we cannot directly write into z yet.
 	for i := 1; i < len(factors); i++ {
 		result.MulEq(factors[i])
 	}
@@ -42,8 +42,8 @@ func (z *bsFieldElement_64) MultiplyMany(factors ...*bsFieldElement_64) {
 // SummationSlice sets the receiver to the sum the values contained in summands.
 //
 // An empty sum gives a result of 0. Note: Use SummationMany for a variadic version.
-func (z *bsFieldElement_64) SummationSlice(summands []bsFieldElement_64) {
-	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
+func (z *bsFieldElement_MontgomeryNonUnique) SummationSlice(summands []bsFieldElement_MontgomeryNonUnique) {
+	var result bsFieldElement_MontgomeryNonUnique // due to potential aliasing of z with a factor.
 	L := len(summands)
 	if L == 0 {
 		z.SetZero()
@@ -59,8 +59,8 @@ func (z *bsFieldElement_64) SummationSlice(summands []bsFieldElement_64) {
 // SummationMany sets the receiver to the sum of the given summands.
 //
 // An empty sum gives a result of 0. Note: UseSummationSlice if you have the non-pointer summands stored in a slice.
-func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
-	var result bsFieldElement_64 // due to potential aliasing of z with a factor.
+func (z *bsFieldElement_MontgomeryNonUnique) SummationMany(summands ...*bsFieldElement_MontgomeryNonUnique) {
+	var result bsFieldElement_MontgomeryNonUnique // due to potential aliasing of z with a factor.
 	L := len(summands)
 	if L == 0 {
 		z.SetZero()
@@ -82,7 +82,7 @@ func (z *bsFieldElement_64) SummationMany(summands ...*bsFieldElement_64) {
 //
 // If non-nil, the returned error satisfies the interface MultiInversionError and wraps ErrDivisionByZero.
 // The MultiInversionError extends error by allowing to retrieve which and how many args were 0.
-func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
+func MultiInvertEq(args ...*bsFieldElement_MontgomeryNonUnique) (err MultiInversionError) {
 	L := len(args)
 
 	// handle special cases L==0, L==1
@@ -108,7 +108,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	// left-associative multiplication tree
 	// ((((...(args[0]*args[1]) * args[2]) *  ... ) * args[L-1]
 
-	var productOfFirstN []bsFieldElement_64 = make([]bsFieldElement_64, L-1)
+	var productOfFirstN []bsFieldElement_MontgomeryNonUnique = make([]bsFieldElement_MontgomeryNonUnique, L-1)
 
 	// Set productOfFirstN[i] == args[0] * args[1] * ... * args[i+1]
 	productOfFirstN[0].Mul(args[0], args[1])
@@ -128,7 +128,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 	// (because we don't have explicit productOfFirstN - values for
 	// the empty product and the product of just arg[0])
 
-	var temp1, temp2 bsFieldElement_64
+	var temp1, temp2 bsFieldElement_MontgomeryNonUnique
 	temp1.Inv(&productOfFirstN[L-2])
 
 	for i := L - 1; i >= 2; i-- {
@@ -150,7 +150,7 @@ func MultiInvertEq(args ...*bsFieldElement_64) (err MultiInversionError) {
 //
 // If non-nil, the returned error satisfies the interface MultiInversionError and wraps ErrDivisionByZero.
 // The MultiInversionError extends error by allowing to retrieve which and how many args were 0.
-func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
+func MultiInvertEqSlice(args []bsFieldElement_MontgomeryNonUnique) (err MultiInversionError) {
 	L := len(args)
 	// special case L==0, L==1 to allow optimizing the initial cases
 	//  (this avoids having to set some elements to 1 and then multiplyting by it)
@@ -159,7 +159,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 	}
 	if L == 1 {
 		if args[0].IsZero() {
-			err = GenerateMultiDivisionByZeroError([]*bsFieldElement_64{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
+			err = GenerateMultiDivisionByZeroError([]*bsFieldElement_MontgomeryNonUnique{&args[0]}, "bandersnatch / field elements: Division by zero when calling MultiInvertSliceEq on single element")
 			return
 		}
 
@@ -169,7 +169,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 
 	// Same algorithm as MultiInvertEq
 
-	var productOfFirstN []bsFieldElement_64 = make([]bsFieldElement_64, L-1)
+	var productOfFirstN []bsFieldElement_MontgomeryNonUnique = make([]bsFieldElement_MontgomeryNonUnique, L-1)
 
 	// Set productOfFirstN[i] == args[0] * args[1] * ... * args[i+1]
 	productOfFirstN[0].Mul(&args[0], &args[1])
@@ -179,7 +179,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 
 	// check if product of all args is zero. If yes, we need to handle some errors.
 	if productOfFirstN[L-2].IsZero() {
-		var argPtrs []*bsFieldElement_64 = make([]*bsFieldElement_64, len(args))
+		var argPtrs []*bsFieldElement_MontgomeryNonUnique = make([]*bsFieldElement_MontgomeryNonUnique, len(args))
 		for i := 0; i < L; i++ {
 			argPtrs[i] = &args[i]
 		}
@@ -187,7 +187,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 		return
 	}
 
-	var temp1, temp2 bsFieldElement_64 // temp2 is just needed to swap
+	var temp1, temp2 bsFieldElement_MontgomeryNonUnique // temp2 is just needed to swap
 	temp1.Inv(&productOfFirstN[L-2])
 
 	for i := L - 1; i >= 2; i-- {
@@ -208,7 +208,7 @@ func MultiInvertEqSlice(args []bsFieldElement_64) (err MultiInversionError) {
 //
 // If no field element among args was zero, zeroIndices is nil; otherwise, zeroIndices is a list of (0-based) indices of all field elements that were zero.
 // NOTE2: This also skips Ones. If you suspect your args has many ones, this is more efficient than the non-SkipZeros variant.
-func MultiInvertEqSliceSkipZeros(args []bsFieldElement_64) (zeroIndices []int) {
+func MultiInvertEqSliceSkipZeros(args []bsFieldElement_MontgomeryNonUnique) (zeroIndices []int) {
 	L := len(args)
 
 	// We build a list of pointers to all elements that need inverting (i.e. all that are non-zero)
@@ -250,7 +250,7 @@ func MultiInvertEqSliceSkipZeros(args []bsFieldElement_64) (zeroIndices []int) {
 //
 // NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
 // NOTE2: This also skips Ones. If you suspect your args has many ones, this is more efficient than the non-SkipZeros variant.
-func MultiInvertEqSkipZeros(args ...*bsFieldElement_64) (zeroIndices []int) {
+func MultiInvertEqSkipZeros(args ...*bsFieldElement_MontgomeryNonUnique) (zeroIndices []int) {
 
 	// Almost identical to the above. Note that we could avoid copying pointers by just swapping pointer-to-zero args to the end and undoing that after inversion.
 	// However, that's error-prone (due to the need to get zeroIndices right for indices that were swapped from the end)
