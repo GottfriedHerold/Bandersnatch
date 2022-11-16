@@ -25,9 +25,9 @@ func TestBigIntToUint256Roundtrip(t *testing.T) {
 	}
 	for i := int64(0); i < 10; i++ {
 		bigInt := big.NewInt(i)
-		var z uint256
+		var z Uint256
 		z.FromBigInt(bigInt)
-		testutils.FatalUnless(t, z == uint256{uint64(i), 0, 0, 0}, "")
+		testutils.FatalUnless(t, z == Uint256{uint64(i), 0, 0, 0}, "")
 	}
 	minusOne := big.NewInt(-1)
 	tooLarge := new(big.Int).Add(twoTo256_Int, big.NewInt(1))
@@ -43,7 +43,7 @@ func TestBigIntToUint512Roundtrip(t *testing.T) {
 
 	BigSamples := CachedBigInt.GetElements(SeedAndRange{2, twoTo512_Int}, num)
 	for _, bigSample := range BigSamples {
-		var z uint512
+		var z Uint512
 		z.FromBigInt(bigSample)
 		backToBig := z.ToBigInt()
 		testutils.FatalUnless(t, backToBig != bigSample, "Aliasing detected") // Note: Comparison is between pointers
@@ -51,9 +51,9 @@ func TestBigIntToUint512Roundtrip(t *testing.T) {
 	}
 	for i := int64(0); i < 10; i++ {
 		bigInt := big.NewInt(i)
-		var z uint512
+		var z Uint512
 		z.FromBigInt(bigInt)
-		testutils.FatalUnless(t, z == uint512{uint64(i), 0, 0, 0, 0, 0, 0, 0}, "")
+		testutils.FatalUnless(t, z == Uint512{uint64(i), 0, 0, 0, 0, 0, 0, 0}, "")
 	}
 	minusOne := big.NewInt(-1)
 	tooLarge := new(big.Int).Add(twoTo512_Int, big.NewInt(1))
@@ -68,7 +68,7 @@ func TestUint256Add(t *testing.T) {
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
-	var z1, z2 uint256
+	var z1, z2 Uint256
 	for _, x := range xs {
 		for _, y := range ys {
 			z1.Add(&x, &y)
@@ -88,10 +88,10 @@ func TestUint256AddWithCarry(t *testing.T) {
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
-	var z1, z2 uint256
+	var z1, z2 Uint256
 	for _, x := range xs {
 		for _, y := range ys {
-			carry1 := z1.AddWithCarry(&x, &y) == 1
+			carry1 := z1.AddAndReturnCarry(&x, &y) == 1
 			xInt := x.ToBigInt()
 			yInt := y.ToBigInt()
 			zInt := new(big.Int).Add(xInt, yInt)
@@ -110,7 +110,7 @@ func TestUint256Sub(t *testing.T) {
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
-	var z1, z2 uint256
+	var z1, z2 Uint256
 	for _, x := range xs {
 		for _, y := range ys {
 			z1.Sub(&x, &y)
@@ -130,10 +130,10 @@ func TestUint256SubWithBorrow(t *testing.T) {
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
-	var z1, z2 uint256
+	var z1, z2 Uint256
 	for _, x := range xs {
 		for _, y := range ys {
-			borrow1 := z1.SubWithBorrow(&x, &y) == 1
+			borrow1 := z1.SubAndReturnBorrow(&x, &y) == 1
 			xInt := x.ToBigInt()
 			yInt := y.ToBigInt()
 			zInt := new(big.Int).Sub(xInt, yInt)
@@ -158,8 +158,8 @@ func TestUint256IsZero(t *testing.T) {
 		testutils.FatalUnless(t, res1 == res2, "Is Zero differs from big.Int")
 	}
 
-	for _, x := range []uint256{{0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0, 1}, {1, 0, 0, 0}} {
-		res0 := (x == uint256{0, 0, 0, 0})
+	for _, x := range []Uint256{{0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0, 1}, {1, 0, 0, 0}} {
+		res0 := (x == Uint256{0, 0, 0, 0})
 		res1 := x.IsZero()
 		xInt := x.ToBigInt()
 		res2 := xInt.Sign() == 0
@@ -183,7 +183,7 @@ func TestLongMul256By64(t *testing.T) {
 			LongMul256By64(&z, &x, y)
 
 			// convert z to resInt of type *big.Int. This is somewhat involved.
-			var zLow uint256 = *(*[4]uint64)(z[0:4]) // lower-order words of z
+			var zLow Uint256 = *(*[4]uint64)(z[0:4]) // lower-order words of z
 			zLowInt := zLow.ToBigInt()
 			resInt := new(big.Int).SetUint64(z[4]) // high-order word of z
 			resInt.Mul(resInt, twoTo256_Int)
@@ -205,7 +205,7 @@ func TestUint256LongMul(t *testing.T) {
 	const num = 256
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
 	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
-	var z1, z2 uint512
+	var z1, z2 Uint512
 	for _, x := range xs {
 		for _, y := range ys {
 			z1.LongMul(&x, &y)
@@ -224,7 +224,7 @@ func TestUint256Square(t *testing.T) {
 
 	const num = 2048
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
-	var z1, z2 uint512
+	var z1, z2 Uint512
 	for _, x := range xs {
 		z1.LongSquare(&x)
 		xInt := x.ToBigInt()

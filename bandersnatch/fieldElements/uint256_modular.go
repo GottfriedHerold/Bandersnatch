@@ -4,6 +4,21 @@ import (
 	"math/bits"
 )
 
+// This file is part of the implementation of the Uint256 (and also a similar Uint512) data type.
+// Uint256 is a 256-bit unsigned integer data type used (mostly internally) to implement our field element types.
+//
+// Note that a Uint256 is an integer, not a residue, so arithmetic is as for usual uints, i.e. modulo 2^256.
+// Funtions and Methods that operate on Uint256's and perform modular arithmetic explicitly say so in their description and function name.
+//
+// The set of exported functions and methods for these is not particularly stable;
+// we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication, for instance) or for users who want to perform extensive computations in the base field.
+
+// Note that the code is split into 3 parts:
+//   uint256.go (integer arithmetic / arithmetic modulo 2^256)
+//   uint256_modular.go (arithmetic that works modulo BaseFieldSize)
+//   uint256_montgomery.go (Montgomery arithmetic)
+//
+
 // This file contains methods on uint256 that interpret the elements as residues modulo BaseFieldSize and perform appropriate operations (such as addition, multiplication of residues)
 // For reasons of efficiency, neither the input nor the output of these functions have to be the smallest representative of the residue class, i.e.
 // elements are not neccessarily in [0, BaseFieldSize)
@@ -18,24 +33,40 @@ import (
 //   - c means carry-avoiding, i.e. the number is in [0, 2^256-BaseFieldSize). Note that 2^256/BaseFieldSize is between 2 and 3, so this is stricter than b.
 //   - f means fully-reduced, i.e. in [0, BaseFieldSize)
 //
-// Methods have suffixes ReduceWeak_b to mean they operate with double-range reduced numbers.
+// Methods have suffixes like Reduce_b to mean they operate with double-range reduced numbers.
 // If the input constraints and output promises differ, we write _bc to have output b and input c
+
+// TODO: Split function
 // If we have multiple reduction quality statements depending on the input, we write multiple clauses: foo_b_c means that if the input is b-reduced, so is the output and if the input is c-reduced, the output is c-reduced.
 
 // toUint64 returns an array with the canonical representative of the residue class.
 //
 // DEPRECATED
-func (z *uint256) toUint64() [4]uint64 {
+func (z *Uint256) toUint64() [4]uint64 {
 	z.reduceBarret_fa() // Reduce to canonical residue modulo m
 	return [4]uint64{z[0], z[1], z[2], z[3]}
 }
 
-// AddAndReduce_b_c sets z, such that z==x+y mod BaseFieldSize holds. Assumes x and y to be weakly reduced.
+// AddAndReduce_b sets z, such that z==x+y mod BaseFieldSize holds.
+//
+// We require the inputs to be in [0, 2*BaseFieldSize) and guarantee the same for the output.
+func (z *Uint256) AddAndReduce_b(x, y *Uint256) {
+	z.addAndReduce_b_c(x, y)
+}
+
+// AddAndReduce_c sets z, such that z==x+y mod BaseFieldSize holds.
+//
+// We require the inputs to be in [0, 2^256 - BaseFieldSize) and guarantee the same for the output.
+func (z *Uint256) AddAndReduce_c(x, y *Uint256) {
+	z.addAndReduce_b_c(x, y)
+}
+
+// addAndReduce_b_c sets z, such that z==x+y mod BaseFieldSize holds. Assumes x and y to be weakly reduced.
 //
 // z might not be the smallest such representations. More precisely:
 //   - If x and y are both in [0, UINT256MAX-BaseFieldSize), then so is z.
 //   - If x and y are both in [0, 2*BaseFieldSize), then so is z.
-func (z *uint256) AddAndReduce_b_c(x, y *uint256) {
+func (z *Uint256) addAndReduce_b_c(x, y *Uint256) {
 	var carry uint64
 	z[0], carry = bits.Add64(x[0], y[0], 0)
 	z[1], carry = bits.Add64(x[1], y[1], carry)
@@ -62,8 +93,8 @@ func (z *uint256) AddAndReduce_b_c(x, y *uint256) {
 }
 
 // AddEqAndReduce_a computes z+=x mod BaseFieldSize, where the result may not be fully reduced.
-// Both the inputs and the resulting z maybe anywhere in [0, 2^256).
-func (z *uint256) AddEqAndReduce_a(x *uint256) {
+// Both the inputs and the resulting z may be anywhere in [0, 2^256).
+func (z *Uint256) AddEqAndReduce_a(x *Uint256) {
 	t0, c := bits.Add64(z[0], x[0], 0)
 	t1, c := bits.Add64(z[1], x[1], c)
 	t2, c := bits.Add64(z[2], x[2], c)
@@ -97,7 +128,7 @@ func (z *uint256) AddEqAndReduce_a(x *uint256) {
 // Assumes x and y to be weakly reduced in [0, UINT256MAX-BaseFieldSize).
 //
 // It guarantees the same for z.
-func (z *uint256) SubAndReduce_c(x, y *uint256) {
+func (z *Uint256) SubAndReduce_c(x, y *Uint256) {
 	var borrow uint64 // only takes values 0,1
 
 	// Set z := x - y mod 2^256
@@ -138,7 +169,7 @@ func (z *uint256) SubAndReduce_c(x, y *uint256) {
 // Assumes x and y to be weakly reduced in [0, 2*BaseFieldSize).
 //
 // It guarantees the same for z.
-func (z *uint256) SubAndReduce_b(x, y *uint256) {
+func (z *Uint256) SubAndReduce_b(x, y *Uint256) {
 	var borrow uint64 // only takes values 0,1
 
 	// Set z := x - y mod 2^256
@@ -164,7 +195,7 @@ func (z *uint256) SubAndReduce_b(x, y *uint256) {
 
 // SubEqAndReduce_a computes the difference z -= x mod BaseFieldSize, where z is not guaranteed to be fully reduced.
 // Both inputs and outputs are only guaranteed to be in the interval [0..2**256).
-func (z *uint256) SubEqAndReduce_a(x *uint256) {
+func (z *Uint256) SubEqAndReduce_a(x *Uint256) {
 	t0, b := bits.Sub64(z[0], x[0], 0)
 	t1, b := bits.Sub64(z[1], x[1], b)
 	t2, b := bits.Sub64(z[2], x[2], b)
@@ -205,7 +236,7 @@ func (z *uint256) SubEqAndReduce_a(x *uint256) {
 // z := x^-1 (mod m)
 // in the case no multiplicative inverse exists, returns false, true otherwise
 // Input and output values are weakly reduced to the interval [0..2**256)
-func (z *uint256) ModularInverse_a_NAIVEHAC(xIn *uint256) bool {
+func (z *Uint256) ModularInverse_a_NAIVEHAC(xIn *Uint256) bool {
 
 	// Removed in favor or correct check:
 	/*
@@ -244,7 +275,7 @@ func (z *uint256) ModularInverse_a_NAIVEHAC(xIn *uint256) bool {
 	// invariants:
 	// u = a * x + b * m
 	// v = c * x + d * m
-	// Note that a,b,c,d can become negative, so represented using 2s complement by 5 uint64 - words  -- Gotti: Are 5 words always enough?
+	// Note that a,b,c,d can become negative, so represented using 2s complement by 5 uint64 - words  -- Gotti: Are 5 words always enough? -- Gotti: Yes, they are
 	// At least one of u,v odd
 
 	done := false
@@ -396,7 +427,7 @@ func (z *uint256) ModularInverse_a_NAIVEHAC(xIn *uint256) bool {
 	*/
 
 	// We effectively reduce the (signed!) 5-word c modulu m to a 256-bit number.
-	// This assumes that int(c4) is small in absolute value. Why is that so? -- Gotti
+	// This assumes that int(c4) is small in absolute value. Why is that so? -- Gotti: Proved this; TODO: Add proof into code doc.
 
 	// Add or subtract modulus to find 256-bit inverse (<= 2 iterations expected)
 
@@ -420,10 +451,10 @@ func (z *uint256) ModularInverse_a_NAIVEHAC(xIn *uint256) bool {
 	return true
 }
 
-// reduce_ca replaces z by some number z' with z' == z mod BaseFieldSize.
+// Reduce_ca replaces z by some number z' with z' == z mod BaseFieldSize.
 //
 // z' is guaranteed to be in [0, UINT256MAX-BaseFieldSize)
-func (z *uint256) reduce_ca() {
+func (z *Uint256) Reduce_ca() {
 	var borrow uint64
 	// Note: if z.words[3] == m_64_3, we may or may not be able to reduce, depending on the other words.
 	// At any rate, we do not really need to, so we don't check.
@@ -435,10 +466,10 @@ func (z *uint256) reduce_ca() {
 	}
 }
 
-// reduce_fb replaces z by some number z' with z' == z mod BaseFieldSize. Assumes z is already weakly reduced.
+// Reduce_fb replaces z by some number z' with z' == z mod BaseFieldSize. Assumes z is already weakly reduced.
 //
 // More precisely, z' is guaranteed to be in [0, BaseFieldSize), provided z is in [0, 2*BaseFieldSize)
-func (z *uint256) reduce_fb() {
+func (z *Uint256) Reduce_fb() {
 	if !z.is_fully_reduced() {
 
 		var borrow uint64
@@ -451,10 +482,10 @@ func (z *uint256) reduce_fb() {
 }
 
 // is_fully_reduced checks whether z is in [0, BaseFieldSize)
-func (z *uint256) is_fully_reduced() bool {
+func (z *Uint256) is_fully_reduced() bool {
 	// Workaround for Go's lack of const-arrays. Hoping for smart-ish compiler.
 	// Note that the RHS is const and the left-hand-side is local and never written to after initialization.
-	var baseFieldSize_copy uint256 = [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}
+	var baseFieldSize_copy Uint256 = [4]uint64{baseFieldSize_0, baseFieldSize_1, baseFieldSize_2, baseFieldSize_3}
 	for i := int(3); i >= 0; i-- {
 		if z[i] < baseFieldSize_copy[i] {
 			return true
@@ -467,8 +498,8 @@ func (z *uint256) is_fully_reduced() bool {
 }
 
 // Barrett reduction from the Handbook of Applied Cryptography.
-// Used in the MulEq and SquareEq to execute a weak reduction to the inverval [0..2**256]
-func (z *uint256) ReduceUint512ToUint256_a(x uint512) {
+// Used in the MulEq and SquareEq to execute a weak reduction to the inverval [0..2**256)
+func (z *Uint256) ReduceUint512ToUint256_a(x Uint512) {
 	// q1 = x/2^192
 	x0 := x[3]
 	x1 := x[4]
@@ -663,7 +694,7 @@ func (z *uint256) ReduceUint512ToUint256_a(x uint512) {
 }
 
 // reduceBarret_fa computes computes the canonical form z mod m, storing back in z
-func (z *uint256) reduceBarret_fa() {
+func (z *Uint256) reduceBarret_fa() {
 
 	// NB: Most variable names in the comments match the pseudocode for
 	// 	Barrett reduction in the Handbook of Applied Cryptography.
@@ -736,7 +767,7 @@ func (z *uint256) reduceBarret_fa() {
 // input values don't need to be fully reduced.
 //
 // DEPRECATED
-func (z *uint256) ComputeModularNegative_Weak_a() (r uint256) {
+func (z *Uint256) ComputeModularNegative_Weak_a() (r Uint256) {
 	t0, b := bits.Sub64(mmu0_0, z[0], 0)
 	t1, b := bits.Sub64(mmu0_1, z[1], b)
 	t2, b := bits.Sub64(mmu0_2, z[2], b)
@@ -759,7 +790,7 @@ func (z *uint256) ComputeModularNegative_Weak_a() (r uint256) {
 
 // DoubleEqAndReduce_a doubles a number modulo m, weakly reduced reduce to to the interval [0..2**256)
 // input values don't need to be fully reduced.
-func (z *uint256) DoubleEqAndReduce_a() {
+func (z *Uint256) DoubleEqAndReduce_a() {
 
 	t0, c := bits.Add64(z[0], z[0], 0)
 	t1, c := bits.Add64(z[1], z[1], c)
@@ -792,9 +823,9 @@ func (z *uint256) DoubleEqAndReduce_a() {
 // SquareEqAndReduce_a computes  z := z*x (mod m).
 //
 // Input and output values may be in the fully [0,2**256) range
-func (z *uint256) MulEqAndReduce_a(x *uint256) {
+func (z *Uint256) MulEqAndReduce_a(x *Uint256) {
 
-	var zUnreduced uint512
+	var zUnreduced Uint512
 	zUnreduced.LongMul(x, z)
 	// Reduce back into uint256
 	z.ReduceUint512ToUint256_a(zUnreduced)
@@ -804,9 +835,9 @@ func (z *uint256) MulEqAndReduce_a(x *uint256) {
 // SquareEqAndReduce_a computes  z := z^2 (mod m).
 //
 // Input and output values may be in the fully [0,2**256) range
-func (z *uint256) SquareEqAndReduce_a() {
+func (z *Uint256) SquareEqAndReduce_a() {
 
-	var zUnreduced uint512
+	var zUnreduced Uint512
 	zUnreduced.LongSquare(z)
 	// Reduce back into uint256
 	z.ReduceUint512ToUint256_a(zUnreduced)
@@ -815,8 +846,8 @@ func (z *uint256) SquareEqAndReduce_a() {
 // MulAndReduce_a computes  z := x*y (mod m).
 //
 // Input and output values may be in the fully [0,2**256) range
-func (z *uint256) MulAndReduce_a(x *uint256, y *uint256) {
-	var zUnreduced uint512
+func (z *Uint256) MulAndReduce_a(x *Uint256, y *Uint256) {
+	var zUnreduced Uint512
 	zUnreduced.LongMul(x, y)
 	z.ReduceUint512ToUint256_a(zUnreduced)
 }
@@ -824,24 +855,32 @@ func (z *uint256) MulAndReduce_a(x *uint256, y *uint256) {
 // SquareAndReduce_a computes  z := x^2 (mod m).
 //
 // Input and output values may be in the fully [0,2**256) range
-func (z *uint256) SquareAndReduce_a(x *uint256) {
-	var zUnreduced uint512
+func (z *Uint256) SquareAndReduce_a(x *Uint256) {
+	var zUnreduced Uint512
 	zUnreduced.LongSquare(x)
 	z.ReduceUint512ToUint256_a(zUnreduced)
 }
 
-func (z *uint256) IsReduced_a() bool {
+// IsReduced_a checks whether the given Uint256 is in the range [0, 2^256).
+//
+// This always returns true and is just provided for consistency.
+func (z *Uint256) IsReduced_a() bool {
 	return true
 }
 
-func (z *uint256) IsReduced_f() bool {
+// IsReduced_f checks whether the given Uint256 is in the range [0, BaseFieldSize)
+//
+// This means we check whether, as a residue modulo BaseFieldSize, it is fully reduced.
+func (z *Uint256) IsReduced_f() bool {
 	return z.is_fully_reduced()
 }
 
-func (z *uint256) IsReduced_b() bool {
+// IsReduced_b checks whether the given Uint256 is in the range [0, 2*BaseFieldSize)
+func (z *Uint256) IsReduced_b() bool {
 	return z.IsLessThan(&twiceBaseFieldSize_uint256)
 }
 
-func (z *uint256) IsReduced_c() bool {
+// IsReduced_c checks whether the given Uint256 is in the range [0, 2^256-BaseFieldSize)
+func (z *Uint256) IsReduced_c() bool {
 	return z.IsLessThan(&montgomeryBound_uint256)
 }

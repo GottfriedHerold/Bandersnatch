@@ -47,26 +47,26 @@ func Benchmark_uint256_Modular(b *testing.B) {
 */
 
 func benchmarkAddAndReduce_b(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpUint256[n%benchS].AddAndReduce_b_c(&bench_x[n%benchS], &bench_y[n%benchS])
+		DumpUint256[n%benchS].addAndReduce_b_c(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
 func benchmarkAddAndReduce_c(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpUint256[n%benchS].AddAndReduce_b_c(&bench_x[n%benchS], &bench_y[n%benchS])
+		DumpUint256[n%benchS].addAndReduce_b_c(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
 func benchmarkAddEqAndReduce_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		bench_x[n%benchS].AddEqAndReduce_a(&bench_y[n%benchS])
@@ -78,8 +78,8 @@ func benchmarkAddEqAndReduce_a(b *testing.B) {
 }
 
 func benchmarkSubAndReduce_c(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_c, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].SubAndReduce_c(&bench_x[n%benchS], &bench_y[n%benchS])
@@ -87,8 +87,8 @@ func benchmarkSubAndReduce_c(b *testing.B) {
 }
 
 func benchmarkSubAndReduce_b(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].SubAndReduce_b(&bench_x[n%benchS], &bench_y[n%benchS])
@@ -96,8 +96,8 @@ func benchmarkSubAndReduce_b(b *testing.B) {
 }
 
 func benchmarkSubEqAndReduce_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		bench_x[n%benchS].SubEqAndReduce_a(&bench_y[n%benchS])
@@ -109,7 +109,7 @@ func benchmarkSubEqAndReduce_a(b *testing.B) {
 }
 
 func benchmarkModularInverse_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].ModularInverse_a_NAIVEHAC(&bench_x[n%benchS])
@@ -117,25 +117,25 @@ func benchmarkModularInverse_a(b *testing.B) {
 }
 
 func benchmark_Copy_Reduce_ca(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
-		DumpUint256[n%benchS].reduce_ca()
+		DumpUint256[n%benchS].Reduce_ca()
 	}
 }
 
 func benchmark_Copy_Reduce_fb(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
-		DumpUint256[n%benchS].reduce_fb()
+		DumpUint256[n%benchS].Reduce_fb()
 	}
 }
 
 func benchmark_IsFullyReduced_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpBools_fe[n%benchS] = bench_x[n%benchS].is_fully_reduced()
@@ -143,7 +143,7 @@ func benchmark_IsFullyReduced_a(b *testing.B) {
 }
 
 func benchmark_Copy_Reduce_barret_fa(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
@@ -153,7 +153,7 @@ func benchmark_Copy_Reduce_barret_fa(b *testing.B) {
 
 // benchmark Barret reduction from [0,2**512) to [0..2**256) range
 func benchmark_BarretReduction512_a(b *testing.B) {
-	var bench_x []uint512 = CachedUint512.GetElements(10, benchS)
+	var bench_x []Uint512 = CachedUint512.GetElements(10, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].ReduceUint512ToUint256_a(bench_x[n%benchS]) // pass-by-value. This is dubious, but that's what Luans code does and we want to benchmark as-is first.
@@ -162,7 +162,7 @@ func benchmark_BarretReduction512_a(b *testing.B) {
 
 // deprecated function:
 func benchmark_ComputeModularNegative_f(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS].ComputeModularNegative_Weak_a()
@@ -170,7 +170,7 @@ func benchmark_ComputeModularNegative_f(b *testing.B) {
 }
 
 func benchmark_Copy_DoubleEqAndReduce_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
@@ -179,8 +179,8 @@ func benchmark_Copy_DoubleEqAndReduce_a(b *testing.B) {
 }
 
 func benchmark_MulEqBarret_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
@@ -189,7 +189,7 @@ func benchmark_MulEqBarret_a(b *testing.B) {
 }
 
 func benchmark_Copy_SquareEqBarret_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
@@ -198,8 +198,8 @@ func benchmark_Copy_SquareEqBarret_a(b *testing.B) {
 }
 
 func benchmark_MulBarret_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].MulAndReduce_a(&bench_x[n%benchS], &bench_y[n%benchS])
@@ -207,7 +207,7 @@ func benchmark_MulBarret_a(b *testing.B) {
 }
 
 func benchmark_SquareBarret_a(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].SquareAndReduce_a(&bench_x[n%benchS])

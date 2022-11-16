@@ -8,11 +8,36 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-type uint256 [4]uint64 // low-endian
-type uint512 [8]uint64 // low-endian
+// This file is part of the implementation of the Uint256 (and also a similar Uint512) data type.
+// Uint256 is a 256-bit unsigned integer data type used (mostly internally) to implement our field element types.
+//
+// Note that a Uint256 is an integer, not a residue, so arithmetic is as for usual uints, i.e. modulo 2^256.
+// Funtions and Methods that operate on Uint256's and perform modular arithmetic explicitly say so in their description and function name.
+//
+// The set of exported functions and methods for these is not particularly stable;
+// we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication, for instance) or for users who want to perform extensive computations in the base field.
+
+// Note that the code is split into 3 parts:
+//   uint256.go (integer arithmetic / arithmetic modulo 2^256)
+//   uint256_modular.go (arithmetic that works modulo BaseFieldSize)
+//   uint256_montgomery.go (Montgomery arithmetic)
+//
+
+// Uint256 is a 256-bit (unsigned) integer.
+//
+// We provide methods for elementary arithmetic and for arithmetic modulo BaseFieldSize (the latter explicitly say they perform moular reduction)
+// This type is based on [4]uint64 with low-endian convention, so x[i] will retrieve the i'th (low-endian) uint64.
+//
+// Note that this type is mostly for internal and cross-package usage; we do not guarantee that the exported methods (and their names) are stable.
+type Uint256 [4]uint64 // low-endian
+
+// Uint512 is a 512-bit (unsigned) integer.
+//
+// This type works mostly like Uint256, but we provide relatively little functionaliy, as this type only matters for intermediate results.
+type Uint512 [8]uint64 // low-endian
 
 // ToBigInt converts the given uint256 to a [*big.Int]
-func (z *uint256) ToBigInt() *big.Int {
+func (z *Uint256) ToBigInt() *big.Int {
 	// convert uint256 to big-endian (because big.Int's SetBytes takes a big-endian byte slice)
 	var big_endian_byte_slice [32]byte
 	binary.BigEndian.PutUint64(big_endian_byte_slice[0:8], z[3])
@@ -25,7 +50,7 @@ func (z *uint256) ToBigInt() *big.Int {
 }
 
 // ToBigInt converts the given uint512 to a [*big.Int]
-func (z *uint512) ToBigInt() *big.Int {
+func (z *Uint512) ToBigInt() *big.Int {
 	// convert uint256 to big-endian (because big.Int's SetBytes takes a big-endian byte slice)
 	var big_endian_byte_slice [64]byte
 	binary.BigEndian.PutUint64(big_endian_byte_slice[0:8], z[7])
@@ -47,14 +72,14 @@ func (z *uint512) ToBigInt() *big.Int {
 // BigIntToUInt256 converts a [*big.Int] to a uint256.
 //
 // This function panics if x is not between 0 and 2^256 - 1.
-func BigIntToUInt256(x *big.Int) (result uint256) {
+func BigIntToUInt256(x *big.Int) (result Uint256) {
 	return utils.BigIntToUIntArray(x)
 }
 
 // BigIntToUint512 converts a [*big.Int] to a uint512
 //
 // This function panics if x is not between 0 and 2^512 - 1
-func BigIntToUint512(x *big.Int) (result uint512) {
+func BigIntToUint512(x *big.Int) (result Uint512) {
 	if x.Sign() < 0 {
 		panic(ErrorPrefix + "Uint512.FromBigInt: Trying to convert negative big.Int")
 	}
@@ -76,13 +101,30 @@ func BigIntToUint512(x *big.Int) (result uint512) {
 
 // FromBigInt sets z:=x, where x is a [*big.Int].
 //
-// We assume that 0 <= x < 2**256
-func (z *uint256) FromBigInt(x *big.Int) {
+// We assume that 0 <= x < 2**256, else we panic.
+func (z *Uint256) FromBigInt(x *big.Int) {
 	*z = utils.BigIntToUIntArray(x)
 }
 
-func (z *uint512) FromBigInt(x *big.Int) {
+// FromBigInt sets z:=x, where x is a [*big.Int].
+//
+// We assume that 0 <= x < 2**512, else we panic.
+func (z *Uint512) FromBigInt(x *big.Int) {
 	*z = BigIntToUint512(x)
+}
+
+// FromUint64 converts a uint64 to a Uint256.
+//
+// Usage: z.FromUint64(x) sets z := x, where x is a uint64
+func (z *Uint256) FromUint64(x uint64) {
+	*z = Uint256{x, 0, 0, 0}
+}
+
+// FromUint64 converts a uint64 to a Uint512.
+//
+// Usage: z.FromUint64(x) sets z := x, where x is a uint64
+func (z *Uint512) FromUint64(x uint64) {
+	*z = Uint512{x, 0, 0, 0, 0, 0, 0, 0}
 }
 
 /*
@@ -108,7 +150,7 @@ func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
 
 // Add computes an addition z := x + y.
 // The addition is carried out modulo 2^256
-func (z *uint256) Add(x, y *uint256) {
+func (z *Uint256) Add(x, y *Uint256) {
 	var carry uint64
 	z[0], carry = bits.Add64(x[0], y[0], 0)
 	z[1], carry = bits.Add64(x[1], y[1], carry)
@@ -116,10 +158,13 @@ func (z *uint256) Add(x, y *uint256) {
 	z[3], _ = bits.Add64(x[3], y[3], carry)
 }
 
-// AddWithCarry computes an addition z := x + y.
+// Note: We don't have a variant that take a carry as input, as we don't need it.
+// carries are stored in uint64. This is consistent with bits.Add64 etc.
+
+// AddAndReturnCarry computes an addition z := x + y.
 // The addition is carried out modulo 2^256
 // Returns the carry value
-func (z *uint256) AddWithCarry(x, y *uint256) (carry uint64) {
+func (z *Uint256) AddAndReturnCarry(x, y *Uint256) (carry uint64) {
 	z[0], carry = bits.Add64(x[0], y[0], 0)
 	z[1], carry = bits.Add64(x[1], y[1], carry)
 	z[2], carry = bits.Add64(x[2], y[2], carry)
@@ -128,7 +173,7 @@ func (z *uint256) AddWithCarry(x, y *uint256) (carry uint64) {
 }
 
 // Sub computes subtraction z := x - y, modulo 2^256
-func (z *uint256) Sub(x, y *uint256) {
+func (z *Uint256) Sub(x, y *Uint256) {
 	var borrow uint64 // only takes values 0,1
 	z[0], borrow = bits.Sub64(x[0], y[0], 0)
 	z[1], borrow = bits.Sub64(x[1], y[1], borrow)
@@ -136,9 +181,9 @@ func (z *uint256) Sub(x, y *uint256) {
 	z[3], _ = bits.Sub64(x[3], y[3], borrow)
 }
 
-// SubWithBorrow computes subtraction z := x - y, modulo 2^256
+// SubAndReturnBorrow computes subtraction z := x - y, modulo 2^256
 // returns borrow bit
-func (z *uint256) SubWithBorrow(x, y *uint256) (borrow uint64) {
+func (z *Uint256) SubAndReturnBorrow(x, y *Uint256) (borrow uint64) {
 	z[0], borrow = bits.Sub64(x[0], y[0], 0)
 	z[1], borrow = bits.Sub64(x[1], y[1], borrow)
 	z[2], borrow = bits.Sub64(x[2], y[2], borrow)
@@ -147,13 +192,12 @@ func (z *uint256) SubWithBorrow(x, y *uint256) (borrow uint64) {
 }
 
 // IsZero checks whether the uint256 is (exactly) zero.
-func (z *uint256) IsZero() bool {
+func (z *Uint256) IsZero() bool {
 	return z[0]|z[1]|z[2]|z[3] == 0
-
 }
 
 // ShiftRight_64 shifts the internal uint64 array once (equivalent to division by 2^64) and returns the shifted-out uint64
-func (z *uint256) ShiftRight_64() (ShiftOut uint64) {
+func (z *Uint256) ShiftRight_64() (ShiftOut uint64) {
 	ShiftOut = z[0]
 	z[0] = z[1]
 	z[1] = z[2]
@@ -163,7 +207,7 @@ func (z *uint256) ShiftRight_64() (ShiftOut uint64) {
 }
 
 // ShiftLeft_64 shifts the internal uint64 array once (equivalent to multiplication by 2^64) and returns the shifted-out uint64
-func (z *uint256) ShiftLeft_64() (ShiftOut uint64) {
+func (z *Uint256) ShiftLeft_64() (ShiftOut uint64) {
 	ShiftOut = z[3]
 	z[3] = z[2]
 	z[2] = z[1]
@@ -175,7 +219,7 @@ func (z *uint256) ShiftLeft_64() (ShiftOut uint64) {
 // LongMul256By64 multiplies a 256bit by a 64 bit uint, resulting in a 320-bit uint (stored as low-endian [5]uint64)
 //
 // Usage is LongMul256By64(&z, &x, y) to compute z := x * y
-func LongMul256By64(target *[5]uint64, x *uint256, y uint64) {
+func LongMul256By64(target *[5]uint64, x *Uint256, y uint64) {
 	var carry, mul_low uint64
 	target[1], target[0] = bits.Mul64(x[0], y)
 
@@ -191,8 +235,8 @@ func LongMul256By64(target *[5]uint64, x *uint256, y uint64) {
 	target[4] += carry
 }
 
-// LongMul computes a 256 bit x 256 bit -> 512 multiplication, without any modular reduction. z:=x*y
-func (z *uint512) LongMul(x, y *uint256) {
+// LongMul computes a 256-bit x 256-bit -> 512-bit multiplication, without any modular reduction. z:=x*y
+func (z *Uint512) LongMul(x, y *Uint256) {
 	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
 
 	q2, q1 = bits.Mul64(y[0], x[1])
@@ -260,7 +304,7 @@ func (z *uint512) LongMul(x, y *uint256) {
 }
 
 // LongSquare computes a 256-bit to 512-bit squaring operation without modular reduction. z := x*x
-func (z *uint512) LongSquare(x *uint256) {
+func (z *Uint512) LongSquare(x *Uint256) {
 	var c, t0, t1, q0, q1, q2, q3, q4, q5, q6, q7 uint64
 
 	q4, q3 = bits.Mul64(x[0], x[3])
@@ -317,7 +361,7 @@ func (z *uint512) LongSquare(x *uint256) {
 //	+1 if z > x
 //
 // Note that the returned value matches [*big.Int]'s Cmp method
-func (z *uint256) Cmp(x *uint256) int {
+func (z *Uint256) Cmp(x *Uint256) int {
 	for i := int(3); i >= 0; i-- {
 		if z[i] < x[i] {
 			return -1
@@ -332,6 +376,6 @@ func (z *uint256) Cmp(x *uint256) int {
 // IsLessThan compares two uin256's.
 //
 // The behaviour is as the name suggests: z.IsLessThan(x) is true iff z < x.
-func (z *uint256) IsLessThan(x *uint256) bool {
+func (z *Uint256) IsLessThan(x *Uint256) bool {
 	return z.Cmp(x) == -1
 }

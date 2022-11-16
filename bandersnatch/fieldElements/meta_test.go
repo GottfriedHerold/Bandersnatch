@@ -46,8 +46,8 @@ var DumpBools_fe [dumpSizeBench_fe]bool
 
 var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_64
 var DumpFe_8 [dumpSizeBench_fe]bsFieldElement_8
-var DumpUint256 [dumpSizeBench_fe]uint256
-var DumpUint512 [dumpSizeBench_fe]uint512
+var DumpUint256 [dumpSizeBench_fe]Uint256
+var DumpUint512 [dumpSizeBench_fe]Uint512
 var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_fe]*big.Int) {
 	for i := 0; i < dumpSizeBench_fe; i++ {
 		_DumpBigInt[i] = big.NewInt(0)
@@ -110,7 +110,7 @@ var (
 // CachedUint256 is used to retrieved precomputed slices of uint256's. The key of type SeedAndRange allows to select an rng seed an a range.
 //
 // Usage: CachedUint256.GetElements(key, amount)
-var CachedUint256 = testutils.MakePrecomputedCache[SeedAndRange, uint256](
+var CachedUint256 = testutils.MakePrecomputedCache[SeedAndRange, Uint256](
 	// creating random seed:
 	func(key SeedAndRange) *rand.Rand {
 		testutils.Assert(key.allowedRange != nil)
@@ -120,7 +120,7 @@ var CachedUint256 = testutils.MakePrecomputedCache[SeedAndRange, uint256](
 		return rand.New(rand.NewSource(key.seed))
 	},
 	// sampling random uint256's
-	func(rng *rand.Rand, key SeedAndRange) uint256 {
+	func(rng *rand.Rand, key SeedAndRange) Uint256 {
 		var rnd_Int *big.Int = big.NewInt(0)
 		rnd_Int.Rand(rng, key.allowedRange)
 		return utils.BigIntToUIntArray(rnd_Int)
@@ -134,11 +134,11 @@ var CachedUint256 = testutils.MakePrecomputedCache[SeedAndRange, uint256](
 // NOTE: As opposed to CachedUint256, we don't need to select a range. We always use the full [0, 2**512) range.
 //
 // Usage: CachedUint512.GetElements(key, amount)
-var CachedUint512 = testutils.MakePrecomputedCache[int64, uint512](
+var CachedUint512 = testutils.MakePrecomputedCache[int64, Uint512](
 	// creating random seed:
 	testutils.DefaultCreateRandFromSeed,
 	// sampling random uint256's
-	func(rng *rand.Rand, key int64) (ret uint512) {
+	func(rng *rand.Rand, key int64) (ret Uint512) {
 		for i := 0; i < 8; i++ {
 			ret[i] = rng.Uint64()
 		}

@@ -49,7 +49,7 @@ var BaseFieldSize_Int *big.Int = common.BaseFieldSize_Int
 var baseFieldSize_Int *big.Int = new(big.Int).Set(BaseFieldSize_Int)
 
 // baseFieldSize_uint256 is the size of the field of definition of the Bandersnatch curve as an uint256
-var baseFieldSize_uint256 uint256 = BaseFieldSize_64
+var baseFieldSize_uint256 Uint256 = BaseFieldSize_64
 
 // baseFieldSize_i_j are (typed) constants derived from BaseFieldSize_untyped at the end of this file. These give the j'th (low-endian) i-bit words.
 
@@ -90,10 +90,10 @@ const BaseFieldByteLength = common.BaseFieldByteLength // == 32
 // uint256Max_untyped is 2**256 - 1
 const uint256Max_untyped = 2*((1<<255)-1) + 1 // == (1 << 256) - 1 == 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF
 
-var zero_uint256 uint256 = [4]uint64{0, 0, 0, 0}
-var one_uint256 uint256 = [4]uint64{1, 0, 0, 0}
-var two_uint256 uint256 = [4]uint64{2, 0, 0, 0}
-var uint256Max_uint256 uint256 = [4]uint64{0xFFFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF}
+var zero_uint256 Uint256 = [4]uint64{0, 0, 0, 0}
+var one_uint256 Uint256 = [4]uint64{1, 0, 0, 0}
+var two_uint256 Uint256 = [4]uint64{2, 0, 0, 0}
+var uint256Max_uint256 Uint256 = [4]uint64{0xFFFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF, 0xFFFFFFFF_FFFFFFFF}
 
 // Note: We copy pointers here. This is fine.
 var (
@@ -118,7 +118,7 @@ const twiceBaseFieldSize_untyped = 2 * BaseFieldSize_untyped
 
 var (
 	twiceBaseFieldSize_Int     *big.Int  = utils.InitIntFromString("104871750350252380958895481016371931675381105001055275645207317399877162369026") // 2 * BaseFieldSize
-	twiceBaseFieldSize_uint256 uint256   = BigIntToUInt256(twiceBaseFieldSize_Int)
+	twiceBaseFieldSize_uint256 Uint256   = BigIntToUInt256(twiceBaseFieldSize_Int)
 	twiceBaseFieldSize_64      [4]uint64 = [4]uint64{twiceBaseFieldSize_64_0, twiceBaseFieldSize_64_1, twiceBaseFieldSize_64_2, twiceBaseFieldSize_64_3}
 )
 
@@ -131,7 +131,7 @@ const thriceBaseFieldSizeMod2To256_untyped = 41515536288062376014772236515869989
 var (
 	thriceBaseFieldSize_Int              *big.Int  = utils.InitIntFromString("157307625525378571438343221524557897513071657501582913467810976099815743553539")
 	thriceBaseFieldSizeMod2To256_Int     *big.Int  = utils.InitIntFromString("41515536288062376014772236515869989659801672835942349428353392091902613913603")
-	thriceBaseFieldSizeMod2To256_uint256 uint256   = BigIntToUInt256(thriceBaseFieldSizeMod2To256_Int)
+	thriceBaseFieldSizeMod2To256_uint256 Uint256   = BigIntToUInt256(thriceBaseFieldSizeMod2To256_Int)
 	thriceBaseFieldSize_64               [5]uint64 = [5]uint64{thriceBaseFieldSize_64_0, thriceBaseFieldSize_64_1, thriceBaseFieldSize_64_2, thriceBaseFieldSize_64_3, thriceBaseFieldSize_64_4}
 )
 
@@ -142,7 +142,7 @@ const twoTo256ModBaseField_untyped = 2 * ((1 << 255) - BaseFieldSize_untyped) //
 
 var (
 	twoTo256ModBaseField_Int     *big.Int = utils.InitIntFromString("10920338887063814464675503992315976177888879664585288394250266608035967270910")
-	twoTo256ModBaseField_uint256 uint256  = uint256{twoTo256ModBaseField_64_0, twoTo256ModBaseField_64_1, twoTo256ModBaseField_64_2, twoTo256ModBaseField_64_3}
+	twoTo256ModBaseField_uint256 Uint256  = Uint256{twoTo256ModBaseField_64_0, twoTo256ModBaseField_64_1, twoTo256ModBaseField_64_2, twoTo256ModBaseField_64_3}
 )
 
 // twoTo512ModBaseField_untyped is 2^512 mod BaseFieldSize. This is useful for converting to/from montgomery form.
@@ -152,7 +152,7 @@ const (
 
 var (
 	twoTo512ModBaseField_Int     *big.Int = utils.InitIntFromString("0x748d9d99f59ff1105d314967254398f2b6cedcb87925c23c999e990f3f29c6d")
-	twoTo512ModBaseField_uint256 uint256  = uint256{twoTo512ModBaseField_64_0, twoTo512ModBaseField_64_1, twoTo512ModBaseField_64_2, twoTo512ModBaseField_64_3}
+	twoTo512ModBaseField_uint256 Uint256  = Uint256{twoTo512ModBaseField_64_0, twoTo512ModBaseField_64_1, twoTo512ModBaseField_64_2, twoTo512ModBaseField_64_3}
 )
 
 // We do not neccessarily assume that all representatives of field elements are fully reduced. In the current bsFieldElement_64 implementation, we assume that
@@ -160,7 +160,7 @@ var (
 
 var (
 	montgomeryBound_Int     *big.Int = utils.InitIntFromString("63356214062190004944123244500501942015579432165112926216853925307974548455423") // 2**256 - BaseFieldSize
-	montgomeryBound_uint256 uint256  = BigIntToUInt256(montgomeryBound_Int)
+	montgomeryBound_uint256 Uint256  = BigIntToUInt256(montgomeryBound_Int)
 )
 
 // minusOneHalfModBaseField_untyped equals 1/2 * (BaseFieldSize-1) as untyped int. This equals -1/2 mod BaseFieldSize
@@ -174,7 +174,7 @@ const oneHalfModBaseField_untyped = (BaseFieldSize_untyped + 1) / 2
 const minus2To256ModBaseField_untyped = BaseFieldSize_untyped - twoTo256ModBaseField_untyped // 41515536288062376014772236515869989659801672835942349428353392091902613913603
 
 var (
-	minus2To256ModBaseField_uint256 = uint256{minus2To256ModBaseField_64_0, minus2To256ModBaseField_64_1, minus2To256ModBaseField_64_2, minus2To256ModBaseField_64_3}
+	minus2To256ModBaseField_uint256 = Uint256{minus2To256ModBaseField_64_0, minus2To256ModBaseField_64_1, minus2To256ModBaseField_64_2, minus2To256ModBaseField_64_3}
 )
 
 // neativeInverseModulus_uint64 is -1/BaseFieldSize mod 2**64.

@@ -44,7 +44,7 @@ type bsFieldElement_64 struct {
 	// Of course, this invariant concerns the Montgomery representation, interpreting words directly as a 256-bit integer.
 	// Since BaseFieldSize is between 1/3*2^256 and 1/2*2^256, a given field element x might have either 1 or 2 possible representations as
 	// a bsFieldElement_64, both of which are equally valid as far as this implementation is concerned.
-	words uint256
+	words Uint256
 }
 
 // Note: We export *copies* of these variables. Internal functions should use the original.
@@ -97,7 +97,7 @@ func (z *bsFieldElement_64) isNormalized() bool {
 // This is mostly an internal function, but it might be needed for compatibility with other libraries that scan the internal byte representation (for hashing, say)
 // or when using bsFieldElement_64 as keys for a map or when sharing a field element between multiple goroutines.
 func (z *bsFieldElement_64) Normalize() {
-	z.words.reduce_fb()
+	z.words.Reduce_fb()
 }
 
 // Sign outputs the "sign" of the field element.
@@ -112,9 +112,9 @@ func (z *bsFieldElement_64) Sign() int {
 	// we take the sign of the non-Montgomery form.
 	// Of course, the property that Sign(z) == -Sign(-z) would hold either way (and not switching would actually be more efficient).
 	// However, Sign() enters into (De)Serialization routines for curve points. This choice is probably more portable.
-	var nonMontgomery uint256 = z.words.ToNonMontgomery_fc()
+	var nonMontgomery Uint256 = z.words.ToNonMontgomery_fc()
 
-	var mhalf_copy uint256 = [4]uint64{minusOneHalfModBaseField_64_0, minusOneHalfModBaseField_64_1, minusOneHalfModBaseField_64_2, minusOneHalfModBaseField_64_3}
+	var mhalf_copy Uint256 = [4]uint64{minusOneHalfModBaseField_64_0, minusOneHalfModBaseField_64_1, minusOneHalfModBaseField_64_2, minusOneHalfModBaseField_64_3}
 
 	for i := int(3); i >= 0; i-- {
 		if nonMontgomery[i] > mhalf_copy[i] {
@@ -148,7 +148,7 @@ func (z *bsFieldElement_64) Jacobi() int {
 func (z *bsFieldElement_64) Add(x, y *bsFieldElement_64) {
 	IncrementCallCounter("AddFe")
 
-	z.words.AddAndReduce_b_c(&x.words, &y.words)
+	z.words.addAndReduce_b_c(&x.words, &y.words)
 }
 
 // Sub is used to perform subtraction.
@@ -329,7 +329,7 @@ func (z *bsFieldElement_64) Multiply_by_five() {
 	z.words[2], carry = bits.Add64(z.words[2], overflow4&twoTo256ModBaseField_64_2, carry)
 	z.words[3], _ = bits.Add64(z.words[3], overflow4&twoTo256ModBaseField_64_3, carry) // _ == 0 is guaranteed
 
-	z.words.reduce_ca()
+	z.words.Reduce_ca()
 }
 
 // Inv computes the multiplicative Inverse:

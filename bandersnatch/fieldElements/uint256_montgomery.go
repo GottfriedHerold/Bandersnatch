@@ -4,6 +4,21 @@ import (
 	"math/bits"
 )
 
+// This file is part of the implementation of the Uint256 (and also a similar Uint512) data type.
+// Uint256 is a 256-bit unsigned integer data type used (mostly internally) to implement our field element types.
+//
+// Note that a Uint256 is an integer, not a residue, so arithmetic is as for usual uints, i.e. modulo 2^256.
+// Funtions and Methods that operate on Uint256's and perform modular arithmetic explicitly say so in their description and function name.
+//
+// The set of exported functions and methods for these is not particularly stable;
+// we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication, for instance) or for users who want to perform extensive computations in the base field.
+
+// Note that the code is split into 3 parts:
+//   uint256.go (integer arithmetic / arithmetic modulo 2^256)
+//   uint256_modular.go (arithmetic that works modulo BaseFieldSize)
+//   uint256_montgomery.go (Montgomery arithmetic)
+//
+
 // montgomery_iteration performs t := (t / 2**64) + x * y weakMod BaseFieldSize.
 // Note that the division by 2**64 is done modulo BaseFieldSize.
 //
@@ -13,7 +28,7 @@ import (
 //
 //	t>>64 + BaseFieldSize < 2**256 and
 //	x + BaseFieldSize < 2**256,
-func montgomery_iteration(t *[5]uint64, x *uint256, y uint64) {
+func montgomery_iteration(t *[5]uint64, x *Uint256, y uint64) {
 	var low, high, carry1, carry2, carry3, carry4 uint64
 
 	// Change t to an equivalent representation modulo BaseFieldSize, s.t. t[0] == 0
@@ -77,7 +92,7 @@ func montgomery_iteration(t *[5]uint64, x *uint256, y uint64) {
 // MulMontgomery_c performs Montgomery multiplication, i.e. z := x * y / 2**256 mod BaseFieldSize.
 //
 // We assume that x and y are c-reduced, i.e. x,y < 2**256 - BaseFieldSize and we guaranteed the same for z.
-func (z *uint256) MulMontgomery_c(x, y *uint256) {
+func (z *Uint256) MulMontgomery_c(x, y *Uint256) {
 	var temp [5]uint64
 
 	// compute z as x*y / r^4 bmod BaseFieldSize with r==2^64
@@ -115,13 +130,13 @@ func (z *uint256) MulMontgomery_c(x, y *uint256) {
 		z[2], carry2 = bits.Add64(z[2], low, carry2)
 		z[3], _ = bits.Add64(temp[4], high+carry1, carry2) // _ == 0 for the same
 	}
-	z.reduce_ca()
+	z.Reduce_ca()
 }
 
 // FromMontgomeryRepresentation undoes Montgomery representation.
 //
 // This means that z.FromMontgomeryRepresentation(x) computes z := x / 2**256 mod BaseFieldSize
-func (z *uint256) FromMontgomeryRepresentation_fc(x *uint256) {
+func (z *Uint256) FromMontgomeryRepresentation_fc(x *Uint256) {
 	// equivalent to
 	// z.MulMontgomery_c(x, [1,0,0,0])
 	// z.Reduce_f()
@@ -164,7 +179,13 @@ func (z *uint256) FromMontgomeryRepresentation_fc(x *uint256) {
 
 	}
 	*z = temp // we could write directly to z by unrolling the above loop and write to z in the last iteration
-	z.reduce_fb()
+	z.Reduce_fb()
+}
+
+// ConvertToMontgomeryRepresentation sets z := x * 2**256 mod BaseFieldSize.
+func (z *Uint256) ConvertToMontgomeryRepresentation_c(x *Uint256) {
+	// TODO: unroll
+	z.MulMontgomery_c(x, &twoTo512ModBaseField_uint256)
 }
 
 /********************
@@ -175,7 +196,7 @@ func (z *uint256) FromMontgomeryRepresentation_fc(x *uint256) {
 // mul_four_one_64 multiplies a 4x64 bit number by a 1x64 bit number. The result is 5x64 bits, split as 1x64 (low) + 4x64 (high), everything low-endian.
 //
 // DEPRECATED in favor of version taking a pointer argument to store the result.
-func mul_four_one_64(x *uint256, y uint64) (low uint64, high uint256) {
+func mul_four_one_64(x *Uint256, y uint64) (low uint64, high Uint256) {
 	var carry, mul_result_low uint64
 
 	high[0], low = bits.Mul64(x[0], y)
@@ -199,14 +220,14 @@ func mul_four_one_64(x *uint256, y uint64) (low uint64, high uint256) {
 //
 // More precisely, z.ToNonMontgomery_fc() returns z*(1/2**256) mod BaseFieldSize
 // DEPRECATED / MOVE_TO_TESTING: Performance loss from returning an uint256 is worse than writing to receiver. FromMontgomery is better.
-func (z *uint256) ToNonMontgomery_fc() uint256 {
+func (z *Uint256) ToNonMontgomery_fc() Uint256 {
 	// What we need to do here is equivalent to
 	// temp.Mul(z, [1,0,0,0])  // where the [1,0,0,0] is the Montgomery representation of the number 1/r.
 	// temp.Normalize()
 	// return temp.words
 
 	var reducer uint64 = z[0]
-	var temp uint256 = [4]uint64{0: z[1], 1: z[2], 2: z[3], 3: 0}
+	var temp Uint256 = [4]uint64{0: z[1], 1: z[2], 2: z[3], 3: 0}
 
 	if reducer != 0 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint64)
@@ -226,8 +247,8 @@ func (z *uint256) ToNonMontgomery_fc() uint256 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint64)
 	}
 
-	temp.reduce_ca()
-	temp.reduce_fb()
+	temp.Reduce_ca()
+	temp.Reduce_fb()
 	return temp
 }
 
@@ -236,7 +257,7 @@ func (z *uint256) ToNonMontgomery_fc() uint256 {
 // MulMontgomerySlow_c performs z := x * y / 2**256 WeakMod BaseFieldSize. (Division is modulo as well)
 //
 // If all inputs are c-reduced (i.e. x+BaseFieldSize < 2**256 etc), so is the output
-func (z *uint256) MulMontgomerySlow_c(x, y *uint256) {
+func (z *Uint256) MulMontgomerySlow_c(x, y *Uint256) {
 
 	/*
 		We perform Montgomery multiplication, i.e. we need to find x*y / r^4 bmod BaseFieldSize with r==2^64
@@ -252,7 +273,7 @@ func (z *uint256) MulMontgomerySlow_c(x, y *uint256) {
 	*/
 
 	// temp holds the result of computation so far. We only write into z at the end, because z might alias x or y.
-	var temp uint256
+	var temp Uint256
 
 	// -1/Modulus mod r.
 	const negativeInverseModulus = (0xFFFFFFFF_FFFFFFFF * 0x00000001_00000001) % (1 << 64)
@@ -299,14 +320,14 @@ func (z *uint256) MulMontgomerySlow_c(x, y *uint256) {
 		Since the end result might be bigger than B, we may need to reduce by M, but once is enough.
 	*/
 
-	temp.reduce_ca()
+	temp.Reduce_ca()
 	*z = temp
 }
 
 // add_mul_shift_64 computes (target + x * y) >> 64, stores the result in target and return the uint64 shifted out (everything low-endian)
 //
 // DEPRECATED: helper function for slow variant
-func add_mul_shift_64(target *uint256, x *uint256, y uint64) (low uint64) {
+func add_mul_shift_64(target *Uint256, x *Uint256, y uint64) (low uint64) {
 
 	// carry_mul_even resp. carry_mul_odd end up in target[even] resp. target[odd]
 	// Could do with fewer carries, but that's more error-prone (and also this is more pipeline-friendly, not that it mattered much)
@@ -338,7 +359,7 @@ func add_mul_shift_64(target *uint256, x *uint256, y uint64) (low uint64) {
 // montgomery_step_64(&t, q) performs t+= (q*BaseFieldSize)/2^64 + 1, assuming no overflow (which needs to be guaranteed by the caller).
 //
 // DEPRECATED: Helper function for slow variant
-func montgomery_step_64(t *uint256, q uint64) {
+func montgomery_step_64(t *Uint256, q uint64) {
 	var low, high, carry1, carry2 uint64
 
 	high, _ = bits.Mul64(q, baseFieldSize_0) // throw away least significant uint64 of q*BaseFieldSize.

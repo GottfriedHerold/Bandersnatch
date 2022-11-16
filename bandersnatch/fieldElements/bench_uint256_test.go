@@ -3,8 +3,8 @@ package fieldElements
 import "testing"
 
 func benchmark_LongMul(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint512[n%benchS].LongMul(&bench_x[n%benchS], &bench_y[n%benchS])
@@ -12,7 +12,7 @@ func benchmark_LongMul(b *testing.B) {
 }
 
 func benchmark_LongSquare(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint512[n%benchS].LongSquare(&bench_x[n%benchS])
@@ -20,39 +20,39 @@ func benchmark_LongSquare(b *testing.B) {
 }
 
 func benchmark_Add256(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].Add(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
 func benchmark_Add256GetCarry(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	for n := 0; n < b.N; n++ {
-		_ = DumpUint256[n%benchS].AddWithCarry(&bench_x[n%benchS], &bench_y[n%benchS])
+		_ = DumpUint256[n%benchS].AddAndReturnCarry(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
 func benchmark_Sub256(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].Sub(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
 func benchmark_Sub256GetBorrow(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_y []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	for n := 0; n < b.N; n++ {
-		_ = DumpUint256[n%benchS].SubWithBorrow(&bench_x[n%benchS], &bench_y[n%benchS])
+		_ = DumpUint256[n%benchS].SubAndReturnBorrow(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
 func benchmark_IsZeroUint256(b *testing.B) {
-	var bench_x []uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	for n := 0; n < b.N; n++ {
 		DumpBools_fe[n%benchS] = bench_x[n%benchS].IsZero()
 	}

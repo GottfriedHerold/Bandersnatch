@@ -95,7 +95,7 @@ func TestEnsureFieldElementConstantsWereNotChanged(t *testing.T) {
 func TestValidityOfConstants(t *testing.T) {
 	prepareTestFieldElements(t)
 	var temp_fe FieldElement
-	var temp_uint256 uint256
+	var temp_uint256 Uint256
 	var temp_Int *big.Int = big.NewInt(0)
 
 	testutils.Assert(BaseFieldBitLength == BaseFieldSize_Int.BitLen())
@@ -105,7 +105,7 @@ func TestValidityOfConstants(t *testing.T) {
 	temp_uint256.FromBigInt(baseFieldSize_Int)
 	testutils.Assert(temp_uint256 == baseFieldSize_uint256)
 
-	temp_uint256 = uint256{}
+	temp_uint256 = Uint256{}
 	testutils.Assert(temp_uint256 == zero_uint256)
 	temp_uint256.FromBigInt(common.One_Int)
 	testutils.Assert(temp_uint256 == one_uint256)

@@ -20,14 +20,14 @@ func TestUint256AddAndReduce_b(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_b, num)
 	ys := CachedUint256.GetElements(pc_uint256_b, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
 	var yInt *big.Int = new(big.Int)
 	for _, x := range xs {
 		for _, y := range ys {
-			z.AddAndReduce_b_c(&x, &y)
+			z.addAndReduce_b_c(&x, &y)
 			testutils.FatalUnless(t, z.IsReduced_b(), "AddAndReduce_b_c does not reduce for b")
 
 			xInt = x.ToBigInt()
@@ -50,14 +50,14 @@ func TestUint256AddAndReduce_c(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_c, num)
 	ys := CachedUint256.GetElements(pc_uint256_c, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
 	var yInt *big.Int = new(big.Int)
 	for _, x := range xs {
 		for _, y := range ys {
-			z.AddAndReduce_b_c(&x, &y)
+			z.addAndReduce_b_c(&x, &y)
 			testutils.FatalUnless(t, z.IsReduced_c(), "AddAndReduce_b_c does not reduce for c")
 
 			xInt = x.ToBigInt()
@@ -80,7 +80,7 @@ func TestUint256AddEqAndReduce_a(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
 	ys := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
@@ -111,7 +111,7 @@ func TestUint256SubAndReduce_c(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_c, num)
 	ys := CachedUint256.GetElements(pc_uint256_c, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
@@ -141,7 +141,7 @@ func TestUint256SubAndReduce_b(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_b, num)
 	ys := CachedUint256.GetElements(pc_uint256_b, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
@@ -171,7 +171,7 @@ func TestUint256SubEqAndReduce_a(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
 	ys := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
@@ -202,14 +202,14 @@ func TestUint256_ModularInverse_a_NAIVEHAC(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
 
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
 
 	for i, x := range xs {
 		if i == 0 {
-			x = uint256{}
+			x = Uint256{}
 		}
 		if i == 1 {
 			x = baseFieldSize_uint256
@@ -222,10 +222,10 @@ func TestUint256_ModularInverse_a_NAIVEHAC(t *testing.T) {
 		if xCopy.IsZero() {
 			xInt = x.ToBigInt()
 			testutils.FatalUnless(t, zInt.ModInverse(xInt, baseFieldSize_Int) == nil, "Cannot happen")
-			z = uint256{10, 20, 30, 50}
+			z = Uint256{10, 20, 30, 50}
 			ok := z.ModularInverse_a_NAIVEHAC(&x)
 			testutils.FatalUnless(t, !ok, "ModularInverse_a_NAIVEHAC did not recognize non-invertible elements")
-			testutils.FatalUnless(t, z == uint256{10, 20, 30, 50}, "ModularInverse_a_NAIVEHAC changed receiver upon getting zero")
+			testutils.FatalUnless(t, z == Uint256{10, 20, 30, 50}, "ModularInverse_a_NAIVEHAC changed receiver upon getting zero")
 
 		} else {
 
@@ -246,14 +246,14 @@ func TestUint256_ModularInverse_a_NAIVEHAC(t *testing.T) {
 	}
 }
 
-func testReductionFunction(t *testing.T, reductionFunction func(*uint256), reducedInputSeed SeedAndRange, outputReducednessCheck func(*uint256) bool, funName string) {
+func testReductionFunction(t *testing.T, reductionFunction func(*Uint256), reducedInputSeed SeedAndRange, outputReducednessCheck func(*Uint256) bool, funName string) {
 	prepareTestFieldElements(t)
 
 	const num = 1000
 
 	xs := CachedUint256.GetElements(reducedInputSeed, num)
 
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
 
@@ -274,9 +274,9 @@ func testReductionFunction(t *testing.T, reductionFunction func(*uint256), reduc
 }
 
 func TestUint256_Reduce(t *testing.T) {
-	testReductionFunction(t, (*uint256).reduce_ca, pc_uint256_a, (*uint256).IsReduced_c, "reduce_ca")
-	testReductionFunction(t, (*uint256).reduce_fb, pc_uint256_b, (*uint256).IsReduced_f, "reduce_fb")
-	testReductionFunction(t, (*uint256).reduceBarret_fa, pc_uint256_a, (*uint256).IsReduced_f, "reduceBarret_fa")
+	testReductionFunction(t, (*Uint256).Reduce_ca, pc_uint256_a, (*Uint256).IsReduced_c, "reduce_ca")
+	testReductionFunction(t, (*Uint256).Reduce_fb, pc_uint256_b, (*Uint256).IsReduced_f, "reduce_fb")
+	testReductionFunction(t, (*Uint256).reduceBarret_fa, pc_uint256_a, (*Uint256).IsReduced_f, "reduceBarret_fa")
 }
 
 func TestUint256_IsFullyReduced(t *testing.T) {
@@ -287,7 +287,7 @@ func TestUint256_IsFullyReduced(t *testing.T) {
 	xs := CachedUint256.GetElements(pc_uint256_a, num) // TODO: Use a different seed here with special prepopulated values
 	for i, x := range xs {
 		if i == 0 {
-			x = uint256{}
+			x = Uint256{}
 		}
 		if i == 1 {
 			x = one_uint256
@@ -310,7 +310,7 @@ func TestUint256_ReduceUint512ToUint256(t *testing.T) {
 	const num = 1000
 
 	xs := CachedUint512.GetElements(1, num) // TODO: Use a different seed here with special prepopulated values
-	var z uint256
+	var z Uint256
 	for _, x := range xs {
 		xInt := x.ToBigInt()
 		xInt.Mod(xInt, baseFieldSize_Int)
@@ -330,7 +330,7 @@ func TestUint256_DoubleEqAndReduce_a(t *testing.T) {
 	const num = 1000
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	for _, x := range xs {
 
 		z = x
@@ -354,7 +354,7 @@ func TestUint256MulEqAndReduce_a(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
 	ys := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
@@ -385,7 +385,7 @@ func TestUint256MulAndReduce_a(t *testing.T) {
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
 	ys := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var resInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
@@ -413,7 +413,7 @@ func TestUint256_SquareEqAndReduce_a(t *testing.T) {
 	const num = 1000
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	for _, x := range xs {
 
 		z = x
@@ -435,7 +435,7 @@ func TestUint256_SquareAndReduce_a(t *testing.T) {
 	const num = 1000
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
-	var z uint256
+	var z Uint256
 	for _, x := range xs {
 
 		z.SquareAndReduce_a(&x)
