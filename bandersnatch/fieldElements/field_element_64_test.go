@@ -294,7 +294,7 @@ func TestMultiplyByFive(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		x.SetRandomUnsafe(drng)
 		y.Mul(&x, &five)
-		x.Multiply_by_five()
+		x.MulEqFive()
 		if !x.IsEqual(&y) {
 			t.Fatal("Multiplication by five does not work", i, x, y)
 		}

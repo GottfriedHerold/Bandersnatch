@@ -299,8 +299,6 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetUint256(x *Uint256) {
 	z.words.ConvertToMontgomeryRepresentation_c(x)
 }
 
-//
-
 // ToUint256 converts a field element z to a Uint256 in the range [0, BaseFieldSize)
 //
 // Use z.ToUint256(&x) for x := z.
@@ -317,6 +315,8 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToUint256(x *Uint256) {
 // SetRandomUnsafeNonZero generates uniformly random non-zero field elements.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
+//
+// DEPRECATED
 func (z *bsFieldElement_MontgomeryNonUnique) SetRandomUnsafeNonZero(rnd *rand.Rand) {
 	for {
 		var xInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
@@ -329,9 +329,11 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetRandomUnsafeNonZero(rnd *rand.Ra
 	}
 }
 
-// Multiply_by_five computes z *= 5.
+// TODO: Move to uint256_modular.go
+
+// MulEqFive computes z *= 5.
 // This is useful, because the coefficient of a in the twisted Edwards representation of Bandersnatch is a=-5
-func (z *bsFieldElement_MontgomeryNonUnique) Multiply_by_five() {
+func (z *bsFieldElement_MontgomeryNonUnique) MulEqFive() {
 	IncrementCallCounter("MulByFive")
 
 	// We multiply by five by multiplying each individual word by 5 and then correcting the overflows later.
@@ -345,7 +347,8 @@ func (z *bsFieldElement_MontgomeryNonUnique) Multiply_by_five() {
 	overflow4, z.words[3] = bits.Mul64(z.words[3], 5)
 
 	// Note that due to the size restrictions on z and the particular value of BaseFieldSize, 0 <= overflow4 <= 2
-	// overflow4 contributes overflow4 * 2^256 == overflow4 * rModBaseField (mod BaseField) to the total result.
+	// For the other overflows, we have 0 <= overflow1,2,3 <= 4
+	// overflow4 contributes overflow4 * 2^256 == overflow4 * twoTo256ModBaseField (mod BaseField) to the total result.
 	// splitting this into words gives the following contributions
 
 	// contributions due to overflows:
@@ -374,6 +377,8 @@ func (z *bsFieldElement_MontgomeryNonUnique) Multiply_by_five() {
 
 	z.words.Reduce_ca()
 }
+
+// TODO: Specify the behaviour for 0
 
 // Inv computes the multiplicative Inverse:
 //
@@ -449,6 +454,8 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 //	The return value tells whether the operation was successful.
 //
 // If x is not a square, the return value is false and z is untouched.
+// NOTE: For non-zero squares x, there are two possible square roots.
+// We do not guarantee that the choice is deterministic. Multiple calls with the same x can give different z's
 func (z *bsFieldElement_MontgomeryNonUnique) SquareRoot(x *bsFieldElement_MontgomeryNonUnique) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	xInt := x.ToBigInt()

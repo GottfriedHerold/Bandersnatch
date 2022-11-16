@@ -66,7 +66,7 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 
 	num.Square(x)                        // x^2, only compute this once
 	denom.Mul(&num, &CurveParameterD_fe) // dx^2
-	num.Multiply_by_five()               // 5x^2 = -ax^2
+	num.MulEqFive()                      // 5x^2 = -ax^2
 	num.AddEq(&fieldElementOne)          // 1 - ax^2
 	denom.Sub(&fieldElementOne, &denom)  // 1 - dx^2
 	// Since both a and d are non-squares, we are guaranteed that both num and denom are non-zero.
@@ -581,7 +581,7 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 
 		accumulator.Square(xSignY) // x^2
 
-		accumulator.Multiply_by_five()      // 5x^2 == -ax^2
+		accumulator.MulEqFive()             // 5x^2 == -ax^2
 		accumulator.AddEq(&fieldElementOne) // 1+5x^2 == 1-ax^2
 
 		if accumulator.Jacobi() < 0 {

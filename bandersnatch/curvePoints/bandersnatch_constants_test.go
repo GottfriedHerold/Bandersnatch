@@ -15,7 +15,7 @@ func TestGlobalCurveParameter(t *testing.T) {
 	}
 	var temp FieldElement
 	temp.Square(&squareRootDbyA_fe)
-	temp.Multiply_by_five()
+	temp.MulEqFive()
 	temp.Neg(&temp)
 	if !temp.IsEqual(&CurveParameterD_fe) {
 		t.Fatal("SqrtDDivA is not a square root of d/a")

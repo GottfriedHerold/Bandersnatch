@@ -1,6 +1,7 @@
 package fieldElements
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 )
@@ -64,24 +65,46 @@ type FieldElementInterface_common interface {
 	Jacobi() int
 	SquareEq()
 	NegEq()
+	InvEq()
 	ToUInt64() (uint64, error)
 	SetUInt64(x uint64)
 	ToBigInt() *big.Int
 	SetBigInt(x *big.Int)
+	MulEqFive()
+
+	DoubleEq()
+
 	SetRandomUnsafe(rnd *rand.Rand)
+
+	// SetUint256(x *Uint256)
+	// ToUint256(x *Uint256)
+	fmt.Formatter
+	fmt.Stringer
+	// ToBytes(buf []bytes)
+	// SetBytes(buf []bytes)
+	// BytesLength() int
+	// IsEqualBigInt( interface{ToBigInt() *big.Int})
 }
 
 type FieldElementInterface[SelfRead any] interface {
 	FieldElementInterface_common
-	Mul(x, y SelfRead)
+
 	Add(x, y SelfRead)
 	Sub(x, y SelfRead)
+	Mul(x, y SelfRead)
+	Divide(x, y SelfRead)
+	Double(x SelfRead)
 	Square(x SelfRead)
+
+	// MulFive(x SelfRead)
 	Neg(x SelfRead)
 	Inv(x SelfRead)
-	Divide(x, y SelfRead)
-	IsEqual(other SelfRead) bool
+
 	AddEq(y SelfRead)
 	SubEq(y SelfRead)
+	MulEq(y SelfRead)
 	DivideEq(y SelfRead)
+
+	IsEqual(other SelfRead) bool
+	CmpAbs(other SelfRead) (absValuesEqual bool, exactlyEqual bool)
 }

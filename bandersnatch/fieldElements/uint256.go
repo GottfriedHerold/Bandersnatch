@@ -2,6 +2,7 @@ package fieldElements
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"math/bits"
 
@@ -64,6 +65,30 @@ func (z *Uint512) ToBigInt() *big.Int {
 
 	// convert to *big.Int
 	return new(big.Int).SetBytes(big_endian_byte_slice[:])
+}
+
+// String is provided to satisfy the [fmt.Stringer] interface. Note that this is defined on value receivers.
+func (z Uint256) String() string {
+	return z.ToBigInt().String()
+}
+
+// String is provided to satisfy the [fmt.Stringer] interface. Note that this is defined on value receivers.
+func (z Uint512) String() string {
+	return z.ToBigInt().String()
+}
+
+// Format is provided to satisfy the [fmt.Formatter] interface. Note that this is defined on value receivers.
+//
+// We internally convert to [*big.Int] and hence support the same formats as [big.Int].
+func (z Uint256) Format(s fmt.State, ch rune) {
+	z.ToBigInt().Format(s, ch)
+}
+
+// Format is provided to satisfy the [fmt.Formatter] interface. Note that this is defined on value receivers.
+//
+// We internally convert to [*big.Int] and hence support the same formats as [big.Int].
+func (z Uint512) Format(s fmt.State, ch rune) {
+	z.ToBigInt().Format(s, ch)
 }
 
 // TODO: Move BigIntToUIntArray into this package.

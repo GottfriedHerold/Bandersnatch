@@ -34,7 +34,7 @@ func (out *point_xtw_base) addNaive_ttt(input1, input2 *point_xtw_base) {
 	numerator_x.AddEq(&temp) // x1y2+y1x2
 
 	numerator_y.Mul(&x1, &x2)
-	numerator_y.Multiply_by_five()
+	numerator_y.MulEqFive()
 	temp.Mul(&y1, &y2)
 	numerator_y.AddEq(&temp) // x1x2 + 5y1y2 = x1x2 - ax1x2
 

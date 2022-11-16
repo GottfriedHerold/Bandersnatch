@@ -16,10 +16,10 @@ func (out *point_efgh_base) double_st(input *point_xtw_base) {
 	out.e.Add(&input.x, &input.y)
 	out.e.SquareEq()
 	out.e.SubEq(&xx)
-	out.e.SubEq(&yy)      // E = 2XY
-	xx.Multiply_by_five() // 5X^2
-	out.g.Sub(&yy, &xx)   // G = Y^2 - 5X^2 = ax^2 + Y^2 = Z^2 + dT^2
-	out.h.Add(&yy, &xx)   // H = Y2 + 5x^2 = -ax^2 + Y^2
+	out.e.SubEq(&yy)    // E = 2XY
+	xx.MulEqFive()      // 5X^2
+	out.g.Sub(&yy, &xx) // G = Y^2 - 5X^2 = ax^2 + Y^2 = Z^2 + dT^2
+	out.h.Add(&yy, &xx) // H = Y2 + 5x^2 = -ax^2 + Y^2
 	zz2.Square(&input.z)
 	zz2.DoubleEq()
 	out.f.Sub(&zz2, &out.g) // F = 2Z^2-(Z^2+dT^2) = Z^2 - dT^2
@@ -30,7 +30,7 @@ func (out *point_efgh_base) double_st(input *point_xtw_base) {
 func (out *point_efgh_base) double_sa(input *point_axtw_base) {
 	var xx5, yy FieldElement
 	xx5.Square(&input.x)
-	xx5.Multiply_by_five()
+	xx5.MulEqFive()
 	yy.Square(&input.y)
 	out.e.Double(&input.t)              // E = 2T. Strangely, HWCD computes 2*X*Y here. This is more efficient.
 	out.g.Sub(&yy, &xx5)                // G = Y^2 - 5X^2 = Z^2 + dT^2 = 1+dT^2
@@ -50,7 +50,7 @@ func (out *point_efgh_base) double_ss(input *point_efgh_base) {
 	yy.SquareEq()               // Y^2
 	out.e.SubEq(&xx)            // 2XY + Y^2
 	out.e.SubEq(&yy)            // E = 2XY
-	xx.Multiply_by_five()       // 5X^2
+	xx.MulEqFive()              // 5X^2
 	zz2.Mul(&input.f, &input.g) // Z
 	zz2.SquareEq()              // Z^2
 	zz2.DoubleEq()              // 2Z^2

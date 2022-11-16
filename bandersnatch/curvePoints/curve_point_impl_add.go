@@ -29,7 +29,7 @@ func (out *point_xtw_base) add_ttt(input1, input2 *point_xtw_base) {
 	F.Sub(&D, &C) // F = D - C
 	G.Add(&D, &C) // G = D + C
 
-	A.Multiply_by_five()
+	A.MulEqFive()
 	H.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 
 	out.x.Mul(&E, &F) // X3 = E * F
@@ -80,7 +80,7 @@ func (out *point_xtw_base) add_safe_ttt(input1, input2 *point_xtw_base) {
 		acc.Mul(&input1.t, &input2.z)
 		H.SubEq(&acc)
 	} else {
-		A.Multiply_by_five()
+		A.MulEqFive()
 		H.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 	}
 
@@ -121,7 +121,7 @@ func (out *point_efgh_base) add_stt(input1, input2 *point_xtw_base) {
 	out.f.Sub(&D, &C) // F = D - C
 	out.g.Add(&D, &C) // G = D + C
 
-	A.Multiply_by_five()
+	A.MulEqFive()
 	out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 }
 
@@ -154,7 +154,7 @@ func (out *point_efgh_base) add_safe_stt(input1, input2 *point_xtw_base) {
 		acc.Mul(&input1.t, &input2.z)
 		out.h.SubEq(&acc)
 	} else {
-		A.Multiply_by_five()
+		A.MulEqFive()
 		out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 	}
 }
@@ -188,7 +188,7 @@ func (out *point_xtw_base) add_tta(input1 *point_xtw_base, input2 *point_axtw_ba
 	F.Sub(&input1.z, &C) // F = D - C
 	G.Add(&input1.z, &C) // G = D + C
 
-	A.Multiply_by_five()
+	A.MulEqFive()
 	H.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 
 	out.x.Mul(&E, &F) // X3 = E * F
@@ -224,7 +224,7 @@ func (out *point_efgh_base) add_sta(input1 *point_xtw_base, input2 *point_axtw_b
 	out.f.Sub(&input1.z, &C) // F = D - C
 	out.g.Add(&input1.z, &C) // G = D + C
 
-	A.Multiply_by_five()
+	A.MulEqFive()
 	out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 }
 
@@ -257,7 +257,7 @@ func (out *point_xtw_base) add_taa(input1 *point_axtw_base, input2 *point_axtw_b
 	F.Sub(&fieldElementOne, &C) // F = D - C == 1 - C
 	G.Add(&fieldElementOne, &C) // G = D + C == 1 + C
 
-	A.Multiply_by_five()
+	A.MulEqFive()
 	H.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 
 	out.x.Mul(&E, &F) // X3 = E * F
@@ -289,7 +289,7 @@ func (out *point_efgh_base) add_saa(input1 *point_axtw_base, input2 *point_axtw_
 	out.f.Sub(&fieldElementOne, &C) // F = D - C == 1 - C
 	out.g.Add(&fieldElementOne, &C) // G = D + C == 1 + C
 
-	A.Multiply_by_five()
+	A.MulEqFive()
 	out.h.Add(&B, &A) // H = B + 5X1 * X2 = Y1*Y2 - a*X1*X2  (a=-5 is a parameter of the curve)
 }
 

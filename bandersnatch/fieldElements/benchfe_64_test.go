@@ -112,7 +112,7 @@ func BenchmarkMultiplyByFive_64(b *testing.B) {
 	var bench_x_64 []bsFieldElement_MontgomeryNonUnique = GetPrecomputedFieldElements[bsFieldElement_MontgomeryNonUnique](1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		bench_x_64[n%benchS].Multiply_by_five()
+		bench_x_64[n%benchS].MulEqFive()
 	}
 	b.StopTimer()
 	// This is just to really ensure the compiler does not optimize things away.

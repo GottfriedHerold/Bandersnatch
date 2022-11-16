@@ -12,7 +12,7 @@ package curvePoints
 func legendreCheckA_affineX(x FieldElement) bool {
 	// x is passed by value. We use it as a temporary.
 	x.SquareEq()
-	x.Multiply_by_five()
+	x.MulEqFive()
 	x.AddEq(&fieldElementOne) // 1 + 5x^2 = 1-ax^2
 	return x.Jacobi() >= 0    // cannot be ==0, since a is a non-square
 }
@@ -22,7 +22,7 @@ func legendreCheckA_affineX(x FieldElement) bool {
 func legendreCheckA_projectiveXZ(x FieldElement, z FieldElement) bool {
 	// x, z are passed by value. We use them as temporaries.
 	x.SquareEq()
-	x.Multiply_by_five()
+	x.MulEqFive()
 	z.SquareEq()
 	x.AddEq(&z)
 	return x.Jacobi() >= 0
@@ -33,7 +33,7 @@ func legendreCheckA_projectiveXZ(x FieldElement, z FieldElement) bool {
 func legendreCheckA_EG(e FieldElement, g FieldElement) bool {
 	e.SquareEq()
 	g.SquareEq()
-	e.Multiply_by_five()
+	e.MulEqFive()
 	g.AddEq(&e)
 	return g.Jacobi() >= 0
 }
@@ -124,7 +124,7 @@ func (p *point_xtw_base) isPointOnCurve() bool {
 	v.Square(&p.y)
 	u.SubEq(&v) // u = z^2 + dt^2 - y^2
 	v.Square(&p.x)
-	v.Multiply_by_five()
+	v.MulEqFive()
 	u.AddEq(&v) // u = z^2 + dt^2 - y^2 + 5x^2 ==  z^2 + dt^2 - y^2 - ax^2
 	return u.IsZero()
 }
@@ -150,7 +150,7 @@ func (p *point_axtw_base) isPointOnCurve() bool {
 	v.Square(&p.y)
 	u.SubEq(&v) // u = z^2 + dt^2 - y^2
 	v.Square(&p.x)
-	v.Multiply_by_five()
+	v.MulEqFive()
 	u.AddEq(&v) // u = z^2 + dt^2 - y^2 + 5x^2 ==  z^2 + dt^2 - y^2 - ax^2
 	return u.IsZero()
 }
