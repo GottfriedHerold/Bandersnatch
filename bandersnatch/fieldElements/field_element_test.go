@@ -1,9 +1,11 @@
 package fieldElements
 
 import (
+	"math"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 var _ FieldElementInterface_common = &bsFieldElement_MontgomeryNonUnique{}
@@ -24,6 +26,10 @@ func testProperties[FE any, FEPtr interface {
 	t.Run("Aliasing and Eq", testFEProperty_Aliasing[FE, FEPtr])
 	t.Run("Associativity", testFEProperty_Associativity[FE, FEPtr])
 	t.Run("Distributivity", testFEProperty_Distributivity[FE, FEPtr])
+	t.Run("MulByFive", testFEProperty_MulFive[FE, FEPtr])
+	t.Run("raw serialization", testFEProperty_BytesRoundtrip[FE, FEPtr])
+	t.Run("internal representation", testFEProperty_InternalRep[FE, FEPtr])
+	t.Run("Small-Arg Operations", testFEProperty_SmallOps[FE, FEPtr])
 }
 
 func testFEProperty_Constants[FE any, FEPtr interface {
@@ -113,6 +119,15 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		xCopy1.DoubleEq()
 		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing fails for Double")
 		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy1), "Aliasing Eq fails for Double")
+
+		// MulFive
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.MulFive(xCopy1)
+		xCopy2.MulFive(xCopy2)
+		xCopy1.MulEqFive()
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing fails for MulFive")
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy1), "Aliasing Eq fails for MulEqFive")
 
 		//Inv:
 		xCopy1Val = xVal
@@ -506,5 +521,224 @@ func testFEProperty_Distributivity[FE any, FEPtr interface {
 			}
 		}
 
+	}
+}
+
+func testFEProperty_MulFive[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+	var target1Val, target2Val, target3Val, target4Val FE
+	target1 := FEPtr(&target1Val)
+	target2 := FEPtr(&target2Val)
+	target3 := FEPtr(&target3Val)
+	target4 := FEPtr(&target4Val)
+
+	const num = 1000
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+
+	for _, xVal := range xs {
+		x := FEPtr(&xVal)
+
+		target1Val = xVal
+		target1.MulEqFive()
+		target2.SetUint64(5)
+		target2.MulEq(x)
+		target3.MulInt64(x, 5)
+		target4.MulUint64(x, 5)
+		testutils.FatalUnless(t, target1.IsEqual(target2), "MulByfive does not match multiplication by 5")
+		testutils.FatalUnless(t, target1.IsEqual(target3), "MulByfive does not match multiplication by 5")
+		testutils.FatalUnless(t, target1.IsEqual(target4), "MulByfive does not match multiplication by 5")
+	}
+}
+
+func testFEProperty_BytesRoundtrip[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+
+	LEN := FEPtr(nil).BytesLength()
+	var buf []byte = make([]byte, LEN+1)
+	var buf2 []byte = make([]byte, LEN+1)
+
+	var xCopyVal FE
+	xCopy := FEPtr(&xCopyVal)
+	var target1Val, target2Val FE
+	target1 := FEPtr(&target1Val)
+	target2 := FEPtr(&target2Val)
+
+	const num = 1000
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+
+	for _, xVal := range xs {
+		x := FEPtr(&xVal)
+		xCopyVal = xVal
+
+		xCopy.ToBytes(buf)
+		target1.SetBytes(buf)
+		// bufs are 1 longer than needed. We check that this is actually ignored
+		irrelevant := buf[LEN]
+		buf[LEN] += 1
+		target2.SetBytes(buf)
+		testutils.Assert(copy(buf2[0:LEN], buf[0:LEN]) == 32)
+		xCopy.ToBytes(buf)
+		testutils.FatalUnless(t, target1.IsEqual(x), "Roundtrip failure for raw serialization")
+		testutils.FatalUnless(t, target2.IsEqual(x), "Roundtrip failure for raw serialization")
+		testutils.FatalUnless(t, buf[LEN] == irrelevant+1, "ToBytes writes more bytes")
+		target1.ToBytes(buf2)
+		testutils.FatalUnless(t, utils.CompareSlices(buf[0:32], buf2[0:32]), "Rountrip failure for raw serialization")
+	}
+}
+
+// Checks that the internal representation works as expected:
+func testFEProperty_InternalRep[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+
+	LEN := FEPtr(nil).BytesLength()
+	var buf []byte = make([]byte, LEN)
+	var buf2 []byte = make([]byte, LEN)
+	var buf3 []byte = make([]byte, LEN)
+
+	var xCopyVal1, xCopyVal2 FE
+	xCopy1 := FEPtr(&xCopyVal1)
+	xCopy2 := FEPtr(&xCopyVal2)
+
+	const num = 10000
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+
+	for _, xVal := range xs {
+		xCopyVal1 = xVal
+		xCopy1.Normalize()
+		xCopy1.ToBytes(buf)
+
+		for i := uint64(0); i < 20; i++ {
+			// Be wary that IsEqual may change the internal representation
+			xCopyVal1 = xVal
+			xCopyVal2 = xVal
+			// Check that the result of RerandomizeRepresentation does not depend on the particular representation we started with
+			xCopy1.RerandomizeRepresentation(i)
+			xCopy2.RerandomizeRepresentation(i + 1)
+			xCopy2.RerandomizeRepresentation(i)
+			xCopy1.ToBytes(buf2)
+			xCopy2.ToBytes(buf3)
+			testutils.FatalUnless(t, utils.CompareSlices(buf2, buf3), "RerandomizeRepresentation does not factor through starting representation")
+			xCopyVal2 = xVal
+			// Check that RerandomizeRepresentation does not change the value
+			testutils.FatalUnless(t, xCopy1.IsEqual(xCopy2), "RerandomizeRepresentation changes value")
+			// Check that after, Normaliz, the representation is fixed.
+			xCopy1.RerandomizeRepresentation(i)
+			xCopy1.Normalize()
+			xCopy1.ToBytes(buf2)
+			testutils.FatalUnless(t, utils.CompareSlices(buf, buf2), "Normalize does not give unique representation")
+		}
+	}
+}
+
+// Checks that the internal representation works as expected:
+func testFEProperty_SmallOps[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+
+	var xCopyVal FE
+	var target1Val, target2Val FE
+	var yCopyVal FE
+	xCopy := FEPtr(&xCopyVal)
+
+	yFE := FEPtr(&yCopyVal)
+	target1 := FEPtr(&target1Val)
+	target2 := FEPtr(&target2Val)
+
+	const num = 1000
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+
+	var ysUint64 = []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 255, 256, 257, 12345, 1<<16 - 1, 1 << 16, 1<<16 + 1, 1 << 31, 1<<63 - 1, 1 << 63, 1<<63 + 1, math.MaxUint64}
+	var ysInt64 = []int64{0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8, 9, -9, 10, -10,
+		15, -15, 16, -16, 17, -17, 255, 256, 257, -255, -256, -257,
+		12345, -12345,
+		1<<16 - 1, 1 << 16, 1<<16 + 1, -(1<<16 - 1), -(1 << 16), -(1 << 16) + 1,
+		1<<15 - 1, 1 << 15, 1<<15 + 1, -(1<<15 - 1), -(1 << 15), -(1 << 15) + 1,
+		1<<31 - 1, 1 << 31, 1<<31 + 1, -(1<<31 - 1), -(1 << 31), -(1 << 31) + 1,
+		1<<32 - 1, 1 << 32, 1<<32 + 1, -(1<<32 - 1), -(1 << 32), -(1 << 32) + 1,
+		math.MaxInt64, -(1 << 63), -(1 << 63) + 1}
+
+	for _, xVal := range xs {
+
+		// Uint64 versions:
+		for _, y := range ysUint64 {
+			yFE.SetUint64(y)
+
+			xCopyVal = xVal
+			target1.AddUint64(xCopy, y)
+			target2.Add(xCopy, yFE)
+			testutils.FatalUnless(t, target1.IsEqual(target2), "AddUint64 does not work as expected")
+
+			xCopyVal = xVal
+			target1.SubUint64(xCopy, y)
+			target2.Sub(xCopy, yFE)
+			testutils.FatalUnless(t, target1.IsEqual(target2), "SubUint64 does not work as expected")
+
+			xCopyVal = xVal
+			target1.MulUint64(xCopy, y)
+			target2.Mul(xCopy, yFE)
+			testutils.FatalUnless(t, target1.IsEqual(target2), "MulUint64 does not work as expected")
+
+			xCopyVal = xVal
+			target1.SetUint64(101)
+			target2.SetUint64(101)
+			panic1 := testutils.CheckPanic(func() { target1.DivideUint64(xCopy, y) })
+			panic2 := testutils.CheckPanic(func() { target2.Divide(xCopy, yFE) })
+			if y != 0 {
+				testutils.FatalUnless(t, (!panic1) && (!panic2), "Unexpected Panic for DivideUint64")
+				testutils.FatalUnless(t, target1.IsEqual(target2), "DivideUint64 does not work as expected")
+			} else {
+				testutils.FatalUnless(t, panic1 && panic2, "DivideUint64 by 0 did not panic")
+				testutils.FatalUnless(t, target1.IsEqual(target2), "DivideUint64 by 0 changed argument")
+				val, err := target1.ToUint64()
+				testutils.FatalUnless(t, (val == 101) && (err == nil), "DivideUint64 by 0 changed argument")
+			}
+
+		}
+		// Int64 versions:
+		for _, y := range ysInt64 {
+			yFE.SetInt64(y)
+
+			xCopyVal = xVal
+			target1.AddInt64(xCopy, y)
+			target2.Add(xCopy, yFE)
+			testutils.FatalUnless(t, target1.IsEqual(target2), "AddInt64 does not work as expected")
+
+			xCopyVal = xVal
+			target1.SubInt64(xCopy, y)
+			target2.Sub(xCopy, yFE)
+			testutils.FatalUnless(t, target1.IsEqual(target2), "SubInt64 does not work as expected")
+
+			xCopyVal = xVal
+			target1.MulInt64(xCopy, y)
+			target2.Mul(xCopy, yFE)
+			testutils.FatalUnless(t, target1.IsEqual(target2), "MulInt64 does not work as expected")
+
+			xCopyVal = xVal
+			target1.SetUint64(101)
+			target2.SetUint64(101)
+			panic1 := testutils.CheckPanic(func() { target1.DivideInt64(xCopy, y) })
+			panic2 := testutils.CheckPanic(func() { target2.Divide(xCopy, yFE) })
+			if y != 0 {
+				testutils.FatalUnless(t, (!panic1) && (!panic2), "Unexpected Panic for DivideInt64")
+				testutils.FatalUnless(t, target1.IsEqual(target2), "DivideInt64 does not work as expected")
+			} else {
+				testutils.FatalUnless(t, panic1 && panic2, "DivideInt64 by 0 did not panic")
+				testutils.FatalUnless(t, target1.IsEqual(target2), "DivideInt64 by 0 changed argument")
+				val, err := target1.ToUint64()
+				testutils.FatalUnless(t, (val == 101) && (err == nil), "DivideInt64 by 0 changed argument")
+			}
+
+		}
 	}
 }

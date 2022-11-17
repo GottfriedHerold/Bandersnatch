@@ -219,6 +219,7 @@ func mul_four_one_64(x *Uint256, y uint64) (low uint64, high Uint256) {
 // ToNonMontgomery_fc undoes Montgomery representation.
 //
 // More precisely, z.ToNonMontgomery_fc() returns z*(1/2**256) mod BaseFieldSize
+//
 // DEPRECATED / MOVE_TO_TESTING: Performance loss from returning an uint256 is worse than writing to receiver. FromMontgomery is better.
 func (z *Uint256) ToNonMontgomery_fc() Uint256 {
 	// What we need to do here is equivalent to

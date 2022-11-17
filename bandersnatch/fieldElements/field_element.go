@@ -72,9 +72,11 @@ type FieldElementInterface_common interface {
 	SetBigInt(x *big.Int)
 	SetUint256(x *Uint256)
 	SetUint64(x uint64)
+	SetInt64(x int64)
 	ToBigInt() *big.Int
 	ToUint256(x *Uint256)
 	ToUint64() (uint64, error)
+	ToInt64() (int64, error)
 
 	MulEqFive()
 
@@ -111,4 +113,13 @@ type FieldElementInterface[SelfRead any] interface {
 
 	IsEqual(other SelfRead) bool
 	CmpAbs(other SelfRead) (absValuesEqual bool, exactlyEqual bool)
+
+	AddInt64(x SelfRead, y int64)
+	AddUint64(x SelfRead, y uint64)
+	SubInt64(x SelfRead, y int64)
+	SubUint64(x SelfRead, y uint64)
+	MulInt64(x SelfRead, y int64)
+	MulUint64(x SelfRead, y uint64)
+	DivideInt64(x SelfRead, y int64)
+	DivideUint64(x SelfRead, y uint64)
 }

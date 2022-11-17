@@ -262,7 +262,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToUint64() (result uint64, err erro
 	temp := z.words.ToNonMontgomery_fc()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
-		err = ErrCannotRepresentAsUInt64
+		err = ErrCannotRepresentAsUint64
 	}
 	return
 }
@@ -276,6 +276,42 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
 	z.words[3] = 0
 	// put in Montgomery form
 	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
+}
+
+// TODO: Make more efficient
+
+func (z *bsFieldElement_MontgomeryNonUnique) SetInt64(value int64) {
+	if value >= 0 {
+		z.words[0] = uint64(value)
+		z.words[1] = 0
+		z.words[2] = 0
+		z.words[3] = 0
+
+	} else {
+		z.words[0] = uint64(-value)
+		z.words[1] = 0
+		z.words[2] = 0
+		z.words[3] = 0
+		z.NegEq()
+	}
+	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error) {
+	var temp Uint256
+	temp.FromMontgomeryRepresentation_fc(&z.words)
+	if (temp[1]|temp[2]|temp[3] == 0) && (temp[0]>>63 == 0) {
+		result = int64(temp[0])
+		return
+	}
+	temp.Sub(&baseFieldSize_uint256, &temp) // No modular reduction here
+	// Note: need to get -2^63 right (negative range is larger than positive range)
+	if (temp[1]|temp[2]|temp[3] == 0) && (temp[0] <= 1<<63) {
+		result = int64(-temp[0])
+		return
+	}
+	err = ErrCannotRepresentAsInt64
+	return
 }
 
 // temporarily exported. Needs some restructing to unexport.
@@ -667,4 +703,52 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqualAsBigInt(x interface{ ToBigI
 	xInt := x.ToBigInt()
 	zInt := z.ToBigInt()
 	return xInt.Cmp(zInt) == 0
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) AddInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetInt64(y)
+	z.Add(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) SubInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetInt64(y)
+	z.Sub(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) MulInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetInt64(y)
+	z.Mul(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) DivideInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetInt64(y)
+	z.Divide(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) AddUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetUint64(y)
+	z.Add(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) SubUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetUint64(y)
+	z.Sub(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) MulUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetUint64(y)
+	z.Mul(x, &yFE)
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) DivideUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
+	var yFE bsFieldElement_MontgomeryNonUnique
+	yFE.SetUint64(y)
+	z.Divide(x, &yFE)
 }

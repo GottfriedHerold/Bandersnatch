@@ -10,7 +10,10 @@ import (
 // ErrorPrefix is the prefix used by all error message strings originating from this package.
 const ErrorPrefix = "bandersnatch / field element: "
 
-var ErrCannotRepresentAsUInt64 = errors.New(ErrorPrefix + "cannot represent field element as a uint64")
+// DEPRECATED: Replace by data-carrying error
+var ErrCannotRepresentAsUint64 = errors.New(ErrorPrefix + "cannot represent field element as a uint64")
+var ErrCannotRepresentAsInt64 = errors.New(ErrorPrefix + "cannot represent field element as int64")
+
 var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
 // These are the errors that can occur during (de)serialization.
