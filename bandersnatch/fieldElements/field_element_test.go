@@ -20,7 +20,7 @@ func testProperties[FE any, FEPtr interface {
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 	t.Run("Constants", testFEProperty_Constants[FE, FEPtr])
-	t.Run("Commutativity and invesion", testFEProperty_CommutativiteAndInverses[FE, FEPtr])
+	t.Run("Commutativity and inversion", testFEProperty_CommutativiteAndInverses[FE, FEPtr])
 	t.Run("Aliasing and Eq", testFEProperty_Aliasing[FE, FEPtr])
 	t.Run("Associativity", testFEProperty_Associativity[FE, FEPtr])
 	t.Run("Distributivity", testFEProperty_Distributivity[FE, FEPtr])

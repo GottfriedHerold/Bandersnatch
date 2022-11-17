@@ -1,6 +1,7 @@
 package fieldElements
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"math/bits"
@@ -378,6 +379,15 @@ func (z *bsFieldElement_MontgomeryNonUnique) MulEqFive() {
 	z.words.Reduce_ca()
 }
 
+// MulFive computes multiplication by five
+//
+// Use z.MulFive(&x) to compute z = x*5.
+// This is useful, because the coefficient of a in the twisted Edwards representation of Bandersnatch is a=-5
+func (z *bsFieldElement_MontgomeryNonUnique) MulFive(x *bsFieldElement_MontgomeryNonUnique) {
+	*z = *x
+	z.MulEqFive()
+}
+
 // TODO: Specify the behaviour for 0
 
 // Inv computes the multiplicative Inverse:
@@ -614,4 +624,47 @@ func (z *bsFieldElement_MontgomeryNonUnique) RerandomizeRepresentation(seed uint
 			z.words.Sub(&z.words, &baseFieldSize_uint256)
 		}
 	}
+}
+
+// ToBytes writes an unspecified internal representation of itself to buf[0:LEN], where LEN==32 can be obtained from [BytesLength]
+//
+// ToBytes and [SetBytes] perform raw serialization, therefore exposing the internal representation of field elements.
+// This representation may be non-unique, non-obvious and is NOT part of the API.
+// As a consequence of the latter, the output format is not stable and unsuited for serializing to disk.
+// We only guarantee that we can read back the bytes using SetBytes for the same library version on the same architecture with the same data type.
+// Doing so guarantees that the internal representation is preserved.
+//
+// It is up to the caller to ensure the buffer is large enough.
+func (z *bsFieldElement_MontgomeryNonUnique) ToBytes(buf []byte) {
+	binary.LittleEndian.PutUint64(buf[0:8], z.words[0])
+	binary.LittleEndian.PutUint64(buf[8:16], z.words[1])
+	binary.LittleEndian.PutUint64(buf[16:24], z.words[2])
+	binary.LittleEndian.PutUint64(buf[24:32], z.words[3])
+}
+
+// SetBytes sets a field element from buf[0:LEN] that was written by [ToBytes], where LEN==32 can be obtained from [BytesLength]
+//
+// ToBytes and SetBytes perform raw (de)serialization, therefore exposing the internal representation of field elements.
+// This representation may be non-unique, non-obvious and is NOT part of the API.
+// As a consequence of the latter, the output format is not stable and unsuited for serializing to disk.
+// We only guarantee that we can read back the bytes using SetBytes for the same library version on the same architecture with the same data type.
+// Doing so guarantees that the internal representation is preserved.
+//
+// It is up to the caller to ensure the buffer is large enough.
+// SetBytes performs no validity checks and using it with aribtrary byte slices can silently violate internal consistency conditions.
+func (z *bsFieldElement_MontgomeryNonUnique) SetBytes(buf []byte) {
+	z.words[0] = binary.LittleEndian.Uint64(buf[0:8])
+	z.words[1] = binary.LittleEndian.Uint64(buf[8:16])
+	z.words[2] = binary.LittleEndian.Uint64(buf[16:24])
+	z.words[3] = binary.LittleEndian.Uint64(buf[24:32])
+}
+
+func (z *bsFieldElement_MontgomeryNonUnique) BytesLength() int { return 32 }
+
+// IsEqualAsBigInt converts the argument and itself to [*big.Int]s and checks for equality.
+// This function is not very efficient and should only be used in testing.
+func (z *bsFieldElement_MontgomeryNonUnique) IsEqualAsBigInt(x interface{ ToBigInt() *big.Int }) bool {
+	xInt := x.ToBigInt()
+	zInt := z.ToBigInt()
+	return xInt.Cmp(zInt) == 0
 }

@@ -60,31 +60,34 @@ type FieldElementInterface_common interface {
 	IsOne() bool
 	SetOne()
 	SetZero()
+
 	Normalize()
+	RerandomizeRepresentation(seed uint64) // rerandomize internal representation
+
 	Sign() int
 	Jacobi() int
 	SquareEq()
 	NegEq()
 	InvEq()
-	ToUint64() (uint64, error)
+	SetBigInt(x *big.Int)
+	SetUint256(x *Uint256)
 	SetUint64(x uint64)
 	ToBigInt() *big.Int
-	SetBigInt(x *big.Int)
+	ToUint256(x *Uint256)
+	ToUint64() (uint64, error)
+
 	MulEqFive()
 
 	DoubleEq()
 
-	SetRandomUnsafe(rnd *rand.Rand)        // DEPRECATED
-	RerandomizeRepresentation(seed uint64) // rerandomize internal representation
+	SetRandomUnsafe(rnd *rand.Rand) // DEPRECATED
 
-	SetUint256(x *Uint256)
-	ToUint256(x *Uint256)
 	fmt.Formatter
 	fmt.Stringer
-	// ToBytes(buf []bytes)
-	// SetBytes(buf []bytes)
-	// BytesLength() int
-	// IsEqualBigInt( interface{ToBigInt() *big.Int})
+	ToBytes(buf []byte)
+	SetBytes(buf []byte)
+	BytesLength() int
+	IsEqualAsBigInt(interface{ ToBigInt() *big.Int }) bool
 }
 
 type FieldElementInterface[SelfRead any] interface {
@@ -97,7 +100,7 @@ type FieldElementInterface[SelfRead any] interface {
 	Double(x SelfRead)
 	Square(x SelfRead)
 
-	// MulFive(x SelfRead)
+	MulFive(x SelfRead)
 	Neg(x SelfRead)
 	Inv(x SelfRead)
 
@@ -109,5 +112,3 @@ type FieldElementInterface[SelfRead any] interface {
 	IsEqual(other SelfRead) bool
 	CmpAbs(other SelfRead) (absValuesEqual bool, exactlyEqual bool)
 }
-
-
