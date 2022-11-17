@@ -267,9 +267,9 @@ func TestSetUIunt(t *testing.T) {
 		xInt.SetUint64(x)
 		var a, b bsFieldElement_MontgomeryNonUnique
 		a.SetBigInt(xInt)
-		b.SetUInt64(x)
+		b.SetUint64(x)
 
-		y, err := b.ToUInt64()
+		y, err := b.ToUint64()
 		if err != nil {
 			t.Fatal("Conversion back to Uint reports too big number")
 		}
@@ -289,7 +289,7 @@ func TestMultiplyByFive(t *testing.T) {
 	const iterations = 10000
 
 	var five, x, y bsFieldElement_MontgomeryNonUnique
-	five.SetUInt64(5)
+	five.SetUint64(5)
 
 	for i := 0; i < iterations; i++ {
 		x.SetRandomUnsafe(drng)

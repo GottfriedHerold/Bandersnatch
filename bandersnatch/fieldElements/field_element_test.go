@@ -117,7 +117,7 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		//Inv:
 		xCopy1Val = xVal
 		xCopy2Val = xVal
-		safeTarget.SetUInt64(2)
+		safeTarget.SetUint64(2)
 		panic1 := testutils.CheckPanic(func() { safeTarget.Inv(xCopy1) })
 		panic2 := testutils.CheckPanic(func() { xCopy2.Inv(xCopy2) })
 		panic3 := testutils.CheckPanic(func() { xCopy1.InvEq() })
@@ -127,7 +127,7 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 			testutils.FatalUnless(t, panic3, "Inv did not panic")
 			testutils.FatalUnless(t, xCopy2.IsZero(), "Inv on 0 modifies argument")
 			testutils.FatalUnless(t, xCopy1.IsZero(), "Inv on 0 modifies argument")
-			v, err := safeTarget.ToUInt64()
+			v, err := safeTarget.ToUint64()
 			testutils.FatalUnless(t, err == nil, "Inv by 0 changed receiver")
 			testutils.FatalUnless(t, v == 2, "Inv by 0 changed receiver")
 		} else {
@@ -197,8 +197,8 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		xCopy2Val = xVal
 		target1Val = xVal
 		target4Val = xVal
-		safeTarget.SetUInt64(2)
-		target2.SetUInt64(2)
+		safeTarget.SetUint64(2)
+		target2.SetUint64(2)
 		panic1 = testutils.CheckPanic(func() { safeTarget.Divide(xCopy1, xCopy2) })
 		panic2 = testutils.CheckPanic(func() { target1.Divide(target1, target1) })
 		panic3 = testutils.CheckPanic(func() { target2.Divide(xCopy1, xCopy1) })
@@ -211,7 +211,7 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 			testutils.FatalUnless(t, panic4, "0/0 did not panic")
 
 			testutils.FatalUnless(t, safeTarget.IsEqual(target2), "0/0 Division modified receiver")
-			v, err := safeTarget.ToUInt64()
+			v, err := safeTarget.ToUint64()
 			testutils.FatalUnless(t, err == nil, "0/0 changed receiver")
 			testutils.FatalUnless(t, v == 2, "0/0 changed receiver")
 			testutils.FatalUnless(t, target1.IsZero(), "0/0 changed receiver")
@@ -508,4 +508,3 @@ func testFEProperty_Distributivity[FE any, FEPtr interface {
 
 	}
 }
-

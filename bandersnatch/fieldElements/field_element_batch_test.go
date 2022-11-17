@@ -296,7 +296,7 @@ func TestSummationSlice(t *testing.T) {
 		t.Fatal("SummationMany does not work when result aliases an input")
 	}
 	a.SetRandomUnsafe(drng)
-	b.SetUInt64(size)
+	b.SetUint64(size)
 	result.Mul(&b, &a)
 	for i := 0; i < size; i++ {
 		Ptrs[i] = &a

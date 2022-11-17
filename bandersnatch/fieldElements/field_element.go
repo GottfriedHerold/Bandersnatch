@@ -66,18 +66,19 @@ type FieldElementInterface_common interface {
 	SquareEq()
 	NegEq()
 	InvEq()
-	ToUInt64() (uint64, error)
-	SetUInt64(x uint64)
+	ToUint64() (uint64, error)
+	SetUint64(x uint64)
 	ToBigInt() *big.Int
 	SetBigInt(x *big.Int)
 	MulEqFive()
 
 	DoubleEq()
 
-	SetRandomUnsafe(rnd *rand.Rand)
+	SetRandomUnsafe(rnd *rand.Rand)        // DEPRECATED
+	RerandomizeRepresentation(seed uint64) // rerandomize internal representation
 
-	// SetUint256(x *Uint256)
-	// ToUint256(x *Uint256)
+	SetUint256(x *Uint256)
+	ToUint256(x *Uint256)
 	fmt.Formatter
 	fmt.Stringer
 	// ToBytes(buf []bytes)
@@ -108,3 +109,5 @@ type FieldElementInterface[SelfRead any] interface {
 	IsEqual(other SelfRead) bool
 	CmpAbs(other SelfRead) (absValuesEqual bool, exactlyEqual bool)
 }
+
+

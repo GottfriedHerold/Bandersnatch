@@ -2,6 +2,7 @@ package fieldElements
 
 import (
 	"math/big"
+	"math/rand"
 )
 
 // InitFieldElementFromString initializes a field element from a given string.
@@ -23,4 +24,44 @@ func InitFieldElementFromString(input string) (output FieldElement) {
 	output.SetBigInt(t)
 	output.Normalize() // not needed actually, because of current implementation of SetBigInt, but we want to be 100% sure.
 	return
+}
+
+// CreateRandomFieldElement_Unsafe creates a random field element
+//
+// NOTE: The randomness quality is *NOT* sufficient for cryptographic purposes, hence the "unsafe". This function is merely used for unit tests.
+// We do not even guarantee that it is close to uniform, reasonably random, or that the output sequence is preserved across library releases.
+//
+// NOTE2: Neither the value of the created field element nor the amound of randomness consumed depend on the field element type.
+// This is intentional and allows differential testing.
+func CreateRandomFieldElement_Unsafe[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](rnd *rand.Rand) (fe FE) {
+	var randInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
+	FEPtr(&fe).SetBigInt(randInt)
+	FEPtr(&fe).RerandomizeRepresentation(rnd.Uint64())
+	return
+}
+
+// CreateNonZeroRandomFieldElement_Unsafe creates a random field element
+//
+// NOTE: The randomness quality is *NOT* sufficient for cryptographic purposes, hence the "unsafe". This function is merely used for unit tests.
+// We do not even guarantee that it is close to uniform, reasonably random, or that the output sequence is preserved across library releases.
+//
+// NOTE2: Neither the value of the created field element nor the amound of randomness consumed depend on the field element type.
+// This is intentional and allows differential testing.
+func CreateRandomNonZeroFieldElement_Unsafe[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](rnd *rand.Rand) (fe FE) {
+	var randInt *big.Int = new(big.Int)
+	for {
+		randInt.Rand(rnd, baseFieldSize_Int)
+		if randInt.Sign() == 0 {
+			continue
+		}
+		FEPtr(&fe).SetBigInt(randInt)
+		FEPtr(&fe).RerandomizeRepresentation(rnd.Uint64())
+		return
+	}
 }

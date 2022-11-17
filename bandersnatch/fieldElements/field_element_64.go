@@ -254,10 +254,10 @@ func (z *bsFieldElement_MontgomeryNonUnique) _fromBigInt(v *big.Int) {
 	// Note: z is fully normalized
 }
 
-// ToUInt64 returns z with err==nil if z can be represented by a uint64.
+// ToUint64 returns z with err==nil if z can be represented by a uint64.
 //
 // If z cannot be represented by a uint64, returns <something, should not be used>, ErrCannotRepresentAsUInt64
-func (z *bsFieldElement_MontgomeryNonUnique) ToUInt64() (result uint64, err error) {
+func (z *bsFieldElement_MontgomeryNonUnique) ToUint64() (result uint64, err error) {
 	temp := z.words.ToNonMontgomery_fc()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
@@ -266,8 +266,8 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToUInt64() (result uint64, err erro
 	return
 }
 
-// SetUInt64 sets z to the given value.
-func (z *bsFieldElement_MontgomeryNonUnique) SetUInt64(value uint64) {
+// SetUint64 sets z to the given value.
+func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
 	// Sets z.words to the correct value (not in Montgomery form)
 	z.words[0] = value
 	z.words[1] = 0
@@ -593,4 +593,25 @@ func (z *bsFieldElement_MontgomeryNonUnique) CmpAbs(x *bsFieldElement_Montgomery
 		return true, false
 	}
 	return false, false
+}
+
+// RerandomizeRepresentation changes the internal representation to an equivalent one, taking randomness from the uniform seed.
+//
+// NOTES: This is an internal function that is used to make differential tests generic.
+// We cannot take an *rand.rng here, but rather assume that seed fresh uniform randomness. Taking bits of seed directly is fine.
+//
+// We ask that if z1.IsEqual(&z2), then after
+//
+//	z1.RerandomizeRepresentation(s)
+//	z2.RerandomizeRepresentation(s)
+//
+// we have z1 == z2 (equal internal representation)
+func (z *bsFieldElement_MontgomeryNonUnique) RerandomizeRepresentation(seed uint64) {
+	z.words.Reduce_fb()
+	if seed&1 == 1 {
+		z.words.Add(&z.words, &baseFieldSize_uint256)
+		if !z.words.IsReduced_c() {
+			z.words.Sub(&z.words, &baseFieldSize_uint256)
+		}
+	}
 }
