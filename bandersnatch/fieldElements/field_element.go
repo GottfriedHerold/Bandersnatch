@@ -58,8 +58,8 @@ import (
 type FieldElementInterface_common interface {
 	IsZero() bool
 	IsOne() bool
-	SetOne() bool
-	SetZero() bool
+	SetOne()
+	SetZero()
 	Normalize()
 	Sign() int
 	Jacobi() int

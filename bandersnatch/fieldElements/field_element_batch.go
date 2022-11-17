@@ -81,7 +81,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SummationMany(summands ...*bsFieldE
 // NOTE: For now, we do not guarantee any kind of correct or consistent behaviour (even for the non-aliasing elements) if any args alias.
 //
 // If non-nil, the returned error satisfies the interface MultiInversionError and wraps ErrDivisionByZero.
-// The MultiInversionError extends error by allowing to retrieve which and how many args were 0.
+// The MultiInversionError interface extends error and allows to retrieve which and how many args were 0.
 func MultiInvertEq(args ...*bsFieldElement_MontgomeryNonUnique) (err MultiInversionError) {
 	L := len(args)
 
