@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -165,6 +166,67 @@ func TestUint256IsZero(t *testing.T) {
 		res2 := xInt.Sign() == 0
 		testutils.FatalUnless(t, res1 == res2, "IsZero differs from big.Int")
 		testutils.FatalUnless(t, res1 == res0, "IsZero wrong")
+	}
+}
+
+func TestUint256IncAndDec(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	for i, x := range xs {
+		switch i {
+		case 0:
+			x = uint256Max_uint256
+		case 1:
+			x = one_uint256
+		case 2:
+			x = zero_uint256
+		default:
+			// keep x as is
+		}
+		xCopy := x
+		z1Int := new(big.Int)
+		var z1, z2, z3 Uint256
+
+		xInt := x.ToBigInt()
+		z1Int.Add(xInt, common.One_Int)
+		z1Int.Mod(z1Int, twoTo256_Int)
+		z1.FromBigInt(z1Int)
+
+		z2.Increment(&x)
+		z3.Add(&x, &one_uint256)
+
+		testutils.FatalUnless(t, z1 == z2, "Increment differs from big.Int += 1")
+		testutils.FatalUnless(t, z2 == z3, "Increment differs from += 1")
+		testutils.FatalUnless(t, x == xCopy, "Value unexpectedly changed")
+
+		z1Int.Sub(xInt, common.One_Int)
+		z1Int.Mod(z1Int, twoTo256_Int)
+		z1.FromBigInt(z1Int)
+
+		z2.Decrement(&x)
+		z3.Sub(&x, &one_uint256)
+
+		testutils.FatalUnless(t, z1 == z2, "Decrement differs from big.Int -= 1")
+		testutils.FatalUnless(t, z2 == z3, "Decrement differs from -= 1")
+		testutils.FatalUnless(t, x == xCopy, "Value unexpectedly changed")
+
+		z2 = x
+		z1.Increment(&x)
+		x.IncrementEq()
+		z2.Increment(&z2)
+
+		testutils.FatalUnless(t, z1 == x, "Increment differs from IncrementEq")
+		testutils.FatalUnless(t, z2 == x, "Increment fails for aliasing args")
+
+		z2 = x
+		z1.Decrement(&x)
+		x.DecrementEq()
+		z2.Decrement(&z2)
+
+		testutils.FatalUnless(t, z1 == x, "Decrement differs from DecrementEq")
+		testutils.FatalUnless(t, z2 == x, "Decrement fails for aliasing args")
+
 	}
 }
 

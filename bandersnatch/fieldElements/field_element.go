@@ -62,7 +62,7 @@ type FieldElementInterface_common interface {
 	SetZero()
 
 	Normalize()
-	RerandomizeRepresentation(seed uint64) // rerandomize internal representation
+	RerandomizeRepresentation(seed uint64) // rerandomize internal representation. Only required for tests and benchmarks.
 
 	Sign() int
 	Jacobi() int

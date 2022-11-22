@@ -216,6 +216,42 @@ func (z *Uint256) SubAndReturnBorrow(x, y *Uint256) (borrow uint64) {
 	return
 }
 
+// Increments computes z = x + 1 (modulo 2^256)
+func (z *Uint256) Increment(x *Uint256) {
+	var carry uint64
+	z[0], carry = bits.Add64(x[0], 1, 0)
+	z[1], carry = bits.Add64(x[1], 0, carry)
+	z[2], carry = bits.Add64(x[2], 0, carry)
+	z[3], _ = bits.Add64(x[3], 0, carry)
+}
+
+// IncrementEq computes z += 1 (modulo 2^256)
+func (z *Uint256) IncrementEq() {
+	var carry uint64
+	z[0], carry = bits.Add64(z[0], 1, 0)
+	z[1], carry = bits.Add64(z[1], 0, carry)
+	z[2], carry = bits.Add64(z[2], 0, carry)
+	z[3], _ = bits.Add64(z[3], 0, carry)
+}
+
+// Decrement computes z := x - 1 modulo 2^256
+func (z *Uint256) Decrement(x *Uint256) {
+	var borrow uint64
+	z[0], borrow = bits.Sub64(x[0], 1, 0)
+	z[1], borrow = bits.Sub64(x[1], 0, borrow)
+	z[2], borrow = bits.Sub64(x[2], 0, borrow)
+	z[3], _ = bits.Sub64(x[3], 0, borrow)
+}
+
+// DecrementEq computes z -= 1 modulo 2^256
+func (z *Uint256) DecrementEq() {
+	var borrow uint64
+	z[0], borrow = bits.Sub64(z[0], 1, 0)
+	z[1], borrow = bits.Sub64(z[1], 0, borrow)
+	z[2], borrow = bits.Sub64(z[2], 0, borrow)
+	z[3], _ = bits.Sub64(z[3], 0, borrow)
+}
+
 // IsZero checks whether the uint256 is (exactly) zero.
 func (z *Uint256) IsZero() bool {
 	return z[0]|z[1]|z[2]|z[3] == 0
