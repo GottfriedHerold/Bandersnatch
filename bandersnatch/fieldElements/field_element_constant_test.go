@@ -74,6 +74,18 @@ var (
 )
 
 var (
+	minusOneHalfModBaseField_Int_COPY     = minusOneHalfModBaseField_Int
+	minusOneHalfModBaseField_Int_DEEPCOPY = new(big.Int).Set(minusOneHalfModBaseField_Int)
+	minusOneHalfModBaseField_uint256_COPY = minusOneHalfModBaseField_uint256
+)
+
+var (
+	oneHalfModBaseField_Int_COPY     = oneHalfModBaseField_Int
+	oneHalfModBaseField_Int_DEEPCOPY = new(big.Int).Set(oneHalfModBaseField_Int)
+	oneHalfModBaseField_uint256_COPY = oneHalfModBaseField_uint256
+)
+
+var (
 	montgomeryBound_Int_COPY     = montgomeryBound_Int
 	montgomeryBound_Int_DEEPCOPY = new(big.Int).Set(montgomeryBound_Int)
 	montgomeryBound_uint256_COPY = montgomeryBound_uint256
@@ -151,6 +163,24 @@ func TestValidityOfConstants(t *testing.T) {
 	temp_Int.Add(montgomeryBound_Int, baseFieldSize_Int)
 	testutils.Assert(temp_Int.Cmp(twoTo256_Int) == 0)
 
+	testutils.Assert(minusOneHalfModBaseField_Int.Sign() > 0)
+	testutils.Assert(minusOneHalfModBaseField_Int.Cmp(baseFieldSize_Int) < 0)
+	temp_uint256.FromBigInt(minusOneHalfModBaseField_Int)
+	testutils.Assert(temp_uint256 == minusOneHalfModBaseField_uint256)
+	temp_Int.Add(minusOneHalfModBaseField_Int, minusOneHalfModBaseField_Int)
+	temp_Int.Add(temp_Int, common.One_Int)
+	temp_Int.Mod(temp_Int, baseFieldSize_Int)
+	testutils.Assert(temp_Int.Sign() == 0)
+
+	testutils.Assert(oneHalfModBaseField_Int.Sign() > 0)
+	testutils.Assert(oneHalfModBaseField_Int.Cmp(baseFieldSize_Int) < 0)
+	temp_uint256.FromBigInt(oneHalfModBaseField_Int)
+	testutils.Assert(temp_uint256 == oneHalfModBaseField_uint256)
+	temp_Int.Add(oneHalfModBaseField_Int, oneHalfModBaseField_Int)
+	temp_Int.Sub(temp_Int, common.One_Int)
+	temp_Int.Mod(temp_Int, baseFieldSize_Int)
+	testutils.Assert(temp_Int.Sign() == 0)
+
 	testutils.Assert(minus2To256ModBaseField_untyped < BaseFieldSize_untyped)
 	testutils.Assert(minus2To256ModBaseField_untyped > 0)
 
@@ -227,6 +257,14 @@ func ensureFieldElementConstantsWereNotChanged() {
 	testutils.Assert(montgomeryBound_Int_COPY == montgomeryBound_Int)
 	testutils.Assert(montgomeryBound_Int_DEEPCOPY.Cmp(montgomeryBound_Int) == 0)
 	testutils.Assert(montgomeryBound_uint256_COPY == montgomeryBound_uint256)
+
+	testutils.Assert(minusOneHalfModBaseField_Int_COPY == minusOneHalfModBaseField_Int)
+	testutils.Assert(minusOneHalfModBaseField_Int_DEEPCOPY.Cmp(minusOneHalfModBaseField_Int) == 0)
+	testutils.Assert(minusOneHalfModBaseField_uint256_COPY == minusOneHalfModBaseField_uint256)
+
+	testutils.Assert(oneHalfModBaseField_Int_COPY == oneHalfModBaseField_Int)
+	testutils.Assert(oneHalfModBaseField_Int_DEEPCOPY.Cmp(oneHalfModBaseField_Int) == 0)
+	testutils.Assert(oneHalfModBaseField_uint256_COPY == oneHalfModBaseField_uint256)
 
 	testutils.Assert(minus2To256ModBaseField_uint256_COPY == minus2To256ModBaseField_uint256)
 

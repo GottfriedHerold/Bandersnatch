@@ -11,7 +11,7 @@ import (
 // Funtions and Methods that operate on Uint256's and perform modular arithmetic explicitly say so in their description and function name.
 //
 // The set of exported functions and methods for these is not particularly stable;
-// we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication, for instance) or for users who want to perform extensive computations in the base field.
+// we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication being the main one) for users who want to perform extensive computations in the base field.
 
 // Note that the code is split into 3 parts:
 //   uint256.go (integer arithmetic / arithmetic modulo 2^256)

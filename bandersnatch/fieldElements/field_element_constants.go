@@ -137,7 +137,7 @@ var (
 
 // The weird computation here is to avoid 1 << 256, which is not portable according to the go spec (intermediate results are too large even for untyped computations)
 
-// twoTo256ModBaseField_untyped is 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1.
+// twoTo256ModBaseField_untyped is 2^256 mod BaseFieldSize. This is also the Montgomery representation of 1 (for the canonical Montgomery multiplier 2^256).
 const twoTo256ModBaseField_untyped = 2 * ((1 << 255) - BaseFieldSize_untyped) // 0x1824b159acc5056f_998c4fefecbc4ff5_5884b7fa00034802_00000001fffffffe == 10920338887063814464675503992315976177888879664585288394250266608035967270910
 
 var (
@@ -164,10 +164,31 @@ var (
 )
 
 // minusOneHalfModBaseField_untyped equals 1/2 * (BaseFieldSize-1) as untyped int. This equals -1/2 mod BaseFieldSize
-const minusOneHalfModBaseField_untyped = (BaseFieldSize_untyped - 1) / 2
+const minusOneHalfModBaseField_untyped = (BaseFieldSize_untyped - 1) / 2 // 26217937587563095239723870254092982918845276250263818911301829349969290592256
+var (
+	minusOneHalfModBaseField_Int     *big.Int = utils.InitIntFromString("26217937587563095239723870254092982918845276250263818911301829349969290592256")
+	minusOneHalfModBaseField_uint256 Uint256  = Uint256{minusOneHalfModBaseField_64_0, minusOneHalfModBaseField_64_1, minusOneHalfModBaseField_64_2, minusOneHalfModBaseField_64_3}
+)
 
 // oneHalfModBaseField_untyped equals 1/2 * (BaseFieldSize+1) as untyped int. This equals +1/2 mod BaseFieldSize
-const oneHalfModBaseField_untyped = (BaseFieldSize_untyped + 1) / 2
+const oneHalfModBaseField_untyped = (BaseFieldSize_untyped + 1) / 2 // 26217937587563095239723870254092982918845276250263818911301829349969290592257, one more than the above
+
+var (
+	oneHalfModBaseField_Int     *big.Int = utils.InitIntFromString("26217937587563095239723870254092982918845276250263818911301829349969290592257")
+	oneHalfModBaseField_uint256          = Uint256{oneHalfModBaseField_64_0, oneHalfModBaseField_64_1, oneHalfModBaseField_64_2, oneHalfModBaseField_64_3}
+)
+
+/*
+var oneHalfModBaseField_Int *big.Int = func() (ret *big.Int) {
+	ret = big.NewInt(1)
+	var twoInt *big.Int = big.NewInt(2)
+	ret.Add(ret, baseFieldSize_Int)
+	ret.Div(ret, twoInt)
+	return
+}()
+*/
+
+// const oneHalfModBaseField_uint256 Uint256 = Uint256{oneH}
 
 // minus2To256ModBaseField_untyped is -(2**256) modulo BaseFieldSize.
 // This is the Montgomery representation of -1.
@@ -333,4 +354,11 @@ const (
 	thriceBaseFieldSize_64_2
 	thriceBaseFieldSize_64_3
 	thriceBaseFieldSize_64_4 = 1
+)
+
+const (
+	oneHalfModBaseField_64_0 = (oneHalfModBaseField_untyped >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	oneHalfModBaseField_64_1
+	oneHalfModBaseField_64_2
+	oneHalfModBaseField_64_3
 )

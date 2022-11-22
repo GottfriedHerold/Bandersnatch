@@ -28,14 +28,6 @@ var bsFieldElement_8_oneHalf bsFieldElement_8 = func() (ret bsFieldElement_8) {
 	return
 }()
 
-var oneHalfModBaseField_Int *big.Int = func() (ret *big.Int) {
-	ret = big.NewInt(1)
-	var twoInt *big.Int = big.NewInt(2)
-	ret.Add(ret, baseFieldSize_Int)
-	ret.Div(ret, twoInt)
-	return
-}()
-
 func (z *bsFieldElement_8) Add(x, y *bsFieldElement_8) {
 	var xInt *big.Int = big.NewInt(0).SetBytes(x.v[:])
 	var yInt *big.Int = big.NewInt(0).SetBytes(y.v[:])

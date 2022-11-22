@@ -11,7 +11,7 @@ import (
 var _ FieldElementInterface_common = &bsFieldElement_MontgomeryNonUnique{}
 var _ FieldElementInterface[*bsFieldElement_MontgomeryNonUnique] = &bsFieldElement_MontgomeryNonUnique{}
 
-// var fatalUnless := testutils.fatalUnless
+// var fatalUnless = testutils.FatalUnless
 
 func TestFieldElementProperties(t *testing.T) {
 	t.Run("Montgomery implementation", testProperties[bsFieldElement_MontgomeryNonUnique])
@@ -30,7 +30,20 @@ func testProperties[FE any, FEPtr interface {
 	t.Run("raw serialization", testFEProperty_BytesRoundtrip[FE, FEPtr])
 	t.Run("internal representation", testFEProperty_InternalRep[FE, FEPtr])
 	t.Run("Small-Arg Operations", testFEProperty_SmallOps[FE, FEPtr])
+	t.Run("Sign", testFEProperty_Sign[FE, FEPtr])
 }
+
+// For copy&pasting:
+/*
+func testFEProperty__[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+}
+*/
+
+// test that SetOne, SetZero behave as expected wrt. IsZero, IsOne
 
 func testFEProperty_Constants[FE any, FEPtr interface {
 	*FE
@@ -59,9 +72,14 @@ func testFEProperty_Constants[FE any, FEPtr interface {
 	testutils.FatalUnless(t, !fe.IsOne(), "zero is one")
 }
 
+// Very extensive test:
 // This tests that Add, Sub, Mul, Divide work properly if receiver and/or some arguments alias (all combination)
 // Also tests this for AddEq, SubEq, MulEq, DivideEq and compares against Add,Sub,Mul, Divide
 // Checks results against Double, Zero, Square, 1 and DoubleEq,SquareEq
+// Checks MulFive vs MulFiveEq vs Mul(5)
+// Checks the int64 and uint64 variants OpUint64 and OpInt64 for Op in {Add, Sub, Mul, Divide} against aliased and convert+Op.
+//
+// Note that other tests essentially rely.
 
 func testFEProperty_Aliasing[FE any, FEPtr interface {
 	*FE
@@ -202,10 +220,6 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		xCopy2.DivideInt64(xCopy2, 5)
 		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for DivideInt64")
 
-
-
-
-
 		// Binary functions, both arguments alias
 		// Add
 		xCopy1Val = xVal
@@ -247,7 +261,7 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		xCopy2Val = xVal
 		target1Val = xVal
 		target4Val = xVal
-		 
+
 		safeTarget.Mul(xCopy1, xCopy2)
 		target1.Mul(target1, target1)
 		target2.Mul(xCopy1, xCopy1)
@@ -401,6 +415,16 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 	}
 }
 
+// Checks that
+//
+//	x + 0 == 0 + x == x, x + y == y + x.
+//	x * 1 == 1 * x == x, x * y == y * x
+//	0 - x == -x  (Sub(0, x) and Neg(x) agree)
+//	Divide(1,x) and Inv(x) agree
+//	1/x * x == 1
+//	x + (-x) == 0
+//	(x / y) * y == x
+//	(x - y) + y == x
 func testFEProperty_CommutativiteAndInverses[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
@@ -435,6 +459,16 @@ func testFEProperty_CommutativiteAndInverses[FE any, FEPtr interface {
 
 		// x - x == 0 checked in Aliasing tests
 		// x / x == 1 checked in Aliasing tests
+
+		// 0 - x is the same as Neg and -x + x == 0
+		z1.Neg(x)
+		z2.SetZero()
+		z2.Sub(z2, x)
+		testutils.FatalUnless(t, z1.IsEqual(z2), "-x != 0-x")
+		testutils.FatalUnless(t, x.IsEqual(&xValCopy), "")
+		z1.AddEq(x)
+		testutils.FatalUnless(t, z1.IsZero(), "-x + x != 0")
+		testutils.FatalUnless(t, x.IsEqual(&xValCopy), "")
 
 		// x / 1 == 1
 		z2.SetOne()
@@ -495,6 +529,10 @@ func testFEProperty_CommutativiteAndInverses[FE any, FEPtr interface {
 
 }
 
+// check that (assuming commutativity)
+//
+//	(x + y) + z == x + (y + z)
+//	(x * y) * z == x * (y * z)
 func testFEProperty_Associativity[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
@@ -540,6 +578,7 @@ func testFEProperty_Associativity[FE any, FEPtr interface {
 
 }
 
+// Check (assuming commutativity) that x * z + y * z == (x + y) * z
 func testFEProperty_Distributivity[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
@@ -578,16 +617,20 @@ func testFEProperty_Distributivity[FE any, FEPtr interface {
 	}
 }
 
+// Test that MulFive actually multiplies by five. This is kind-of redundant with the aliasing tests, but kept for clarity.
+
 func testFEProperty_MulFive[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 	prepareTestFieldElements(t)
-	var target1Val, target2Val, target3Val, target4Val FE
+	var target1Val, target2Val, target3Val, target4Val, target5Val, target6Val FE
 	target1 := FEPtr(&target1Val)
 	target2 := FEPtr(&target2Val)
 	target3 := FEPtr(&target3Val)
 	target4 := FEPtr(&target4Val)
+	target5 := FEPtr(&target5Val)
+	target6 := FEPtr(&target6Val)
 
 	const num = 1000
 	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
@@ -595,15 +638,27 @@ func testFEProperty_MulFive[FE any, FEPtr interface {
 	for _, xVal := range xs {
 		x := FEPtr(&xVal)
 
+		// multiply by 5 in six different ways:
 		target1Val = xVal
-		target1.MulEqFive()
-		target2.SetUint64(5)
+		target1.MulEqFive()  // 1: MulEqFive
+		target2.SetUint64(5) // 2: convert uint64(5) to fieldElement and MulEq
 		target2.MulEq(x)
-		target3.MulInt64(x, 5)
-		target4.MulUint64(x, 5)
+		target3.MulInt64(x, 5)  // 3: MulInt64(., 5)
+		target4.MulUint64(x, 5) // 4: MulUint64(., 5)
+		target5.Double(x)       // 5: Double twice, then add
+		target5.DoubleEq()
+		target5.AddEq(x)
+		target6.Add(x, x) // 6: x + x + x + x + x
+		target6.Add(target6, x)
+		target6.Add(target6, x)
+		target6.Add(target6, x)
+
 		testutils.FatalUnless(t, target1.IsEqual(target2), "MulByfive does not match multiplication by 5")
 		testutils.FatalUnless(t, target1.IsEqual(target3), "MulByfive does not match multiplication by 5")
 		testutils.FatalUnless(t, target1.IsEqual(target4), "MulByfive does not match multiplication by 5")
+		testutils.FatalUnless(t, target1.IsEqual(target5), "MulByfive does not match multiplication by 5")
+		testutils.FatalUnless(t, target1.IsEqual(target6), "MulByfive does not match multiplication by 5")
+
 	}
 }
 
@@ -794,5 +849,82 @@ func testFEProperty_SmallOps[FE any, FEPtr interface {
 			}
 
 		}
+	}
+}
+
+// Checking properties of Sign. Notably, these are
+//
+// x.Sign() is -1,+1,0 - valued
+// x.Sign() == 0 iff x == 0
+// if x == -y, x.Sign() == -y.Sign()
+//
+// Additionally, we ask that x.Sign() matches the sign of the smallest-absolute-value representation (canonical sign).
+// Note that this latter property is kind-of-optional in that we don't really need that property.
+// In fact, returning the sign of the montgomery representation would be more efficient if we use montgomery representation; however, this gives weird semantics to Sign.
+
+func testFEProperty_Sign[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+
+	var zVal FE
+	z := FEPtr(&zVal)
+
+	// Check Signs for 0, 1/2, -1/2. These are special values for Sign (1/2 = 1 + (-1/2) and this is where Sign flips )
+	// Notably we expect Sign(0) == 0, Sign(1/2) == -1, Sign(-1/2) == +1
+
+	// (The latter two COULD differ if we relaxed the condition on Sign)
+
+	z.SetZero()
+	for i := uint64(0); i < 100; i++ {
+		z.RerandomizeRepresentation(i)
+		testutils.FatalUnless(t, z.Sign() == 0, "Sign(0) != 0")
+	}
+
+	z.SetUint256(&oneHalfModBaseField_uint256)
+	for i := uint64(0); i < 100; i++ {
+		z.RerandomizeRepresentation(i)
+		testutils.FatalUnless(t, z.Sign() == -1, "Sign(1/2) != -1")
+	}
+
+	z.SetUint256(&minusOneHalfModBaseField_uint256)
+	for i := uint64(0); i < 100; i++ {
+		z.RerandomizeRepresentation(i)
+		testutils.FatalUnless(t, z.Sign() == +1, "Sign(-11/2) != 1")
+	}
+
+	var x2Val FE
+	x2 := FEPtr(&x2Val)
+	const num = 1000
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+	for _, xVal := range xs {
+		x := FEPtr(&xVal)
+		var xUint256 Uint256
+		x.ToUint256(&xUint256)
+		s1 := x.Sign()
+		x2.Neg(x)
+		s2 := x2.Sign()
+
+		testutils.FatalUnless(t, s1 != s2, "Sign(-x) != -Sign(x)")
+		testutils.FatalUnless(t, s1 == 1 || s1 == 0 || s1 == -1, "Sign is not in -1,0,+1")
+		testutils.FatalUnless(t, (s1 == 0) == x.IsZero(), "Sign == 0 differs from IsZero")
+
+		// Check that Sign matches the sign of the representation in [-BaseFieldSize/2, +BaseFieldSize/2] (where BaseFieldSize/2 is half-integer, hence bound is implicitly excluded)
+		// Note that we could remove this check if we relaxed the condition on Sign.
+
+		var s3 int
+		if xUint256.IsZero() {
+			s3 = 0
+		} else if xUint256.Cmp(&oneHalfModBaseField_uint256) < 0 {
+			s3 = +1
+		} else {
+			s3 = -1
+		}
+
+		if s3 != s1 {
+			t.Errorf("Sign of field element does not match sign of (representation of smallest absolute value)")
+		}
+
 	}
 }
