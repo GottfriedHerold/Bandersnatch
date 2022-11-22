@@ -705,48 +705,74 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqualAsBigInt(x interface{ ToBigI
 	return xInt.Cmp(zInt) == 0
 }
 
+// AddInt64 performs addition of a field element and an int64.
+//
+// More precisely, z.AddInt64(&x, y) sets z := x+y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) AddInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetInt64(y)
 	z.Add(x, &yFE)
 }
 
+// SubInt64 performs subtraction of a field element minus an int64.
+//
+// More precisely, z.SubInt64(&x, y) sets z := x-y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) SubInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetInt64(y)
 	z.Sub(x, &yFE)
 }
 
+// AddInt64 performs multiplication of a field element and an int64.
+//
+// More precisely, z.MulInt64(&x, y) sets z := x*y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) MulInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetInt64(y)
 	z.Mul(x, &yFE)
 }
 
+// DivideInt64 performs division of a field element by an int64.
+//
+// More precisely, z.DivideInt64(&x, y) sets z := x+y (modulo BaseFieldSize).
+// If y == 0, this function panics.
 func (z *bsFieldElement_MontgomeryNonUnique) DivideInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetInt64(y)
 	z.Divide(x, &yFE)
 }
 
+// AddUint64 performs addition of a field element and an uint64.
+//
+// More precisely, z.AddUint64(&x, y) sets z := x+y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) AddUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetUint64(y)
 	z.Add(x, &yFE)
 }
 
+// SubUint64 performs subtraction of a field element minus an uint64.
+//
+// More precisely, z.SubUint64(&x, y) sets z := x-y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) SubUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetUint64(y)
 	z.Sub(x, &yFE)
 }
 
+// MulUint64 performs multiplication of a field element by an uint64.
+//
+// More precisely, z.MulUint64(&x, y) sets z := x*y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) MulUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetUint64(y)
 	z.Mul(x, &yFE)
 }
 
+// DivideUint64 performs division of a field element by an uint64.
+//
+// More precisely, z.DivideUint64(&x, y) sets z := x/y (modulo BaseFieldSize)
+// if y == 0, this function panics.
 func (z *bsFieldElement_MontgomeryNonUnique) DivideUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetUint64(y)

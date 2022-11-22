@@ -123,7 +123,7 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		// MulFive
 		xCopy1Val = xVal
 		xCopy2Val = xVal
-		safeTarget.MulFive(xCopy1)
+		safeTarget.MulInt64(xCopy1, 5)
 		xCopy2.MulFive(xCopy2)
 		xCopy1.MulEqFive()
 		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing fails for MulFive")
@@ -152,6 +152,59 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 			testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing fails for Inv")
 			testutils.FatalUnless(t, safeTarget.IsEqual(xCopy1), "Aliasing Eq fails for Inv")
 		}
+
+		// Small-Op by constant
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.AddUint64(xCopy1, 5)
+		xCopy2.AddUint64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for AddUint64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.SubUint64(xCopy1, 5)
+		xCopy2.SubUint64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for SubUint64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.MulUint64(xCopy1, 5)
+		xCopy2.MulUint64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for MulUint64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.DivideUint64(xCopy1, 5)
+		xCopy2.DivideUint64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for DivideUint64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.AddInt64(xCopy1, 5)
+		xCopy2.AddInt64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for AddInt64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.SubInt64(xCopy1, 5)
+		xCopy2.SubInt64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for SubInt64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.MulInt64(xCopy1, 5)
+		xCopy2.MulInt64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for MulInt64")
+
+		xCopy1Val = xVal
+		xCopy2Val = xVal
+		safeTarget.DivideInt64(xCopy1, 5)
+		xCopy2.DivideInt64(xCopy2, 5)
+		testutils.FatalUnless(t, safeTarget.IsEqual(xCopy2), "Aliasing failure for DivideInt64")
+
+
+
+
 
 		// Binary functions, both arguments alias
 		// Add
@@ -194,6 +247,7 @@ func testFEProperty_Aliasing[FE any, FEPtr interface {
 		xCopy2Val = xVal
 		target1Val = xVal
 		target4Val = xVal
+		 
 		safeTarget.Mul(xCopy1, xCopy2)
 		target1.Mul(target1, target1)
 		target2.Mul(xCopy1, xCopy1)
