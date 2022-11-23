@@ -38,6 +38,7 @@ func testProperties[FE any, FEPtr interface {
 	t.Run("internal representation", testFEProperty_InternalRep[FE, FEPtr])
 	t.Run("Small-Arg Operations", testFEProperty_SmallOps[FE, FEPtr])
 	t.Run("Sign", testFEProperty_Sign[FE, FEPtr])
+	t.Run("CmpAbs", testFEProperty_CmpAbs[FE, FEPtr])
 }
 
 // For copy&pasting:
@@ -1125,13 +1126,40 @@ func testFEProperty_Sign[FE any, FEPtr interface {
 	}
 }
 
-// Checks that CmpAbs works as desired. Also makes sanity check on IsEqual
-
-/*
-func testFEProperty__[FE any, FEPtr interface {
+func testFEProperty_CmpAbs[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 	prepareTestFieldElements(t)
+	const num = 50
+	var fes []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+	for i, xVal := range fes {
+		x := FEPtr(&xVal)
+		for j, yVal := range fes {
+			y := FEPtr(&yVal)
+			equal := x.IsEqual(y)
+
+			if i == j {
+				testutils.FatalUnless(t, equal, "IsEqual does not behave as expected")
+			} else if equal {
+				t.Log(t, "Random field elements were equal. This is neglibly unlike to happend by accident. Unless you have been tampering with random element generation, this is almost surely a bug.")
+			}
+
+			var yNegVal FE
+			yNeg := FEPtr(&yNegVal)
+			yNeg.Neg(y)
+
+			antiEqual := x.IsEqual(yNeg)
+
+			res1, res2 := x.CmpAbs(y)
+			testutils.FatalUnless(t, res1 == equal || antiEqual, "First return value of CmpAbs wrong")
+			testutils.FatalUnless(t, res2 == equal, "Second return value of CmpAbs wrong")
+
+			res1, res2 = x.CmpAbs(yNeg)
+
+			testutils.FatalUnless(t, res1 == equal || antiEqual, "First return value of CmpAbs wrong")
+			testutils.FatalUnless(t, res2 == antiEqual, "Second return value of CmpAbs wrong")
+
+		}
+	}
 }
-*/
