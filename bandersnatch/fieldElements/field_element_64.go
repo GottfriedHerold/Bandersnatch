@@ -328,12 +328,11 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetRandomUnsafe(rnd *rand.Rand) {
 // NOTE: The bsFieldElement_MontgomeryNonUnique implementation actually works for x c-reduced,
 // but we don't want to promise that.
 
-// SetUint256 sets the field element z from the Uint256 x.
-//
-// This method requires that x is in [0, BaseFieldSize).
-// If not, we will get wrong results.
+// SetUint256 sets the field element z from the Uint256 x. Note that we do not ask for x to be in the [0, BaseFieldSize) range; we reduce as needed.
 func (z *bsFieldElement_MontgomeryNonUnique) SetUint256(x *Uint256) {
-	z.words.ConvertToMontgomeryRepresentation_c(x)
+	z.words = *x
+	z.words.Reduce_ca()
+	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
 }
 
 // ToUint256 converts a field element z to a Uint256 in the range [0, BaseFieldSize)

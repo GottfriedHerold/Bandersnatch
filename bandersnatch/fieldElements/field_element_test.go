@@ -2,6 +2,7 @@ package fieldElements
 
 import (
 	"math"
+	"math/big"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
@@ -22,6 +23,8 @@ func testProperties[FE any, FEPtr interface {
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 	t.Run("Constants", testFEProperty_Constants[FE, FEPtr])
+	t.Run("BigInt roundtrip", testFEProperty_BigIntRoundtrip[FE, FEPtr])
+	t.Run("Uint256 roundtrip", testFEProperty_Uint256Roundtrip[FE, FEPtr])
 	t.Run("Commutativity and inversion", testFEProperty_CommutativiteAndInverses[FE, FEPtr])
 	t.Run("Aliasing and Eq", testFEProperty_Aliasing[FE, FEPtr])
 	t.Run("Associativity", testFEProperty_Associativity[FE, FEPtr])
@@ -613,7 +616,6 @@ func testFEProperty_Distributivity[FE any, FEPtr interface {
 				testutils.FatalUnless(t, target1.IsEqual(target2), "x*z + y*z != (x+y) * z)")
 			}
 		}
-
 	}
 }
 
@@ -661,6 +663,103 @@ func testFEProperty_MulFive[FE any, FEPtr interface {
 
 	}
 }
+
+// Checks that SetBigInt/ToBigInt roundtrip
+
+func testFEProperty_BigIntRoundtrip[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+
+	// test FE -> BigInt -> FE roundtrip
+	var x2Val FE
+	x2 := FEPtr(&x2Val)
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+	for _, xVal := range xs {
+		xCopy1 := xVal
+
+		x1 := FEPtr(&xCopy1)
+		xInt := x1.ToBigInt()
+		x2.SetBigInt(xInt)
+		testutils.FatalUnless(t, x1.IsEqual(x2), "FieldElement -> BigInt -> FieldElement does not roundtrip")
+	}
+
+	// test BigInt -> FE -> BigInt roundtrip
+	rangeInt := new(big.Int).Add(twoTo256_Int, twoTo256_Int)                                                // 2*2^512
+	var bigInts []*big.Int = CachedBigInt.GetElements(SeedAndRange{seed: 100, allowedRange: rangeInt}, num) // "real" range of bigInt is [-2^512, 2^512), we subtract to center around 0 later.
+
+	// temporary values used in the actual test
+	var feVal FE
+	fe := FEPtr(&feVal)
+	big1 := new(big.Int)
+	big2 := new(big.Int)
+
+	for _, testBigInt := range bigInts {
+		big1.Sub(testBigInt, twoTo512_Int) // we want our random big.Int's to cover negative numbers as well.
+		fe.SetBigInt(big1)
+		big2.Mod(big1, baseFieldSize_Int) // expected value after roundtrip.
+		afterRoundtrip := fe.ToBigInt()
+
+		testutils.FatalUnless(t, big2.Cmp(afterRoundtrip) == 0, "BigInt -> Field Element -> BigInt does not roundtrip modulo BaseFieldSize")
+	}
+}
+
+// Checks that SetUint256 and ToUint256 roundtrip as appropriate.
+
+func testFEProperty_Uint256Roundtrip[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+
+	// test FE -> BigInt -> FE roundtrip
+	var xUint256 Uint256
+	var x2Val FE
+	x2 := FEPtr(&x2Val)
+	var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](100, num)
+	for _, xVal := range xs {
+		xCopy1 := xVal
+
+		x1 := FEPtr(&xCopy1)
+		x1.ToUint256(&xUint256)
+		x2.SetUint256(&xUint256)
+		testutils.FatalUnless(t, x1.IsEqual(x2), "FieldElement -> Uint256 -> FieldElements roundtrip failure")
+	}
+
+	// test uint256 -> FE -> uint256 roundtrip modulo reduction
+	var uint256s []Uint256 = CachedUint256.GetElements(SeedAndRange{seed: 100, allowedRange: twoTo256_Int}, num)
+
+	// temporary values
+	var feVal FE
+	fe := FEPtr(&feVal)
+	var uint256Reduced Uint256
+	var uint256_1 Uint256
+	var uint256_2 Uint256
+	for _, testedUint256 := range uint256s {
+		uint256_1 = testedUint256
+		fe.SetUint256(&uint256_1)
+		fe.ToUint256(&uint256_2)
+		uint256Reduced = testedUint256
+		uint256Reduced.reduceBarret_fa()
+
+		testutils.FatalUnless(t, uint256Reduced == uint256_2, "Uint256 -> Field Element -> Uint256 roundtrip (modulo BaseField) failure")
+		testutils.FatalUnless(t, testedUint256 == uint256_1, "")
+	}
+
+}
+
+// Checks that SetUint64, SetInt64, ToUint64, ToInt64 work correctly
+/*
+func testFEProperty__[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+}
+*/
 
 // Checks that the raw SetBytes/ToBytes interface roundtrips as expected
 
@@ -930,3 +1029,14 @@ func testFEProperty_Sign[FE any, FEPtr interface {
 
 	}
 }
+
+// Checks that CmpAbs works as desired. Also makes sanity check on IsEqual
+
+/*
+func testFEProperty__[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](t *testing.T) {
+	prepareTestFieldElements(t)
+}
+*/
