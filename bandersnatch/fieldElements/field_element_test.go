@@ -1,10 +1,13 @@
 package fieldElements
 
 import (
+	"errors"
 	"math"
 	"math/big"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -25,6 +28,7 @@ func testProperties[FE any, FEPtr interface {
 	t.Run("Constants", testFEProperty_Constants[FE, FEPtr])
 	t.Run("BigInt roundtrip", testFEProperty_BigIntRoundtrip[FE, FEPtr])
 	t.Run("Uint256 roundtrip", testFEProperty_Uint256Roundtrip[FE, FEPtr])
+	t.Run("Uint64 and Int64 roundtrip", testFEProperty_SmallIntConversion[FE, FEPtr])
 	t.Run("Commutativity and inversion", testFEProperty_CommutativiteAndInverses[FE, FEPtr])
 	t.Run("Aliasing and Eq", testFEProperty_Aliasing[FE, FEPtr])
 	t.Run("Associativity", testFEProperty_Associativity[FE, FEPtr])
@@ -753,11 +757,103 @@ func testFEProperty_Uint256Roundtrip[FE any, FEPtr interface {
 
 // Checks that SetUint64, SetInt64, ToUint64, ToInt64 work correctly
 
-func testFEProperty_intConversion[FE any, FEPtr interface {
+func testFEProperty_SmallIntConversion[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 	prepareTestFieldElements(t)
+	const num = 1000
+	var uint64s []uint64 = CachedUint64.GetElements(100, num)
+	var int64s []int64 = CachedInt64.GetElements(101, num)
+	var feVal FE
+	fe := FEPtr(&feVal)
+
+	// roundtrip uint64 -> FE -> uint64
+	for _, u64 := range uint64s {
+		fe.SetUint64(u64)
+		retrieve, err := fe.ToUint64()
+		testutils.FatalUnless(t, err == nil, "Uint64 -> FE -> Uint64 caused error")
+		testutils.FatalUnless(t, retrieve == u64, "Uint64 -> FE -> Uint64 did not roundtrip")
+
+		asInt64, err := fe.ToInt64()
+		if u64 <= math.MaxInt64 {
+			testutils.FatalUnless(t, err == nil, "ToInt64 caused error on small element")
+			testutils.FatalUnless(t, uint64(asInt64) == u64, "ToInt64 did not return expected value")
+		} else {
+			testutils.FatalUnless(t, err != nil, "ToInt64 caused no error, even though we expected it")
+			testutils.FatalUnless(t, errors.Is(err, ErrCannotRepresentFieldElement), "ToInt64 did not return expected error")
+			feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+			testutils.FatalUnless(t, ok, "")
+			feFe := feAny.(FE)
+			testutils.FatalUnless(t, fe.IsEqual(&feFe), "error did not contain erroneous field element")
+		}
+
+	}
+
+	// roundtrip int64 -> FE -> int64
+	for _, i64 := range int64s {
+		fe.SetInt64(i64)
+		retrieve, err := fe.ToInt64()
+		testutils.FatalUnless(t, err == nil, "Int64 -> FE -> Int64 caused error")
+		testutils.FatalUnless(t, retrieve == i64, "Int64 -> FE -> Int64 did not roundtrip")
+
+		asUint64, err := fe.ToUint64()
+		if i64 >= 0 {
+			testutils.FatalUnless(t, err == nil, "ToUint64 caused error on small element")
+			testutils.FatalUnless(t, uint64(i64) == asUint64, "ToUint64 did not return expected value")
+		} else {
+			testutils.FatalUnless(t, err != nil, "ToUint64 caused no error, even though we expected it")
+			testutils.FatalUnless(t, errors.Is(err, ErrCannotRepresentFieldElement), "ToUint64 did not return expected error")
+			feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+			testutils.FatalUnless(t, ok, "")
+			feFe := feAny.(FE)
+			testutils.FatalUnless(t, fe.IsEqual(&feFe), "error did not contain erroneous field element")
+		}
+	}
+
+	for i := uint(0); i < BaseFieldBitLength-1; i++ {
+		twoToi := new(big.Int).Lsh(common.One_Int, i)
+		minusToi := new(big.Int).Neg(twoToi)
+		FFi := new(big.Int).Sub(twoToi, common.One_Int)
+		minusFFi := new(big.Int).Neg(FFi)
+		twoTo63 := new(big.Int).Lsh(common.One_Int, 63)
+		minusTwoTo63 := new(big.Int).Neg(twoTo63)
+
+		for _, xInt := range []*big.Int{twoToi, minusToi, FFi, minusFFi} {
+
+			fe.SetBigInt(xInt)
+			var uint64good bool = xInt.Sign() >= 0 && xInt.Cmp(common.TwoTo64_Int) < 0
+			var int64good bool = xInt.Cmp(minusTwoTo63) >= 0 && xInt.Cmp(twoTo63) < 0
+
+			asUint64, err := fe.ToUint64()
+			testutils.FatalUnless(t, (err == nil) == uint64good, "ToUint64 does not have expected error behaviour")
+			if err == nil {
+				testutils.FatalUnless(t, asUint64 == xInt.Uint64(), "")
+			} else {
+				feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+				testutils.FatalUnless(t, ok, "")
+				feFe := feAny.(FE)
+				feBig := FEPtr(&feFe).ToBigInt()
+				xModBaseField := new(big.Int).Mod(xInt, baseFieldSize_Int)
+				testutils.FatalUnless(t, feBig.Cmp(xModBaseField) == 0, "error did not contain erroneous field element")
+			}
+
+			asInt64, err := fe.ToInt64()
+			testutils.FatalUnless(t, (err == nil) == int64good, "ToInt64 does not have expected error behaviour")
+			if err == nil {
+				testutils.FatalUnless(t, asInt64 == xInt.Int64(), "")
+			} else {
+				feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+				testutils.FatalUnless(t, ok, "")
+				feFe := feAny.(FE)
+				feBig := FEPtr(&feFe).ToBigInt()
+				xModBaseField := new(big.Int).Mod(xInt, baseFieldSize_Int)
+				testutils.FatalUnless(t, feBig.Cmp(xModBaseField) == 0, "error did not contain erroneous field element")
+			}
+
+		}
+	}
+
 }
 
 // Checks that the raw SetBytes/ToBytes interface roundtrips as expected

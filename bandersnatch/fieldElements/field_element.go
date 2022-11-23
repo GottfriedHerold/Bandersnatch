@@ -29,9 +29,10 @@ type FieldElementInterface_common interface {
 	ToBigInt() *big.Int    // z.ToBigInt() returns a new [*big.Int] with a reprentation of z in [0, BaseFieldSize)
 	ToUint256(x *Uint256)  // z.ToUint256(x) modifies x, setting it to a representation of z in [0, BaseFieldSize)
 
-	// TODO: Returned error value
-	ToUint64() (uint64, error) // z.ToUint64() converts a field element in [0,2^64) to uint64. If z is not in that range, we return an error and the first returned value is meaningless not be used.
-	ToInt64() (int64, error)   // z.ToInt64() converts a field element in [-2^64,2^63) to int64. If z is not in that range, we return an error and the first returned value is meaningless not be used.
+	// If z is not in the allowed range, we return an error and the first returned value is meaningless not be used.
+	// The returned error wraps [ErrCannotRepresentFieldElement] and the actual failing field element can be retrieved from the error with errorWithData.GetParameterFromError(err, "FieldElement")
+	ToUint64() (uint64, error) // z.ToUint64() converts a field element in [0,2^64) to uint64.
+	ToInt64() (int64, error)   // z.ToInt64() converts a field element in [-2^64,2^63) to int64.
 
 	MulEqFive() // z.MulEqFive sets z = z * 5.
 	DoubleEq()  // z.DoubleEq() sets z = z + z == 2*z

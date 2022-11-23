@@ -177,6 +177,15 @@ var CachedUint64 = testutils.MakePrecomputedCache[int64, uint64](
 	nil,
 )
 
+// CachedUint64 is used to retrieve precomputed slices of random (seeded by int64 key) int64's. Note that these coincide with CachedUint64.
+var CachedInt64 = testutils.MakePrecomputedCache[int64, int64](
+	testutils.DefaultCreateRandFromSeed,
+	func(rng *rand.Rand, key int64) int64 {
+		return int64(rng.Uint64())
+	},
+	nil,
+)
+
 // _makePrecomputedCacheForFieldElements is an utility function for GetPrecomputedFieldElements.
 // It is used to generially create a testutils.PrecomputedCache[int64, FieldElementType] for arbitrary FieldElementType
 func _makePrecomputedCacheForFieldElements[FieldElementType any, FieldElementPtr interface {
