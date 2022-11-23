@@ -1,7 +1,35 @@
-fix interface for curve point serializers HIGH
-documentation for curve point serializers MED
-tests for curve point serializers MED
-benchmarks for curve point serializers MED
+Field Elements:
+Split into Uint256 and field element type(s).
+Specify all internal functions precisely and consistently.
+Include Non-Montgomery Ops on Uint256 level
+Make generic interface for Field elements
+Make Property Tests generic
+Make differential Tests generic
+Create big.Int - wrapping version satisfying generic interface
+Separate Benchmarks for each internal op
+Separate integer (or modulo 2^256) arithmetic from modular arithmetic for Uint256
+Optimize Barret reduction 512 -> 256
+Add optimized 320 -> 256 reduction
+Optimize operations involving small ints based on the above
+Add field element Exponentiation
+Optimize Square root
+Optimize chain(s) for usage in square root alg
+Optimize Jacobi symbol algorithm
+Optimize Squaring
+Make Field Element types non-comparable
+Add queryable type traits to interface (only used for testing)
+Add Unique-Representation field element class
+
+ErrorsWithData:
+More sane function names
+Add functionality to access "outer" data in format strings?
+
+OLD TODO list: not really maintained
+
+fix interface for curve point serializers HIGH -- 80% done
+documentation for curve point serializers MED -- 80% done
+tests for curve point serializers MED -- 80% done
+benchmarks for curve point serializers MED -- pending field element optimizations
 
 Clean up exponentiate_slidingWindow LOW
 Benchmark exponentiate_slidingWindow HIGH
@@ -10,7 +38,7 @@ Doc:
 more documentation for testsamples_test.go  LOW
 document all possible error values for serializers MED
 document all possible error values for field element serializers MED
-Document FieldElement (general style) HIGH
+
 
 Tests: 
 Increase test coverage by adding generic wrapped point that is not covered by cases. MED
@@ -26,34 +54,24 @@ Test for pointserializer/headerSerializer
 Benchmarks:
 Benchmark exponent ops?
 
-Export:
-
-Structure:
+Export / Structure: OUTDATED
 curve_point_test_serialize_test.go -> Merge into serialization tests. MED
 Differentiate error_handler.go into testing-only functions. LOW
 Organize glv types and tests differently. LOW
-sync bsFieldElement_64 and bsFieldElement_8 LOW
 Remove curve_point_impl_serialize.go MED
 Move utility functions that are only used inside tests into _test files?
 Rename _test files that do not contain tests and use build tags instead?
 Export all of Test interface?
 Review torsionAdd functions / interface -> As of now, it is define on base
-Add mutexes to mutable global variables (mostly caches for testing/benchmarking framework), required to make tests thread-safe. MED
+Add mutexes to mutable global variables (mostly caches for testing/benchmarking framework), required to make tests thread-safe. MED -- functionality added 
 
 
 
 Efficiency:
 Optimize and fix Exponent==Scalar Field LOW (depends on usage)
-Optimize field element Inversion MED
-Optimize field element square root MED
-Optimize field element Jacobi MED
-Optimize field element squaring MED
-Optimize and consolidate Field element conversions MED
 improve efficiency of GLV transform MED
 
 Functionality:
 Precomputation and serialization thereof HIGH
 Multi-exponentiation HIGH
 Multi-Multi-exponentiation MED
-
-move bitHeader from serializers to fieldElement interface MED
