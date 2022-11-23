@@ -7,6 +7,7 @@ import (
 	"math/bits"
 	"math/rand"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -238,7 +239,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetBigInt(v *big.Int) {
 	// Note z is Normalized.
 }
 
-// TODO: Replace SetBigInt by this
+// TODO: Consider replacing SetBigInt by this
 
 // _fromBigInt converts from a [*big.Int] to a field element.
 //
@@ -262,10 +263,14 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToUint64() (result uint64, err erro
 	temp := z.words.ToNonMontgomery_fc()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
-		err = ErrCannotRepresentAsUint64
+		// err = ErrCannotRepresentAsUint64
+		err = errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as a uint64", "FieldElement", *z)
+		result = 0
 	}
 	return
 }
+
+// TODO: Make more efficient
 
 // SetUint64 sets z to the given value.
 func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
@@ -310,11 +315,15 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error)
 		result = int64(-temp[0])
 		return
 	}
-	err = ErrCannotRepresentAsInt64
+	err = errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", *z)
+
+	// err = ErrCannotRepresentAsInt64
+	result = 0 // no-op, but stated for clarity.
 	return
 }
 
 // temporarily exported. Needs some restructing to unexport.
+// TODO: Will actually be removed or unexported!
 
 // SetRandomUnsafe generates a uniformly random field element.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.

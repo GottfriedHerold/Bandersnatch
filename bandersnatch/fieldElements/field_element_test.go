@@ -752,14 +752,13 @@ func testFEProperty_Uint256Roundtrip[FE any, FEPtr interface {
 }
 
 // Checks that SetUint64, SetInt64, ToUint64, ToInt64 work correctly
-/*
-func testFEProperty__[FE any, FEPtr interface {
+
+func testFEProperty_intConversion[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 	prepareTestFieldElements(t)
 }
-*/
 
 // Checks that the raw SetBytes/ToBytes interface roundtrips as expected
 
