@@ -662,6 +662,8 @@ func testFEProperty_MulFive[FE any, FEPtr interface {
 	}
 }
 
+// Checks that the raw SetBytes/ToBytes interface roundtrips as expected
+
 func testFEProperty_BytesRoundtrip[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
@@ -701,7 +703,7 @@ func testFEProperty_BytesRoundtrip[FE any, FEPtr interface {
 	}
 }
 
-// Checks that the internal representation works as expected:
+// Checks that the internal representation works as expected wrt. Normalize and RerandomizeRepresentation:
 func testFEProperty_InternalRep[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
@@ -748,7 +750,7 @@ func testFEProperty_InternalRep[FE any, FEPtr interface {
 	}
 }
 
-// Checks that the internal representation works as expected:
+// Checks that AddInt64, AddUint64, SubInt64, SubUint64, MulUint64, MulInt64, DivideInt64, DivideUint64 work as expected:
 func testFEProperty_SmallOps[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
