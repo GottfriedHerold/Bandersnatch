@@ -230,6 +230,16 @@ func (z *bsFieldElement_BigInt) Square(x *bsFieldElement_BigInt) {
 	z.Mul(x, x)
 }
 
+func (z *bsFieldElement_BigInt) SquareRoot(x *bsFieldElement_BigInt) bool {
+	xInt := x.ToBigInt()
+	if xInt.ModSqrt(xInt, baseFieldSize_Int) == nil {
+		return false
+	} else {
+		z.SetBigInt(xInt)
+		return true
+	}
+}
+
 func (z *bsFieldElement_BigInt) AddEq(y *bsFieldElement_BigInt) {
 	z.Add(z, y)
 }

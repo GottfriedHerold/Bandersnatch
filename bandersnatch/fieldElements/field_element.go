@@ -39,7 +39,7 @@ type FieldElementInterface_common interface {
 
 	SetRandomUnsafe(rnd *rand.Rand) // DEPRECATED
 
-	fmt.Formatter // allows formatted output of field elements. -- Note that fmt.Formatter should be defined on value receivers
+	fmt.Formatter // allows formatted output of field elements. -- Note that fmt.Formatter should be defined on value receivers TODO: Specify minimal accepted format verbs
 	fmt.Stringer  // allows output as string. -- Note that fmt.Stringer (i.e interface{String() string}) should be defined on value receivers.
 	// TODO: fmt.Scanner
 
@@ -62,12 +62,13 @@ type FieldElementInterface_common interface {
 type FieldElementInterface[FieldElementPointer any] interface {
 	FieldElementInterface_common // contains all methods that don't depend on the generic parameter.
 
-	Add(x, y FieldElementPointer)    // z.Add(&x,&y) performs z = x + y
-	Sub(x, y FieldElementPointer)    // z.Sub(&x,&y) performs z = x - y
-	Mul(x, y FieldElementPointer)    // z.Mul(&x,&y) performs z = x * y
-	Divide(x, y FieldElementPointer) // z.Divide(&x, &y) performs z = x / y. Panics for y == 0 (including 0/0)
-	Double(x FieldElementPointer)    // z.Double(&x) performs z = 2*x =
-	Square(x FieldElementPointer)    // z.Square(&x) performs z = x*x
+	Add(x, y FieldElementPointer)          // z.Add(&x,&y) performs z = x + y
+	Sub(x, y FieldElementPointer)          // z.Sub(&x,&y) performs z = x - y
+	Mul(x, y FieldElementPointer)          // z.Mul(&x,&y) performs z = x * y
+	Divide(x, y FieldElementPointer)       // z.Divide(&x, &y) performs z = x / y. Panics for y == 0 (including 0/0)
+	Double(x FieldElementPointer)          // z.Double(&x) performs z = 2*x =
+	Square(x FieldElementPointer)          // z.Square(&x) performs z = x*x
+	SquareRoot(x FieldElementPointer) bool // z.SquareRoot(&x) sets z to a square root of x. If no such square root exists, returns false without modifying z. There are no guarantees about the choice of square root (repeated calls with same x may differ).
 
 	MulFive(x FieldElementPointer) // z.MulFive(&x) performs z = 5*x
 	Neg(x FieldElementPointer)     // z.Neg(&x) performs z = -x
