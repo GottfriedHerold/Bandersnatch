@@ -2,6 +2,7 @@ package fieldElements
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -21,11 +22,11 @@ var _ FieldElementInterface[*bsFieldElement_BigInt] = &bsFieldElement_BigInt{}
 // var fatalUnless = testutils.FatalUnless
 
 func TestFieldElementProperties(t *testing.T) {
-	t.Run("Montgomery implementation", testProperties[bsFieldElement_MontgomeryNonUnique])
-	t.Run("trivial big.Int implementation", testProperties[bsFieldElement_BigInt])
+	t.Run("Montgomery implementation", testAllFieldElementProperties[bsFieldElement_MontgomeryNonUnique])
+	t.Run("trivial big.Int implementation", testAllFieldElementProperties[bsFieldElement_BigInt])
 }
 
-func testProperties[FE any, FEPtr interface {
+func testAllFieldElementProperties[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
@@ -35,7 +36,7 @@ func testProperties[FE any, FEPtr interface {
 	t.Run("Uint64 and Int64 roundtrip", testFEProperty_SmallIntConversion[FE, FEPtr](10001, 10002, 1000))
 	t.Run("Commutativity and inversion", testFEProperty_CommutativiteAndInverses[FE, FEPtr](10001, 10001, 100, 50))
 	t.Run("Aliasing and Eq", testFEProperty_Aliasing[FE, FEPtr](10001, 10001, 1000, 100, 100))
-	t.Run("Associativity", testFEProperty_Associativity[FE, FEPtr](10001, 10001, 10001, 100, 30, 30))
+	t.Run("Associativity", testFEProperty_Associativity[FE, FEPtr](10001, 10001, 10001, 100, 50, 30))
 	t.Run("Distributivity", testFEProperty_Distributivity[FE, FEPtr](10001, 10001, 10001, 100, 30, 30))
 	t.Run("MulByFive", testFEProperty_MulFive[FE, FEPtr](10001, 1000))
 	t.Run("raw serialization", testFEProperty_BytesRoundtrip[FE, FEPtr](10001, 1000))
@@ -43,6 +44,7 @@ func testProperties[FE any, FEPtr interface {
 	t.Run("Small-Arg Operations", testFEProperty_SmallOps[FE, FEPtr](10001, 1000))
 	t.Run("Sign", testFEProperty_Sign[FE, FEPtr](10001, 100, 100))
 	t.Run("CmpAbs", testFEProperty_CmpAbs[FE, FEPtr](10001, 1000))
+	t.Run("Formatted output", testFEProperty_FormattedOutput[FE, FEPtr](10001, 1000))
 }
 
 // For copy&pasting:
@@ -50,8 +52,10 @@ func testProperties[FE any, FEPtr interface {
 func testFEProperty__[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
-}](t *testing.T) {
+}]() func(t *testing.T) {
+	return func(t *testing.T){
 	prepareTestFieldElements(t)
+	}
 }
 */
 
@@ -1182,5 +1186,30 @@ func testFEProperty_CmpAbs[FE any, FEPtr interface {
 				testutils.FatalUnless(t, res2 == antiEqual, "Second return value of CmpAbs wrong")
 			}
 		}
+	}
+}
+
+func testFEProperty_FormattedOutput[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](seed int64, num int) func(t *testing.T) {
+	return func(t *testing.T) {
+		prepareTestFieldElements(t)
+		var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](seed, num)
+
+		for _, xVal := range xs {
+			x := FEPtr(&xVal)
+			xInt := x.ToBigInt()
+
+			for _, formatString := range []string{"%x", "%X", "%b", "%o", "%O", "%d"} {
+				bigIntString := fmt.Sprintf(formatString, xInt)
+				xString1 := fmt.Sprintf(formatString, xVal)
+				xString2 := fmt.Sprintf(formatString, x)
+				testutils.FatalUnless(t, xString1 == xString2, "Format should be defined on value receiver")
+				testutils.FatalUnless(t, xString1 == bigIntString, "Formatted output differs between field element and big.Int for format %v", formatString)
+			}
+
+		}
+
 	}
 }

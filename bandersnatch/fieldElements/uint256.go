@@ -67,6 +67,8 @@ func (z *Uint512) ToBigInt() *big.Int {
 	return new(big.Int).SetBytes(big_endian_byte_slice[:])
 }
 
+// NOTE: fmt's printing routines will always pick Format over String, even for "%v" or fmt.Sprint -- as such the String() method will rarely be called.
+
 // String is provided to satisfy the [fmt.Stringer] interface. Note that this is defined on value receivers.
 func (z Uint256) String() string {
 	return z.ToBigInt().String()
@@ -150,6 +152,10 @@ func (z *Uint256) SetUint64(x uint64) {
 // Usage: z.SetUint64(x) sets z := x, where x is a uint64
 func (z *Uint512) SetUint64(x uint64) {
 	*z = Uint512{x, 0, 0, 0, 0, 0, 0, 0}
+}
+
+func (z *Uint256) ToUint256(x *Uint256) {
+	*x = *z
 }
 
 // Q: Should we have a signed int64 -> Uint256 conversion
@@ -460,4 +466,15 @@ func (z *Uint256) Cmp(x *Uint256) int {
 // The behaviour is as the name suggests: z.IsLessThan(x) is true iff z < x.
 func (z *Uint256) IsLessThan(x *Uint256) bool {
 	return z.Cmp(x) == -1
+}
+
+type ToUint256Convertible interface {
+	ToUint256(*Uint256)
+}
+
+func IsEqualAsUint256[Arg1, Arg2 ToUint256Convertible](arg1 Arg1, arg2 Arg2) bool {
+	var u1, u2 Uint256
+	arg1.ToUint256(&u1)
+	arg2.ToUint256(&u2)
+	return u1 == u2
 }

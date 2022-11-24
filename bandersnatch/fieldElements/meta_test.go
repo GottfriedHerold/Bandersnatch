@@ -190,15 +190,17 @@ var CachedInt64 = testutils.MakePrecomputedCache[int64, int64](
 // It is used to generially create a testutils.PrecomputedCache[int64, FieldElementType] for arbitrary FieldElementType
 func _makePrecomputedCacheForFieldElements[FieldElementType any, FieldElementPtr interface {
 	*FieldElementType
-	SetRandomUnsafe(*rand.Rand)
+	FieldElementInterface[FieldElementPtr]
 }]() testutils.PrecomputedCache[int64, FieldElementType] {
 	return testutils.MakePrecomputedCache[int64, FieldElementType](
 		func(key int64) *rand.Rand {
 			return rand.New(rand.NewSource(key))
 		},
 		func(rnd *rand.Rand, key int64) (ret FieldElementType) {
-			retPtr := &ret
-			FieldElementPtr(retPtr).SetRandomUnsafe(rnd)
+
+			retInt := new(big.Int).Rand(rnd, baseFieldSize_Int)
+			FieldElementPtr(&ret).SetBigInt(retInt)
+			FieldElementPtr(&ret).RerandomizeRepresentation(rnd.Uint64())
 			return
 		},
 		nil,
@@ -217,7 +219,7 @@ var (
 // NOTE: This is thread-safe!
 func GetPrecomputedFieldElements[FieldElementType any, FieldElementPtr interface {
 	*FieldElementType
-	SetRandomUnsafe(*rand.Rand)
+	FieldElementInterface[FieldElementPtr]
 }](key int64, amount int) []FieldElementType {
 	feType := utils.TypeOfType[FieldElementType]()
 	_cachedFieldElementsMutex.RLock()

@@ -1,6 +1,7 @@
 package fieldElements
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -310,5 +311,52 @@ func TestUint256Cmp(t *testing.T) {
 			yInt := y.ToBigInt()
 			testutils.FatalUnless(t, xInt.Cmp(yInt) == x.Cmp(&y), "Cmp differs from big.Int")
 		}
+	}
+}
+
+func TestFormattedOutput(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+
+	xInts := CachedBigInt.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	yInts := CachedBigInt.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo512_Int}, num)
+
+	for _, xInt := range xInts {
+		var x Uint256
+		x.SetBigInt(xInt)
+
+		xIntString := fmt.Sprint(xInt)
+		xString := fmt.Sprint(x)
+		testutils.FatalUnless(t, xString == xIntString, "Uint256 string output and big.Int string output differ")
+
+		xString = x.String()
+		testutils.FatalUnless(t, xString == xIntString, "Uint256 string output and big.Int string output differ")
+
+		for _, formatString := range []string{"%v", "%x"} {
+
+			xIntString := fmt.Sprintf(formatString, xInt)
+			xString := fmt.Sprintf(formatString, x)
+			testutils.FatalUnless(t, xString == xIntString, "Uint256 string output and big.Int string output differ for format string %v", formatString)
+		}
+
+	}
+
+	for _, yInt := range yInts {
+		var y Uint512
+		y.SetBigInt(yInt)
+		yIntString := fmt.Sprint(yInt)
+		yString := fmt.Sprint(y)
+		testutils.FatalUnless(t, yString == yIntString, "Uint512 string output and big.Int string output differ")
+
+		yString = y.String()
+		testutils.FatalUnless(t, yString == yIntString, "Uint512 string output and big.Int string output differ")
+
+		for _, formatString := range []string{"%v", "%x"} {
+
+			yIntString := fmt.Sprintf(formatString, yInt)
+			yString := fmt.Sprintf(formatString, y)
+			testutils.FatalUnless(t, yString == yIntString, "Uint512 string output and big.Int string output differ for format string %v", formatString)
+		}
+
 	}
 }

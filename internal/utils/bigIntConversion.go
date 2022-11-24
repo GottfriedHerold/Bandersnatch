@@ -53,3 +53,11 @@ func InitIntFromString(input string) *big.Int {
 	}
 	return t
 }
+
+type ToIntConvertible interface {
+	ToBigInt() *big.Int
+}
+
+func IsEqualAsBigInt(x, y ToIntConvertible) bool {
+	return x.ToBigInt().Cmp(y.ToBigInt()) == 0
+}
