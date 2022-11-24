@@ -45,6 +45,7 @@ func testAllFieldElementProperties[FE any, FEPtr interface {
 	t.Run("Sign", testFEProperty_Sign[FE, FEPtr](10001, 100, 100))
 	t.Run("CmpAbs", testFEProperty_CmpAbs[FE, FEPtr](10001, 1000))
 	t.Run("Formatted output", testFEProperty_FormattedOutput[FE, FEPtr](10001, 1000))
+	t.Run("Square root", testFEProperty_SquareRoot[FE, FEPtr](10001, 100))
 }
 
 // For copy&pasting:
@@ -1211,5 +1212,43 @@ func testFEProperty_FormattedOutput[FE any, FEPtr interface {
 
 		}
 
+	}
+}
+
+func testFEProperty_SquareRoot[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](seed int64, num int) func(t *testing.T) {
+	return func(t *testing.T) {
+		prepareTestFieldElements(t)
+		var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](seed, num)
+
+		for _, xVal := range xs {
+			var targetVal FE
+			target := FEPtr(&targetVal)
+			target.SetInt64(101) // dummy value
+			xCopyVal := xVal
+			xCopy := FEPtr(&xCopyVal)
+			ok := target.SquareRoot(xCopy)
+			xCopy2Val := xVal
+			jac := FEPtr(&xCopy2Val).Jacobi()
+			testutils.FatalUnless(t, ok == (jac >= 0), "Success of square root does not match Jacobi symbol")
+			if !ok {
+				v, err := target.ToUint64()
+				testutils.FatalUnless(t, err == nil, "Square root modified argument on failure")
+				testutils.FatalUnless(t, v == 101, "Square root modified argument on failure")
+			} else {
+				target.SquareEq()
+				testutils.FatalUnless(t, target.IsEqual(xCopy), "SquareRoot did not return square root")
+			}
+		}
+
+		// check that square root of 0 gives 0.
+		var zeroFE, targetFE FE
+		FEPtr(&zeroFE).SetZero()
+		FEPtr(&targetFE).SetInt64(23626) // arbitraty value, to make sure that the computation below actually does something.
+		ok := FEPtr(&targetFE).SquareRoot(&zeroFE)
+		testutils.FatalUnless(t, ok, "SquareRoot(0) returns false")
+		testutils.FatalUnless(t, FEPtr(&targetFE).IsZero(), "SquareRoot(0) did not return 0")
 	}
 }

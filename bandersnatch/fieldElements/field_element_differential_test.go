@@ -96,6 +96,20 @@ func testFEDifferential[FE1 any, FE2 any, FEPtr1 interface {
 			fe2Val = x2Val
 			testutils.FatalUnless(t, fe1.Jacobi() == fe2.Jacobi(), "Differential test failed for Jacobi")
 
+			// SquareRoot
+			fe1Val = x1Val
+			fe2Val = x2Val
+			target1 := FEPtr1(new(FE1))
+			target2 := FEPtr2(new(FE2))
+			ok1 := target1.SquareRoot(fe1)
+			ok2 := target2.SquareRoot(fe2)
+			testutils.FatalUnless(t, ok1 == ok2, "Differential test failed for SquareRoot (return value)")
+			// allow differing by sign.
+			if !IsEqualAsUint256(target1, target2) {
+				target1.NegEq()
+				testutils.FatalUnless(t, IsEqualAsUint256(target1, target2), "Differential test failed for Square root")
+			}
+
 			// Neg,Inv,Double,Square,MulFive
 			unaryFuns1 := _getUnaryFuns[FEPtr1]()
 			unaryFuns2 := _getUnaryFuns[FEPtr2]()
