@@ -1,5 +1,7 @@
 package fieldElements
 
+// DEPRECATED
+
 import (
 	"testing"
 )

@@ -15,10 +15,14 @@ import (
 var _ FieldElementInterface_common = &bsFieldElement_MontgomeryNonUnique{}
 var _ FieldElementInterface[*bsFieldElement_MontgomeryNonUnique] = &bsFieldElement_MontgomeryNonUnique{}
 
+var _ FieldElementInterface_common = &bsFieldElement_BigInt{}
+var _ FieldElementInterface[*bsFieldElement_BigInt] = &bsFieldElement_BigInt{}
+
 // var fatalUnless = testutils.FatalUnless
 
 func TestFieldElementProperties(t *testing.T) {
 	t.Run("Montgomery implementation", testProperties[bsFieldElement_MontgomeryNonUnique])
+	t.Run("trivial big.Int implementation", testProperties[bsFieldElement_BigInt])
 }
 
 func testProperties[FE any, FEPtr interface {
@@ -1125,6 +1129,8 @@ func testFEProperty_Sign[FE any, FEPtr interface {
 
 	}
 }
+
+// test CmpAbs
 
 func testFEProperty_CmpAbs[FE any, FEPtr interface {
 	*FE

@@ -1,3 +1,8 @@
+//go:build ignore
+
+// Old tests before Go had generics. We now have a generic interface and test written against that.
+// Those new tests are covering strict superset of the properties tested in this file.
+
 package fieldElements
 
 import (

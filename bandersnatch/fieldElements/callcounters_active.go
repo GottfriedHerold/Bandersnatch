@@ -12,6 +12,8 @@ import (
 // callcounters_inactive is used.
 // The difference is just that the functions defined here are replaced by no-ops
 
+// NOTE: Callcounters themselves are a candidate for deprecation, so we don't use them consistently atm.
+
 // CallCountersActive is a constant whose value depends on build flags;
 // it is true if CallCounters are active, which means we profile the number of calls to certain functions.
 const CallCountersActive = true
@@ -24,6 +26,10 @@ func IncrementCallCounter(id callcounters.Id) {
 
 // This might go to internal/callcounters
 
+// TODO: Revisit
+
+// BenchmarkWithCallCounters stops the benchmark timing and includes callcounters in the report as custom fields.
+// If callcounters are inactive, is a no-op.
 func BenchmarkWithCallCounters(b *testing.B) {
 	b.StopTimer()
 	reports := callcounters.ReportCallCounters(true, false)

@@ -2,6 +2,17 @@ package fieldElements
 
 import "testing"
 
+// This file is part of the fieldElements package and contains the benchmarks for the functions defined in uint256_montgomery.go
+// This means we benchmark functions defined on uint256 that perfom arithmetic operations that perform Montgomery multiplications (and helper functions for that)
+// Note that this is not the same as benchmarking operations on field elements themselves.
+// Instead, this serves to benchmark sub-routines and try out different internal approaches.
+
+// Benchmarks all follow the same pattern in order to make the overhead comparable.
+// We benchmark functions for (fixed, pseudo-)random inputs that satisfy the preconditions of the functions.
+
+// NOTE: We try to keep the order the same as the defintions in uint256_montgomery.go
+// NOTE2: We might remove tests here as the function become deprecated; these are a bit of a testbed.
+
 func Benchmark_uint256_MontgomeryFuns(b *testing.B) {
 	b.Run("ToNonMontgomery", benchmarkToNonMontgomery)
 	b.Run("FromMontgomery", benchmarkFromMontgomery)

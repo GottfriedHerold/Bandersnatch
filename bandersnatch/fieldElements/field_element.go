@@ -6,7 +6,7 @@ import (
 	"math/rand"
 )
 
-// TODO: DOC
+// TODO: Package DOC
 
 // FieldElementInterface_common is the non-generic part of the [FieldElementInterface] interface satisfied by the field element implementation
 // for the field of definition of the Bandersnatch curve.
@@ -27,7 +27,7 @@ type FieldElementInterface_common interface {
 	SetUint64(x uint64)    // z.SetUint64(x) sets z to the value given by the uint64 x.
 	SetInt64(x int64)      // z.SetInt64(x) sets z to the value given by the int64 x. x may be negative.
 	ToBigInt() *big.Int    // z.ToBigInt() returns a new [*big.Int] with a reprentation of z in [0, BaseFieldSize)
-	ToUint256(x *Uint256)  // z.ToUint256(x) modifies x, setting it to a representation of z in [0, BaseFieldSize)
+	ToUint256(x *Uint256)  // z.ToUint256(x) modifies x, setting it to a representation of z in [0, BaseFieldSize). NOTE: The weird API (not returning Uint256) is for efficiency -- Go seems to have a hard time creating the returned value in the callers stack frame.
 
 	// If z is not in the allowed range, we return an error and the first returned value is meaningless not be used.
 	// The returned error wraps [ErrCannotRepresentFieldElement] and the actual failing field element can be retrieved from the error with errorWithData.GetParameterFromError(err, "FieldElement")
@@ -41,6 +41,7 @@ type FieldElementInterface_common interface {
 
 	fmt.Formatter // allows formatted output of field elements. -- Note that fmt.Formatter should be defined on value receivers
 	fmt.Stringer  // allows output as string. -- Note that fmt.Stringer (i.e interface{String() string}) should be defined on value receivers.
+	// TODO: fmt.Scanner
 
 	// NOTE: These are low-level conversions to []byte, mostly for internal usage to facilitate accessing the internal representation in tests. Users should rarely use those.
 	ToBytes(buf []byte)                    // z.ToBytes(buf) writes the internal representation of z to buf, using z.BytesLength() many bytes. This MUST NOT be used for portable serialization.

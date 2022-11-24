@@ -248,7 +248,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) _fromBigInt(v *big.Int) {
 	sign := v.Sign()
 	w := new(big.Int).Abs(v)
 	w.Mod(w, baseFieldSize_Int)
-	z.words.FromBigInt(w)
+	z.words.SetBigInt(w)
 	z.words.FromMontgomeryRepresentation_fc(&z.words)
 	if sign < 0 {
 		z.words.Sub(&baseFieldSize_uint256, &z.words)

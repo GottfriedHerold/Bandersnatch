@@ -27,7 +27,7 @@ func TestBigIntToUint256Roundtrip(t *testing.T) {
 	for i := int64(0); i < 10; i++ {
 		bigInt := big.NewInt(i)
 		var z Uint256
-		z.FromBigInt(bigInt)
+		z.SetBigInt(bigInt)
 		testutils.FatalUnless(t, z == Uint256{uint64(i), 0, 0, 0}, "")
 	}
 	minusOne := big.NewInt(-1)
@@ -45,7 +45,7 @@ func TestBigIntToUint512Roundtrip(t *testing.T) {
 	BigSamples := CachedBigInt.GetElements(SeedAndRange{2, twoTo512_Int}, num)
 	for _, bigSample := range BigSamples {
 		var z Uint512
-		z.FromBigInt(bigSample)
+		z.SetBigInt(bigSample)
 		backToBig := z.ToBigInt()
 		testutils.FatalUnless(t, backToBig != bigSample, "Aliasing detected") // Note: Comparison is between pointers
 		testutils.FatalUnless(t, backToBig.Cmp(bigSample) == 0, "Roundtrip failure")
@@ -53,7 +53,7 @@ func TestBigIntToUint512Roundtrip(t *testing.T) {
 	for i := int64(0); i < 10; i++ {
 		bigInt := big.NewInt(i)
 		var z Uint512
-		z.FromBigInt(bigInt)
+		z.SetBigInt(bigInt)
 		testutils.FatalUnless(t, z == Uint512{uint64(i), 0, 0, 0, 0, 0, 0, 0}, "")
 	}
 	minusOne := big.NewInt(-1)
@@ -77,7 +77,7 @@ func TestUint256Add(t *testing.T) {
 			yInt := y.ToBigInt()
 			zInt := new(big.Int).Add(xInt, yInt)
 			zInt.Mod(zInt, twoTo256_Int)
-			z2.FromBigInt(zInt)
+			z2.SetBigInt(zInt)
 			testutils.FatalUnless(t, z1 == z2, "Addition result differs from big.Int addition")
 		}
 	}
@@ -98,7 +98,7 @@ func TestUint256AddWithCarry(t *testing.T) {
 			zInt := new(big.Int).Add(xInt, yInt)
 			carry2 := zInt.Cmp(twoTo256_Int) >= 0
 			zInt.Mod(zInt, twoTo256_Int)
-			z2.FromBigInt(zInt)
+			z2.SetBigInt(zInt)
 			testutils.FatalUnless(t, z1 == z2, "Addition result differs from big.Int addition")
 			testutils.FatalUnless(t, carry1 == carry2, "Addition result differs from big.Int addition")
 		}
@@ -119,7 +119,7 @@ func TestUint256Sub(t *testing.T) {
 			yInt := y.ToBigInt()
 			zInt := new(big.Int).Sub(xInt, yInt)
 			zInt.Mod(zInt, twoTo256_Int)
-			z2.FromBigInt(zInt)
+			z2.SetBigInt(zInt)
 			testutils.FatalUnless(t, z1 == z2, "Subtraction result differs from big.Int addition")
 		}
 	}
@@ -140,7 +140,7 @@ func TestUint256SubWithBorrow(t *testing.T) {
 			zInt := new(big.Int).Sub(xInt, yInt)
 			borrow2 := zInt.Sign() < 0
 			zInt.Mod(zInt, twoTo256_Int)
-			z2.FromBigInt(zInt)
+			z2.SetBigInt(zInt)
 			testutils.FatalUnless(t, z1 == z2, "Subtraction result differs from big.Int addition")
 			testutils.FatalUnless(t, borrow1 == borrow2, "Subtraction result differs from big.Int addition")
 		}
@@ -191,7 +191,7 @@ func TestUint256IncAndDec(t *testing.T) {
 		xInt := x.ToBigInt()
 		z1Int.Add(xInt, common.One_Int)
 		z1Int.Mod(z1Int, twoTo256_Int)
-		z1.FromBigInt(z1Int)
+		z1.SetBigInt(z1Int)
 
 		z2.Increment(&x)
 		z3.Add(&x, &one_uint256)
@@ -202,7 +202,7 @@ func TestUint256IncAndDec(t *testing.T) {
 
 		z1Int.Sub(xInt, common.One_Int)
 		z1Int.Mod(z1Int, twoTo256_Int)
-		z1.FromBigInt(z1Int)
+		z1.SetBigInt(z1Int)
 
 		z2.Decrement(&x)
 		z3.Sub(&x, &one_uint256)
@@ -275,7 +275,7 @@ func TestUint256LongMul(t *testing.T) {
 			yInt := y.ToBigInt()
 			zInt := new(big.Int).Mul(xInt, yInt)
 			// zInt.Mod(zInt, twoTo512_Int) -- No modular reduction here.
-			z2.FromBigInt(zInt)
+			z2.SetBigInt(zInt)
 			testutils.FatalUnless(t, z1 == z2, "Long-Mul result differs from big.Int")
 		}
 	}
@@ -292,7 +292,7 @@ func TestUint256Square(t *testing.T) {
 		xInt := x.ToBigInt()
 		zInt := new(big.Int).Mul(xInt, xInt)
 		// zInt.Mod(zInt, twoTo512_Int) -- No modular reduction here.
-		z2.FromBigInt(zInt)
+		z2.SetBigInt(zInt)
 		testutils.FatalUnless(t, z1 == z2, "LongSquare result differs from big.Int")
 	}
 

@@ -27,14 +27,14 @@ import (
 // Uint256 is a 256-bit (unsigned) integer.
 //
 // We provide methods for elementary arithmetic and for arithmetic modulo BaseFieldSize (the latter explicitly say they perform moular reduction)
-// This type is based on [4]uint64 with low-endian convention, so x[i] will retrieve the i'th (low-endian) uint64.
+// This type is based on [4]uint64 with low-endian convention as part of the API, so x[i] will retrieve the i'th (low-endian) uint64.
 //
 // Note that this type is mostly for internal and cross-package usage; we do not guarantee that the exported methods (and their names) are stable.
 type Uint256 [4]uint64 // low-endian
 
 // Uint512 is a 512-bit (unsigned) integer.
 //
-// This type works mostly like Uint256, but we provide relatively little functionaliy, as this type only matters for intermediate results.
+// This type works mostly like [Uint256], but we provide relatively little functionaliy, as this type only matters for intermediate results.
 type Uint512 [8]uint64 // low-endian
 
 // ToBigInt converts the given uint256 to a [*big.Int]
@@ -124,33 +124,36 @@ func BigIntToUint512(x *big.Int) (result Uint512) {
 	return
 }
 
-// FromBigInt sets z:=x, where x is a [*big.Int].
+// SetBigInt sets z:=x, where x is a [*big.Int].
 //
 // We assume that 0 <= x < 2**256, else we panic.
-func (z *Uint256) FromBigInt(x *big.Int) {
+func (z *Uint256) SetBigInt(x *big.Int) {
 	*z = utils.BigIntToUIntArray(x)
 }
 
-// FromBigInt sets z:=x, where x is a [*big.Int].
+// SetBigInt sets z:=x, where x is a [*big.Int].
 //
 // We assume that 0 <= x < 2**512, else we panic.
-func (z *Uint512) FromBigInt(x *big.Int) {
+func (z *Uint512) SetBigInt(x *big.Int) {
 	*z = BigIntToUint512(x)
 }
 
-// FromUint64 converts a uint64 to a Uint256.
+// SetUint64 converts a uint64 to a Uint256.
 //
-// Usage: z.FromUint64(x) sets z := x, where x is a uint64
-func (z *Uint256) FromUint64(x uint64) {
+// Usage: z.SetUint64(x) sets z := x, where x is a uint64
+func (z *Uint256) SetUint64(x uint64) {
 	*z = Uint256{x, 0, 0, 0}
 }
 
-// FromUint64 converts a uint64 to a Uint512.
+// SetUint64 converts a uint64 to a Uint512.
 //
-// Usage: z.FromUint64(x) sets z := x, where x is a uint64
-func (z *Uint512) FromUint64(x uint64) {
+// Usage: z.SetUint64(x) sets z := x, where x is a uint64
+func (z *Uint512) SetUint64(x uint64) {
 	*z = Uint512{x, 0, 0, 0, 0, 0, 0, 0}
 }
+
+// Q: Should we have a signed int64 -> Uint256 conversion
+// Q: Should we have a uint256 -> uint64 conversion (same API as in FieldElementInterface)
 
 /*
 // BigIntToUIntArray converts a big.Int to a low-endian [4]uint64 array without Montgomery conversions.
@@ -252,9 +255,27 @@ func (z *Uint256) DecrementEq() {
 	z[3], _ = bits.Sub64(z[3], 0, borrow)
 }
 
+// SetZero sets the Uint256 to zero.
+func (z *Uint256) SetZero() {
+	*z = Uint256{}
+}
+
+// SetOne sets the Uint256 to one
+func (z *Uint256) SetOne() {
+	z[0] = 1
+	z[1] = 0
+	z[2] = 0
+	z[3] = 0
+}
+
 // IsZero checks whether the uint256 is (exactly) zero.
 func (z *Uint256) IsZero() bool {
 	return z[0]|z[1]|z[2]|z[3] == 0
+}
+
+// IsOne checks whether the Uint256 is (exactly) one.
+func (z *Uint256) IsOne() bool {
+	return (z[0]-1)|z[1]|z[2]|z[3] == 0
 }
 
 // ShiftRight_64 shifts the internal uint64 array once (equivalent to division by 2^64) and returns the shifted-out uint64
