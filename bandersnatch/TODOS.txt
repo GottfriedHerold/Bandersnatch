@@ -1,13 +1,5 @@
 Field Elements:
-Split into Uint256 and field element type(s).
-Specify all internal functions precisely and consistently.
-Include Non-Montgomery Ops on Uint256 level
-Make generic interface for Field elements
-Make Property Tests generic DONE!
-Make differential Tests generic
-Create big.Int - wrapping version satisfying generic interface
 Separate Benchmarks for each internal op
-Separate integer (or modulo 2^256) arithmetic from modular arithmetic for Uint256
 Optimize Barret reduction 512 -> 256
 Add optimized 320 -> 256 reduction
 Optimize operations involving small ints based on the above
