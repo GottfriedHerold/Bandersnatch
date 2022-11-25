@@ -29,7 +29,7 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Mul_a (Barret)", benchmarkUint256m_MulBarret_a)
 	b.Run("SquareEq_a (Barret)", benchmarkUint256m_CopyAndSquareEqBarret_a)
 	b.Run("Square_a (Barret)", benchmarkUint256m_SquareBarret_a)
-	b.Run("Jacobi symbol (simple binary-gcd-like)", benchmarkUint256m_JacobiV1_f)
+	b.Run("Jacobi symbol (simple binary-gcd-like)", benchmarkUint256m_JacobiV1_a)
 }
 
 // For Copy-And-Pasting
@@ -223,10 +223,10 @@ func benchmarkUint256m_SquareBarret_a(b *testing.B) {
 	}
 }
 
-func benchmarkUint256m_JacobiV1_f(b *testing.B) {
+func benchmarkUint256m_JacobiV1_a(b *testing.B) {
 	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpUint64[n%benchS] = uint64(bench_x[n%benchS].jacobiV1_f())
+		DumpUint64[n%benchS] = uint64(bench_x[n%benchS].jacobiV1_a())
 	}
 }

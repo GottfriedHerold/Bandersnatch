@@ -129,19 +129,15 @@ func (z *bsFieldElement_MontgomeryNonUnique) Sign() int {
 	return 1
 }
 
-// TODO: Make MUCH more efficient. The standard library's implementation's performance appears to be quite bad.
-// (For a start, it allocates like crazy, for which there is absolutely no reason)
-// Furthermore, the standard library does the Euclid-like algorithm with computing
-// denominator modulo numerator, but chooses the representative in 0 <= . < denominator
-// (Rather than minimal absolute value, with is better)
-// Or use a binary-gcd-like variant.
+// NOTE: About 8x faster than standard library and no non-stack allocation.
 
 // Jacobi computes the Legendre symbol of the received elements z.
 // This means that z.Jacobi() is +1 if z is a non-zero square and -1 if z is a non-square. z.Jacobi() == 0 iff z.IsZero()
 func (z *bsFieldElement_MontgomeryNonUnique) Jacobi() int {
 	IncrementCallCounter("Jacobi")
-	tempInt := z.ToBigInt()
-	return big.Jacobi(tempInt, baseFieldSize_Int)
+	return z.words.jacobiV1_a()
+	// tempInt := z.ToBigInt()
+	// return big.Jacobi(tempInt, baseFieldSize_Int)
 }
 
 // Add is used to perform addition.

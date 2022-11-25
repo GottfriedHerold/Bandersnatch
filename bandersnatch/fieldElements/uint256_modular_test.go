@@ -459,7 +459,7 @@ func testUint256_Jacobi(t *testing.T, jacobifun func(*Uint256) int) {
 	var zeroUint Uint256
 	testutils.FatalUnless(t, jacobifun(&zeroUint) == 0, "Jacobi symbol of 0 is not 0")
 
-	xs := CachedUint256.GetElements(pc_uint256_f, num)
+	xs := CachedUint256.GetElements(pc_uint256_a, num)
 	for _, x := range xs {
 		xCopy := x
 		xInt := x.ToBigInt()
@@ -495,5 +495,5 @@ func testUint256_Jacobi(t *testing.T, jacobifun func(*Uint256) int) {
 }
 
 func TestUint256_Jacobi(t *testing.T) {
-	testUint256_Jacobi(t, (*Uint256).jacobiV1_f)
+	testUint256_Jacobi(t, (*Uint256).jacobiV1_a)
 }

@@ -885,35 +885,51 @@ func (z *Uint256) IsReduced_c() bool {
 	return z.IsLessThan(&montgomeryBound_uint256)
 }
 
-func (z *Uint256) jacobiV1_f() int {
-	if z.IsZero() {
-		return 0
-	}
-	var accumulatedSign int // the lsb of this encodes the answer bit 0-bit -> +1, 1-bit -> -1
+func (z *Uint256) jacobiV1_a() int {
+
+	// Not needed -- we detect that, which has the advantage that we don't require z to be fully reduced.
+	/*
+		if z.IsZero() {
+			return 0
+		}
+	*/
+	var accumulatedSign int // the second-to-least significant bit of this encodes the answer bit: Iff the bit is set, the answer is -1
+	// Why second-to-least? Because it simplifies some bit-fiddling computations.
 
 	p := *z
 	q := baseFieldSize_uint256
 
+	// invariant: (-1)^(accumulatedSign>>1) * Jacobi(p/q) is the correct anwer.
+
 	for {
-		trailingZeros := bits.TrailingZeros64(p[0])
+		// p may be even, q is odd. Remove factors of 2 from p:
+		trailingZeros := bits.TrailingZeros64(p[0]) // >0, except possibly for the first iteration and after p[0] == 0 special-case
 		p.ShiftRightEq(uint(trailingZeros))
-		if trailingZeros == 64 {
+		if trailingZeros == 64 { // special-case p[0] == 0, we need to divide by more two's, because bits.TrailingZeros64 only looks at the 64 lsb's
+			if p[0]|p[1]|p[2] == 0 {
+				return 0
+			}
 			continue
 		}
-		accumulatedSign ^= trailingZeros & int((q[0]>>1)^(q[0]>>2))
+		// p, q are guaranteed to be odd
+
+		// We switch sign for each power of 2 if q % 8 == -1 or q % 8 == 1.
+		// If trailingZeros is even, we don't need to do anything. The conditions of q is equivalent to bit-0 == 1, which is guaranteed, and bit-1 and bit-2 being equal.
+		accumulatedSign ^= (trailingZeros << 1) & int(q[0]^(q[0]>>1)) // trailingZeros << 1, because the second-to-least bit matters in accumulatedSign
+
+		// Ensure p > q. If p and q are odd, we may switch them according to the Law of Reciprocity, getting a sign if p%4 == q%4 == 3
 		if p.Cmp(&q) < 0 {
 			p, q = q, p
-			accumulatedSign ^= int(p[0]>>1) * int(q[0]>>1)
+			accumulatedSign ^= int(p[0] & q[0]) // rhs contributes if p%4 == 3 == q%4
 		}
 		// p > q now
 		if q == one_uint256 {
-			break
+			return 1 - accumulatedSign&0b10 // returns +/-1, with -1 iff the second-to-least bit of accumulatedSign is set.
 		}
+		// We may change p modulo q as we please.
+		// Since we are using a binary-gcd-like algorithm, subtracting q once will guaranteed that we remove at least one factor of two next iteration.
+		// This guarantees a bound of O(log(BaseFieldSize)) for the number of iterations.
 		p.Sub(&p, &q)
 	}
-	if accumulatedSign&1 == 1 {
-		return -1
-	} else {
-		return +1
-	}
+
 }
