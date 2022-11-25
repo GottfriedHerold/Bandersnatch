@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
@@ -449,4 +450,50 @@ func TestUint256_SquareAndReduce_a(t *testing.T) {
 
 		testutils.FatalUnless(t, xInt.Cmp(zInt) == 0, "SquareAndReduce_a does not match big.Int squaring")
 	}
+}
+
+func testUint256_Jacobi(t *testing.T, jacobifun func(*Uint256) int) {
+	prepareTestFieldElements(t)
+	const num = 1000
+
+	var zeroUint Uint256
+	testutils.FatalUnless(t, jacobifun(&zeroUint) == 0, "Jacobi symbol of 0 is not 0")
+
+	xs := CachedUint256.GetElements(pc_uint256_f, num)
+	for _, x := range xs {
+		xCopy := x
+		xInt := x.ToBigInt()
+		bigIntAns := big.Jacobi(xInt, baseFieldSize_Int)
+		funAns := jacobifun(&xCopy)
+		testutils.FatalUnless(t, xCopy == x, "Jacobi function modified argument")
+		testutils.FatalUnless(t, funAns == bigIntAns, "Jacobi function does not agree with big.Int Jacobi function")
+	}
+
+	for i := uint(0); i < num; i++ {
+		xInt := new(big.Int).Lsh(common.One_Int, i)
+		xInt.Mod(xInt, baseFieldSize_Int)
+		yInt := new(big.Int).Add(xInt, common.One_Int)
+		yInt.Mod(yInt, baseFieldSize_Int)
+		zInt := new(big.Int).Sub(xInt, common.One_Int)
+		zInt.Mod(zInt, baseFieldSize_Int)
+		var x, y, z Uint256
+		x.SetBigInt(xInt)
+		y.SetBigInt(yInt)
+		z.SetBigInt(zInt)
+		xJac := jacobifun(&x)
+		yJac := jacobifun(&y)
+		zJac := jacobifun(&z)
+		xIntJac := big.Jacobi(xInt, baseFieldSize_Int)
+		yIntJac := big.Jacobi(yInt, baseFieldSize_Int)
+		zIntJac := big.Jacobi(zInt, baseFieldSize_Int)
+		testutils.Assert(xIntJac == 1) // Jacobi symbol of 2 is +1, because BaseFieldSize % 8 == 1. Powering to i does not change this.
+		testutils.FatalUnless(t, xJac == xIntJac, "Jacobi symbol wrong for power of 2")
+		testutils.FatalUnless(t, yJac == yIntJac, "Jacobi symbol wrong for 1+power of 2")
+		testutils.FatalUnless(t, zJac == zIntJac, "Jacobi symbol wrong for power of 2 -1")
+	}
+
+}
+
+func TestUint256_Jacobi(t *testing.T) {
+	testUint256_Jacobi(t, (*Uint256).jacobiV1_f)
 }

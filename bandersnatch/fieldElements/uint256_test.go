@@ -373,7 +373,7 @@ func TestUint256Square(t *testing.T) {
 
 }
 
-func TestUint256Cmp(t *testing.T) {
+func TestUint256_Cmp(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 256
@@ -388,7 +388,7 @@ func TestUint256Cmp(t *testing.T) {
 	}
 }
 
-func TestFormattedOutput(t *testing.T) {
+func TestUint256_FormattedOutput(t *testing.T) {
 	prepareTestFieldElements(t)
 	const num = 1000
 
@@ -434,3 +434,4 @@ func TestFormattedOutput(t *testing.T) {
 
 	}
 }
+

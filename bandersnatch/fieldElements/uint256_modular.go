@@ -884,3 +884,36 @@ func (z *Uint256) IsReduced_b() bool {
 func (z *Uint256) IsReduced_c() bool {
 	return z.IsLessThan(&montgomeryBound_uint256)
 }
+
+func (z *Uint256) jacobiV1_f() int {
+	if z.IsZero() {
+		return 0
+	}
+	var accumulatedSign int // the lsb of this encodes the answer bit 0-bit -> +1, 1-bit -> -1
+
+	p := *z
+	q := baseFieldSize_uint256
+
+	for {
+		trailingZeros := bits.TrailingZeros64(p[0])
+		p.ShiftRightEq(uint(trailingZeros))
+		if trailingZeros == 64 {
+			continue
+		}
+		accumulatedSign ^= trailingZeros & int((q[0]>>1)^(q[0]>>2))
+		if p.Cmp(&q) < 0 {
+			p, q = q, p
+			accumulatedSign ^= int(p[0]>>1) * int(q[0]>>1)
+		}
+		// p > q now
+		if q == one_uint256 {
+			break
+		}
+		p.Sub(&p, &q)
+	}
+	if accumulatedSign&1 == 1 {
+		return -1
+	} else {
+		return +1
+	}
+}

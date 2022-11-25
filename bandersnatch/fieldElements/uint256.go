@@ -254,6 +254,7 @@ func (z *Uint256) SubAndReturnBorrow(x, y *Uint256) (borrow uint64) {
 	z[2], borrow = bits.Sub64(x[2], y[2], borrow)
 	z[3], borrow = bits.Sub64(x[3], y[3], borrow)
 	return
+
 }
 
 // Mul computes z := x * y (modulo 2^256)
@@ -357,7 +358,7 @@ func (z *Uint256) IsOne() bool {
 	return (z[0]-1)|z[1]|z[2]|z[3] == 0
 }
 
-// ShiftRightEq_64 shifts the internal uint64 array once (equivalent to truncated-towards-minus-infinity division by 2^64) and returns the shifted-out uint64
+// ShiftRightEq_64 right-shifts the internal uint64 array by 64 bit (equivalent to truncated-towards-minus-infinity division by 2^64) and returns the shifted-out uint64
 func (z *Uint256) ShiftRightEq_64() (ShiftOut uint64) {
 	ShiftOut = z[0]
 	z[0] = z[1]
@@ -367,7 +368,15 @@ func (z *Uint256) ShiftRightEq_64() (ShiftOut uint64) {
 	return
 }
 
-// ShiftLeftEq_64 shifts the internal uint64 array once (equivalent to multiplication by 2^64) and returns the shifted-out uint64
+// ShiftRightEq shifts the internal uint64 array by the given amount i, with 0 <= i <= 64
+func (z *Uint256) ShiftRightEq(amount uint) {
+	z[0] = (z[0] >> amount) | (z[1] << (64 - amount))
+	z[1] = (z[1] >> amount) | (z[2] << (64 - amount))
+	z[2] = (z[2] >> amount) | (z[3] << (64 - amount))
+	z[3] = (z[3] >> amount)
+}
+
+// ShiftLeftEq_64 left-shifts the internal uint64 array by 64bit (equivalent to multiplication by 2^64) and returns the shifted-out uint64
 func (z *Uint256) ShiftLeftEq_64() (ShiftOut uint64) {
 	ShiftOut = z[3]
 	z[3] = z[2]
