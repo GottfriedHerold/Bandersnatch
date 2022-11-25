@@ -285,7 +285,7 @@ func (z *Uint256) IsOne() bool {
 	return (z[0]-1)|z[1]|z[2]|z[3] == 0
 }
 
-// ShiftRight_64 shifts the internal uint64 array once (equivalent to division by 2^64) and returns the shifted-out uint64
+// ShiftRight_64 shifts the internal uint64 array once (equivalent to truncated-towards-minus-infinity division by 2^64) and returns the shifted-out uint64
 func (z *Uint256) ShiftRight_64() (ShiftOut uint64) {
 	ShiftOut = z[0]
 	z[0] = z[1]
