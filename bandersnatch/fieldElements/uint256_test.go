@@ -14,7 +14,8 @@ import (
 // Note that, for now, we don't test "special values" nearly enough: -> TODO:
 // Use PrecomputedCache's capabilities to pre-seed with special elements.
 
-func TestBigIntToUint256Roundtrip(t *testing.T) {
+// TestUint256_BigIntRoundtrip checks roundtrip Uint256 <-> BigInt
+func TestUint256_BigIntRoundtrip(t *testing.T) {
 	prepareTestFieldElements(t)
 	const num = 1000
 
@@ -36,9 +37,18 @@ func TestBigIntToUint256Roundtrip(t *testing.T) {
 
 	testutils.FatalUnless(t, testutils.CheckPanic(func() { BigIntToUInt256(minusOne) }), "BigIntToUint256 did not panic on negative inputs")
 	testutils.FatalUnless(t, testutils.CheckPanic(func() { BigIntToUInt256(tooLarge) }), "BigIntToUint256 did not panic on too large inputs")
+
+	UintSamples := CachedUint256.GetElements(SeedAndRange{1, twoTo256_Int}, num)
+	for _, uint256Sample := range UintSamples {
+		bigInt := uint256Sample.ToBigInt()
+		var backToUint Uint256
+		backToUint.SetBigInt(bigInt)
+		testutils.FatalUnless(t, backToUint == uint256Sample, "Roundtrip failure Uint256 -> bigInt -> Uint256")
+	}
 }
 
-func TestBigIntToUint512Roundtrip(t *testing.T) {
+// TestBigIntToUint512 checks roundtrip Uint512 <-> bigInt
+func TestUint512_BigIntRoundtrip(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 1000
@@ -62,9 +72,18 @@ func TestBigIntToUint512Roundtrip(t *testing.T) {
 
 	testutils.FatalUnless(t, testutils.CheckPanic(func() { BigIntToUint512(minusOne) }), "BigIntToUint512 did not panic on negative inputs")
 	testutils.FatalUnless(t, testutils.CheckPanic(func() { BigIntToUint512(tooLarge) }), "BigIntToUint512 did not panic on too large inputs")
+
+	UintSamples := CachedUint512.GetElements(1, num)
+	for _, uint512Sample := range UintSamples {
+		bigInt := uint512Sample.ToBigInt()
+		var backToUint Uint512
+		backToUint.SetBigInt(bigInt)
+		testutils.FatalUnless(t, backToUint == uint512Sample, "Roundtrip failure Uint256 -> bigInt -> Uint256")
+	}
 }
 
-func TestUint256Add(t *testing.T) {
+// TestUint256_Add compares Uint256's add method against big.int's addition modulo 2^256
+func TestUint256_Add(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 256
@@ -84,7 +103,8 @@ func TestUint256Add(t *testing.T) {
 	}
 }
 
-func TestUint256AddWithCarry(t *testing.T) {
+// TestUint256_AddAndReturnCarry checks Uint256's AddAndReturnCarry method against big.Int's integer addition
+func TestUint256_AddAndReturnCarry(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 256
@@ -106,7 +126,8 @@ func TestUint256AddWithCarry(t *testing.T) {
 	}
 }
 
-func TestUint256Sub(t *testing.T) {
+// TestUint256_Sub checks Uint256.Sub against big.Int's subgraction.
+func TestUint256_Sub(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 256
@@ -126,7 +147,8 @@ func TestUint256Sub(t *testing.T) {
 	}
 }
 
-func TestUint256SubWithBorrow(t *testing.T) {
+// TestUint256_SubAndReturnBorrow checks Uint256.SubAndReturnBorrow againt big.Int
+func TestUint256_SubAndReturnBorrow(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 256
@@ -148,7 +170,30 @@ func TestUint256SubWithBorrow(t *testing.T) {
 	}
 }
 
-func TestUint256IsZero(t *testing.T) {
+// TestUint256_Mul tests Uint256.Mul against big.Int
+func TestUint256_Mul(t *testing.T) {
+	prepareTestFieldElements(t)
+
+	const num = 256
+	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	ys := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	var result1, result2 Uint256
+	for _, x := range xs {
+		for _, y := range ys {
+			result1.Mul(&x, &y)
+			xInt := x.ToBigInt()
+			yInt := y.ToBigInt()
+			zInt := new(big.Int).Mul(xInt, yInt)
+			zInt.Mod(zInt, twoTo256_Int)
+			result2.SetBigInt(zInt)
+			testutils.FatalUnless(t, result1 == result2, "Multiplication of Uint256 differs from big.Int multtplication")
+		}
+	}
+
+}
+
+// TestUint256_IsZero checks the Uint256.IsZero method for correctness.
+func TestUint256_IsZero(t *testing.T) {
 	prepareTestFieldElements(t)
 
 	const num = 1000
@@ -170,7 +215,35 @@ func TestUint256IsZero(t *testing.T) {
 	}
 }
 
-func TestUint256IncAndDec(t *testing.T) {
+func TestUint256_WordShifts(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
+	var twoTo64 Uint256 = Uint256{0, 1, 0, 0}
+	for _, x := range xs {
+		var target, recover Uint256
+		var shiftout uint64
+
+		// ShiftRight:
+
+		target = x
+		shiftout = target.ShiftRightEq_64()
+		target.Mul(&target, &twoTo64)
+		target.Add(&target, &Uint256{shiftout, 0, 0, 0})
+		testutils.FatalUnless(t, target == x, "ShiftRightEq_64 did not work as expected")
+
+		// ShiftLeft:
+
+		target = x
+		shiftout = target.ShiftLeftEq_64()
+		recover.Mul(&x, &twoTo64)
+		testutils.FatalUnless(t, recover == target, "ShiftLeftEq_64 did not operate as expected")
+		testutils.FatalUnless(t, shiftout == x[3], "ShiftLeftEq_64 did not return shifted-out value")
+	}
+}
+
+// TestUint256_IncAndDec checks Uint256.Increment and Uint256.Decrement against naive +=1 resp. -=1 (both against Uint256.Add resp. Sub and big.Int)
+func TestUint256_IncAndDec(t *testing.T) {
 	prepareTestFieldElements(t)
 	const num = 1000
 	xs := CachedUint256.GetElements(SeedAndRange{seed: 1, allowedRange: twoTo256_Int}, num)
@@ -231,7 +304,8 @@ func TestUint256IncAndDec(t *testing.T) {
 	}
 }
 
-func TestLongMul256By64(t *testing.T) {
+// TestUint256_LongMulUint64 checks Uint256.LongMulUint64 (256x64 bit multiplication) against big.Int
+func TestUint256_LongMulUint64(t *testing.T) {
 	prepareTestFieldElements(t)
 	const num = 1000
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
@@ -243,7 +317,7 @@ func TestLongMul256By64(t *testing.T) {
 			yInt := new(big.Int).SetUint64(y)
 			zInt := new(big.Int).Mul(xInt, yInt)
 			var z [5]uint64
-			LongMul256By64(&z, &x, y)
+			LongMulUint64(&z, &x, y)
 
 			// convert z to resInt of type *big.Int. This is somewhat involved.
 			var zLow Uint256 = *(*[4]uint64)(z[0:4]) // lower-order words of z

@@ -159,6 +159,36 @@ func (z *Uint256) ToUint256(x *Uint256) {
 	*x = *z
 }
 
+// SetUint256 sets z := x. Note that plain assignment works just fine. This method solely exists to unify interfaces.
+func (z *Uint256) SetUint256(x *Uint256) {
+	*z = *x
+}
+
+// SetUint256 sets z := x, converting a Uint256 to a Uint512 (with highest words set to 0)
+func (z *Uint512) SetUint256(x *Uint256) {
+	z[0] = x[0]
+	z[1] = x[1]
+	z[2] = x[2]
+	z[3] = x[3]
+	z[4] = 0
+	z[5] = 0
+	z[6] = 0
+	z[7] = 0
+}
+
+// ToUint256 converts a (sufficiently small) Uint512 to Uint256, setting x := z. The API is chosen to satisfy the [ToUint256Convertible] interface.
+//
+// If z does not fit into a Uint256, this method panics
+func (z *Uint512) ToUint256(x *Uint256) {
+	if z[4]|z[5]|z[6]|z[7] != 0 {
+		panic(ErrorPrefix + "called ToUint256 on Uint512 that did not fit into a Uint256")
+	}
+	x[0] = z[0]
+	x[1] = z[1]
+	x[2] = z[2]
+	x[3] = z[3]
+}
+
 // Q: Should we have a signed int64 -> Uint256 conversion
 // Q: Should we have a uint256 -> uint64 conversion (same API as in FieldElementInterface)
 
@@ -226,6 +256,48 @@ func (z *Uint256) SubAndReturnBorrow(x, y *Uint256) (borrow uint64) {
 	return
 }
 
+// Mul computes z := x * y (modulo 2^256)
+func (z *Uint256) Mul(x, y *Uint256) {
+	var res0, res1, res2, res3 uint64 // result. z might alias x or y, so we store in res.
+	var high, low, carry uint64
+	res1, res0 = bits.Mul64(x[0], y[0])
+
+	res2, low = bits.Mul64(x[0], y[1])
+	res1, carry = bits.Add64(res1, low, 0) // carry -> res2
+
+	res3, low = bits.Mul64(x[0], y[2])
+	res2, carry = bits.Add64(res2, low, carry) // carry -> res3
+
+	_, low = bits.Mul64(x[0], y[3])
+	res3, _ = bits.Add64(res3, low, carry)
+
+	high, low = bits.Mul64(x[1], y[0]) // low -> res1, high -> res2
+	res1, carry = bits.Add64(res1, low, 0)
+	res2, carry = bits.Add64(res2, high, carry) // carry -> res3
+
+	_, low = bits.Mul64(x[1], y[2])
+	res3, _ = bits.Add64(res3, low, carry)
+
+	high, low = bits.Mul64(x[1], y[1]) // low -> res2, high -> res3
+	res2, carry = bits.Add64(res2, low, 0)
+	res3, _ = bits.Add64(res3, high, carry)
+
+	high, low = bits.Mul64(x[2], y[0]) // low -> res2, high -> res3
+	res2, carry = bits.Add64(res2, low, 0)
+	res3, _ = bits.Add64(res3, high, carry)
+
+	_, low = bits.Mul64(x[2], y[1])
+	res3 += low
+
+	_, low = bits.Mul64(x[3], y[0])
+	res3 += low
+
+	z[0] = res0
+	z[1] = res1
+	z[2] = res2
+	z[3] = res3
+}
+
 // Increments computes z = x + 1 (modulo 2^256)
 func (z *Uint256) Increment(x *Uint256) {
 	var carry uint64
@@ -285,8 +357,8 @@ func (z *Uint256) IsOne() bool {
 	return (z[0]-1)|z[1]|z[2]|z[3] == 0
 }
 
-// ShiftRight_64 shifts the internal uint64 array once (equivalent to truncated-towards-minus-infinity division by 2^64) and returns the shifted-out uint64
-func (z *Uint256) ShiftRight_64() (ShiftOut uint64) {
+// ShiftRightEq_64 shifts the internal uint64 array once (equivalent to truncated-towards-minus-infinity division by 2^64) and returns the shifted-out uint64
+func (z *Uint256) ShiftRightEq_64() (ShiftOut uint64) {
 	ShiftOut = z[0]
 	z[0] = z[1]
 	z[1] = z[2]
@@ -295,8 +367,8 @@ func (z *Uint256) ShiftRight_64() (ShiftOut uint64) {
 	return
 }
 
-// ShiftLeft_64 shifts the internal uint64 array once (equivalent to multiplication by 2^64) and returns the shifted-out uint64
-func (z *Uint256) ShiftLeft_64() (ShiftOut uint64) {
+// ShiftLeftEq_64 shifts the internal uint64 array once (equivalent to multiplication by 2^64) and returns the shifted-out uint64
+func (z *Uint256) ShiftLeftEq_64() (ShiftOut uint64) {
 	ShiftOut = z[3]
 	z[3] = z[2]
 	z[2] = z[1]
@@ -305,10 +377,10 @@ func (z *Uint256) ShiftLeft_64() (ShiftOut uint64) {
 	return
 }
 
-// LongMul256By64 multiplies a 256bit by a 64 bit uint, resulting in a 320-bit uint (stored as low-endian [5]uint64)
+// LongMulUint64 multiplies a 256bit by a 64 bit uint, resulting in a 320-bit uint (stored as low-endian [5]uint64)
 //
-// Usage is LongMul256By64(&z, &x, y) to compute z := x * y
-func LongMul256By64(target *[5]uint64, x *Uint256, y uint64) {
+// Usage is LongMulUint64(&z, &x, y) to compute z := x * y
+func LongMulUint64(target *[5]uint64, x *Uint256, y uint64) {
 	var carry, mul_low uint64
 	target[1], target[0] = bits.Mul64(x[0], y)
 

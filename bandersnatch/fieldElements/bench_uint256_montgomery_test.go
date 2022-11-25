@@ -63,7 +63,7 @@ func benchmark_shift_once(b *testing.B) {
 	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		DumpUint64[n%benchS] = bench_x[n%benchS].ShiftRight_64() // modifies bench_x
+		DumpUint64[n%benchS] = bench_x[n%benchS].ShiftRightEq_64() // modifies bench_x
 	}
 }
 
@@ -72,7 +72,7 @@ func benchmark_mul256by64(b *testing.B) {
 	var bench_y []uint64 = CachedUint64.GetElements(1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		LongMul256By64(&DumpUint320[n%benchS], &bench_x[n%benchS], bench_y[n%benchS])
+		LongMulUint64(&DumpUint320[n%benchS], &bench_x[n%benchS], bench_y[n%benchS])
 	}
 }
 

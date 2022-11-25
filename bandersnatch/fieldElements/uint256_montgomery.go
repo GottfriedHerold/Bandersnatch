@@ -100,7 +100,7 @@ func (z *Uint256) MulMontgomery_c(x, y *Uint256) {
 	// x*y / r^4 == 1/r^4 x*y[0] + 1/r^3 x*y[1] + 1/r^2 x*y[2] + 1/r x*y[3],
 	// which can be computed as ((((x*y[0]/r + x*y[1]) /r + x*y[1]) / r + x*y[2]) /r) + x*y[3]) /r
 
-	LongMul256By64(&temp, x, y[0]) // temp == x*y[0]
+	LongMulUint64(&temp, x, y[0]) // temp == x*y[0]
 	// NOTE: (temp >> 64) < x, so (temp>>64) is c-reduced. and montgomery_iteration will preserve this.
 	montgomery_iteration(&temp, x, y[1]) // temp == (x*y[0] / r) + x*y[1]
 	montgomery_iteration(&temp, x, y[2]) // temp == ((x*y[0] / r) + x*y[1])/r + x*y[2]
@@ -233,17 +233,17 @@ func (z *Uint256) ToNonMontgomery_fc() Uint256 {
 	if reducer != 0 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint64)
 	}
-	reducer = temp.ShiftRight_64()
+	reducer = temp.ShiftRightEq_64()
 	if reducer != 0 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint64)
 	}
 
-	reducer = temp.ShiftRight_64()
+	reducer = temp.ShiftRightEq_64()
 	if reducer != 0 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint64)
 	}
 
-	reducer = temp.ShiftRight_64()
+	reducer = temp.ShiftRightEq_64()
 	if reducer != 0 {
 		montgomery_step_64(&temp, reducer*negativeInverseModulus_uint64)
 	}

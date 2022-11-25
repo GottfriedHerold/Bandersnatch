@@ -14,6 +14,7 @@ func Benchmark_uint256(b *testing.B) {
 	b.Run("trivial copying", benchmarkUint256_Copy)
 	b.Run("LongMul256->512", benchmarkUint256_LongMul)
 	b.Run("LongSquare256->512", benchmarkUint256_LongSquare)
+	b.Run("Mul256 (multiplication modulo 2^256)", benchmarkUint256_Mul)
 	b.Run("Add256 (no modular reduction)", benchmarkUint256_Add)
 	b.Run("Add256C (no modular reduction, retain carry", benchmarkUint256_AddAndReturnCarry)
 	b.Run("Sub256 (no modular reduction)", benchmarkUint256_Sub)
@@ -84,6 +85,15 @@ func benchmarkUint256_SubAndGetBorrow(b *testing.B) {
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		_ = DumpUint256[n%benchS].SubAndReturnBorrow(&bench_x[n%benchS], &bench_y[n%benchS])
+	}
+}
+
+func benchmarkUint256_Mul(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_y []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS].Mul(&bench_x[n%benchS], &bench_y[n%benchS])
 	}
 }
 
