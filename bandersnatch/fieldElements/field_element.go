@@ -102,13 +102,3 @@ type FieldElementInterface[FieldElementPointer any] interface {
 }
 
 // TODO: MulInt64, MulUint64, DivideInt64, DivideUint64 not really optimized for main field element implementation at the moment.
-
-// TODO: Move to utility?
-
-// SampleRandomUnsafe sets the target field element to a random field element using randomness from rnd.
-// Note: This is not crypto-grade randomness and not terribly efficient. This functions is used exclusively for testing (including cross-package usage)
-func SampleRandomUnsafe[FieldElementPtr FieldElementInterface[FieldElementPtr]](rnd *rand.Rand, target FieldElementPtr) {
-	resultInt := new(big.Int).Rand(rnd, baseFieldSize_Int)
-	target.SetBigInt(resultInt)
-	target.RerandomizeRepresentation(rnd.Uint64())
-}
