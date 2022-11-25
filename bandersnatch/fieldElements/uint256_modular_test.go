@@ -458,6 +458,8 @@ func testUint256_Jacobi(t *testing.T, jacobifun func(*Uint256) int) {
 
 	var zeroUint Uint256
 	testutils.FatalUnless(t, jacobifun(&zeroUint) == 0, "Jacobi symbol of 0 is not 0")
+	testutils.FatalUnless(t, jacobifun(&baseFieldSize_uint256) == 0, "Jacobi of BaseFieldSize is not 0")
+	testutils.FatalUnless(t, jacobifun(&twiceBaseFieldSize_uint256) == 0, "Jacobi of 2*BaseFieldSize is not 0")
 
 	xs := CachedUint256.GetElements(pc_uint256_a, num)
 	for _, x := range xs {
