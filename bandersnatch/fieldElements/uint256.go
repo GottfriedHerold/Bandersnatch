@@ -154,6 +154,7 @@ func (z *Uint512) SetUint64(x uint64) {
 	*z = Uint512{x, 0, 0, 0, 0, 0, 0, 0}
 }
 
+// ToUint256 is provided to satisfy the [ToUint256Convertible] interface.
 func (z *Uint256) ToUint256(x *Uint256) {
 	*x = *z
 }
