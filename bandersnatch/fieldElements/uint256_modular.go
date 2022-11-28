@@ -885,6 +885,9 @@ func (z *Uint256) IsReduced_c() bool {
 	return z.IsLessThan(&montgomeryBound_uint256)
 }
 
+// Jacobi symbol computations. We might try multiple approaches and benchmark them against each other, hence the V1.
+
+// jacobiV1_a computes the Jacobi symbol of z modulo BaseFieldSize
 func (z *Uint256) jacobiV1_a() int {
 
 	// Not needed -- we detect that, which has the advantage that we don't require z to be fully reduced.
@@ -931,5 +934,14 @@ func (z *Uint256) jacobiV1_a() int {
 		// This guarantees a bound of O(log(BaseFieldSize)) for the number of iterations.
 		p.Sub(&p, &q)
 	}
+}
 
+// ModularExponentiation_fa computes z := base^exponent modulo BaseFieldSize.
+//
+// Note that we have a different function for the Montgomery-case.
+func (z *Uint256) ModularExponentiation_fa(basis *Uint256, exponent *Uint256) {
+	basisInt := basis.ToBigInt()
+	exponentInt := exponent.ToBigInt()
+	basisInt.Exp(basisInt, exponentInt, baseFieldSize_Int)
+	z.SetBigInt(basisInt)
 }

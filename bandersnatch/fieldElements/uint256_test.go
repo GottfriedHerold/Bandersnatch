@@ -435,3 +435,23 @@ func TestUint256_FormattedOutput(t *testing.T) {
 	}
 }
 
+func TestUint256_BitLen(t *testing.T) {
+	var x Uint256
+	x.SetZero()
+	testutils.FatalUnless(t, x.BitLen() == 0, "BitLen of 0 is not 0")
+	x.SetOne()
+	testutils.FatalUnless(t, x.BitLen() == 1, "BitLen of 1 is not 1")
+
+	xInt := new(big.Int)
+	for i := 0; i < 256; i++ {
+		xInt.Lsh(common.One_Int, uint(i)) // 2^i
+		x.SetBigInt(xInt)
+		testutils.FatalUnless(t, x.BitLen() == i+1, "BitLen of 2^i != i+1")
+	}
+	for i := 1; i <= 256; i++ {
+		xInt.Lsh(common.One_Int, uint(i)) // 2^i
+		xInt.Sub(xInt, common.One_Int)    // 2^i - 1
+		x.SetBigInt(xInt)
+		testutils.FatalUnless(t, x.BitLen() == i, "BitLen of 2^i-1 != i")
+	}
+}

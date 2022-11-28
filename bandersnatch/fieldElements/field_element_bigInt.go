@@ -315,3 +315,10 @@ func (z *bsFieldElement_BigInt) DivideUint64(x *bsFieldElement_BigInt, y uint64)
 	yFE.SetUint64(y)
 	z.Divide(x, &yFE)
 }
+
+func (z *bsFieldElement_BigInt) Exp(base *bsFieldElement_BigInt, exponent *Uint256) {
+	baseInt := base.ToBigInt()
+	exponentInt := exponent.ToBigInt()
+	baseInt.Exp(baseInt, exponentInt, baseFieldSize_Int)
+	z.SetBigInt(baseInt)
+}

@@ -213,6 +213,24 @@ func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
 }
 */
 
+// BitLen returns the length of z in bits. This means that we return the smallest i>=0, s.t. z < 2^i.
+// The bitlength of 0 is 0.
+func (z *Uint256) BitLen() int {
+	l := bits.Len64(z[3])
+	if l != 0 {
+		return l + 3*64
+	}
+	l = bits.Len64(z[2])
+	if l != 0 {
+		return l + 2*64
+	}
+	l = bits.Len64(z[1])
+	if l != 0 {
+		return l + 64
+	}
+	return bits.Len64(z[0])
+}
+
 // Add computes an addition z := x + y.
 // The addition is carried out modulo 2^256
 func (z *Uint256) Add(x, y *Uint256) {

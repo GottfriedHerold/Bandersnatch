@@ -13,6 +13,8 @@ func TestDifferentialFieldElements(t *testing.T) {
 
 // utility stuff to iterate over methods (and their names) in a type-safe way (i.e. without using reflection).
 
+// TODO: Differential test for small-int / small-uint ops
+
 type _functionAndName[funType any] struct {
 	f    funType
 	name string
@@ -215,8 +217,16 @@ func testFEDifferential[FE1 any, FE2 any, FEPtr1 interface {
 					testutils.FatalUnless(t, didPanic1 == didPanic2, "Differential Test had different panic behaviour for %v", funAndName1.name)
 					testutils.FatalUnless(t, didPanic1 || IsEqualAsUint256(target1, target2), "Differential Test failed for %v", funAndName1.name)
 				}
-
 			}
+		}
+
+		exponents := CachedUint256.GetElements(SeedAndRange{seed: seedsY, allowedRange: twoTo256_Int}, numX)
+		for i, x1 := range x1s {
+			x2 := x2s[i]
+			exponent := exponents[i]
+			fe1.Exp(&x1, &exponent)
+			fe2.Exp(&x2, &exponent)
+			testutils.FatalUnless(t, IsEqualAsUint256(fe1, fe2), "Differential test failed for Exp")
 		}
 	}
 }

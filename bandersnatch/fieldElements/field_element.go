@@ -99,6 +99,8 @@ type FieldElementInterface[FieldElementPointer any] interface {
 	MulUint64(x FieldElementPointer, y uint64)    // z.MulUint64(&x, y) performs z = x * y, where y is an uint64. Note that this may be considerably faster than converting y to a field element if y is only used once.
 	DivideInt64(x FieldElementPointer, y int64)   // z.DivideInt64(&x, y) performs z = x / y, where y is an int64
 	DivideUint64(x FieldElementPointer, y uint64) // z.DivideIUint64(&x, y) performs z = x / y, where y is an uint64
+
+	Exp(base FieldElementPointer, exponent *Uint256) // z.Exp(&base,&exponent) performs z = base^exponent. Note that we only support exponent >=0 for simplicity. 0^0 == 1.
 }
 
 // TODO: MulInt64, MulUint64, DivideInt64, DivideUint64 not really optimized for main field element implementation at the moment.

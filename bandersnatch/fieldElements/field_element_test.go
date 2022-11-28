@@ -46,6 +46,8 @@ func testAllFieldElementProperties[FE any, FEPtr interface {
 	t.Run("CmpAbs", testFEProperty_CmpAbs[FE, FEPtr](10001, 1000))
 	t.Run("Formatted output", testFEProperty_FormattedOutput[FE, FEPtr](10001, 1000))
 	t.Run("Square root", testFEProperty_SquareRoot[FE, FEPtr](10001, 100))
+	t.Run("Jacobi symbol", testFEProperty_Jacobi[FE, FEPtr](10001, 500, 500))
+	t.Run("Exponentiation", testFEProperty_Exponentiation[FE, FEPtr](10001, 10002, 100))
 }
 
 // For copy&pasting:
@@ -1250,5 +1252,78 @@ func testFEProperty_SquareRoot[FE any, FEPtr interface {
 		ok := FEPtr(&targetFE).SquareRoot(&zeroFE)
 		testutils.FatalUnless(t, ok, "SquareRoot(0) returns false")
 		testutils.FatalUnless(t, FEPtr(&targetFE).IsZero(), "SquareRoot(0) did not return 0")
+	}
+}
+
+func testFEProperty_Jacobi[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](seed int64, num int, rerand uint64) func(t *testing.T) {
+	return func(t *testing.T) {
+		prepareTestFieldElements(t)
+		var xs []FE = GetPrecomputedFieldElements[FE, FEPtr](seed, num)
+
+		for _, xVal := range xs {
+			xCopy := xVal
+			x := FEPtr(&xCopy)
+			xInt := x.ToBigInt()
+			Jac := big.Jacobi(xInt, baseFieldSize_Int)
+			Jac2 := x.Jacobi()
+			testutils.FatalUnless(t, Jac == Jac2, "Jacobi symbol computation does not agree with big.Int")
+		}
+
+		var xVal FE
+		x := FEPtr(&xVal)
+		x.SetZero()
+		testutils.FatalUnless(t, x.Jacobi() == 0, "Jacobi symbol of 0 is not 0")
+		for i := uint64(0); i < rerand; i++ {
+			x.RerandomizeRepresentation(i)
+			testutils.FatalUnless(t, x.Jacobi() == 0, "Jacobi symbol of rerandomized 0 is not 0")
+		}
+	}
+}
+
+func testFEProperty_Exponentiation[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[FEPtr]
+}](seedFE int64, seedInt int64, num int) func(t *testing.T) {
+	return func(t *testing.T) {
+		prepareTestFieldElements(t)
+		var feVal, targetVal FE
+		fe := FEPtr(&feVal)
+		fe.SetZero()
+		target := FEPtr(&targetVal)
+		target.Exp(fe, &zero_uint256)
+		testutils.FatalUnless(t, target.IsOne(), "0^0 != 1")
+		testutils.FatalUnless(t, fe.IsZero(), "Exp modified base")
+
+		// aliasing
+		fe.Exp(fe, &zero_uint256)
+		testutils.FatalUnless(t, fe.IsOne(), "0^0 != 1")
+
+		var bases []FE = GetPrecomputedFieldElements[FE, FEPtr](seedFE, num)
+		var exponents []Uint256 = CachedUint256.GetElements(SeedAndRange{seed: seedInt, allowedRange: twoTo256_Int}, num)
+
+		for i, basisVal := range bases {
+			basis := FEPtr(&basisVal)
+			exponent := exponents[i]
+			basisInt := basis.ToBigInt()
+			exponentInt := exponent.ToBigInt()
+			basisCopy := basisVal
+
+			target.Exp(basis, &exponent)
+			targetInt := new(big.Int).Exp(basisInt, exponentInt, baseFieldSize_Int)
+			testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "Exp does not match big.Int's result")
+			testutils.FatalUnless(t, basis.IsEqual(&basisCopy), "Exp modified argument")
+
+			target.Exp(basis, &one_uint256)
+			testutils.FatalUnless(t, target.IsEqual(basis), "x^1 != x")
+			target.Exp(basis, &zero_uint256)
+			testutils.FatalUnless(t, target.IsOne(), "x^0 != 1")
+			targetVal = basisVal
+			target.Exp(target, &exponent)
+			testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "Exp does not work for aliasing arguments")
+		}
+
 	}
 }

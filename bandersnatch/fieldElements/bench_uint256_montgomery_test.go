@@ -23,6 +23,7 @@ func Benchmark_uint256_MontgomeryFuns(b *testing.B) {
 	b.Run("shiftOnce (inaccurate)", benchmark_shift_once)
 	b.Run("Montgomery Mul V1", benchmark_MulMontgomery)
 	b.Run("Montgomery Mul V2", benchmark_MulMontgomeryV2)
+	b.Run("Exponentiation (Montgomery)", benchmark_ExponentiationMontgomery)
 }
 
 func benchmarkToNonMontgomery(b *testing.B) {
@@ -100,5 +101,14 @@ func benchmark_MulMontgomeryV2(b *testing.B) {
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].MulMontgomery_c(&bench_x[n%benchS], &bench_y[n%benchS])
+	}
+}
+
+func benchmark_ExponentiationMontgomery(b *testing.B) {
+	var bench_basis []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS) // NOTE: Using fully reduced exponents here. This is more meaningful
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS].ModularExponentiationMontgomery_fa(&bench_basis[n%benchS], &bench_exponents[n%benchS])
 	}
 }

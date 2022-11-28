@@ -30,6 +30,7 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("SquareEq_a (Barret)", benchmarkUint256m_CopyAndSquareEqBarret_a)
 	b.Run("Square_a (Barret)", benchmarkUint256m_SquareBarret_a)
 	b.Run("Jacobi symbol (simple binary-gcd-like)", benchmarkUint256m_JacobiV1_a)
+	b.Run("Exponentiation", benchmarkUint256m_Exponentiation)
 }
 
 // For Copy-And-Pasting
@@ -228,5 +229,14 @@ func benchmarkUint256m_JacobiV1_a(b *testing.B) {
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint64[n%benchS] = uint64(bench_x[n%benchS].jacobiV1_a())
+	}
+}
+
+func benchmarkUint256m_Exponentiation(b *testing.B) {
+	var bench_basis []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS) // NOTE: Using fully reduced exponents here. This is more meaningful
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS].ModularExponentiation_fa(&bench_basis[n%benchS], &bench_exponents[n%benchS])
 	}
 }

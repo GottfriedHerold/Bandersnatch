@@ -188,6 +188,23 @@ func (z *Uint256) ConvertToMontgomeryRepresentation_c(x *Uint256) {
 	z.MulMontgomery_c(x, &twoTo512ModBaseField_uint256)
 }
 
+// TODO: Make a proper efficient implementation.
+
+// ModularExponentiation_a sets z := base^exponent modulo BaseFieldSize, where z and base are both in Montgomery form.
+//
+// By convention, 0^0 is 1 here.
+func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Uint256) {
+	// dummy implementation
+
+	var baseNonMontgomery Uint256
+	baseNonMontgomery.FromMontgomeryRepresentation_fc(base)
+	baseInt := baseNonMontgomery.ToBigInt()
+	exponentInt := exponent.ToBigInt()
+	baseInt.Exp(baseInt, exponentInt, baseFieldSize_Int)
+	z.SetBigInt(baseInt)
+	z.ConvertToMontgomeryRepresentation_c(z)
+}
+
 /********************
 // DEPRECATED FUNCTIONS:
 // These are less efficient, but more readable variants.

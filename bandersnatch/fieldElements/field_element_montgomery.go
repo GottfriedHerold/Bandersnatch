@@ -782,3 +782,10 @@ func (z *bsFieldElement_MontgomeryNonUnique) DivideUint64(x *bsFieldElement_Mont
 	yFE.SetUint64(y)
 	z.Divide(x, &yFE)
 }
+
+// Not optimized yet.
+
+// z.Exp computes z := base^y in the field, with 0^0 == 1.
+func (z *bsFieldElement_MontgomeryNonUnique) Exp(base *bsFieldElement_MontgomeryNonUnique, exponent *Uint256) {
+	z.words.ModularExponentiationMontgomery_fa(&base.words, exponent)
+}

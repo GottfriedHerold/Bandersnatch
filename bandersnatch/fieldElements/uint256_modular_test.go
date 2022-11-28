@@ -499,3 +499,51 @@ func testUint256_Jacobi(t *testing.T, jacobifun func(*Uint256) int) {
 func TestUint256_Jacobi(t *testing.T) {
 	testUint256_Jacobi(t, (*Uint256).jacobiV1_a)
 }
+
+// Test non-Montgomery variant of Exponentiation
+
+func TestUint256_ModularExponentiation(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+
+	bases := CachedUint256.GetElements(SeedAndRange{seed: 10003, allowedRange: twoTo256_Int}, num)
+	exponents := CachedUint256.GetElements(SeedAndRange{seed: 10004, allowedRange: twoTo256_Int}, num)
+
+	var target Uint256
+	target.ModularExponentiation_fa(&zero_uint256, &zero_uint256)
+	testutils.FatalUnless(t, target.IsOne(), "0^0 != 1")
+
+	for i, basis := range bases {
+		exponent := exponents[i]
+		exponentCopy := exponent
+		basisCopy := basis
+		basisInt := basis.ToBigInt()
+		exponentInt := exponent.ToBigInt()
+		target.ModularExponentiation_fa(&basis, &exponent)
+		testutils.FatalUnless(t, target.IsReduced_f(), "ModularExponentiation_fa does not fully reduce")
+		targetInt := new(big.Int).Exp(basisInt, exponentInt, baseFieldSize_Int)
+		testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "ModularExponentiaion_fa does not match big.Int")
+
+		target = basis
+		target.ModularExponentiation_fa(&target, &exponent)
+		testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "ModularExponentiaion_fa does not work for aliasing args")
+
+		dummy1 := basisCopy
+		dummy2 := basisCopy
+		target.ModularExponentiation_fa(&dummy1, &dummy2)
+		dummy1.ModularExponentiation_fa(&dummy1, &dummy1)
+		testutils.FatalUnless(t, dummy1 == target, "ModularExponentiation_fa does not work for target, basis, exponent all aliasing")
+
+		target.ModularExponentiation_fa(&basis, &one_uint256)
+		dummy1 = basis
+		dummy1.reduceBarret_fa()
+		testutils.FatalUnless(t, target == dummy1, "x^1 != x modulo BaseFieldSize")
+		target.ModularExponentiation_fa(&basis, &zero_uint256)
+		testutils.FatalUnless(t, target.IsOne(), "x^0 != 1")
+
+		testutils.FatalUnless(t, exponent == exponentCopy, "Argument was modified during ModularExponentiation")
+		testutils.FatalUnless(t, basis == basisCopy, "Argument was modified during ModularExponentiation")
+
+	}
+
+}
