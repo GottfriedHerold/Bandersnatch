@@ -215,10 +215,10 @@ const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFF
 // The size of this field matches (by design) the size of the prime-order subgroup of the BLS12-381 curve.
 type FieldElement = bsFieldElement_MontgomeryNonUnique
 
-// DyadicRootOfUnity is a (fixed) 2^32th primitive root of unity.
+// DyadicRootOfUnity is a (fixed) 2^32th primitive root of unity. NOTE: This is acutually the smallest such root of unity and fits into 7 uint32's.
 const (
-	DyadicRootOfUnity_untyped = 51497958086047182773340763523383716095225703683066879299752905892276655280354
-	DyadicRootOfUnity_string  = "51497958086047182773340763523383716095225703683066879299752905892276655280354"
+	DyadicRootOfUnity_untyped = 0xF32C26F7_82044B66_7336B3F4_7B2464A8_E4FC91B6_3DF3E369_81960EC4 // 25609050042867742175647027564004846496793091465619562978882159513284
+	DyadicRootOfUnity_string  = "25609050042867742175647027564004846496793091465619562978882159513284"
 )
 
 var (
