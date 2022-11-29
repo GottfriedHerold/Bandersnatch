@@ -32,6 +32,11 @@ var (
 )
 
 var (
+	BaseFieldMultiplicateOddOrder_uint256_COPY = BaseFieldMultiplicateOddOrder_uint256
+	tonelliShanksExponent_uint256_COPY         = tonelliShanksExponent_uint256
+)
+
+var (
 	zero_uint256_COPY       = zero_uint256
 	one_uint256_COPY        = one_uint256
 	two_uint256_COPY        = two_uint256
@@ -98,6 +103,8 @@ var (
 	FieldElementZero_COPY     = FieldElementZero
 	FieldElementMinusOne_COPY = FieldElementMinusOne
 	FieldElementTwo_COPY      = FieldElementTwo
+	DyadicRootOfUnity_fe_COPY = DyadicRootOfUnity_fe
+	dyadicRootOfUnity_fe_COPY = dyadicRootOfUnity_fe
 )
 
 func TestEnsureFieldElementConstantsWereNotChanged(t *testing.T) {
@@ -116,6 +123,8 @@ func TestValidityOfConstants(t *testing.T) {
 	testutils.Assert(BaseFieldSize_64 == baseFieldSize_uint256)
 	temp_uint256.SetBigInt(baseFieldSize_Int)
 	testutils.Assert(temp_uint256 == baseFieldSize_uint256)
+
+	testutils.Assert(1<<BaseField2Adicity*BaseFieldMultiplicativeOddOrder == BaseFieldSize_untyped-1)
 
 	temp_uint256 = Uint256{}
 	testutils.Assert(temp_uint256 == zero_uint256)
@@ -201,6 +210,10 @@ func TestValidityOfConstants(t *testing.T) {
 	temp_fe.Add(&FieldElementOne, &FieldElementMinusOne)
 	testutils.FatalUnless(t, temp_fe.IsZero(), "Exported FieldElementMinusOne is not -1")
 
+	testutils.FatalUnless(t, getDyadicPower(&dyadicRootOfUnity_fe) == BaseField2Adicity, "dyadicRootOfUnity_fe is not a primitive root of unity of the expected order")
+	testutils.FatalUnless(t, getDyadicPower(&DyadicRootOfUnity_fe) == BaseField2Adicity, "DyadicRootOfUnity_fe is not a primitive root of unity of the expected order")
+	testutils.FatalUnless(t, utils.IsEqualAsBigInt(&DyadicRootOfUnity_fe, &dyadicRootOfUnity_fe), "DyadicRootOfUnity_fe and dyadicRootOfUnity_fe differ")
+
 }
 
 func ensureFieldElementConstantsWereNotChanged() {
@@ -223,6 +236,9 @@ func ensureFieldElementConstantsWereNotChanged() {
 	testutils.Assert(&BaseFieldSize_32[0] != &BaseFieldSize_32_COPY[0])
 	testutils.Assert(&BaseFieldSize_16[0] != &BaseFieldSize_16_COPY[0])
 	testutils.Assert(&BaseFieldSize_8[0] != &BaseFieldSize_8_COPY[0])
+
+	testutils.Assert(BaseFieldMultiplicateOddOrder_uint256_COPY == BaseFieldMultiplicateOddOrder_uint256)
+	testutils.Assert(tonelliShanksExponent_uint256_COPY == tonelliShanksExponent_uint256)
 
 	testutils.Assert(zero_uint256_COPY == zero_uint256)
 	testutils.Assert(one_uint256_COPY == one_uint256)
@@ -272,4 +288,7 @@ func ensureFieldElementConstantsWereNotChanged() {
 	testutils.Assert(FieldElementZero_COPY == FieldElementZero)
 	testutils.Assert(FieldElementMinusOne_COPY == FieldElementMinusOne)
 	testutils.Assert(FieldElementTwo_COPY == FieldElementTwo)
+
+	testutils.Assert(DyadicRootOfUnity_fe_COPY == DyadicRootOfUnity_fe)
+	testutils.Assert(dyadicRootOfUnity_fe_COPY == dyadicRootOfUnity_fe)
 }

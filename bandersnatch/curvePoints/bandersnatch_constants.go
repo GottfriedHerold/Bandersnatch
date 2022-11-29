@@ -129,9 +129,9 @@ const (
 // CurveParameters as *big.Int's or FieldElements
 var (
 	CurveParameterD_Int *big.Int     = utils.InitIntFromString(CurveParameterD_string)
-	CurveParameterD_fe  FieldElement = fieldElements.InitFieldElementFromString(CurveParameterD_string)
+	CurveParameterD_fe  FieldElement = fieldElements.InitFieldElementFromString[FieldElement](CurveParameterD_string)
 	CurveParameterA_Int *big.Int     = utils.InitIntFromString(CurveParameterA_string)
-	CurveParameterA_fe  FieldElement = fieldElements.InitFieldElementFromString(CurveParameterA_string)
+	CurveParameterA_fe  FieldElement = fieldElements.InitFieldElementFromString[FieldElement](CurveParameterA_string)
 )
 
 // squareRootDByA is a square root of d/a. Due to the way the bandersnatch curve was constructed, we have (sqrt(d/a) + 1)^2 == 2.
@@ -145,7 +145,7 @@ const (
 // const, really
 var (
 	// squareRootDbyA_Int *big.Int     = common.InitIntFromString(squareRootDByA_string) // TODO: Do we need this?
-	squareRootDbyA_fe FieldElement = fieldElements.InitFieldElementFromString(squareRootDByA_string)
+	squareRootDbyA_fe FieldElement = fieldElements.InitFieldElementFromString[FieldElement](squareRootDByA_string)
 )
 
 // These parameters appear in the formulae for the endomorphism.
@@ -168,8 +168,8 @@ const (
 var (
 	// endo_a1_fe       FieldElement = fieldElements.InitFieldElementFromString(endo_a1_string)
 	// endo_a2_fe       FieldElement = fieldElements.InitFieldElementFromString(endo_a2_string)
-	endo_b_fe        FieldElement = fieldElements.InitFieldElementFromString(endo_b_string)
-	endo_c_fe        FieldElement = fieldElements.InitFieldElementFromString(endo_c_string)
-	endo_binverse_fe FieldElement = fieldElements.InitFieldElementFromString(endo_binverse_string) // Note == SqrtDDivA_fe
-	endo_bcd_fe      FieldElement = fieldElements.InitFieldElementFromString(endo_bcd_string)
+	endo_b_fe        FieldElement = fieldElements.InitFieldElementFromString[FieldElement](endo_b_string)
+	endo_c_fe        FieldElement = fieldElements.InitFieldElementFromString[FieldElement](endo_c_string)
+	endo_binverse_fe FieldElement = fieldElements.InitFieldElementFromString[FieldElement](endo_binverse_string) // Note == SqrtDDivA_fe
+	endo_bcd_fe      FieldElement = fieldElements.InitFieldElementFromString[FieldElement](endo_bcd_string)
 )

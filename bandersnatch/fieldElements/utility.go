@@ -1,6 +1,7 @@
 package fieldElements
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 )
@@ -14,15 +15,18 @@ import (
 // It is supposed to be used to initialize package-level variables (probably intendend to be constant) from constant string literals.
 //
 // The input string does not have to represent a number in [0, BaseFieldSize). It may represent any integer, possibly negative.
-func InitFieldElementFromString(input string) (output FieldElement) {
-	var t *big.Int = big.NewInt(0)
+func InitFieldElementFromString[FE any, FEPtr interface {
+	*FE
+	FieldElementInterface[*FE]
+}](input string) (output FE) {
+	var t *big.Int = new(big.Int)
 	var success bool
 	t, success = t.SetString(input, 0)
 	if !success {
-		panic(ErrorPrefix + "String used to initialize field element not recognized as a valid number")
+		panic(fmt.Errorf(ErrorPrefix+"String %v used to initialize field element was not recognized as a valid number", input))
 	}
-	output.SetBigInt(t)
-	output.Normalize() // not needed actually, because of current implementation of SetBigInt, but we want to be 100% sure.
+	FEPtr(&output).SetBigInt(t)
+	FEPtr(&output).Normalize() // not needed actually, because of current implementation of SetBigInt for all our field element types, but we want to be 100% sure.
 	return
 }
 

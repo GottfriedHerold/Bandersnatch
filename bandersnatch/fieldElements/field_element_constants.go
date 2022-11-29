@@ -81,6 +81,19 @@ const BaseFieldBitLength = common.BaseFieldBitLength // == 255
 // BaseFieldByteLength is the length of BaseFieldSize in bytes.
 const BaseFieldByteLength = common.BaseFieldByteLength // == 32
 
+// We split the size of the multiplicative group as BaseFieldSize - 1 as 2^BaseField2Adicity * BaseFieldMultiplicativeOddOrder with the latter being odd.
+// This decomposition matters for some Square root algorithms.
+const (
+	BaseField2Adicity               = 32
+	BaseFieldMultiplicativeOddOrder = 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff
+	tonelliShanksExponent           = (BaseFieldMultiplicativeOddOrder + 1) / 2
+)
+
+var (
+	BaseFieldMultiplicateOddOrder_uint256 = Uint256{BaseFieldMultiplicativeOddOrder_64_0, BaseFieldMultiplicativeOddOrder_64_1, BaseFieldMultiplicativeOddOrder_64_2, BaseFieldMultiplicativeOddOrder_64_3}
+	tonelliShanksExponent_uint256         = Uint256{tonelliShanksExponent_64_0, tonelliShanksExponent_64_1, tonelliShanksExponent_64_2, tonelliShanksExponent_64_3}
+)
+
 /***************************
  	uint 256 - related constants
 *****************************/
@@ -178,18 +191,6 @@ var (
 	oneHalfModBaseField_uint256          = Uint256{oneHalfModBaseField_64_0, oneHalfModBaseField_64_1, oneHalfModBaseField_64_2, oneHalfModBaseField_64_3}
 )
 
-/*
-var oneHalfModBaseField_Int *big.Int = func() (ret *big.Int) {
-	ret = big.NewInt(1)
-	var twoInt *big.Int = big.NewInt(2)
-	ret.Add(ret, baseFieldSize_Int)
-	ret.Div(ret, twoInt)
-	return
-}()
-*/
-
-// const oneHalfModBaseField_uint256 Uint256 = Uint256{oneH}
-
 // minus2To256ModBaseField_untyped is -(2**256) modulo BaseFieldSize.
 // This is the Montgomery representation of -1.
 const minus2To256ModBaseField_untyped = BaseFieldSize_untyped - twoTo256ModBaseField_untyped // 41515536288062376014772236515869989659801672835942349428353392091902613913603
@@ -206,7 +207,7 @@ const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFF
 	Exported Field Elements
 ****************************/
 
-// NOTE2: The FieldElementOne etc. here are explicitly types as FieldElement, which is a type alias to the actually used field element implementation.
+// NOTE2: The FieldElementOne etc. here are explicitly typed as FieldElement, which is a type alias to the actually used field element implementation.
 // So if we change FieldElement to alias a different type, these definitions will fail and need to be changed. This is intentional.
 
 // FieldElement is an element of the field of definition of the Bandersnatch curve.
@@ -214,12 +215,24 @@ const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFF
 // The size of this field matches (by design) the size of the prime-order subgroup of the BLS12-381 curve.
 type FieldElement = bsFieldElement_MontgomeryNonUnique
 
+// DyadicRootOfUnity is a (fixed) 2^32th primitive root of unity.
+const (
+	DyadicRootOfUnity_untyped = 51497958086047182773340763523383716095225703683066879299752905892276655280354
+	DyadicRootOfUnity_string  = "51497958086047182773340763523383716095225703683066879299752905892276655280354"
+)
+
 var (
 	// Important constants of type FieldElement
 	FieldElementOne      FieldElement = bsFieldElement_64_one
 	FieldElementZero     FieldElement = bsFieldElement_64_zero
 	FieldElementMinusOne FieldElement = bsFieldElement_64_minusone
-	FieldElementTwo      FieldElement = InitFieldElementFromString("2")
+	FieldElementTwo      FieldElement = InitFieldElementFromString[FieldElement]("2")
+	DyadicRootOfUnity_fe FieldElement = InitFieldElementFromString[FieldElement](DyadicRootOfUnity_string)
+)
+
+// internal unexported copy of DyadicRootOfUnity, used in square root algorithm. We don't export this to prevent users from accidentially modifying it and causing hard-to-track bugs.
+var (
+	dyadicRootOfUnity_fe _FESquareRoot = InitFieldElementFromString[_FESquareRoot](DyadicRootOfUnity_string)
 )
 
 /***************************
@@ -361,4 +374,18 @@ const (
 	oneHalfModBaseField_64_1
 	oneHalfModBaseField_64_2
 	oneHalfModBaseField_64_3
+)
+
+const (
+	BaseFieldMultiplicativeOddOrder_64_0 = (BaseFieldMultiplicativeOddOrder >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	BaseFieldMultiplicativeOddOrder_64_1
+	BaseFieldMultiplicativeOddOrder_64_2
+	BaseFieldMultiplicativeOddOrder_64_3
+)
+
+const (
+	tonelliShanksExponent_64_0 = (tonelliShanksExponent >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	tonelliShanksExponent_64_1
+	tonelliShanksExponent_64_2
+	tonelliShanksExponent_64_3
 )
