@@ -34,6 +34,11 @@ import (
 // BaseFieldSize_untyped is the prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
 // Due to overflowing all standard types, this is only useful in constant expressions.
 // In most case, you want to use BaseFieldSize_Int of type big.Int instead
+//
+// The actual value is given as (in different format) as
+//   - 0b111001111101101101001110101001100101001100111010111110101001000001100110011100111011000000010000000100110100001110110000000010101010011101111011010010000000010111111111111111001011011111111101111111111111111111111111111111100000000000000000000000000000001
+//   - 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
+//   - 52435875175126190479447740508185965837690552500527637822603658699938581184513
 const (
 	BaseFieldSize_untyped = common.BaseFieldSize_untyped // == 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
 	BaseFieldSize_string  = common.BaseFieldSize_string  // == "0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"
@@ -230,9 +235,10 @@ var (
 	DyadicRootOfUnity_fe FieldElement = InitFieldElementFromString[FieldElement](DyadicRootOfUnity_string)
 )
 
-// internal unexported copy of DyadicRootOfUnity, used in square root algorithm. We don't export this to prevent users from accidentially modifying it and causing hard-to-track bugs.
+// internal unexported copy of DyadicRootOfUnity, used in square root algorithm.
+// We don't export this to prevent users from accidentially modifying it and causing hard-to-track bugs.
 var (
-	dyadicRootOfUnity_fe _FESquareRoot = InitFieldElementFromString[_FESquareRoot](DyadicRootOfUnity_string)
+	dyadicRootOfUnity_fe feType_SquareRoot = InitFieldElementFromString[feType_SquareRoot](DyadicRootOfUnity_string)
 )
 
 /***************************

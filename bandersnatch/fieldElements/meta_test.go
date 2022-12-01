@@ -241,6 +241,42 @@ func GetPrecomputedFieldElements[FieldElementType any, FieldElementPtr interface
 	return typedCache.GetElements(key, amount)
 }
 
+var CachedRootsOfUnity = testutils.MakePrecomputedCache[int64, feType_SquareRoot](
+	testutils.DefaultCreateRandFromSeed,
+	func(rng *rand.Rand, key int64) (ret feType_SquareRoot) {
+		r := rng.Uint32()
+		ret.SetOne()
+		for i := 0; i < 32; i++ {
+			if r&(1<<i) != 0 {
+				ret.MulEq(&sqrtPrecomp_PrimitiveDyadicRoots[i])
+			}
+		}
+		return
+	},
+	nil,
+)
+
+var CachedRootsOfUnityWithExponent = testutils.MakePrecomputedCache[int64, struct {
+	fe       feType_SquareRoot
+	exponent uint32
+}](
+	testutils.DefaultCreateRandFromSeed,
+	func(rng *rand.Rand, key int64) (ret struct {
+		fe       feType_SquareRoot
+		exponent uint32
+	}) {
+		ret.exponent = rng.Uint32()
+		ret.fe.SetOne()
+		for i := 0; i < 32; i++ {
+			if ret.exponent&(1<<i) != 0 {
+				ret.fe.MulEq(&sqrtPrecomp_PrimitiveDyadicRoots[i])
+			}
+		}
+		return
+	},
+	nil,
+)
+
 // These are deprecated in favor of the above. GetPrecomputedFieldElements[bsFieldElement_8] does a better job.
 
 // Benchmarks operate on random-looking field elements.

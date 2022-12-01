@@ -210,8 +210,8 @@ func TestValidityOfConstants(t *testing.T) {
 	temp_fe.Add(&FieldElementOne, &FieldElementMinusOne)
 	testutils.FatalUnless(t, temp_fe.IsZero(), "Exported FieldElementMinusOne is not -1")
 
-	testutils.FatalUnless(t, getDyadicPower(&dyadicRootOfUnity_fe) == BaseField2Adicity, "dyadicRootOfUnity_fe is not a primitive root of unity of the expected order")
-	testutils.FatalUnless(t, getDyadicPower(&DyadicRootOfUnity_fe) == BaseField2Adicity, "DyadicRootOfUnity_fe is not a primitive root of unity of the expected order")
+	testutils.FatalUnless(t, sqrtAlg_OrderAsDyadicRootOfUnity(&dyadicRootOfUnity_fe) == BaseField2Adicity, "dyadicRootOfUnity_fe is not a primitive root of unity of the expected order")
+	testutils.FatalUnless(t, sqrtAlg_OrderAsDyadicRootOfUnity(&DyadicRootOfUnity_fe) == BaseField2Adicity, "DyadicRootOfUnity_fe is not a primitive root of unity of the expected order")
 	testutils.FatalUnless(t, utils.IsEqualAsBigInt(&DyadicRootOfUnity_fe, &dyadicRootOfUnity_fe), "DyadicRootOfUnity_fe and dyadicRootOfUnity_fe differ")
 
 }
