@@ -177,7 +177,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) Neg(x *bsFieldElement_MontgomeryNon
 func (z *bsFieldElement_MontgomeryNonUnique) Mul(x, y *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("MulFe")
 
-	z.words.MulMontgomerySlow_c(&x.words, &y.words)
+	z.words.MulMontgomery_c(&x.words, &y.words)
 }
 
 // IsZero checks whether the field element is zero
@@ -508,12 +508,20 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 // We do not guarantee that the choice is deterministic. Multiple calls with the same x can give different z's
 func (z *bsFieldElement_MontgomeryNonUnique) SquareRoot(x *bsFieldElement_MontgomeryNonUnique) (ok bool) {
 	IncrementCallCounter("SqrtFe")
-	xInt := x.ToBigInt()
-	if xInt.ModSqrt(xInt, baseFieldSize_Int) == nil {
-		return false
+	if x.IsZero() {
+		z.SetZero()
+		return true
 	}
-	z.SetBigInt(xInt)
+	var xCopy feType_SquareRoot = *x
+	var candidate, rootOfUnity feType_SquareRoot
+	xCopy.sqrtAlg_ComputeRelevantPowers(&candidate, &rootOfUnity)
+	ok = rootOfUnity.invSqrtEqDyadic()
+	if !ok {
+		return
+	}
+	z.Mul(&candidate, &rootOfUnity)
 	return true
+
 }
 
 // Format is provided to satisfy the fmt.Formatter interface. Note that this is defined on value receivers.
