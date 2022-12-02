@@ -133,6 +133,13 @@ func (z *Uint256) MulMontgomery_c(x, y *Uint256) {
 	z.Reduce_ca()
 }
 
+// SquareMontgomery_c performs Montgomery squaring, i.e. z = x^2 / 2^256 mod BaseFieldSize
+//
+// We assume that x is c-reduced, i.e. x < 2^256 - BaseFieldSize, and we guarantee the same for z.
+func (z *Uint256) SquareMontgomery_c(x *Uint256) {
+	z.MulMontgomery_c(x, x)
+}
+
 // FromMontgomeryRepresentation undoes Montgomery representation.
 //
 // This means that z.FromMontgomeryRepresentation(x) computes z := x / 2**256 mod BaseFieldSize
@@ -196,13 +203,28 @@ func (z *Uint256) ConvertToMontgomeryRepresentation_c(x *Uint256) {
 func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Uint256) {
 	// dummy implementation
 
-	var baseNonMontgomery Uint256
-	baseNonMontgomery.FromMontgomeryRepresentation_fc(base)
-	baseInt := baseNonMontgomery.ToBigInt()
-	exponentInt := exponent.ToBigInt()
-	baseInt.Exp(baseInt, exponentInt, baseFieldSize_Int)
-	z.SetBigInt(baseInt)
-	z.ConvertToMontgomeryRepresentation_c(z)
+	if exponent.IsZero() {
+		*z = twoTo256ModBaseField_uint256 // montgomery representation of 1
+		return
+	}
+
+	var acc Uint256 = *base
+	// We need to reduce here, because SquareMontgomery_c and MulMontgomery_c require their inputs c-reduced.
+	acc.Reduce_ca()
+
+	// simple square-and-multiply. This is not really optimized (no sliding window etc)
+	L := exponent.BitLen()
+
+	for i := int(L - 2); i >= 0; i-- {
+		// acc == base^(exponent >> (i+1))
+		acc.SquareMontgomery_c(&acc)
+		if exponent[i/64]&(1<<(i%64)) != 0 {
+			acc.MulMontgomery_c(&acc, base)
+		}
+		// acc == base^(exponent >> i)
+	}
+	acc.Reduce_fb()
+	*z = acc
 }
 
 /********************
@@ -237,7 +259,7 @@ func mul_four_one_64(x *Uint256, y uint64) (low uint64, high Uint256) {
 //
 // More precisely, z.ToNonMontgomery_fc() returns z*(1/2**256) mod BaseFieldSize
 //
-// DEPRECATED / MOVE_TO_TESTING: Performance loss from returning an uint256 is worse than writing to receiver. FromMontgomery is better.
+// DEPRECATED / MOVE_TO_TESTING: Performance loss from returning an uint256 is worse (probably due to allocation) than writing to receiver. FromMontgomery is better.
 func (z *Uint256) ToNonMontgomery_fc() Uint256 {
 	// What we need to do here is equivalent to
 	// temp.Mul(z, [1,0,0,0])  // where the [1,0,0,0] is the Montgomery representation of the number 1/r.

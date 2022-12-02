@@ -111,6 +111,57 @@ func TestMontgomeryStep(t *testing.T) {
 	}
 }
 
+func TestUint256_MontgomeryModularExponentiation(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 1000
+
+	bases := CachedUint256.GetElements(SeedAndRange{seed: 10003, allowedRange: twoTo256_Int}, num)
+	exponents := CachedUint256.GetElements(SeedAndRange{seed: 10004, allowedRange: twoTo256_Int}, num)
+
+	var target Uint256
+	target.ModularExponentiationMontgomery_fa(&zero_uint256, &zero_uint256)
+	testutils.FatalUnless(t, target == twoTo256ModBaseField_uint256, "0^0 != 1")
+
+	for i, basis := range bases {
+		exponent := exponents[i]
+		exponentCopy := exponent
+		basisCopy := basis
+		target.ModularExponentiationMontgomery_fa(&basis, &exponent)
+		testutils.FatalUnless(t, target.IsReduced_f(), "ModularExponentiationMontgomery_fa does not fully reduce")
+
+		basisInt := basis.ToBigInt()
+		invserseMultiplier := new(big.Int).ModInverse(twoTo256_Int, baseFieldSize_Int)
+		basisInt.Mul(basisInt, invserseMultiplier)
+		exponentInt := exponent.ToBigInt()
+		targetInt := new(big.Int).Exp(basisInt, exponentInt, baseFieldSize_Int)
+		targetInt.Mul(targetInt, twoTo256_Int)
+		targetInt.Mod(targetInt, baseFieldSize_Int)
+		testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "ModularExponentiaionMontgomery_fa does not match big.Int")
+
+		target = basis
+		target.ModularExponentiationMontgomery_fa(&target, &exponent)
+		testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "ModularExponentiaionMontgomery_fa does not work for aliasing args")
+
+		dummy1 := basisCopy
+		dummy2 := basisCopy
+		target.ModularExponentiationMontgomery_fa(&dummy1, &dummy2)
+		dummy1.ModularExponentiationMontgomery_fa(&dummy1, &dummy1)
+		testutils.FatalUnless(t, dummy1 == target, "ModularExponentiationMontgomery_fa does not work for target, basis, exponent all aliasing")
+
+		target.ModularExponentiationMontgomery_fa(&basis, &one_uint256)
+		dummy1 = basis
+		dummy1.reduceBarret_fa()
+		testutils.FatalUnless(t, target == dummy1, "x^1 != x modulo BaseFieldSize")
+		target.ModularExponentiationMontgomery_fa(&basis, &zero_uint256)
+		testutils.FatalUnless(t, target == twoTo256ModBaseField_uint256, "x^0 != 1 (in Montgomery Form)")
+
+		testutils.FatalUnless(t, exponent == exponentCopy, "Argument was modified during ModularExponentiation")
+		testutils.FatalUnless(t, basis == basisCopy, "Argument was modified during ModularExponentiation")
+
+	}
+
+}
+
 /****************
 OLD TESTS
 somewhat outdated, incompatible in style and redundant, but the tests themselves are valid, so there is no harm in keeping them for now.
@@ -206,57 +257,6 @@ func TestMulHelpers(testing_instance *testing.T) {
 			testing_instance.Error("add_mul_shift_64 is wrong (low)", result_low1, result_low2)
 			break
 		}
-	}
-
-}
-
-func TestUint256_MontgomeryModularExponentiation(t *testing.T) {
-	prepareTestFieldElements(t)
-	const num = 1000
-
-	bases := CachedUint256.GetElements(SeedAndRange{seed: 10003, allowedRange: twoTo256_Int}, num)
-	exponents := CachedUint256.GetElements(SeedAndRange{seed: 10004, allowedRange: twoTo256_Int}, num)
-
-	var target Uint256
-	target.ModularExponentiationMontgomery_fa(&zero_uint256, &zero_uint256)
-	testutils.FatalUnless(t, target == twoTo256ModBaseField_uint256, "0^0 != 1")
-
-	for i, basis := range bases {
-		exponent := exponents[i]
-		exponentCopy := exponent
-		basisCopy := basis
-		target.ModularExponentiationMontgomery_fa(&basis, &exponent)
-		testutils.FatalUnless(t, target.IsReduced_f(), "ModularExponentiationMontgomery_fa does not fully reduce")
-
-		basisInt := basis.ToBigInt()
-		invserseMultiplier := new(big.Int).ModInverse(twoTo256_Int, baseFieldSize_Int)
-		basisInt.Mul(basisInt, invserseMultiplier)
-		exponentInt := exponent.ToBigInt()
-		targetInt := new(big.Int).Exp(basisInt, exponentInt, baseFieldSize_Int)
-		targetInt.Mul(targetInt, twoTo256_Int)
-		targetInt.Mod(targetInt, baseFieldSize_Int)
-		testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "ModularExponentiaionMontgomery_fa does not match big.Int")
-
-		target = basis
-		target.ModularExponentiationMontgomery_fa(&target, &exponent)
-		testutils.FatalUnless(t, target.ToBigInt().Cmp(targetInt) == 0, "ModularExponentiaionMontgomery_fa does not work for aliasing args")
-
-		dummy1 := basisCopy
-		dummy2 := basisCopy
-		target.ModularExponentiationMontgomery_fa(&dummy1, &dummy2)
-		dummy1.ModularExponentiationMontgomery_fa(&dummy1, &dummy1)
-		testutils.FatalUnless(t, dummy1 == target, "ModularExponentiationMontgomery_fa does not work for target, basis, exponent all aliasing")
-
-		target.ModularExponentiationMontgomery_fa(&basis, &one_uint256)
-		dummy1 = basis
-		dummy1.reduceBarret_fa()
-		testutils.FatalUnless(t, target == dummy1, "x^1 != x modulo BaseFieldSize")
-		target.ModularExponentiationMontgomery_fa(&basis, &zero_uint256)
-		testutils.FatalUnless(t, target == twoTo256ModBaseField_uint256, "x^0 != 1 (in Montgomery Form)")
-
-		testutils.FatalUnless(t, exponent == exponentCopy, "Argument was modified during ModularExponentiation")
-		testutils.FatalUnless(t, basis == basisCopy, "Argument was modified during ModularExponentiation")
-
 	}
 
 }
