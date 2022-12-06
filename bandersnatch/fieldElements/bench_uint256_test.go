@@ -7,7 +7,6 @@ import "testing"
 
 // Benchmarks all follow the same pattern in order to make the overhead comparable.
 // We benchmark functions for (fixed, pseudo-)random inputs that satisfy the preconditions of the functions.
-// NOTE: We try to keep the order the same as the defintions in uint256_modular.go
 
 // Benchmark_uint256 runs benchmarks for uint256 methods that do not involve modular reduction wrt. BaseFieldSize
 func Benchmark_uint256(b *testing.B) {
@@ -24,6 +23,10 @@ func Benchmark_uint256(b *testing.B) {
 	b.Run("Decrement", benchmarkUint256_Decrement)
 	b.Run("IncrementEq (with Copy)", benchmarkUint256_CopyAndIncEq)
 	b.Run("DecrementEq (with Copy)", benchmarkUint256_CopyAndDecEq)
+	b.Run("Obtaining Bit length", benchmarkUint256_BitLen)
+	b.Run("Right-shift by 64 (word)", benchmarkUint256_ShiftRightEq64)
+	b.Run("Left-shift by 64 (word)", benchmarkUint256_ShiftLeftEq64)
+	b.Run("Right-shift by 17 (arbitrary non-power of 2", benchmarkUint256_ShiftRightEq17)
 	b.Run("Sliding window decomposition (size 4)", benchmarkUint256_SlidingWindowDecomposition)
 }
 
@@ -137,6 +140,41 @@ func benchmarkUint256_CopyAndDecEq(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
 		DumpUint256[n%benchS].DecrementEq()
+	}
+}
+
+func benchmarkUint256_BitLen(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpInt[n%benchS] = bench_x[n%benchS].BitLen()
+	}
+}
+
+func benchmarkUint256_ShiftRightEq64(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].ShiftRightEq_64()
+	}
+}
+
+func benchmarkUint256_ShiftLeftEq64(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].ShiftLeftEq_64()
+	}
+}
+
+func benchmarkUint256_ShiftRightEq17(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].ShiftRightEq(17)
 	}
 }
 

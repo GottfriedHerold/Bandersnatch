@@ -57,6 +57,7 @@ var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_f
 }()
 var DumpUint64 [dumpSizeBench_fe]uint64
 var DumpUint320 [dumpSizeBench_fe][5]uint64
+var DumpInt [dumpSizeBench_fe]int
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)benchmark before the actual code that is to be benchmarked.
 // Note that it resets all counters.

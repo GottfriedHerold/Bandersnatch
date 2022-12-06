@@ -3,6 +3,7 @@ package fieldElements
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
 
@@ -602,32 +603,94 @@ func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (decomposition []
 	if windowsize >= 64 {
 		panic(ErrorPrefix + "trying a sliding window decomposition with window size >=64")
 	}
-	var MAXSIZE = (int(windowsize) + 255) / int(windowsize)
-	decomposition = make([]unsignedExponentDecomposition, MAXSIZE)
+	var MAXSIZE = (int(windowsize) + 255) / int(windowsize)        // maximal number of entries in the resulting decomposition
+	decomposition = make([]unsignedExponentDecomposition, MAXSIZE) // resulting decomposition
+
+	// MAXSIZE - 1 - actualSize is the current number of decomposition entries we have already created.
+	// actualSize counts from above towards 0 for efficiency reasons (because we want the result in reverse order)
 	var actualSize int = int(MAXSIZE - 1)
-	var currentPos uint = 0
-	var mask uint64 = (1 << uint64(windowsize)) - 1
-	zCopy := *z
+	var currentPos int = 0 // index of the bit that we process next, all lower-order bits have already been processed.
+	var maxL = int(64 - windowsize)
+
+	var mask_selectLow uint64 = (1 << uint64(windowsize)) - 1    // mask to select the windowSize many least significant bits
+	var mask_selectHigh uint64 = math.MaxUint64 - mask_selectLow // mask to select the remaining bits.
+
+	zCopy := *z   // make a working copy of z that we can modify. We generally read off the least significant bits and right-shift zCopy.
+	var z0 uint64 // working copy of z[0]
+
+	// for efficiency reasons, we do not operate of zCopy, but on z0 (a copy of zCopy[0]) without chaning zCopy itself. Only when we have processed sufficiently many bits, we actually perfom the accumulated changes to zCopy.
 	for {
-		L := uint(bits.TrailingZeros64(zCopy[0]))
+
+		// Let zLow be the currentPos many least significant bits of z. We have at this point:
+		//   - zCopy == z >> currentPos
+		//   - sum_i decomposition[i].pos << decomposition[i].pos == zLow
+
+		z0 = zCopy[0]                 // working copy of z0
+		L := bits.TrailingZeros64(z0) // number of trailing bits of zCopy, capped at 64
 		if L == 64 {
+			// zCopy has >= 64 trailing zeros.
 			if zCopy.IsZero() {
+				// if zCopy == 0, we are done
 				break
+			} else {
+				// last word of zCopy is 0, we shift everything by 64 bits
+				currentPos += 64
+				zCopy.ShiftRightEq_64()
+				continue
 			}
-			currentPos += 64
-			zCopy.ShiftRightEq_64()
-			continue
 		}
-		zCopy.ShiftRightEq(L)
+
+		// We generally delay right-shifting zCopy and only right-shift z0, performing the operation on zCopy only when worthwhile.
+		// Hereby, L counts the number of right-shifts we need to perform on zCopy afterwards
 		currentPos += L
 
-		readOut := zCopy[0] & mask
-		decomposition[actualSize].pos = currentPos
-		decomposition[actualSize].exp = uint(readOut)
+		// By the above, the invariants transform to
+		//   - zCopy >> L == z >> currentPos
+		//   - sum_i decomposition[i].pos << decomposition[i].pos == zLow
+		// This still holds, because the trailing L bits of zCopy we 0.
 
-		zCopy[0] -= readOut
-		actualSize -= 1
+		// if L > 64-windowSize we actually commit to zCopy right away and restart the loop.
+
+		z0 >>= L
+		for L <= maxL { // maxL == 64 - windowSize
+			// invariant: z0 == zCopy[0] >> L, which equals zCopy >> 0 in at least the lowest windowSize bits
+			// invariant: z0 is odd
+
+			// actually read off the next entry of the decomposition:
+			decomposition[actualSize].pos = uint(currentPos)
+			decomposition[actualSize].exp = uint(z0 & mask_selectLow)
+			actualSize -= 1
+
+			// Now we remove the entry from z0.
+			// We could do
+			//   z0 >>= windowSize
+			//   L += windowSize
+			//   currentPos += windowSize
+			// to maintain the sum_i decomposition[i].pos << decomposition[i].pos == zLow and zCopy >> L == z >> currentPos invariants
+			// However, this would be followed by furtherZeroBits := bits.TrailingZeros64(z0) and then processing those as well.
+			// We instead clear (rather than shift-out) the bits only call TrailingZeros64 once, so zeroBits includes windowSize AND also the next zero bits.
+
+			z0 &= mask_selectHigh
+			zeroBits := bits.TrailingZeros64(z0) // guaranteed to be >= windowSize. Let furtherZeroBits := zeroBits - windowSize
+
+			if zeroBits+L > 64 { // we have exhausted z0 and need to consider bits that are only in zCopy.
+
+				// Revert to the above strategy and do NOT include furtherZeroBits.
+				// Mentally perform z0 >>= windowSize, but this is unneeded.
+				L += int(windowsize) // Note: guaranteed to be <=64
+				currentPos += int(windowsize)
+				break
+			}
+			// We process as described above, but also include furtherZeroBits
+			L += zeroBits
+			z0 >>= zeroBits
+			currentPos += zeroBits
+
+			// if L > 64 - windowSize now, we break the loop
+		}
+
+		zCopy.ShiftRightEq(uint(L))
 	}
-	decomposition = decomposition[actualSize+1 : MAXSIZE]
+	decomposition = decomposition[actualSize+1:]
 	return
 }
