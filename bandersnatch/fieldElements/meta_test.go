@@ -37,6 +37,8 @@ import (
 // size of Dump slices used in benchmarks. [Note that benchS is a separate variable for which we assert benchS <= dumpSizeBench_fe]
 const dumpSizeBench_fe = 1 << 8
 
+const benchS = 1 << 8
+
 // benchmark functions write to DumpXXX variables.
 // These are "exported"[*]  package-level variables to prevent the compiler from optimizations
 // based on the fact that they are never read from within the module (I doubt the compiler would do this, but anyway...)
@@ -58,6 +60,9 @@ var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_f
 var DumpUint64 [dumpSizeBench_fe]uint64
 var DumpUint320 [dumpSizeBench_fe][5]uint64
 var DumpInt [dumpSizeBench_fe]int
+
+
+
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)benchmark before the actual code that is to be benchmarked.
 // Note that it resets all counters.
@@ -240,6 +245,24 @@ func GetPrecomputedFieldElements[FieldElementType any, FieldElementPtr interface
 	}
 	typedCache := cache.(*testutils.PrecomputedCache[int64, FieldElementType]) // restore type information
 	return typedCache.GetElements(key, amount)
+}
+
+// GetPrecomputedFieldElementsNonZero[FieldElementType, FieldElementPtr](key, amount) provides the same functionality as
+// GetPrecomputedFieldElement[FieldElementType, FieldElementPtr](key, amount), but it replaces all zeros by 1 afterwards.
+// The randomness is the very same as in the variant without NonZero.
+//
+// NOTE: This is thread-safe!
+func GetPrecomputedFieldElementsNonZero[FieldElementType any, FieldElementPtr interface {
+	*FieldElementType
+	FieldElementInterface[FieldElementPtr]
+}](key int64, amount int) []FieldElementType {
+	ret := GetPrecomputedFieldElements[FieldElementType, FieldElementPtr](key, amount)
+	for i := 0; i < amount; i++ {
+		if FieldElementPtr(&ret[i]).IsZero() {
+			FieldElementPtr(&ret[i]).SetOne()
+		}
+	}
+	return ret
 }
 
 var CachedRootsOfUnity = testutils.MakePrecomputedCache[int64, feType_SquareRoot](

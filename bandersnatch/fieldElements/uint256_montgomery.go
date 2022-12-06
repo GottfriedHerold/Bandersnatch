@@ -205,17 +205,21 @@ func (z *Uint256) ConvertToMontgomeryRepresentation_c(x *Uint256) {
 	z.mulMontgomery_Unrolled_c(x, &twoTo512ModBaseField_uint256)
 }
 
+const uint256MontgomeryExponentiationAlgUsed = "Square and Multiply" // displayed in benchmark log
+
 // ModularExponentiationMontgomery_fa sets z := base^exponent modulo BaseFieldSize, where z and base are both in Montgomery form.
 //
 // By convention, 0^0 is 1 here.
 func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Uint256) {
+	// NOTE: Square and multiply takes around 256 (or 255) * 1.5 approx. 380 multiplications/squarings
+	// Sliding window takes around 310
+	// Still, Square and multiply is faster according to my benchmarks.
 	base.modularExponentiationSquareAndMultiplyMontgomery_fa(base, exponent)
 }
 
 // modularExponentiationSquareAndMultiplyMontgomery_fa implements ModularExponentiationMontgomery_fa using naive square&multiply
 func (z *Uint256) modularExponentiationSquareAndMultiplyMontgomery_fa(base *Uint256, exponent *Uint256) {
 	// simple sliding window exponentiation
-
 	if exponent.IsZero() {
 		*z = twoTo256ModBaseField_uint256 // montgomery representation of 1
 		return
@@ -231,8 +235,10 @@ func (z *Uint256) modularExponentiationSquareAndMultiplyMontgomery_fa(base *Uint
 	for i := int(L - 2); i >= 0; i-- {
 		// acc == base^(exponent >> (i+1))
 		acc.SquareMontgomery_c(&acc)
+
 		if exponent[i/64]&(1<<(i%64)) != 0 {
 			acc.mulMontgomery_Unrolled_c(&acc, base)
+
 		}
 		// acc == base^(exponent >> i)
 	}
@@ -247,6 +253,7 @@ func (z *Uint256) modularExponentiationSlidingWindowMontgomery_fa(base *Uint256,
 
 	// we use a window size depending on the bitlength of the exponent. 4 is the default.
 	// Note that this takes care of the exponent == 0 special case as well.
+
 	var windowSize uint8 = 4
 	L := exponent.BitLen()
 	if L <= 80 { // for short exponents, we modify the window size.
@@ -274,12 +281,14 @@ func (z *Uint256) modularExponentiationSlidingWindowMontgomery_fa(base *Uint256,
 
 	// precompute small odd powers of base
 	precomputeSize := 1 << (windowSize - 1)
-	var precomputes []Uint256 = make([]Uint256, precomputeSize) // precomputes[i] holds base^(2*i+1)
+	var precomputes [8]Uint256 // = make([]Uint256, precomputeSize) // precomputes[i] holds base^(2*i+1)
 
 	precomputes[0] = acc
 	acc.SquareMontgomery_c(&acc) // acc = base^2 (will be overwritten later)
+
 	for i := 1; i < precomputeSize; i++ {
 		precomputes[i].mulMontgomery_Unrolled_c(&precomputes[i-1], &acc)
+
 	}
 
 	// decomp gives a decomposition exponent == sum_i decomp[i].exp << decomp[i].pos (with decomp[i].pos a strictly decreasing sequence)
@@ -290,12 +299,15 @@ func (z *Uint256) modularExponentiationSlidingWindowMontgomery_fa(base *Uint256,
 	// The following invariant holds before and after each iteration:
 	// acc^(1<<exponentRemaining) == base^(sum_{i=0}^{sth.} decomp[i].exp << decomp[i].pos), where
 	// the sum ranges over those entries of decomp that are already processed. (the index-0 one before we start the loop, hence the range decomp[1:] )
+
 	for _, decompositionEntry := range decomp[1:] { // j = _ + 1
 		for i := uint(0); i < exponentRemaining-decompositionEntry.pos; i++ { // note the difference is guaranteed to be > 0
 			acc.SquareMontgomery_c(&acc)
+
 		}
 		exponentRemaining = decompositionEntry.pos
 		acc.mulMontgomery_Unrolled_c(&acc, &precomputes[decompositionEntry.exp>>1])
+
 	}
 
 	// acc^(1<<exponentRemaining) = base^(sum_i decomp[i].exp << decomp[i].pos) = base^exponent now
@@ -303,11 +315,13 @@ func (z *Uint256) modularExponentiationSlidingWindowMontgomery_fa(base *Uint256,
 	// square exponentRemainingg many times
 	for i := uint(0); i < exponentRemaining; i++ {
 		acc.SquareMontgomery_c(&acc)
+
 	}
 
 	// reduce fully
 	acc.Reduce_fb()
 	*z = acc
+
 }
 
 /********************

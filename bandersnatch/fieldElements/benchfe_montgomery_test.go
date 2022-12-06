@@ -7,8 +7,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-const benchS = 1 << 8
-
 func init() {
 	testutils.Assert(benchS <= dumpSizeBench_fe)
 }
@@ -247,16 +245,10 @@ func BenchmarkSign_64(b *testing.B) {
 }
 
 func BenchmarkJacobi_64(b *testing.B) {
-	var dumpInt [dumpSizeBench_fe]int
 	var bench_x_64 []bsFieldElement_MontgomeryNonUnique = GetPrecomputedFieldElements[bsFieldElement_MontgomeryNonUnique](1, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
-		dumpInt[n%benchS] = bench_x_64[n%benchS].Jacobi()
-	}
-	b.StopTimer()
-	// This is just to really ensure the compiler does not optimize things away.
-	for n := 0; n < b.N; n++ {
-		DumpBools_fe[n%benchS] = (dumpInt[n%benchS] == 1)
+		DumpInt[n%benchS] = bench_x_64[n%benchS].Jacobi()
 	}
 }
 

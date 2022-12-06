@@ -23,7 +23,9 @@ func Benchmark_uint256_MontgomeryFuns(b *testing.B) {
 	b.Run("shiftOnce (inaccurate)", benchmarkUint256Mont_shift_once)
 	b.Run("Montgomery Mul V1", benchmarkUint256Mont_MulMontgomery)
 	b.Run("Montgomery Mul V2", benchmark_Uint256Mont_MulMontgomeryV2)
-	b.Run("Exponentiation (Montgomery)", benchmarkUint256Mont_ExponentiationMontgomery)
+	b.Log("INFO: Exponentiation algorithm used by default is " + uint256MontgomeryExponentiationAlgUsed)
+	b.Run("Exponentiation (Montgomery, sliding window)", benchmarkUint256Mont_ExponentiationMontgomerySlW)
+	b.Run("Exponentiation (Montgomery, square-and-multiply)", benchmarkUint256Mont_ExponentiationMontgomerySqM)
 
 }
 
@@ -105,12 +107,22 @@ func benchmark_Uint256Mont_MulMontgomeryV2(b *testing.B) {
 	}
 }
 
-func benchmarkUint256Mont_ExponentiationMontgomery(b *testing.B) {
+func benchmarkUint256Mont_ExponentiationMontgomerySlW(b *testing.B) {
 	var bench_basis []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	// NOTE: Using fully reduced exponents here. This is more meaningful (reduction for exponents would be modulo BaseFieldSize-1 is base != 0, so "reduced is a misnomer" -- this is just about the size of exponents)
 	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].modularExponentiationSlidingWindowMontgomery_fa(&bench_basis[n%benchS], &bench_exponents[n%benchS])
+	}
+}
+
+func benchmarkUint256Mont_ExponentiationMontgomerySqM(b *testing.B) {
+	var bench_basis []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	// NOTE: Using fully reduced exponents here. This is more meaningful (reduction for exponents would be modulo BaseFieldSize-1 is base != 0, so "reduced is a misnomer" -- this is just about the size of exponents)
+	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS].modularExponentiationSquareAndMultiplyMontgomery_fa(&bench_basis[n%benchS], &bench_exponents[n%benchS])
 	}
 }

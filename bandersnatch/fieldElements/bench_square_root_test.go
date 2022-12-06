@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// This file contains benchmarks for square-root computation helper functions.
+
 func BenchmarkSqrtHelperFunctions(b *testing.B) {
 	b.Run("Dlog in small-order subgroup of roots of unity", benchmarkSqrt_NegDlogInSmallSubgroup)
 	b.Run("special-purpose exponentiations", benchmarkSqrt_Exponentiations)
