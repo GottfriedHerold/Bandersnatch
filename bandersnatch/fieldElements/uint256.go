@@ -585,12 +585,25 @@ type unsignedExponentDecomposition struct {
 	pos uint
 }
 
-func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (ret []unsignedExponentDecomposition) {
+// SlidingWindowDecomposition performs a sliding window decomposition of z with the given window size, which must be strictly between 0 and 64.
+//
+// The returned decomposition has the following properties:
+//
+//   - z = sum_i decomposition[i].exp << decomposition[i].pos
+//   - The decomposition[i].pos are strictly decreasing
+//   - Each decomposition[i].exp is odd
+//   - decomposition[i].exp < (1<<windowSize)
+//
+// For the current implementation, the difference decomposition[i].pos - decomposition[i+1].pos is >= windowSize, but we don't guarantee this.
+func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (decomposition []unsignedExponentDecomposition) {
 	if windowsize == 0 {
-		panic(ErrorPrefix + "trying a sliding window decomposition for exponetiation with window size 0")
+		panic(ErrorPrefix + "trying a sliding window decomposition with window size 0")
+	}
+	if windowsize >= 64 {
+		panic(ErrorPrefix + "trying a sliding window decomposition with window size >=64")
 	}
 	var MAXSIZE = (int(windowsize) + 255) / int(windowsize)
-	ret = make([]unsignedExponentDecomposition, MAXSIZE)
+	decomposition = make([]unsignedExponentDecomposition, MAXSIZE)
 	var actualSize int = int(MAXSIZE - 1)
 	var currentPos uint = 0
 	var mask uint64 = (1 << uint64(windowsize)) - 1
@@ -609,12 +622,12 @@ func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (ret []unsignedEx
 		currentPos += L
 
 		readOut := zCopy[0] & mask
-		ret[actualSize].pos = currentPos
-		ret[actualSize].exp = uint(readOut)
+		decomposition[actualSize].pos = currentPos
+		decomposition[actualSize].exp = uint(readOut)
 
 		zCopy[0] -= readOut
 		actualSize -= 1
 	}
-	ret = ret[actualSize+1 : MAXSIZE]
+	decomposition = decomposition[actualSize+1 : MAXSIZE]
 	return
 }

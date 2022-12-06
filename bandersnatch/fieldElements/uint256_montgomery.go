@@ -60,15 +60,17 @@ func montgomery_iteration(t *[5]uint64, x *Uint256, y uint64) {
 		// t < 2**320 - 2**64 * BaseFieldSize
 		// => (t + q*BaseFieldSize) < 2**320 + BaseFieldSize * (-2**64 + q) <= 2**320 - BaseFieldSize.
 	}
-	// if we wrote t[0] = 0, we would have an equivalent representation of the input-t now.
+	// Mentally apply t[0] = 0. (We omit this, as t[0] will be overwritten in the next operation, but it helps to understand)
+	// After this, t now stores an equivalent representation (i.e. differing by a multiple of BaseFieldSize) of the values that was given for t as input.
 
 	// Now compute (t >> 64) + x * y from the current value of t. We do this in one go, as the >>64 just means reading from a higher index.
 	// Bounds analysis:
-	//   t >> 64 < 2**256
+	//   t >> 64 < 2**256 (because t has 320 bits)
 	//   x*y <= (2**256 - BaseFieldSize - 1) * (2**64 - 1)
 	//   => t + x*y < 2**256 + 2**320 - 2**64 BaseFieldSize - 2**64 - 2**256 + BaseFieldSize + 1
 	//   => t + x*y < (2**320 - 2**64 BaseFieldSize) - 2**64 + BaseFieldSize + 1 < 2**320 - 2**64 BaseFieldSize.
-	// This implies (t+ x * y) >> 64 is c-reduced
+	//   => (t + x*y) >> 64 < 2**256 - BaseFieldSize (Note that normally, a < b only implies a>>1 <= b>>1, but since the rhs above was divisible by 2**64, we actually get <)
+	// This means (t+ x * y) >> 64 is c-reduced
 	carry1, t[0] = bits.Mul64(x[0], y)       // Large carry1 -> t[1]
 	t[0], carry2 = bits.Add64(t[0], t[1], 0) // t[0] finished writing, t[1] finished reading, binary carry2 -> t[1]
 
@@ -87,12 +89,20 @@ func montgomery_iteration(t *[5]uint64, x *Uint256, y uint64) {
 	t[4] = carry3 + carry1 + carry2 // cannot overflow by the above analysis. (in fact, this is true unconditionally even without bound on x or the input t. We need a stronger bound than no-overflow, though)
 }
 
-// unrolled Montgomery multiplication:
-
 // MulMontgomery_c performs Montgomery multiplication, i.e. z := x * y / 2**256 mod BaseFieldSize.
 //
 // We assume that x and y are c-reduced, i.e. x,y < 2**256 - BaseFieldSize and we guaranteed the same for z.
 func (z *Uint256) MulMontgomery_c(x, y *Uint256) {
+	z.mulMontgomery_Unrolled_c(x, y)
+}
+
+// unrolled Montgomery multiplication:
+
+// mulMontgomery_Unrolled_c performs Montgomery multiplication, i.e. z := x * y / 2**256 mod BaseFieldSize.
+//
+// We assume that x and y are c-reduced, i.e. x,y < 2**256 - BaseFieldSize and we guaranteed the same for z.
+// This implements MulMontgomery_c. (The indirection is because we have a slightly different version for comparison (that only differs in unrolling and variable naming/reuse)
+func (z *Uint256) mulMontgomery_Unrolled_c(x, y *Uint256) {
 	var temp [5]uint64
 
 	// compute z as x*y / r^4 bmod BaseFieldSize with r==2^64
@@ -137,7 +147,7 @@ func (z *Uint256) MulMontgomery_c(x, y *Uint256) {
 //
 // We assume that x is c-reduced, i.e. x < 2^256 - BaseFieldSize, and we guarantee the same for z.
 func (z *Uint256) SquareMontgomery_c(x *Uint256) {
-	z.MulMontgomery_c(x, x)
+	z.mulMontgomery_Unrolled_c(x, x)
 }
 
 // FromMontgomeryRepresentation undoes Montgomery representation.
@@ -192,13 +202,46 @@ func (z *Uint256) FromMontgomeryRepresentation_fc(x *Uint256) {
 // ConvertToMontgomeryRepresentation sets z := x * 2**256 mod BaseFieldSize.
 func (z *Uint256) ConvertToMontgomeryRepresentation_c(x *Uint256) {
 	// TODO: unroll
-	z.MulMontgomery_c(x, &twoTo512ModBaseField_uint256)
+	z.mulMontgomery_Unrolled_c(x, &twoTo512ModBaseField_uint256)
 }
 
-// ModularExponentiation_a sets z := base^exponent modulo BaseFieldSize, where z and base are both in Montgomery form.
+// ModularExponentiationMontgomery_fa sets z := base^exponent modulo BaseFieldSize, where z and base are both in Montgomery form.
 //
 // By convention, 0^0 is 1 here.
 func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Uint256) {
+	base.modularExponentiationSquareAndMultiplyMontgomery_fa(base, exponent)
+}
+
+// modularExponentiationSquareAndMultiplyMontgomery_fa implements ModularExponentiationMontgomery_fa using naive square&multiply
+func (z *Uint256) modularExponentiationSquareAndMultiplyMontgomery_fa(base *Uint256, exponent *Uint256) {
+	// simple sliding window exponentiation
+
+	if exponent.IsZero() {
+		*z = twoTo256ModBaseField_uint256 // montgomery representation of 1
+		return
+	}
+
+	var acc Uint256 = *base
+	// We need to reduce here, because SquareMontgomery_c and MulMontgomery_c require their inputs c-reduced.
+	acc.Reduce_ca()
+
+	// simple square-and-multiply. This is not really optimized (no sliding window etc)
+	L := exponent.BitLen()
+
+	for i := int(L - 2); i >= 0; i-- {
+		// acc == base^(exponent >> (i+1))
+		acc.SquareMontgomery_c(&acc)
+		if exponent[i/64]&(1<<(i%64)) != 0 {
+			acc.mulMontgomery_Unrolled_c(&acc, base)
+		}
+		// acc == base^(exponent >> i)
+	}
+	acc.Reduce_fb()
+	*z = acc
+}
+
+// modularExponentiationSquareAndMultiplyMontgomery_fa implements ModularExponentiationMontgomery_fa using a sliding window exponentiation
+func (z *Uint256) modularExponentiationSlidingWindowMontgomery_fa(base *Uint256, exponent *Uint256) {
 
 	// sliding window exponentiation:
 
@@ -236,7 +279,7 @@ func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Ui
 	precomputes[0] = acc
 	acc.SquareMontgomery_c(&acc) // acc = base^2 (will be overwritten later)
 	for i := 1; i < precomputeSize; i++ {
-		precomputes[i].MulMontgomery_c(&precomputes[i-1], &acc)
+		precomputes[i].mulMontgomery_Unrolled_c(&precomputes[i-1], &acc)
 	}
 
 	// decomp gives a decomposition exponent == sum_i decomp[i].exp << decomp[i].pos (with decomp[i].pos a strictly decreasing sequence)
@@ -252,7 +295,7 @@ func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Ui
 			acc.SquareMontgomery_c(&acc)
 		}
 		exponentRemaining = decompositionEntry.pos
-		acc.MulMontgomery_c(&acc, &precomputes[decompositionEntry.exp>>1])
+		acc.mulMontgomery_Unrolled_c(&acc, &precomputes[decompositionEntry.exp>>1])
 	}
 
 	// acc^(1<<exponentRemaining) = base^(sum_i decomp[i].exp << decomp[i].pos) = base^exponent now
@@ -332,12 +375,13 @@ func (z *Uint256) ToNonMontgomery_fc() Uint256 {
 	return temp
 }
 
-// DEPRECATED in favor of unrolled (more efficient) version.
+// DEPRECATED in favor of (more efficient) version above.
 
-// MulMontgomerySlow_c performs z := x * y / 2**256 WeakMod BaseFieldSize. (Division is modulo as well)
+// mulMontgomerySlow_c performs z := x * y / 2**256 WeakMod BaseFieldSize. (Division is modulo as well)
 //
 // If all inputs are c-reduced (i.e. x+BaseFieldSize < 2**256 etc), so is the output
-func (z *Uint256) MulMontgomerySlow_c(x, y *Uint256) {
+// This is a slower implementation of MulMontgomery_c than the one given above.
+func (z *Uint256) mulMontgomerySlow_c(x, y *Uint256) {
 
 	/*
 		We perform Montgomery multiplication, i.e. we need to find x*y / r^4 bmod BaseFieldSize with r==2^64

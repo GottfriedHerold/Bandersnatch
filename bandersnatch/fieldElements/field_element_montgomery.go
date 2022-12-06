@@ -177,7 +177,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) Neg(x *bsFieldElement_MontgomeryNon
 func (z *bsFieldElement_MontgomeryNonUnique) Mul(x, y *bsFieldElement_MontgomeryNonUnique) {
 	IncrementCallCounter("MulFe")
 
-	z.words.MulMontgomery_c(&x.words, &y.words)
+	z.words.mulMontgomery_Unrolled_c(&x.words, &y.words)
 }
 
 // IsZero checks whether the field element is zero
@@ -795,5 +795,5 @@ func (z *bsFieldElement_MontgomeryNonUnique) DivideUint64(x *bsFieldElement_Mont
 
 // z.Exp computes z := base^y in the field, with 0^0 == 1.
 func (z *bsFieldElement_MontgomeryNonUnique) Exp(base *bsFieldElement_MontgomeryNonUnique, exponent *Uint256) {
-	z.words.ModularExponentiationMontgomery_fa(&base.words, exponent)
+	z.words.modularExponentiationSlidingWindowMontgomery_fa(&base.words, exponent)
 }
