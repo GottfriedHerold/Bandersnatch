@@ -3,6 +3,8 @@ package fieldElements
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
+	"sort"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
@@ -454,4 +456,43 @@ func TestUint256_BitLen(t *testing.T) {
 		x.SetBigInt(xInt)
 		testutils.FatalUnless(t, x.BitLen() == i, "BitLen of 2^i-1 != i")
 	}
+}
+
+func TestUint256_SlidingWindowDecomposition(t *testing.T) {
+	prepareTestFieldElements(t)
+	const num = 10000
+	var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{seed: 10001, allowedRange: twoTo256_Int}, num)
+	var PowersOfTwo [256]Uint256
+	PowersOfTwo[0].SetOne()
+	for i := 1; i < 256; i++ {
+		PowersOfTwo[i].Add(&PowersOfTwo[i-1], &PowersOfTwo[i-1])
+	}
+	xs = append(xs, PowersOfTwo[:]...)
+	var zero Uint256
+	xs = append(xs, zero)
+	var minusOne Uint256
+	minusOne.Sub(&zero_uint256, &one_uint256)
+	xs = append(xs, minusOne)
+	for _, windowSize := range []uint8{2, 3, 4, 5, 6} {
+		for _, x := range xs {
+			var acc Uint256
+			decomp := x.SlidingWindowDecomposition(windowSize)
+			// fmt.Printf("%b\n", x)
+			// fmt.Println(decomp)
+			testutils.FatalUnless(t, sort.SliceIsSorted(decomp, func(i, j int) bool { return decomp[i].pos > decomp[j].pos }), "SlidingWindowDecomposition does not return descendingly sorted positions")
+			for _, contrib := range decomp {
+				testutils.FatalUnless(t, contrib.exp < (1<<windowSize), "exponent too large")
+				testutils.FatalUnless(t, contrib.exp&1 == 1, "exponent is even")
+				testutils.FatalUnless(t, int(contrib.pos)+bits.Len(contrib.exp) <= 256, "position is too large, would cause overflow")
+				var temp Uint256
+				temp.SetUint64(uint64(contrib.exp))
+				temp.Mul(&temp, &PowersOfTwo[contrib.pos])
+				carry := acc.AddAndReturnCarry(&acc, &temp)
+				testutils.FatalUnless(t, carry == 0, "Unexpected Overflow")
+			}
+			testutils.FatalUnless(t, acc == x, "Could not reconstruct Uint256 from sliding window decomposition")
+		}
+
+	}
+
 }

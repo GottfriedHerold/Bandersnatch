@@ -578,3 +578,43 @@ func IsEqualAsUint256[Arg1, Arg2 ToUint256Convertible](arg1 Arg1, arg2 Arg2) boo
 	arg2.ToUint256(&u2)
 	return u1 == u2
 }
+
+// unsignedExponentDecomposition models a decomposition of a Uint256 x into a sum x = exp_0 << pos_0 + exp_1 << pos_1 + ...
+type unsignedExponentDecomposition struct {
+	exp uint
+	pos uint
+}
+
+func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (ret []unsignedExponentDecomposition) {
+	if windowsize == 0 {
+		panic(ErrorPrefix + "trying a sliding window decomposition for exponetiation with window size 0")
+	}
+	var MAXSIZE = (int(windowsize) + 255) / int(windowsize)
+	ret = make([]unsignedExponentDecomposition, MAXSIZE)
+	var actualSize int = int(MAXSIZE - 1)
+	var currentPos uint = 0
+	var mask uint64 = (1 << uint64(windowsize)) - 1
+	zCopy := *z
+	for {
+		L := uint(bits.TrailingZeros64(zCopy[0]))
+		if L == 64 {
+			if zCopy.IsZero() {
+				break
+			}
+			currentPos += 64
+			zCopy.ShiftRightEq_64()
+			continue
+		}
+		zCopy.ShiftRightEq(L)
+		currentPos += L
+
+		readOut := zCopy[0] & mask
+		ret[actualSize].pos = currentPos
+		ret[actualSize].exp = uint(readOut)
+
+		zCopy[0] -= readOut
+		actualSize -= 1
+	}
+	ret = ret[actualSize+1 : MAXSIZE]
+	return
+}
