@@ -24,6 +24,7 @@ func Benchmark_uint256(b *testing.B) {
 	b.Run("Decrement", benchmarkUint256_Decrement)
 	b.Run("IncrementEq (with Copy)", benchmarkUint256_CopyAndIncEq)
 	b.Run("DecrementEq (with Copy)", benchmarkUint256_CopyAndDecEq)
+	b.Run("Sliding window decomposition (size 4)", benchmarkUint256_SlidingWindowDecomposition)
 }
 
 func benchmarkUint256_Copy(b *testing.B) {
@@ -136,5 +137,13 @@ func benchmarkUint256_CopyAndDecEq(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
 		DumpUint256[n%benchS].DecrementEq()
+	}
+}
+
+func benchmarkUint256_SlidingWindowDecomposition(b *testing.B) {
+	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS) // NOTE: Using fully reduced exponents here. While reducedness is not the correct notion, this still gives the correct range.
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		_ = bench_exponents[n%benchS].SlidingWindowDecomposition(4)
 	}
 }
