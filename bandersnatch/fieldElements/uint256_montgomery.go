@@ -195,34 +195,74 @@ func (z *Uint256) ConvertToMontgomeryRepresentation_c(x *Uint256) {
 	z.MulMontgomery_c(x, &twoTo512ModBaseField_uint256)
 }
 
-// TODO: Make a proper efficient implementation.
-
 // ModularExponentiation_a sets z := base^exponent modulo BaseFieldSize, where z and base are both in Montgomery form.
 //
 // By convention, 0^0 is 1 here.
 func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Uint256) {
-	// dummy implementation
 
-	if exponent.IsZero() {
-		*z = twoTo256ModBaseField_uint256 // montgomery representation of 1
-		return
+	// sliding window exponentiation:
+
+	// we use a window size depending on the bitlength of the exponent. 4 is the default.
+	// Note that this takes care of the exponent == 0 special case as well.
+	var windowSize uint8 = 4
+	L := exponent.BitLen()
+	if L <= 80 { // for short exponents, we modify the window size.
+		if L == 0 {
+			*z = twoTo256ModBaseField_uint256 // montgomery representation of 1
+			return
+		} else if L == 1 {
+			*z = *base
+			z.Reduce_ca()
+			z.Reduce_fb()
+			return // window size 1 is better than 2 for very small window sizes.
+		} else if L <= 6 {
+			windowSize = 1
+		} else if L <= 24 {
+			windowSize = 2
+		} else { // 24 < L <= 80
+			windowSize = 3
+		}
 	}
 
 	var acc Uint256 = *base
 	// We need to reduce here, because SquareMontgomery_c and MulMontgomery_c require their inputs c-reduced.
 	acc.Reduce_ca()
+	decomp := exponent.SlidingWindowDecomposition(windowSize)
 
-	// simple square-and-multiply. This is not really optimized (no sliding window etc)
-	L := exponent.BitLen()
+	// precompute small odd powers of base
+	precomputeSize := 1 << (windowSize - 1)
+	var precomputes []Uint256 = make([]Uint256, precomputeSize) // precomputes[i] holds base^(2*i+1)
 
-	for i := int(L - 2); i >= 0; i-- {
-		// acc == base^(exponent >> (i+1))
-		acc.SquareMontgomery_c(&acc)
-		if exponent[i/64]&(1<<(i%64)) != 0 {
-			acc.MulMontgomery_c(&acc, base)
-		}
-		// acc == base^(exponent >> i)
+	precomputes[0] = acc
+	acc.SquareMontgomery_c(&acc) // acc = base^2 (will be overwritten later)
+	for i := 1; i < precomputeSize; i++ {
+		precomputes[i].MulMontgomery_c(&precomputes[i-1], &acc)
 	}
+
+	// decomp gives a decomposition exponent == sum_i decomp[i].exp << decomp[i].pos (with decomp[i].pos a strictly decreasing sequence)
+	// len(decomp) > 0
+	exponentRemaining := decomp[0].pos
+	acc = precomputes[decomp[0].exp>>1]
+
+	// The following invariant holds before and after each iteration:
+	// acc^(1<<exponentRemaining) == base^(sum_{i=0}^{sth.} decomp[i].exp << decomp[i].pos), where
+	// the sum ranges over those entries of decomp that are already processed. (the index-0 one before we start the loop, hence the range decomp[1:] )
+	for _, decompositionEntry := range decomp[1:] { // j = _ + 1
+		for i := uint(0); i < exponentRemaining-decompositionEntry.pos; i++ { // note the difference is guaranteed to be > 0
+			acc.SquareMontgomery_c(&acc)
+		}
+		exponentRemaining = decompositionEntry.pos
+		acc.MulMontgomery_c(&acc, &precomputes[decompositionEntry.exp>>1])
+	}
+
+	// acc^(1<<exponentRemaining) = base^(sum_i decomp[i].exp << decomp[i].pos) = base^exponent now
+
+	// square exponentRemainingg many times
+	for i := uint(0); i < exponentRemaining; i++ {
+		acc.SquareMontgomery_c(&acc)
+	}
+
+	// reduce fully
 	acc.Reduce_fb()
 	*z = acc
 }
