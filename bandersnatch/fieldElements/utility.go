@@ -14,7 +14,7 @@ import (
 // This function panics on failure, which is appropriate for its use case:
 // It is supposed to be used to initialize package-level variables (probably intendend to be constant) from constant string literals.
 //
-// The input string does not have to represent a number in [0, BaseFieldSize). It may represent any integer, possibly negative.
+// The input string does not have to represent a number in [0, BaseFieldSize). It may represent any integer, possibly negative, which then gets reduced.
 func InitFieldElementFromString[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[*FE]
@@ -35,7 +35,7 @@ func InitFieldElementFromString[FE any, FEPtr interface {
 // NOTE: The randomness quality is *NOT* sufficient for cryptographic purposes, hence the "unsafe". This function is merely used for unit tests.
 // We do not even guarantee that it is close to uniform, reasonably random, or that the output sequence is preserved across library releases.
 //
-// NOTE2: Neither the value of the created field element nor the amound of randomness consumed depend on the field element type.
+// NOTE2: Neither the value of the created field element nor the amount of randomness consumed depend on the field element type.
 // This is intentional and allows differential testing.
 func CreateRandomFieldElement_Unsafe[FE any, FEPtr interface {
 	*FE
@@ -52,7 +52,7 @@ func CreateRandomFieldElement_Unsafe[FE any, FEPtr interface {
 // NOTE: The randomness quality is *NOT* sufficient for cryptographic purposes, hence the "unsafe". This function is merely used for unit tests.
 // We do not even guarantee that it is close to uniform, reasonably random, or that the output sequence is preserved across library releases.
 //
-// NOTE2: Neither the value of the created field element nor the amound of randomness consumed depend on the field element type.
+// NOTE2: Neither the value of the created field element nor the amount of randomness consumed depend on the field element type.
 // This is intentional and allows differential testing.
 func CreateRandomNonZeroFieldElement_Unsafe[FE any, FEPtr interface {
 	*FE

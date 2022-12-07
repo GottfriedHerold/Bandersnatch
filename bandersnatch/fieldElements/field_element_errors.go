@@ -19,12 +19,6 @@ const ErrorPrefix = "bandersnatch / field element: "
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
 var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
 
-// DEPRECATED: Replace by data-carrying error
-/*
-var ErrCannotRepresentAsUint64 = errors.New(ErrorPrefix + "cannot represent field element as a uint64")
-var ErrCannotRepresentAsInt64 = errors.New(ErrorPrefix + "cannot represent field element as int64")
-*/
-
 var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
 // These are the errors that can occur during (de)serialization.

@@ -10,6 +10,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 func TestSerializeFieldElements(t *testing.T) {
 	const iterations = 100
 	var drng *rand.Rand = rand.New(rand.NewSource(87))
