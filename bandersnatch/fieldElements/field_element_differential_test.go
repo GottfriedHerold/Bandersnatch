@@ -6,44 +6,58 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-// runs differential tests for field element implementations.
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains testing code that compares two implementations of the FieldElementInterface via a generic differential test.
+
+// runs differential tests for our field element implementations.
 func TestDifferentialFieldElements(t *testing.T) {
 	testFEDifferential[bsFieldElement_MontgomeryNonUnique, bsFieldElement_BigInt](10001, 10001, 10001, 1000, 100, 100)(t)
 }
 
 // utility stuff to iterate over methods (and their names) in a type-safe way (i.e. without using reflection).
-
-// TODO: Differential test for small-int / small-uint ops
+// We want to have a type-dependent variable (implemented as a nullary generic function that returns it, since go does not have "generic constants")
+// of type []FunctionAndName-pair. (The test would only need []Function, the name is just for diagnostics) to iterate over.
+// Note that we consider methods as functions with explicit receiver arguments by using typename.methodname (rather than instance.methodname)
 
 type _functionAndName[funType any] struct {
 	f    funType
 	name string
 }
 
+// methods of form receiver.UnaryOp(arg).
 func _getUnaryFuns[FE FieldElementInterface[FE]]() []_functionAndName[func(FE, FE)] {
 	return []_functionAndName[func(FE, FE)]{{FE.Neg, "Neg"}, {FE.Double, "Double"}, {FE.MulFive, "MulFive"}, {FE.Square, "Square"}, {FE.Inv, "Inv"}}
 }
 
+// methods of the form receiver.binaryOp(arg1, arg2)
 func _getBinaryFuns[FE FieldElementInterface[FE]]() []_functionAndName[func(FE, FE, FE)] {
 	return []_functionAndName[func(FE, FE, FE)]{{FE.Add, "Add"}, {FE.Sub, "Sub"}, {FE.Mul, "Mul"}, {FE.Divide, "Divide"}}
 }
 
+// methods of the form receiver.Op(arg1, arg2) where arg2 has type int64
 func _getBinaryInt64Funs[FE FieldElementInterface[FE]]() []_functionAndName[func(FE, FE, int64)] {
 	return []_functionAndName[func(FE, FE, int64)]{{FE.AddInt64, "AddInt64"}, {FE.SubInt64, "SubInt64"}, {FE.MulInt64, "MulInt64"}, {FE.DivideInt64, "DivideInt64"}}
 }
 
+// methods of the form receiver.Op(arg1, arg2) where arg2 has type uint64
 func _getBinaryUint64Funs[FE FieldElementInterface[FE]]() []_functionAndName[func(FE, FE, uint64)] {
 	return []_functionAndName[func(FE, FE, uint64)]{{FE.AddUint64, "AddUint64"}, {FE.SubUint64, "SubUint64"}, {FE.MulUint64, "MulUint64"}, {FE.DivideUint64, "DividveUint64"}}
 }
 
+// methods of the form receiver.OpEq()
 func _getNullaryEqFuns[FE FieldElementInterface[FE]]() []_functionAndName[func(FE)] {
 	return []_functionAndName[func(FE)]{{FE.NegEq, "NegEq"}, {FE.DoubleEq, "DoubleEq"}, {FE.MulEqFive, "MulEqFive"}, {FE.SquareEq, "SquareEq"}, {FE.InvEq, "InvEq"}}
 }
 
+// methods of the form receiver.OpEq(arg)
 func _getUnaryEqFuns[FE FieldElementInterface[FE]]() []_functionAndName[func(FE, FE)] {
 	return []_functionAndName[func(FE, FE)]{{FE.AddEq, "AddEq"}, {FE.SubEq, "SubEq"}, {FE.MulEq, "MulEq"}, {FE.DivideEq, "DivideEq"}}
 }
 
+// testFEDifferential runs runs a differential test, comparing the field element implementations FE1 and FE2 for random inputs.
+//
+// seedsUnary, seedX, seedsY are seeds used to generate random samples, numUnary, numX, numY control the number of random samples.
 func testFEDifferential[FE1 any, FE2 any, FEPtr1 interface {
 	*FE1
 	FieldElementInterface[FEPtr1]

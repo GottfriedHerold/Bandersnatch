@@ -7,10 +7,16 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file collects all errors that can be returned by functions in this package.
+//
+// IMPORTANT: We often return errors wrapping some error given here. Never compare errors for equality. Use [errors.Is]
+
 // ErrorPrefix is the prefix used by all error message strings originating from this package.
 const ErrorPrefix = "bandersnatch / field element: "
 
-// Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, this error message here will never occur.
+// Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
 var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
 
 // DEPRECATED: Replace by data-carrying error

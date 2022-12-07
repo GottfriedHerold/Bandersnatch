@@ -2,7 +2,9 @@ package fieldElements
 
 import "testing"
 
-// This file is part of the fieldElements package and contains the benchmarks for the functions defined in uint256_montgomery.go
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains the benchmarks for the functions defined in uint256_montgomery.go
 // This means we benchmark functions defined on uint256 that perfom arithmetic operations that perform Montgomery multiplications (and helper functions for that)
 // Note that this is not the same as benchmarking operations on field elements themselves.
 // Instead, this serves to benchmark sub-routines and try out different internal approaches.

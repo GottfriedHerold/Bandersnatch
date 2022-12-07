@@ -2,7 +2,9 @@ package fieldElements
 
 import "testing"
 
-// This file is part of the fieldElements package and contains the benchmarks for the functions defined in uint256.go
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains the benchmarks for the functions defined in uint256.go
 // This means we benchmark functions defined on uint256 that perfom arithmetic operations that treat uint256 as integers (possibly modulo 2^256) and do NOT work modulo BaseFieldSize.
 
 // Benchmarks all follow the same pattern in order to make the overhead comparable.

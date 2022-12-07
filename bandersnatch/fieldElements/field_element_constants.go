@@ -7,7 +7,9 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// This file contains all important constants used in the field element implementation.
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains all important constants used in the field element implementations.
 // This includes exported constants and internal pre-computed constants.
 //
 // NOTES:
@@ -18,7 +20,7 @@ import (
 //        - _string for a string representation (either hex/decimal/binary; if non-decimal, it is prefixed. It may contain "_"-separators for readability.
 //           We require it to be formatted in a way that [*big.Int]'s SetString method and [fmt]'s Scanning functions understand it.)
 //        - _64, 32, 16, 8 for low-endian uint64/uint32/uint16/uint8 arrays
-//        - _uint256 for uint256. This is essentially the same as _64, since uint256 is based on [4]uint64 with low-endian convention.
+//        - _uint256 for [Uint256]. This is essentially the same as _64, since uint256 is based on [4]uint64 with low-endian convention.
 //   - Since Go lacks const arrays, we define some large 256-bit constants both as untyped 256-bit constants and separately as constants for every individual word.
 //     The convention is that these are prefixed as constant_64_0, constant_64_1 for the (low-endian) 0th, 1st etc. uint64-word.
 //     Algorithms with unrolled loops (and unfortunately with unrolled loops only) can then make use of the individual constant words efficiently.

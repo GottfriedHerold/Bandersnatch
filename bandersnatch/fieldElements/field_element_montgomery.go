@@ -12,6 +12,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 // This file gives an implementation for field elements (meaning the field of
 // definition of the Bandersnatch elliptic curve) using a low-endian Montgomery
 // representation without uniqueness of internal representation
@@ -31,7 +33,7 @@ import (
 type bsFieldElement_MontgomeryNonUnique struct {
 	// field elements stored in low-endian 64-bit uints in Montgomery form, i.e.
 	// a bsFieldElement_64 encodes a field element x if
-	// words - x * 2^256 == 0 (mod BaseFieldSize), where words is interpreted in LowEndiant as a 256-bit number.
+	// words - x * 2^256 == 0 (mod BaseFieldSize), where words is a 256-bit number (internally a low-endian [4]uint64, i.e. Uint256).
 
 	// Note that the representation of x is actually NOT unique.
 	// The invariant that we maintain to get efficient field operations is that
@@ -46,7 +48,8 @@ type bsFieldElement_MontgomeryNonUnique struct {
 	// Of course, this invariant concerns the Montgomery representation, interpreting words directly as a 256-bit integer.
 	// Since BaseFieldSize is between 1/3*2^256 and 1/2*2^256, a given field element x might have either 1 or 2 possible representations as
 	// a bsFieldElement_64, both of which are equally valid as far as this implementation is concerned.
-	words Uint256
+	utils.MakeIncomparable
+	words Uint256 // required to be c-reduced
 }
 
 // Note: We export *copies* of these variables. Internal functions should use the original.
@@ -191,7 +194,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsOne() bool {
 	// Note: The representation of 1 is unique:
 	// bsFieldElement_64_one.words corresponds to 2^256 - 2*BaseField, so the other (potential) Montgomery representation
 	// would be 2^256-1*BaseFieldSize, which (barely) violates our invariant that addition of BaseFieldSize does not overflow.
-	return *z == bsFieldElement_64_one
+	return z.words == bsFieldElement_64_one.words
 }
 
 // SetOne sets the field element to 1.
@@ -472,12 +475,12 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 
 	switch {
 	case z.words[3] == x.words[3]:
-		return *z == *x
+		return z.words == x.words
 	case z.words[3] > x.words[3]:
 		// Note that RHS cannot overflow due to invariant
 		if z.words[3] > x.words[3]+(baseFieldSize_3-1) {
 			z.Normalize()
-			return *z == *x
+			return z.words == x.words
 		} else {
 			return false
 		}
@@ -485,7 +488,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 		// Note that RHS cannot overflow due to invariant
 		if x.words[3] > z.words[3]+(baseFieldSize_3-1) {
 			x.Normalize()
-			return *z == *x
+			return z.words == x.words
 		} else {
 			return false
 		}

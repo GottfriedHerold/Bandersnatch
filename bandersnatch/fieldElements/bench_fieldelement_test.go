@@ -16,12 +16,14 @@ import (
 // We also have an (non-generic) old and less complete benchmark suite for bsFieldElement_MontgomeryNonUnique.
 // The latter is kept as a comparison benchmark to measure the overhead from using generics.
 
+// Run benchmark suite for all field element types that we defined
 func BenchmarkAllFieldElementTypes(b *testing.B) {
 	b.Log("NOTE: Benchmarking all field element implementations via generic benchmark. Being generic means some overhead. Take note if timings from non-generic benchmarks deviate.")
 	b.Run("MontgomeryNonUnique", benchmarkFE_all[bsFieldElement_MontgomeryNonUnique])
 	b.Run("big.Int Wrapper", benchmarkFE_all[bsFieldElement_BigInt])
 }
 
+// benchmarkFE_all is a generic benchmark function that runs all benchmark functions defined below for the given type parameter.
 func benchmarkFE_all[FE any, FEPtr interface {
 	*FE
 	FieldElementInterface[FEPtr]
@@ -49,8 +51,10 @@ func benchmarkFE_all[FE any, FEPtr interface {
 
 	b.Run("IsEqual", benchmarkFE_IsEqual[FE, FEPtr])
 	b.Run("CmpAbs", benchmarkFE_CmpAbs[FE, FEPtr])
+	b.Run("Sign", benchmarkFE_Sign[FE, FEPtr])
 
 	b.Run("Jacobi", benchmarkFE_Jacobi[FE, FEPtr])
+	// We have two separate benchmarks for the SquareRoot method, called only on squares or only on non-squares.
 	b.Run("SquareRoot (Squares)", benchmarkFE_SquareRootOnSquares[FE, FEPtr])
 	b.Run("SquareRoot (NonSquares)", benchmarkFE_SquareRootOnNonSquares[FE, FEPtr])
 
@@ -67,8 +71,10 @@ func benchmarkFE_all[FE any, FEPtr interface {
 	b.Run("MulUint64", benchmarkFE_MulUint64[FE, FEPtr])
 	b.Run("DivideInt64", benchmarkFE_DivideInt64[FE, FEPtr])
 	b.Run("DivideUint64", benchmarkFE_DivideUint64[FE, FEPtr])
-
 }
+
+// actual benchmark suite. We benchmark (almost) all methods of the interface
+// function names as benchmarkFE_FOO for the FOO method
 
 func benchmarkFE_Add[FE any, FEPtr interface {
 	*FE
@@ -531,6 +537,8 @@ func benchmarkFE_DivideUint64[FE any, FEPtr interface {
 		FEPtr(&res[n%benchS]).DivideUint64(&bench_x[n%benchS], bench_y[n%benchS])
 	}
 }
+
+// For copy&pasting
 
 /*
 func benchmarkFE_[FE any, FEPtr interface {

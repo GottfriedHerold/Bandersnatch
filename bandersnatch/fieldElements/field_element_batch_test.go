@@ -9,6 +9,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 func TestMultiInvert(t *testing.T) {
 	const MAXSIZE = 20
 	var drng *rand.Rand = rand.New(rand.NewSource(87))
@@ -185,9 +187,14 @@ func TestMultiInvert(t *testing.T) {
 	}
 
 	// NOTE: This assuments that on error, we do not make any normalizations.
-	if numsArray != numsArrayCopy {
-		t.Fatalf("MultiInvertEqSlice modified data on error")
+	for i, c := range numsArray {
+		testutils.FatalUnless(t, c.words == numsArrayCopy[i].words, "MultiInvertEqSlice modified data on error")
 	}
+	/*
+		if numsArray != numsArrayCopy {
+			t.Fatalf("MultiInvertEqSlice modified data on error")
+		}
+	*/
 
 	var ArrPtrs [MAXSIZE]*bsFieldElement_MontgomeryNonUnique
 	for i := 0; i < MAXSIZE; i++ {
@@ -204,9 +211,16 @@ func TestMultiInvert(t *testing.T) {
 	if !utils.CompareSlices(data.ZeroIndices, data2.ZeroIndices) {
 		t.Fatalf("MultiInvertEq did not report same error as MultiInvertEqSlice")
 	}
-	if numsArrayCopy != numsArray {
-		t.Fatalf("MultiInvertEq modified elements on error")
+
+	for i, c := range numsArray {
+		testutils.FatalUnless(t, c.words == numsArrayCopy[i].words, "MultiInvertEqSlice modified data on error")
 	}
+
+	/*
+		if numsArrayCopy != numsArray {
+			t.Fatalf("MultiInvertEq modified elements on error")
+		}
+	*/
 
 	// Test SkipZeros variants:
 	list1 = MultiInvertEqSliceSkipZeros(numsArray[:])

@@ -2,13 +2,21 @@ package fieldElements
 
 import "testing"
 
-// This file is part of the fieldElements package and contains the benchmarks for the functions defined in uint256_modular.go
-// This means we benchmark functions defined on uint256 that perfom arithmetic operations that work modulo the BaseFieldSize
-// Note that this is not the same as benchmarking field elements themselves
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains the benchmarks for the functions defined in uint256_modular.go
+// This means we benchmark functions defined on uint256 that perfom arithmetic operations that work modulo the BaseFieldSize.
+// Note that this is not the same as benchmarking field elements themselves.
 
 // Benchmarks all follow the same pattern in order to make the overhead comparable.
 // We benchmark functions for (fixed, pseudo-)random inputs that satisfy the preconditions of the functions.
 // NOTE: We try to keep the order the same as the defintions in uint256_modular.go
+
+// Be aware that not all benchmarked function are exported (or used at all).
+// In some cases, we have multiple methods that perform the exactly same functionality, but with different efficiency.
+// The very purpose of these benchmarks is to compare those. Only the better one is exported.
+
+// TODO: Cleanup the names displayed here
 
 func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Add_b (conditional subtraction)", benchmarkUint256m_AddAndReduce_b)
@@ -32,6 +40,8 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Jacobi symbol (simple binary-gcd-like)", benchmarkUint256m_JacobiV1_a)
 	b.Run("Exponentiation", benchmarkUint256m_Exponentiation)
 }
+
+// individual benchmarks defined below
 
 // For Copy-And-Pasting
 /*
@@ -234,7 +244,7 @@ func benchmarkUint256m_JacobiV1_a(b *testing.B) {
 
 func benchmarkUint256m_Exponentiation(b *testing.B) {
 	var bench_basis []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS) // NOTE: Using fully reduced exponents here. This is more meaningful
+	var bench_exponents []Uint256 = CachedUint256.GetElements(pc_uint256_f, benchS) // NOTE: Using 255-bit exponents here. This is more meaningful
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].ModularExponentiation_fa(&bench_basis[n%benchS], &bench_exponents[n%benchS])

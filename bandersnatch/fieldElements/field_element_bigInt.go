@@ -9,8 +9,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
-// This file is part of the fieldElements package. See the documentation of field_element.go
-// for general remarks.
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
 // This file contains an implementation of the FieldElementInterface that
 // just forwards everything to [*big.Int]. This will be horrendously inefficient;
@@ -198,7 +197,7 @@ func (z *bsFieldElement_BigInt) SetBytes(buf []byte) {
 	// Check validity. This is not required by contract, but we have no reason not to.
 	zInt := z.ToBigInt()
 	if zInt.Cmp(baseFieldSize_Int) >= 0 {
-		panic("SetBytes called on bsFieldElement_BigInt with byte slice that is not a valid internal representation")
+		panic(ErrorPrefix + "SetBytes called on bsFieldElement_BigInt with byte slice that is not a valid internal representation")
 	}
 }
 

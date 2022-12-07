@@ -8,8 +8,9 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/callcounters"
 )
 
-// This file is only compiled if tags=callcounters is set, otherwise
-// callcounters_inactive is used.
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file is only compiled if tags=callcounters is set, otherwise callcounters_inactive is used.
 // The difference is just that the functions defined here are replaced by no-ops
 
 // NOTE: Callcounters themselves are a candidate for deprecation, so we don't use them consistently atm.

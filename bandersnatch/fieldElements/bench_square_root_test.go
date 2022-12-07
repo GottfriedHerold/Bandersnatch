@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 // This file contains benchmarks for square-root computation helper functions.
 
 func BenchmarkSqrtHelperFunctions(b *testing.B) {

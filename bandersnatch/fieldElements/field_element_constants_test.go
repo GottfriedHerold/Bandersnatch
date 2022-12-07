@@ -284,11 +284,11 @@ func ensureFieldElementConstantsWereNotChanged() {
 
 	testutils.Assert(minus2To256ModBaseField_uint256_COPY == minus2To256ModBaseField_uint256)
 
-	testutils.Assert(FieldElementOne_COPY == FieldElementOne)
-	testutils.Assert(FieldElementZero_COPY == FieldElementZero)
-	testutils.Assert(FieldElementMinusOne_COPY == FieldElementMinusOne)
-	testutils.Assert(FieldElementTwo_COPY == FieldElementTwo)
+	testutils.Assert(FieldElementOne_COPY.words == FieldElementOne.words)
+	testutils.Assert(FieldElementZero_COPY.words == FieldElementZero.words)
+	testutils.Assert(FieldElementMinusOne_COPY.words == FieldElementMinusOne.words)
+	testutils.Assert(FieldElementTwo_COPY.words == FieldElementTwo.words)
 
-	testutils.Assert(DyadicRootOfUnity_fe_COPY == DyadicRootOfUnity_fe)
-	testutils.Assert(dyadicRootOfUnity_fe_COPY == dyadicRootOfUnity_fe)
+	testutils.Assert(DyadicRootOfUnity_fe_COPY.words == DyadicRootOfUnity_fe.words)
+	testutils.Assert(dyadicRootOfUnity_fe_COPY.words == dyadicRootOfUnity_fe.words)
 }
