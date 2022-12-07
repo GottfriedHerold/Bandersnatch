@@ -11,6 +11,7 @@ import (
 func BenchmarkSqrtHelperFunctions(b *testing.B) {
 	b.Run("Dlog in small-order subgroup of roots of unity", benchmarkSqrt_NegDlogInSmallSubgroup)
 	b.Run("special-purpose exponentiations", benchmarkSqrt_Exponentiations)
+	b.Run("general-purpose exponentiations", benchmarkSqrt_Exponentiations2)
 	b.Run("inverse square root of 2^32th roots of unity", benchmarkSqrt_InvSqrtEq)
 }
 
@@ -34,6 +35,15 @@ func benchmarkSqrt_Exponentiations(b *testing.B) {
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		xs[n%benchS].sqrtAlg_ComputeRelevantPowers(&D1[n%benchS], &D2[n%benchS])
+	}
+}
+
+func benchmarkSqrt_Exponentiations2(b *testing.B) {
+	var xs []feType_SquareRoot = GetPrecomputedFieldElements[feType_SquareRoot](10001, benchS)
+	var D1 [benchS]feType_SquareRoot
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		D1[n%benchS].sqrtAlg_ExpOddOrder(&xs[n%benchS])
 	}
 }
 

@@ -1,20 +1,32 @@
 package fieldElements
 
-// This file contains efficient square root algorithms, which involves a considerable amount of pre-computed constants.
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains an efficient square root algorithms, which involves a considerable amount of pre-computed constants.
+
+// The algorithm used is essentiall Tonelli-Shanks.
+// Note that BaseFieldSize mod 4 == 1, with a large power of 2, namely 2^32 dividing BaseFieldSize-1 (BaseField2Adicity==32).
+// This means that plain Tonelli-Shanks would first power the argument to the odd part of p+1 and then essentially solve a dlog problem
+// bit-by-bit in a group of size 2^32. The latter would take about 32^2/2 multiplications and would dominate the running time.
+// To improve that, we precompute a lookup table of dlogs of a subgroup of order 2^sqrtParam_Blocksize == 256. Then
+// we can retrieve sqrtParam_BlockSize == 8 bits at a time for the dlog problem, reducing the complexity by a lot.
 
 // feType_SquareRoot is the field element type used internally during square root computations.
 // We reserve the option to change this type (We use more squarings than general multiplications and that might be better with a different type), hence the alias.
-// Note that the algorithm kind-of depends on that type, since we use a lookup-table feType_SquareRoot -> exponent
-// to compute (small) dlogs of roots of unity. This lookup works by directly looking at the internal representation; no need for Montgomery conversions and such.
+// The actual square root algorithm used for the exported field element types is supposed to convert to feType_SquareRoot, use the algorithms here and convert back.
+// The conversion is much faster than the actual algorithm anyway.
+// Note that the algorithm kind-of depends on that type, since we use a lookup-table feType_SquareRoot -> exponent to compute (small) dlogs of roots of unity.
+// This lookup works by directly looking at (a hash of) the internal representation; no need for Montgomery conversions and such.
 type feType_SquareRoot = bsFieldElement_MontgomeryNonUnique
 
 // The implementation of invSqrtEqDyadic relies on a large set of precomputed values
 
-// These parameters guide efficiency / precomputation - tradeoff.
+// These parameters guide efficiency / precomputation - tradeoff. We make them const to avoid allocations with make(...) outside of global initialization.
 const (
 	// Note: The BlockSize parameter constrols the tradeoff.
 	// Adjusting this parameter may require to adjust sqrtAlg_NegDlogInSmallDyadicSubgroup, as we need a collision-free (non-cryptographic) hash function for the
 	// appropriate roots of unity. This is checked unconditionally on startup and we panic during initialization of global variables on failure.
+	// Note that the functions in this file have been tested for different values of sqrtParam_BlockSize.
 	sqrtParam_BlockSize            = 8                                                                     // SquareRoot computation involves a dlog computation for 2^32th roots of unity. We retrieve this in blocks with this many bits via a lookup-table.
 	sqrtParam_TotalBits            = BaseField2Adicity                                                     // == 32, total number of bits for the dyadic part of the base field computation. The field has 2^32th roots of unity.
 	sqrtParam_Blocks               = (sqrtParam_TotalBits + sqrtParam_BlockSize - 1) / sqrtParam_BlockSize // Number of blocks needed
@@ -43,7 +55,7 @@ var sqrtPrecomp_PrimitiveDyadicRoots [BaseField2Adicity + 1]feType_SquareRoot = 
 	return
 }() // immediately invoked lambda
 
-// sqrtPrecomp_PrecomputedBlocks[i][j] == g^(j << (i* BlockSize), where g is the fixed primitive 2^32th root of unity.
+// sqrtPrecomp_PrecomputedBlocks[i][j] == g^(j << (i* BlockSize)), where g is the fixed primitive 2^32th root of unity.
 // This means that the exponent is equal to 0x00000...0000jjjjjj0000....0000, where only the i'th least significant block of size BlockSize is set
 // and that value is j.
 //
@@ -109,6 +121,11 @@ func (z *feType_SquareRoot) sqrtAlg_ComputeRelevantPowers(squareRootCandidate *f
 			z.SquareEq()
 		}
 	}
+
+	// hand-crafted sliding window-type algorithm with window-size 5
+	// Note that we precompute and use z^255 multiple times (even though it's not size 5)
+	// and some windows actually overlap(!)
+
 	var z2, z3, z7, z6, z9, z11, z13, z19, z21, z25, z27, z29, z31, z255 feType_SquareRoot
 	var acc feType_SquareRoot
 	z2.Square(z)             // 0b10
@@ -278,7 +295,7 @@ func (z *feType_SquareRoot) invSqrtEqDyadic() (ok bool) {
 		}
 	}
 
-	// looking at the dlogs, powers[i] is essetially the wanted exponent, left-shifted by i*_sqrtBlockSize and taken mod 1<<32
+	// looking at the dlogs, powers[i] is essentially the wanted exponent, left-shifted by i*_sqrtBlockSize and taken mod 1<<32
 	// dlogHighDyadicRootNeg essentially (up to sign) reads off the _sqrtBlockSize many most significant bits. (returned as low-order bits)
 
 	// first iteration may be slightly special if BlockSize does not divide 32

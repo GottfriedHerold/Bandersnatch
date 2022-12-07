@@ -6,6 +6,10 @@ import (
 	"math/rand"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains assorted utility functions for creating field elements.
+
 // InitFieldElementFromString initializes a field element from a given string.
 // The ouput is guaranteed to be Normalized.
 // This internally uses big.Int's SetString and understands exactly those string formats.

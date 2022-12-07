@@ -4,6 +4,8 @@ import (
 	"math/bits"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 // This file is part of the implementation of the Uint256 (and also a similar Uint512) data type.
 // Uint256 is a 256-bit unsigned integer data type used (mostly internally) to implement our field element types.
 //
@@ -15,9 +17,8 @@ import (
 
 // Note that the code is split into 3 parts:
 //   uint256.go (integer arithmetic / arithmetic modulo 2^256)
-//   uint256_modular.go (arithmetic that works modulo BaseFieldSize)
+//   uint256_modular.go (arithmetic that works modulo BaseFieldSize) -- this file
 //   uint256_montgomery.go (Montgomery arithmetic)
-//
 
 // This file contains methods on uint256 that interpret the elements as residues modulo BaseFieldSize and perform appropriate operations (such as addition, multiplication of residues)
 // For reasons of efficiency, neither the input nor the output of these functions have to be the smallest representative of the residue class, i.e.

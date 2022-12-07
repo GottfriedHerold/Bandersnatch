@@ -10,17 +10,20 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 // This file is part of the implementation of the Uint256 (and also a similar Uint512) data type.
 // Uint256 is a 256-bit unsigned integer data type used (mostly internally) to implement our field element types.
 //
 // Note that a Uint256 is an integer, not a residue, so arithmetic is as for usual uints, i.e. modulo 2^256.
 // Funtions and Methods that operate on Uint256's and perform modular arithmetic explicitly say so in their description and function name.
-//
-// The set of exported functions and methods for these is not particularly stable;
+// These are contained in different files.
+
+// NOTE: The set of exported functions and methods that perform *modular* arithmetic is not particularly stable;
 // we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication, for instance) or for users who want to perform extensive computations in the base field.
 
 // Note that the code is split into 3 parts:
-//   uint256.go (integer arithmetic / arithmetic modulo 2^256)
+//   uint256.go (integer arithmetic / arithmetic modulo 2^256) -- this file
 //   uint256_modular.go (arithmetic that works modulo BaseFieldSize)
 //   uint256_montgomery.go (Montgomery arithmetic)
 //
@@ -155,7 +158,7 @@ func (z *Uint512) SetUint64(x uint64) {
 	*z = Uint512{x, 0, 0, 0, 0, 0, 0, 0}
 }
 
-// ToUint256 is provided to satisfy the [ToUint256Convertible] interface.
+// ToUint256 performs *x := *z. There is not really any need to call this; it is provided to satisfy the [ToUint256Convertible] interface.
 func (z *Uint256) ToUint256(x *Uint256) {
 	*x = *z
 }
@@ -193,27 +196,6 @@ func (z *Uint512) ToUint256(x *Uint256) {
 // Q: Should we have a signed int64 -> Uint256 conversion
 // Q: Should we have a uint256 -> uint64 conversion (same API as in FieldElementInterface)
 
-/*
-// BigIntToUIntArray converts a big.Int to a low-endian [4]uint64 array without Montgomery conversions.
-// We assume 0 <= x < 2^256
-func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
-	// As this is an internal function, panic is OK for error handling.
-	if x.Sign() < 0 {
-		panic(ErrorPrefix + "bigIntToUIntArray: Trying to convert negative big Int")
-	}
-	if x.BitLen() > 256 {
-		panic(ErrorPrefix + "bigIntToUIntArray: big Int too large to fit into 32 bytes.")
-	}
-	var big_endian_byte_slice [32]byte
-	x.FillBytes(big_endian_byte_slice[:])
-	result[0] = binary.BigEndian.Uint64(big_endian_byte_slice[24:32])
-	result[1] = binary.BigEndian.Uint64(big_endian_byte_slice[16:24])
-	result[2] = binary.BigEndian.Uint64(big_endian_byte_slice[8:16])
-	result[3] = binary.BigEndian.Uint64(big_endian_byte_slice[0:8])
-	return
-}
-*/
-
 // BitLen returns the length of z in bits. This means that we return the smallest i>=0, s.t. z < 2^i.
 // The bitlength of 0 is 0.
 func (z *Uint256) BitLen() int {
@@ -243,7 +225,7 @@ func (z *Uint256) Add(x, y *Uint256) {
 }
 
 // Note: We don't have a variant that take a carry as input, as we don't need it.
-// carries are stored in uint64. This is consistent with bits.Add64 etc.
+// carries are stored in an uint64 (even though it's 0/1-valued). This is consistent with bits.Add64 etc.
 
 // AddAndReturnCarry computes an addition z := x + y.
 // The addition is carried out modulo 2^256
@@ -387,7 +369,9 @@ func (z *Uint256) ShiftRightEq_64() (ShiftOut uint64) {
 	return
 }
 
-// ShiftRightEq shifts the internal uint64 array by the given amount i, with 0 <= i <= 64
+// ShiftRightEq shifts the internal uint64 array by the given amount, with 0 <= amount <= 64
+//
+// If amount > 64, the behaviour is unspecified
 func (z *Uint256) ShiftRightEq(amount uint) {
 	z[0] = (z[0] >> amount) | (z[1] << (64 - amount))
 	z[1] = (z[1] >> amount) | (z[2] << (64 - amount))
@@ -407,7 +391,7 @@ func (z *Uint256) ShiftLeftEq_64() (ShiftOut uint64) {
 
 // LongMulUint64 multiplies a 256bit by a 64 bit uint, resulting in a 320-bit uint (stored as low-endian [5]uint64)
 //
-// Usage is LongMulUint64(&z, &x, y) to compute z := x * y
+// Usage is LongMulUint64(&z, &x, y) to compute z := x * y. (The data types will only allow one order anyway)
 func LongMulUint64(target *[5]uint64, x *Uint256, y uint64) {
 	var carry, mul_low uint64
 	target[1], target[0] = bits.Mul64(x[0], y)
@@ -573,15 +557,20 @@ type ToUint256Convertible interface {
 	ToUint256(*Uint256)
 }
 
-func IsEqualAsUint256[Arg1, Arg2 ToUint256Convertible](arg1 Arg1, arg2 Arg2) bool {
+// IsEqualAsUint256 converts arg1 and arg2 to Uint256 and compares those for equality.
+func IsEqualAsUint256(arg1 ToUint256Convertible, arg2 ToUint256Convertible) bool {
 	var u1, u2 Uint256
 	arg1.ToUint256(&u1)
 	arg2.ToUint256(&u2)
 	return u1 == u2
 }
 
-// unsignedExponentDecomposition models a decomposition of a Uint256 x into a sum x = exp_0 << pos_0 + exp_1 << pos_1 + ...
-type unsignedExponentDecomposition struct {
+// unsignedExponentDecompositionEntry models entries of a decomposition of a Uint256 x into a sum x = exp_0 << pos_0 + exp_1 << pos_1 + ...
+//
+// such decompositions arise in sliding windows algorithms for exponentiation.
+// Note that the actual exponentiation algorithms are in uint256_modular.go and/or uint256_montgomery.go,
+// since we only care about modular exponentiation. The decomposition algorithm for sliding window is contained here, though.
+type unsignedExponentDecompositionEntry struct {
 	exp uint
 	pos uint
 }
@@ -590,21 +579,21 @@ type unsignedExponentDecomposition struct {
 //
 // The returned decomposition has the following properties:
 //
-//   - z = sum_i decomposition[i].exp << decomposition[i].pos
+//   - z == sum_i decomposition[i].exp << decomposition[i].pos
 //   - The decomposition[i].pos are strictly decreasing
 //   - Each decomposition[i].exp is odd
 //   - decomposition[i].exp < (1<<windowSize)
 //
 // For the current implementation, the difference decomposition[i].pos - decomposition[i+1].pos is >= windowSize, but we don't guarantee this.
-func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (decomposition []unsignedExponentDecomposition) {
+func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (decomposition []unsignedExponentDecompositionEntry) {
 	if windowsize == 0 {
 		panic(ErrorPrefix + "trying a sliding window decomposition with window size 0")
 	}
 	if windowsize >= 64 {
 		panic(ErrorPrefix + "trying a sliding window decomposition with window size >=64")
 	}
-	var MAXSIZE = (int(windowsize) + 255) / int(windowsize)        // maximal number of entries in the resulting decomposition
-	decomposition = make([]unsignedExponentDecomposition, MAXSIZE) // resulting decomposition
+	var MAXSIZE = (int(windowsize) + 255) / int(windowsize)             // maximal number of entries in the resulting decomposition
+	decomposition = make([]unsignedExponentDecompositionEntry, MAXSIZE) // resulting decomposition
 
 	// MAXSIZE - 1 - actualSize is the current number of decomposition entries we have already created.
 	// actualSize counts from above towards 0 for efficiency reasons (because we want the result in reverse order)
