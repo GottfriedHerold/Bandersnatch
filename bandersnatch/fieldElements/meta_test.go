@@ -13,15 +13,14 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
 // This file contains code that is shared by a lot of benchmarking and testing code
 // such as setup and/or teardown code as well as integrating call counters into go's
 // default benchmarking framework.
 
 // This file contains the code specific for benchmarking and testing field elements;
 // (There is similar code for curve operations)
-
-// We have benchmarking code for the actual FieldElement = bsFieldElement_64 implementation
-// and also (nearly identical) benchmarking code for the reference bsFieldElement_8 implementation. The latter is just for comparison.
 
 // The concrete functionality provided is this:
 //
@@ -109,15 +108,15 @@ var (
 	}
 )
 
-// CachedUint256 is used to retrieved precomputed slices of uint256's. The key of type SeedAndRange allows to select an rng seed an a range.
+// CachedUint256 is used to retrieve precomputed slices of uint256's. The key of type SeedAndRange allows to select an rng seed an a range.
 //
-// Usage: CachedUint256.GetElements(key, amount)
+// Usage: CachedUint256.GetElements(SeedAndRange{seed: rngseed, allowedRange: upperBound}, amount). Note that upperBound is strict, i.e. the outputs are in [0, upperBound)
 var CachedUint256 = testutils.MakePrecomputedCache[SeedAndRange, Uint256](
 	// creating random seed:
 	func(key SeedAndRange) *rand.Rand {
-		testutils.Assert(key.allowedRange != nil)
-		testutils.Assert(key.allowedRange.Sign() > 0)
-		testutils.Assert(key.allowedRange.BitLen() <= 256 || key.allowedRange.Cmp(common.TwoTo256_Int) == 0)
+		testutils.Assert(key.allowedRange != nil, "SeedAndRange argument to CachedUint256.GetElements lacks an allowedRange parameter")
+		testutils.Assert(key.allowedRange.Sign() > 0, "CachedUint256.GetElements called with allowedRange <=0")
+		testutils.Assert(key.allowedRange.BitLen() <= 256 || key.allowedRange.Cmp(common.TwoTo256_Int) == 0, "CachedUint256.GetElements called with too large allowedRange")
 
 		return rand.New(rand.NewSource(key.seed))
 	},
