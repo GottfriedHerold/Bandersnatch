@@ -214,7 +214,7 @@ func (z *Uint256) ModularExponentiationMontgomery_fa(base *Uint256, exponent *Ui
 	// NOTE: Square and multiply takes around 256 (or 255) * 1.5 approx. 380 multiplications/squarings
 	// Sliding window takes around 310
 	// Still, Square and multiply is faster according to my benchmarks.
-	base.modularExponentiationSquareAndMultiplyMontgomery_fa(base, exponent)
+	z.modularExponentiationSquareAndMultiplyMontgomery_fa(base, exponent)
 }
 
 // modularExponentiationSquareAndMultiplyMontgomery_fa implements ModularExponentiationMontgomery_fa using naive square&multiply
