@@ -9,6 +9,9 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go
+// for general remarks.
+
 // This file contains an implementation of the FieldElementInterface that
 // just forwards everything to [*big.Int]. This will be horrendously inefficient;
 // the sole purpose of this is to enable differential tests and get a baseline for efficiency.

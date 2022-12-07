@@ -7,10 +7,19 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// This file contains a generic benchmark suite for the generic [FieldElementInterface], so we can use this
+// to benchmark an arbitrary implementation of that interface.
+
+// Note that there is an overhead that comes from the use of generics.
+// We also have an (non-generic) old and less complete benchmark suite for bsFieldElement_MontgomeryNonUnique.
+// The latter is kept as a comparison benchmark to measure the overhead from using generics.
+
 func BenchmarkAllFieldElementTypes(b *testing.B) {
 	b.Log("NOTE: Benchmarking all field element implementations via generic benchmark. Being generic means some overhead. Take note if timings from non-generic benchmarks deviate.")
 	b.Run("MontgomeryNonUnique", benchmarkFE_all[bsFieldElement_MontgomeryNonUnique])
-	b.Run("big.Int - wrapper", benchmarkFE_all[bsFieldElement_BigInt])
+	b.Run("big.Int Wrapper", benchmarkFE_all[bsFieldElement_BigInt])
 }
 
 func benchmarkFE_all[FE any, FEPtr interface {
@@ -54,10 +63,10 @@ func benchmarkFE_all[FE any, FEPtr interface {
 	b.Run("AddUint64", benchmarkFE_AddUint64[FE, FEPtr])
 	b.Run("SubInt64", benchmarkFE_SubInt64[FE, FEPtr])
 	b.Run("SubUint64", benchmarkFE_SubUint64[FE, FEPtr])
-	b.Run("MulInt64", benchmarkFE_SubInt64[FE, FEPtr])
-	b.Run("MulUint64", benchmarkFE_SubUint64[FE, FEPtr])
-	b.Run("DivideInt64", benchmarkFE_SubInt64[FE, FEPtr])
-	b.Run("DivideUint64", benchmarkFE_SubUint64[FE, FEPtr])
+	b.Run("MulInt64", benchmarkFE_MulInt64[FE, FEPtr])
+	b.Run("MulUint64", benchmarkFE_MulUint64[FE, FEPtr])
+	b.Run("DivideInt64", benchmarkFE_DivideInt64[FE, FEPtr])
+	b.Run("DivideUint64", benchmarkFE_DivideUint64[FE, FEPtr])
 
 }
 
