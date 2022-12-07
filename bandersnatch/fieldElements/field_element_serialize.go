@@ -13,6 +13,8 @@ import (
 
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
+// This file contains the code used for serializing field elements.
+
 // forwarding types and variables / constants so users don't need to include /common
 type BitHeader = common.BitHeader
 type FieldElementEndianness = common.FieldElementEndianness
