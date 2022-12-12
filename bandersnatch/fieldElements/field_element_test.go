@@ -766,7 +766,7 @@ func testFEProperty_Uint256Roundtrip[FE any, FEPtr interface {
 			fe.SetUint256(&uint256_1)
 			fe.ToUint256(&uint256_2)
 			uint256Reduced = testedUint256
-			uint256Reduced.reduceBarret_fa()
+			uint256Reduced.reduce_fa_barret()
 
 			testutils.FatalUnless(t, uint256Reduced == uint256_2, "Uint256 -> Field Element -> Uint256 roundtrip (modulo BaseField) failure")
 			testutils.FatalUnless(t, testedUint256 == uint256_1, "")

@@ -40,14 +40,6 @@ import (
 // TODO: Split function
 // If we have multiple reduction quality statements depending on the input, we write multiple clauses: foo_b_c means that if the input is b-reduced, so is the output and if the input is c-reduced, the output is c-reduced.
 
-// toUint64 returns an array with the canonical representative of the residue class.
-//
-// DEPRECATED
-func (z *Uint256) toUint64() [4]uint64 {
-	z.reduceBarret_fa() // Reduce to canonical residue modulo m
-	return [4]uint64{z[0], z[1], z[2], z[3]}
-}
-
 // AddAndReduce_b sets z, such that z==x+y mod BaseFieldSize holds.
 //
 // We require the inputs to be in [0, 2*BaseFieldSize) and guarantee the same for the output.
@@ -252,7 +244,7 @@ func (z *Uint256) ModularInverse_a_NAIVEHAC(xIn *Uint256) bool {
 	*/
 	x := *xIn
 
-	x.reduceBarret_fa()
+	x.reduce_fa_barret()
 	if x.IsZero() {
 		return false
 	}
@@ -452,6 +444,44 @@ func (z *Uint256) ModularInverse_a_NAIVEHAC(xIn *Uint256) bool {
 	return true
 }
 
+// IsReduced_a checks whether the given Uint256 is in the range [0, 2^256).
+//
+// This always returns true and is just provided for consistency.
+func (z *Uint256) IsReduced_a() bool {
+	return true
+}
+
+// IsReduced_f checks whether the given Uint256 is in the range [0, BaseFieldSize)
+//
+// This means we check whether, as a residue modulo BaseFieldSize, it is fully reduced.
+func (z *Uint256) IsReduced_f() bool {
+	return z.is_fully_reduced()
+}
+
+// IsReduced_b checks whether the given Uint256 is in the range [0, 2*BaseFieldSize)
+func (z *Uint256) IsReduced_b() bool {
+	return z.IsLessThan(&twiceBaseFieldSize_uint256)
+}
+
+// IsReduced_c checks whether the given Uint256 is in the range [0, 2^256-BaseFieldSize)
+func (z *Uint256) IsReduced_c() bool {
+	return z.IsLessThan(&montgomeryBound_uint256)
+}
+
+// Reduce_fa replaces z by z mod BaseFieldSize. The resulting z is fully reduced.
+//
+// This is an alias to Reduce()
+func (z *Uint256) Reduce_fa() {
+	z.reduce_fa_optimistic()
+}
+
+// Reduce replaces z by z mod BaseFieldSize. The resulting z is fully reduced.
+//
+// This is an alias to Reduce_fa()
+func (z *Uint256) Reduce() {
+	z.reduce_fa_optimistic()
+}
+
 // Reduce_ca replaces z by some number z' with z' == z mod BaseFieldSize.
 //
 // z' is guaranteed to be in [0, UINT256MAX-BaseFieldSize)
@@ -471,6 +501,10 @@ func (z *Uint256) Reduce_ca() {
 //
 // More precisely, z' is guaranteed to be in [0, BaseFieldSize), provided z is in [0, 2*BaseFieldSize)
 func (z *Uint256) Reduce_fb() {
+	z.reduce_fb_exact()
+}
+
+func (z *Uint256) reduce_fb_exact() {
 	if !z.is_fully_reduced() {
 
 		var borrow uint64
@@ -479,23 +513,27 @@ func (z *Uint256) Reduce_fb() {
 		z[2], borrow = bits.Sub64(z[2], baseFieldSize_2, borrow)
 		z[3], _ = bits.Sub64(z[3], baseFieldSize_3, borrow)
 	}
+}
+
+func (z *Uint256) reduce_fb_optimistic() {
+	if z[3] < baseFieldSize_3 {
+		return
+	}
+	var borrow uint64
+	z[0], borrow = bits.Sub64(z[0], baseFieldSize_0, 0)
+	z[1], borrow = bits.Sub64(z[1], baseFieldSize_1, borrow)
+	z[2], borrow = bits.Sub64(z[2], baseFieldSize_2, borrow)
+	z[3], borrow = bits.Sub64(z[3], baseFieldSize_3, borrow)
+	if borrow != 0 { // very unlikely
+		z[0], borrow = bits.Add64(z[0], baseFieldSize_0, 0)
+		z[1], borrow = bits.Add64(z[1], baseFieldSize_1, borrow)
+		z[2], borrow = bits.Add64(z[2], baseFieldSize_2, borrow)
+		z[3], _ = bits.Add64(z[3], baseFieldSize_3, borrow)
+	}
 
 }
 
-// TODO: Add indirection to version
-// Add for - loop version
-
-// Reduce_fa replaces z by z mod BaseFieldSize. The resulting z is fully reduced.
-//
-// This is an alias to Reduce()
-func (z *Uint256) Reduce_fa() {
-	z.Reduce()
-}
-
-// Reduce replaces z by z mod BaseFieldSize. The resulting z is fully reduced.
-//
-// This is an alias to Reduce_fa()
-func (z *Uint256) Reduce() {
+func (z *Uint256) reduce_fa_optimistic() {
 	var borrow uint64
 	if z[3] < baseFieldSize_3 {
 		return
@@ -515,11 +553,94 @@ func (z *Uint256) Reduce() {
 		z[0], borrow = bits.Add64(z[0], baseFieldSize_0, 0)
 		z[1], borrow = bits.Add64(z[1], baseFieldSize_1, borrow)
 		z[2], borrow = bits.Add64(z[2], baseFieldSize_2, borrow)
-		z[3], borrow = bits.Add64(z[3], baseFieldSize_3, borrow)
-		if borrow != 0 {
-			panic("Cannot happen")
-		}
+		z[3], _ = bits.Add64(z[3], baseFieldSize_3, borrow)
 	}
+}
+
+func (z *Uint256) reduce_fa_loop() {
+	var borrow uint64
+	for z[3] >= baseFieldSize_3 {
+		z[0], borrow = bits.Sub64(z[0], baseFieldSize_0, 0)
+		z[1], borrow = bits.Sub64(z[1], baseFieldSize_1, borrow)
+		z[2], borrow = bits.Sub64(z[2], baseFieldSize_2, borrow)
+		z[3], borrow = bits.Sub64(z[3], baseFieldSize_3, borrow)
+		if borrow != 0 { // very unlikely
+			z[0], borrow = bits.Add64(z[0], baseFieldSize_0, 0)
+			z[1], borrow = bits.Add64(z[1], baseFieldSize_1, borrow)
+			z[2], borrow = bits.Add64(z[2], baseFieldSize_2, borrow)
+			z[3], _ = bits.Add64(z[3], baseFieldSize_3, borrow)
+			return
+		}
+
+	}
+}
+
+// reduce_fa_barret computes computes the canonical form z mod m, storing back in z
+func (z *Uint256) reduce_fa_barret() {
+
+	// NB: Most variable names in the comments match the pseudocode for
+	// 	Barrett reduction in the Handbook of Applied Cryptography.
+
+	var x0, x1, x2, x3, x4, r0, r1, r2, r3, r4, q3, t0, t1, c uint64
+
+	// q1 = x/2^192
+	// q2 = q1 * mu; q3 = q2 / 2^320
+
+	q3, _ = bits.Mul64(z[3], re_4)
+
+	// r1 = x mod 2^320 = x
+
+	x0 = z[0]
+	x1 = z[1]
+	x2 = z[2]
+	x3 = z[3]
+	x4 = 0
+
+	// r2 = q3 * m mod 2^320
+
+	r2, r1 = bits.Mul64(q3, m_1)
+	r4, r3 = bits.Mul64(q3, m_3)
+
+	t1, r0 = bits.Mul64(q3, m_0)
+	r1, c = bits.Add64(r1, t1, 0)
+	t1, t0 = bits.Mul64(q3, m_2)
+	r2, c = bits.Add64(r2, t0, c)
+	r3, c = bits.Add64(r3, t1, c)
+	r4, _ = bits.Add64(r4, 0, c)
+
+	// r = r1 - r2 = x - r2
+
+	// Note: x < 2^256
+	//    => q3 <= x/m
+	//    => q3*m <= x
+	//    => r2 <= x
+	//    => r >= 0
+
+	var b uint64
+
+	r0, b = bits.Sub64(x0, r0, 0)
+	r1, b = bits.Sub64(x1, r1, b)
+	r2, b = bits.Sub64(x2, r2, b)
+	r3, b = bits.Sub64(x3, r3, b)
+	r4, _ = bits.Sub64(x4, r4, b)
+
+	for {
+		// if r>=m then r-=m
+
+		x0, b = bits.Sub64(r0, m_0, 0)
+		x1, b = bits.Sub64(r1, m_1, b)
+		x2, b = bits.Sub64(r2, m_2, b)
+		x3, b = bits.Sub64(r3, m_3, b)
+		x4, b = bits.Sub64(r4, 0, b)
+
+		if b != 0 {
+			break
+		}
+
+		// commit if no borrow (r1 >= r2 + m)
+		r4, r3, r2, r1, r0 = x4, x3, x2, x1, x0
+	}
+	z[3], z[2], z[1], z[0] = r3, r2, r1, r0
 }
 
 // is_fully_reduced checks whether z is in [0, BaseFieldSize)
@@ -734,74 +855,6 @@ func (z *Uint256) ReduceUint512ToUint256_a(x Uint512) {
 
 }
 
-// reduceBarret_fa computes computes the canonical form z mod m, storing back in z
-func (z *Uint256) reduceBarret_fa() {
-
-	// NB: Most variable names in the comments match the pseudocode for
-	// 	Barrett reduction in the Handbook of Applied Cryptography.
-
-	var x0, x1, x2, x3, x4, r0, r1, r2, r3, r4, q3, t0, t1, c uint64
-
-	// q1 = x/2^192
-	// q2 = q1 * mu; q3 = q2 / 2^320
-
-	q3, _ = bits.Mul64(z[3], re_4)
-
-	// r1 = x mod 2^320 = x
-
-	x0 = z[0]
-	x1 = z[1]
-	x2 = z[2]
-	x3 = z[3]
-	x4 = 0
-
-	// r2 = q3 * m mod 2^320
-
-	r2, r1 = bits.Mul64(q3, m_1)
-	r4, r3 = bits.Mul64(q3, m_3)
-
-	t1, r0 = bits.Mul64(q3, m_0)
-	r1, c = bits.Add64(r1, t1, 0)
-	t1, t0 = bits.Mul64(q3, m_2)
-	r2, c = bits.Add64(r2, t0, c)
-	r3, c = bits.Add64(r3, t1, c)
-	r4, _ = bits.Add64(r4, 0, c)
-
-	// r = r1 - r2 = x - r2
-
-	// Note: x < 2^256
-	//    => q3 <= x/m
-	//    => q3*m <= x
-	//    => r2 <= x
-	//    => r >= 0
-
-	var b uint64
-
-	r0, b = bits.Sub64(x0, r0, 0)
-	r1, b = bits.Sub64(x1, r1, b)
-	r2, b = bits.Sub64(x2, r2, b)
-	r3, b = bits.Sub64(x3, r3, b)
-	r4, _ = bits.Sub64(x4, r4, b)
-
-	for {
-		// if r>=m then r-=m
-
-		x0, b = bits.Sub64(r0, m_0, 0)
-		x1, b = bits.Sub64(r1, m_1, b)
-		x2, b = bits.Sub64(r2, m_2, b)
-		x3, b = bits.Sub64(r3, m_3, b)
-		x4, b = bits.Sub64(r4, 0, b)
-
-		if b != 0 {
-			break
-		}
-
-		// commit if no borrow (r1 >= r2 + m)
-		r4, r3, r2, r1, r0 = x4, x3, x2, x1, x0
-	}
-	z[3], z[2], z[1], z[0] = r3, r2, r1, r0
-}
-
 // NOTE: Inconsistent syntax, since it returns a value. Therefore deprecated
 
 // ComputeModularNegative_Weak_a computes the negation (additive inverse) of a number modulo m.
@@ -900,30 +953,6 @@ func (z *Uint256) SquareAndReduce_a(x *Uint256) {
 	var zUnreduced Uint512
 	zUnreduced.LongSquare(x)
 	z.ReduceUint512ToUint256_a(zUnreduced)
-}
-
-// IsReduced_a checks whether the given Uint256 is in the range [0, 2^256).
-//
-// This always returns true and is just provided for consistency.
-func (z *Uint256) IsReduced_a() bool {
-	return true
-}
-
-// IsReduced_f checks whether the given Uint256 is in the range [0, BaseFieldSize)
-//
-// This means we check whether, as a residue modulo BaseFieldSize, it is fully reduced.
-func (z *Uint256) IsReduced_f() bool {
-	return z.is_fully_reduced()
-}
-
-// IsReduced_b checks whether the given Uint256 is in the range [0, 2*BaseFieldSize)
-func (z *Uint256) IsReduced_b() bool {
-	return z.IsLessThan(&twiceBaseFieldSize_uint256)
-}
-
-// IsReduced_c checks whether the given Uint256 is in the range [0, 2^256-BaseFieldSize)
-func (z *Uint256) IsReduced_c() bool {
-	return z.IsLessThan(&montgomeryBound_uint256)
 }
 
 // Jacobi symbol computations. We might try multiple approaches and benchmark them against each other, hence the V1.

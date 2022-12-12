@@ -219,7 +219,7 @@ func TestUint256_ModularInverse_a_NAIVEHAC(t *testing.T) {
 			x = twiceBaseFieldSize_uint256
 		}
 		xCopy := x
-		xCopy.reduceBarret_fa()
+		xCopy.reduce_fa_barret()
 		if xCopy.IsZero() {
 			xInt = x.ToBigInt()
 			testutils.FatalUnless(t, zInt.ModInverse(xInt, baseFieldSize_Int) == nil, "Cannot happen")
@@ -254,17 +254,45 @@ func testReductionFunction(t *testing.T, reductionFunction func(*Uint256), reduc
 
 	xs := CachedUint256.GetElements(reducedInputSeed, num)
 
+	for _, x := range xs {
+		xInt := x.ToBigInt()
+		testutils.FatalUnless(t, xInt.Cmp(reducedInputSeed.allowedRange) < 0, "Generation of input samples was wrong")
+	}
+
+	xs = append(xs, zero_uint256)
+	xs = append(xs, baseFieldSize_uint256)
+	xs = append(xs, twiceBaseFieldSize_uint256)
+	xs = append(xs, twoTo256ModBaseField_uint256)
+
+	for i := 0; i < 4; i++ {
+		for _, y := range []Uint256{baseFieldSize_uint256, twiceBaseFieldSize_uint256, zero_uint256, twoTo256ModBaseField_uint256} {
+			temp := y
+			temp[i] += 1
+			xs = append(xs, temp)
+			temp = y
+			temp[i] -= 1
+			xs = append(xs, temp)
+		}
+	}
+
+	xs = append(xs, uint256Max_uint256)
+
 	var z Uint256
 	var zInt *big.Int = new(big.Int)
 	var xInt *big.Int = new(big.Int)
 
 	for _, x := range xs {
 		z = x
+
+		xInt = x.ToBigInt()
+		if xInt.Cmp(reducedInputSeed.allowedRange) >= 0 {
+			continue
+		}
+
 		reductionFunction(&z)
 
 		testutils.FatalUnless(t, outputReducednessCheck(&z), funName+" does not properly reduce")
 
-		xInt = x.ToBigInt()
 		xInt.Mod(xInt, baseFieldSize_Int)
 
 		zInt = z.ToBigInt()
@@ -272,12 +300,20 @@ func testReductionFunction(t *testing.T, reductionFunction func(*Uint256), reduc
 
 		testutils.FatalUnless(t, xInt.Cmp(zInt) == 0, funName+" does not preserve element modulo BaseFieldSize")
 	}
+
 }
 
 func TestUint256_Reduce(t *testing.T) {
 	testReductionFunction(t, (*Uint256).Reduce_ca, pc_uint256_a, (*Uint256).IsReduced_c, "reduce_ca")
 	testReductionFunction(t, (*Uint256).Reduce_fb, pc_uint256_b, (*Uint256).IsReduced_f, "reduce_fb")
-	testReductionFunction(t, (*Uint256).reduceBarret_fa, pc_uint256_a, (*Uint256).IsReduced_f, "reduceBarret_fa")
+	testReductionFunction(t, (*Uint256).Reduce, pc_uint256_a, (*Uint256).IsReduced_f, "Reduce")
+	testReductionFunction(t, (*Uint256).Reduce_fa, pc_uint256_a, (*Uint256).IsReduced_f, "Reduce_fa")
+
+	testReductionFunction(t, (*Uint256).reduce_fa_barret, pc_uint256_a, (*Uint256).IsReduced_f, "reduce_fa_barret")
+	testReductionFunction(t, (*Uint256).reduce_fa_optimistic, pc_uint256_a, (*Uint256).IsReduced_f, "reduce_fa_optimistic")
+	testReductionFunction(t, (*Uint256).reduce_fa_loop, pc_uint256_a, (*Uint256).IsReduced_f, "reduce_fa_loop")
+	testReductionFunction(t, (*Uint256).reduce_fb_exact, pc_uint256_b, (*Uint256).IsReduced_f, "reduce_fb_exact")
+	testReductionFunction(t, (*Uint256).reduce_fb_optimistic, pc_uint256_b, (*Uint256).IsReduced_f, "reduce_fb_optimistic")
 }
 
 func TestUint256_IsFullyReduced(t *testing.T) {
@@ -536,7 +572,7 @@ func TestUint256_ModularExponentiation(t *testing.T) {
 
 		target.ModularExponentiation_fa(&basis, &one_uint256)
 		dummy1 = basis
-		dummy1.reduceBarret_fa()
+		dummy1.reduce_fa_barret()
 		testutils.FatalUnless(t, target == dummy1, "x^1 != x modulo BaseFieldSize")
 		target.ModularExponentiation_fa(&basis, &zero_uint256)
 		testutils.FatalUnless(t, target.IsOne(), "x^0 != 1")

@@ -113,7 +113,7 @@ func (z *bsFieldElement_BigInt) InvEq() {
 
 func (z *bsFieldElement_BigInt) SetUint256(x *Uint256) {
 	z.value = *x
-	z.value.reduceBarret_fa()
+	z.value.reduce_fa_barret()
 }
 
 func (z *bsFieldElement_BigInt) ToUint256(x *Uint256) {

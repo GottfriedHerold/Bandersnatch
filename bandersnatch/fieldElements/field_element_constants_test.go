@@ -195,7 +195,7 @@ func TestValidityOfConstants(t *testing.T) {
 
 	testutils.FatalUnless(t, minus2To256ModBaseField_uint256.is_fully_reduced(), "-(2**256) not fully reduced")
 	temp_uint256.Add(&minus2To256ModBaseField_uint256, &twoTo256ModBaseField_uint256)
-	temp_uint256.reduceBarret_fa()
+	temp_uint256.reduce_fa_barret()
 	testutils.FatalUnless(t, temp_uint256.IsZero(), "-(2**256) invalid")
 
 	testutils.FatalUnless(t, FieldElementOne.IsOne(), "Exported FieldElementOne is not 1")

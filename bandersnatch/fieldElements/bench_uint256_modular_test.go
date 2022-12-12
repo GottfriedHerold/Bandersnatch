@@ -26,11 +26,19 @@ func Benchmark_uint256_Modular(b *testing.B) {
 	b.Run("Sub_b (pre-conditional subtraction)", benchmarkUint256m_SubAndReduce_b)
 	b.Run("SubEq_a (Luan's reduce and check)", benchmarkUint256m_SubEqAndReduce_a)
 	b.Run("Invert_a (HAC version with standard improvement)", benchmarkUint256m_ModularInverse_a)
-	b.Run("Reduce_ca (conditional subtraction)", benchmarkUint256m_CopyAndReduce_ca)
-	b.Run("Reduce_fb (conditional subtraction)", benchmarkUint256m_CopyAndReduce_fb)
+	b.Run("Reduce", benchmarkUint256m_CopyAndReduce)
+	b.Run("Reduce_fa", benchmarkUint256m_CopyAndReduce_fa)
+	b.Run("Reduce_ca", benchmarkUint256m_CopyAndReduce_ca)
+	b.Run("Reduce_fb", benchmarkUint256m_CopyAndReduce_fb)
+
+	b.Run("Reduce_fa_Barret", benchmarkUint256m_CopyAndReduce_fa_barret)
+	b.Run("Reduce_fa_optimistic", benchmarkUint256m_CopyAndReduce_fa_optimistic)
+	b.Run("Reduce_fa_loop", benchmarkUint256m_CopyAndReduce_fa_optimistic)
+	b.Run("Reduce_fb_exact", benchmarkUint256m_CopyAndReduce_fb_exact)
+	b.Run("Reduce_fb_optimistic", benchmarkUint256m_CopyAndReduce_fb_optimistic)
+
 	b.Run("IsFullyReduced_a (if-chain)", benchmarkUint256m_IsFullyReduced_a)
 	b.Run("Barret512->256_a", benchmarkUint256m_Reduction512To256_a)
-	b.Run("BarretReduce_fa", benchmarkUint256m_CopyAndReduceBarret_fa)
 	b.Run("ComputeNeg_a (Reduce and check)", benchmark_ComputeModularNegative_f)
 	b.Run("DoubleEq_a (Reduce and check)", benchmarkUint256m_CopyAndDoubleEqAndReduce_a)
 	b.Run("MulEq_a (Barret)", benchmarkUint256m_MulEqBarret_a)
@@ -136,6 +144,24 @@ func benchmarkUint256m_ModularInverse_a(b *testing.B) {
 	}
 }
 
+func benchmarkUint256m_CopyAndReduce(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].Reduce()
+	}
+}
+
+func benchmarkUint256m_CopyAndReduce_fa(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].Reduce_fa()
+	}
+}
+
 func benchmarkUint256m_CopyAndReduce_ca(b *testing.B) {
 	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
@@ -154,20 +180,48 @@ func benchmarkUint256m_CopyAndReduce_fb(b *testing.B) {
 	}
 }
 
-func benchmarkUint256m_IsFullyReduced_a(b *testing.B) {
-	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
-	prepareBenchmarkFieldElements(b)
-	for n := 0; n < b.N; n++ {
-		DumpBools_fe[n%benchS] = bench_x[n%benchS].is_fully_reduced()
-	}
-}
-
-func benchmarkUint256m_CopyAndReduceBarret_fa(b *testing.B) {
+func benchmarkUint256m_CopyAndReduce_fa_barret(b *testing.B) {
 	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS] = bench_x[n%benchS]
-		DumpUint256[n%benchS].reduceBarret_fa()
+		DumpUint256[n%benchS].reduce_fa_barret()
+	}
+}
+
+func benchmarkUint256m_CopyAndReduce_fa_optimistic(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].reduce_fa_optimistic()
+	}
+}
+
+func benchmarkUint256m_CopyAndReduce_fa_loop(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].reduce_fa_optimistic()
+	}
+}
+
+func benchmarkUint256m_CopyAndReduce_fb_exact(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].reduce_fb_exact()
+	}
+}
+
+func benchmarkUint256m_CopyAndReduce_fb_optimistic(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_b, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpUint256[n%benchS] = bench_x[n%benchS]
+		DumpUint256[n%benchS].reduce_fb_optimistic()
 	}
 }
 
@@ -177,6 +231,14 @@ func benchmarkUint256m_Reduction512To256_a(b *testing.B) {
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
 		DumpUint256[n%benchS].ReduceUint512ToUint256_a(bench_x[n%benchS]) // pass-by-value. This is dubious, but that's what Luans code does and we want to benchmark as-is first.
+	}
+}
+
+func benchmarkUint256m_IsFullyReduced_a(b *testing.B) {
+	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		DumpBools_fe[n%benchS] = bench_x[n%benchS].is_fully_reduced()
 	}
 }
 
