@@ -209,12 +209,12 @@ type valuesSerializerHeaderFeHeaderFe struct {
 func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
 	defer updateReadError(&err, &bytesRead, int(s.OutputLength())) // Ensure correctess of PartialRead flag on error.
 
-	bytesRead, err = fieldElement1.DeserializeWithPrefix(input, s.bitHeader, s.fieldElementEndianness)
+	bytesRead, err = fieldElement1.DeserializeWithExpectedPrefix(input, s.bitHeader, s.fieldElementEndianness)
 	// Note: This aborts on ErrNonNormalizedDeserialization. I.e. if the first field element is not in normalized form, we do not even read the second.
 	if err != nil {
 		return
 	}
-	bytesJustRead, err := fieldElement2.DeserializeWithPrefix(input, s.bitHeader2, s.fieldElementEndianness)
+	bytesJustRead, err := fieldElement2.DeserializeWithExpectedPrefix(input, s.bitHeader2, s.fieldElementEndianness)
 	bytesRead += bytesJustRead
 	// We treat EOF like UnexpectedEOF at this point. The reason is that we treat the PAIR of field elements as a unit.
 	errorTransform.UnexpectEOF2(&err) // transforms EOF -> UnexpectedEOF
@@ -395,7 +395,7 @@ type valuesSerializerHeaderFe struct {
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
 func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement fieldElements.FieldElement) {
-	bytesRead, err = fieldElement.DeserializeWithPrefix(input, s.bitHeader, s.fieldElementEndianness)
+	bytesRead, err = fieldElement.DeserializeWithExpectedPrefix(input, s.bitHeader, s.fieldElementEndianness)
 	return
 }
 

@@ -1,6 +1,7 @@
 package fieldElements
 
 import (
+	"bytes"
 	"io"
 	"math/bits"
 
@@ -25,6 +26,68 @@ var (
 	DefaultEndian FieldElementEndianness = common.DefaultEndian
 )
 
+/***
+	General free functions
+***/
+
+// handleNonNormalizedReads is an internal function used to handle the case when during reading a field element we read a uint256 that is not reduced.
+//
+// This function fully reduces z and returns an error wrapping ErrNonNormalizedDeserialization.
+// The bytesRead and bitHeader parameters are only used to get the error metadata right:
+// We use them to write the unreduced z back to
+func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHeader, byteOrder FieldElementEndianness) (err bandersnatchErrors.DeserializationError) {
+
+	var buf bytes.Buffer
+	bufBytesWritten, err2 := z.SerializeWithPrefix(&buf, bitHeader, byteOrder)
+	if err2 != nil || buf.Len() != 32 || bufBytesWritten != 32 {
+		panic(ErrorPrefix + "cannot happen")
+	}
+
+	var errData bandersnatchErrors.ReadErrorData = bandersnatchErrors.ReadErrorData{
+		PartialRead:  false,
+		BytesRead:    bytesRead,
+		ActuallyRead: buf.Bytes(), // Note: buf.Bytes() does not copy, but that's OK here, as we throw away the bytes.Buffer
+	}
+	err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &errData)
+
+	// fully reduce z
+	z.Reduce_fa()
+	return err
+}
+
+func SerializeFieldElementWithPrefix(x FieldElementInterface_common, output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+	// could do more efficiently by unrolling (thereby saving a copy).
+	var x256 Uint256
+	x.ToUint256(&x256)
+	return x256.SerializeWithPrefix(output, prefix, byteOrder)
+}
+
+func DeserializeFieldElementAndGetPrefix(z FieldElementInterface_common, input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+	var zUint256 Uint256
+	bytesRead, prefix, err = zUint256.DeserializeAndGetPrefix(input, prefixLength, byteOrder)
+	if err != nil {
+		return
+	}
+	if !zUint256.is_fully_reduced() {
+		err = handleNonNormalizedReads(&zUint256, bytesRead, common.MakeBitHeader(prefix, prefixLength), byteOrder)
+	}
+	z.SetUint256(&zUint256)
+	return
+}
+
+func DeserializeFieldElementWithExpectedPrefix(z FieldElementInterface_common, input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+	var zUint256 Uint256
+	bytesRead, err = zUint256.DeserializeWithExpectedPrefix(input, expectedPrefix, byteOrder)
+	if err != nil {
+		return
+	}
+	if !zUint256.is_fully_reduced() {
+		err = handleNonNormalizedReads(&zUint256, bytesRead, common.BitHeader{}, byteOrder)
+	}
+	z.SetUint256(&zUint256)
+	return
+}
+
 // SerializeWithPrefix is used to serialize the given number with some extra prefix bits squeezed into the most significant byte of the field element.
 // This function is needed for "compressed" serialization of curve points, where we often need to write an extra sign bit.
 //
@@ -47,21 +110,22 @@ var (
 // Possible errors: io errors and ErrPrefixDoesNotFit (all possibly wrapped)
 // The error data's BytesWritten always equals the directly returned bytesWritten
 func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	var low_endian_words [4]uint64 = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
+	var zUint256 Uint256 // = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
+	zUint256.FromMontgomeryRepresentation_fc(&z.words)
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
-	if bits.LeadingZeros64(low_endian_words[3]) < int(prefix_length) {
+	if bits.LeadingZeros64(zUint256[3]) < int(prefix_length) {
 		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
 		return
 	}
 
 	// put prefix into msb of low_endian_words
-	low_endian_words[3] |= (uint64(prefix_bits) << (64 - prefix_length))
+	zUint256[3] |= (uint64(prefix_bits) << (64 - prefix_length))
 
 	var errPlain error
 
 	var buf []byte = make([]byte, 32)
-	byteOrder.PutUint256(buf, low_endian_words)
+	byteOrder.PutUint256(buf, zUint256)
 	bytesWritten, errPlain = output.Write(buf)
 	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
 	return
@@ -81,52 +145,34 @@ func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Write
 // possible errors: errors wrapping ErrPrefixLengthInvalid, ErrInvalidByteOrder, ErrNonNormalizedDeserialization, io errors
 // The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read; ActuallyRead is nil if no read attempt was made due to invalid function arguments.
 func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
-	if prefixLength > common.MaxLengthPrefixBits {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
-			PartialRead:  false,
-			BytesRead:    0,
-			ActuallyRead: nil, // We do not even try to read
-		})
-		// Should we panic(err) ???
+	bytesRead, prefix, err = z.words.DeserializeAndGetPrefix(input, prefixLength, byteOrder)
+	if err != nil {
 		return
 	}
-	var errPlain error
-	// We read all input into buf first, because we don't want to touch z on most errors.
-	buf := make([]byte, 32)
-	bytesRead, errPlain = io.ReadFull(input, buf)
-	if errPlain != nil {
-		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.ReadErrorData{
-			PartialRead:  bytesRead != 0 && bytesRead != 32,
-			BytesRead:    bytesRead,
-			ActuallyRead: buf[0:bytesRead],
-		})
-		return
-	}
-
-	// This writes to z in non-Montgomery form (including the prefix, which we will remove subsequently)
-	z.words = byteOrder.Uint256(buf)
-
-	// read out the top prefixLength many bits.
-	prefix = common.PrefixBits(z.words[3] >> (64 - prefixLength))
-
-	// clear those bits from z
-	var bitmask_remaining uint64 = 0xFFFFFFFF_FFFFFFFF >> prefixLength
-	z.words[3] &= bitmask_remaining
-
 	if !z.isNormalized() {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &bandersnatchErrors.ReadErrorData{
+
+		// Try to reconstruct the raw bytes we just read
+		var buf bytes.Buffer
+		bufBytesWritten, err2 := z.words.SerializeWithPrefix(&buf, common.MakeBitHeader(prefix, prefixLength), byteOrder)
+		if err2 != nil || buf.Len() != 32 || bufBytesWritten != 32 {
+			panic(ErrorPrefix + "cannot happen")
+		}
+
+		var errData bandersnatchErrors.ReadErrorData = bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    bytesRead,
-			ActuallyRead: buf,
-		})
+			ActuallyRead: buf.Bytes(),
+		}
+		err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &errData)
 
 		// We do not immediately return, because we put z in Montgomery form before, such that the output is what we read modulo BaseFieldSize, even though we have an error.
+		z.words.Reduce_ca()
 	}
-	z.restoreMontgomery()
+	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
 	return
 }
 
-// DeserializeWithPrefix works like DeserializeAndGetPrefix, but instead of returning a prefix, it checks whether an expected prefix is present;
+// DeserializeWithExpectedPrefix works like DeserializeAndGetPrefix, but instead of returning a prefix, it checks whether an expected prefix is present;
 // it is intended to verify and consume expected "headers" of sub-byte size.
 //
 // If the prefix is not present, we return an error wrapping ErrPrefixMismatch and do not write to z.
@@ -137,7 +183,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Re
 // NOTE2: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
 // For the little endian case, we always try to read 32 bytes.
 // This behaviour might change in the future. Do not rely on it and check the returned bytesRead.
-func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
 
 	// var fieldElementBuffer bsFieldElement_64
 	var little_endian_words [4]uint64 // we do not write to z directly, because we need to check for errors first.
@@ -198,12 +244,11 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithPrefix(input io.Read
 	// Note: We need to call isNormalized before restoreMontgomery (because the latter would normalize).
 	if !z.isNormalized() {
 		errPlain = ErrNonNormalizedDeserialization
-
+		z.words.Reduce_ca()
 		// No return; we need undo Montgomery representation first.
 	}
-	z.restoreMontgomery()
+	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
 	return
-
 }
 
 // Deserialize(input, byteOrder) deserializes from input, reading 32 bytes from it and interpreting it as an integer.

@@ -74,7 +74,7 @@ func TestSerializeFieldElements(t *testing.T) {
 		if err != nil || bytes_written != BaseFieldByteLength {
 			t.Fatal("Serialization of field element failed with long prefix: ", err)
 		}
-		bytes_read, err = fe2.DeserializeWithPrefix(&buf, common.MakeBitHeader(random_prefix, 2), byteOrder)
+		bytes_read, err = fe2.DeserializeWithExpectedPrefix(&buf, common.MakeBitHeader(random_prefix, 2), byteOrder)
 		if err != nil || bytes_read != BaseFieldByteLength {
 			t.Fatal("Deserialization of field element failed with long prefix: ", err)
 		}
@@ -86,7 +86,7 @@ func TestSerializeFieldElements(t *testing.T) {
 		if bytes_written != BaseFieldByteLength || err != nil {
 			t.Fatal("Serialization of field elements failed on resetted buffer")
 		}
-		_, err = fe2.DeserializeWithPrefix(&buf, common.MakeBitHeader(0, 1), byteOrder)
+		_, err = fe2.DeserializeWithExpectedPrefix(&buf, common.MakeBitHeader(0, 1), byteOrder)
 		if !errors.Is(err, ErrPrefixMismatch) {
 			t.Fatal("Prefix mismatch was not detected in deserialization of field elements")
 		}

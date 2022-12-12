@@ -207,15 +207,6 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetZero() {
 	z.words = Uint256{}
 }
 
-var _ = callcounters.CreateAttachedCallCounter("MulEqFromMontgomery", "", "MulEqFe")
-
-// restoreMontgomery restores the internal Montgomery representation, assuming the current internal representation is *NOT* in Montgomery form.
-// This must only be used internally.
-func (z *bsFieldElement_MontgomeryNonUnique) restoreMontgomery() {
-	IncrementCallCounter("MulEqFromMontgomery")
-	z.MulEq(&bsFieldElement_64_r)
-}
-
 // ToBigInt returns a *big.Int that stores a representation of (a copy of) the given field element.
 func (z *bsFieldElement_MontgomeryNonUnique) ToBigInt() *big.Int {
 	temp := z.words.ToNonMontgomery_fc()

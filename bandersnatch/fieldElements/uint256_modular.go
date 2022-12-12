@@ -482,6 +482,46 @@ func (z *Uint256) Reduce_fb() {
 
 }
 
+// TODO: Add indirection to version
+// Add for - loop version
+
+// Reduce_fa replaces z by z mod BaseFieldSize. The resulting z is fully reduced.
+//
+// This is an alias to Reduce()
+func (z *Uint256) Reduce_fa() {
+	z.Reduce()
+}
+
+// Reduce replaces z by z mod BaseFieldSize. The resulting z is fully reduced.
+//
+// This is an alias to Reduce_fa()
+func (z *Uint256) Reduce() {
+	var borrow uint64
+	if z[3] < baseFieldSize_3 {
+		return
+	}
+	if z[3] < twiceBaseFieldSize_64_3 {
+		z[0], borrow = bits.Sub64(z[0], baseFieldSize_0, 0)
+		z[1], borrow = bits.Sub64(z[1], baseFieldSize_1, borrow)
+		z[2], borrow = bits.Sub64(z[2], baseFieldSize_2, borrow)
+		z[3], borrow = bits.Sub64(z[3], baseFieldSize_3, borrow)
+	} else {
+		z[0], borrow = bits.Sub64(z[0], twiceBaseFieldSize_64_0, 0)
+		z[1], borrow = bits.Sub64(z[1], twiceBaseFieldSize_64_1, borrow)
+		z[2], borrow = bits.Sub64(z[2], twiceBaseFieldSize_64_2, borrow)
+		z[3], borrow = bits.Sub64(z[3], twiceBaseFieldSize_64_3, borrow)
+	}
+	if borrow != 0 { // very unlikely
+		z[0], borrow = bits.Add64(z[0], baseFieldSize_0, 0)
+		z[1], borrow = bits.Add64(z[1], baseFieldSize_1, borrow)
+		z[2], borrow = bits.Add64(z[2], baseFieldSize_2, borrow)
+		z[3], borrow = bits.Add64(z[3], baseFieldSize_3, borrow)
+		if borrow != 0 {
+			panic("Cannot happen")
+		}
+	}
+}
+
 // is_fully_reduced checks whether z is in [0, BaseFieldSize)
 func (z *Uint256) is_fully_reduced() bool {
 	// Workaround for Go's lack of const-arrays. Hoping for smart-ish compiler.
