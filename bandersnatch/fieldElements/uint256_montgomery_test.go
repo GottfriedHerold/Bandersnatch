@@ -150,7 +150,7 @@ func TestUint256_MontgomeryModularExponentiation(t *testing.T) {
 
 		target.modularExponentiationSlidingWindowMontgomery_fa(&basis, &one_uint256)
 		dummy1 = basis
-		dummy1.reduce_fa_barret()
+		dummy1.Reduce()
 		testutils.FatalUnless(t, target == dummy1, "x^1 != x modulo BaseFieldSize")
 		target.modularExponentiationSlidingWindowMontgomery_fa(&basis, &zero_uint256)
 		testutils.FatalUnless(t, target == twoTo256ModBaseField_uint256, "x^0 != 1 (in Montgomery Form)")

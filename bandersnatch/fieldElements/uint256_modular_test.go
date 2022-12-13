@@ -219,7 +219,7 @@ func TestUint256_ModularInverse_a_NAIVEHAC(t *testing.T) {
 			x = twiceBaseFieldSize_uint256
 		}
 		xCopy := x
-		xCopy.reduce_fa_barret()
+		xCopy.Reduce()
 		if xCopy.IsZero() {
 			xInt = x.ToBigInt()
 			testutils.FatalUnless(t, zInt.ModInverse(xInt, baseFieldSize_Int) == nil, "Cannot happen")
@@ -572,7 +572,7 @@ func TestUint256_ModularExponentiation(t *testing.T) {
 
 		target.ModularExponentiation_fa(&basis, &one_uint256)
 		dummy1 = basis
-		dummy1.reduce_fa_barret()
+		dummy1.Reduce()
 		testutils.FatalUnless(t, target == dummy1, "x^1 != x modulo BaseFieldSize")
 		target.ModularExponentiation_fa(&basis, &zero_uint256)
 		testutils.FatalUnless(t, target.IsOne(), "x^0 != 1")

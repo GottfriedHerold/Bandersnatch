@@ -244,7 +244,7 @@ func (z *Uint256) ModularInverse_a_NAIVEHAC(xIn *Uint256) bool {
 	*/
 	x := *xIn
 
-	x.reduce_fa_barret()
+	x.Reduce()
 	if x.IsZero() {
 		return false
 	}
@@ -576,6 +576,8 @@ func (z *Uint256) reduce_fa_loop() {
 }
 
 // reduce_fa_barret computes computes the canonical form z mod m, storing back in z
+//
+// DEPRECATED
 func (z *Uint256) reduce_fa_barret() {
 
 	// NB: Most variable names in the comments match the pseudocode for
