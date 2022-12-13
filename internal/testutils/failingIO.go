@@ -21,7 +21,7 @@ type FaultyBuffer struct {
 }
 
 // Read is provided to satify the [io.Reader] interface.
-// After reading a total of faultThreshold bytes (and on subsequent read attempty of >0 bytes), we return the designated error.
+// After reading a total of faultThreshold bytes (and on subsequent read attempt of >0 bytes), we return the designated error.
 func (fb *FaultyBuffer) Read(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
