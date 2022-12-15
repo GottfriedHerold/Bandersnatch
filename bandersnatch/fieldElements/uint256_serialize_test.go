@@ -319,7 +319,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 						y.SetUint64(12321) // dummy value
 						yCopy := y
 
-						/*
+						{
 							bytesRead, readError := y.DeserializeWithExpectedPrefix(&buf, expectedPrefix, endianness)
 
 							if prefixMatch { // expectedPrefix matches the written prefix
@@ -333,7 +333,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 								testutils.FatalUnless(t, errData.PartialRead == (bytesRead > 0 && bytesRead < 32), "")
 								// NOTE: errData.ActuallyRead and errData.BytesRead have unspecified behaviour.
 							}
-						*/
+						}
 
 						y = yCopy
 						bytesRead, readError := y.DeserializeWithExpectedPrefix(badBuf1, expectedPrefix, endianness)
@@ -364,10 +364,102 @@ func TestUint256SerializePrefix(t *testing.T) {
 						}
 
 					}
-
 				}
+			}
+		}
+	}
+}
+
+// test behaviour of deserialization routines upon EOF
+func TestUint256DeserializeEOF(t *testing.T) {
+
+	// arbitrary element with high bits unset in both msbyte and lsbyte
+	var x Uint256 = InitUint256FromString("0x0102030405060708090a0b0c0d0e0f10_1112131415161718191a1b1c1d1e1f20")
+	var xBytes [40]byte // last bytes uninitialized, only first 32 bytes matter
+	for i := 0; i < 32; i++ {
+		xBytes[i] = byte(i + 1)
+	}
+	testutils.Assert(x.BitLen() == 256-7)
+
+	var startVal Uint256 = InitUint256FromString("0xf1245123562367347347346ac1412412_15125326347347346235213634763473") // arbitrary value (with all bytes set)
+	testutils.Assert(startVal.BitLen() == 256)
+
+	for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian, DefaultEndian} {
+		for i := 0; i < len(xBytes); i++ {
+
+			{
+				xCopy1 := xBytes
+				xCopy2 := xBytes
+				xCopy3 := xBytes
+				buf1 := bytes.NewBuffer(xCopy1[0:i])
+				buf2 := bytes.NewBuffer(xCopy2[0:i])
+				buf3 := bytes.NewBuffer(xCopy3[0:i])
+				y1 := startVal
+				y2 := startVal
+				y3 := startVal
+
+				bytesRead1, err1 := y1.Deserialize(buf1, endianness)
+				bytesRead2, _, err2 := y2.DeserializeAndGetPrefix(buf2, 8, endianness)
+				bytesRead3, err3 := y3.DeserializeWithExpectedPrefix(buf3, common.MakeBitHeader(common.PrefixBits(0b00), 2), endianness) // Note: expected BitHeader is good, no matter the endianness.
+
+				if err1 != nil {
+					testutils.FatalUnless(t, y1 == startVal, "Deserialize changed receiver on error. Error was %v", err1)
+				}
+
+				if err2 != nil {
+					testutils.FatalUnless(t, y2 == startVal, "DeserializeAndGetPrefix changed receiver on error. Error was %v", err2)
+				}
+
+				if err3 != nil {
+					testutils.FatalUnless(t, y3 == startVal, "DeserializeWithExpectedPrefix changed receiver on error. Error was %v", err3)
+				}
+
+				if i == 0 { // reading from empty io.Reader, we expect io.EOF
+					testutils.FatalUnless(t, bytesRead1 == 0, "Unexpected number of bytes read: %v", bytesRead1)
+					testutils.FatalUnless(t, bytesRead2 == 0, "Unexpected number of bytes read: %v", bytesRead2)
+					testutils.FatalUnless(t, bytesRead3 == 0, "Unexpected number of bytes read: %v", bytesRead3)
+					testutils.FatalUnless(t, errors.Is(err1, io.EOF), "Unexpected error: Expected EOF, got %v", err1)
+					testutils.FatalUnless(t, errors.Is(err2, io.EOF), "Unexpected error: Expected EOF, got %v", err2)
+					testutils.FatalUnless(t, errors.Is(err3, io.EOF), "Unexpected error: Expected EOF, got %v", err3)
+					// y's unchanged by the above
+					errData1 := err1.GetData()
+					errData2 := err2.GetData()
+					errData3 := err3.GetData()
+					testutils.FatalUnless(t, errData1.PartialRead == false, "Unexpected PartialRead flag")
+					testutils.FatalUnless(t, errData2.PartialRead == false, "Unexpected PartialRead flag")
+					testutils.FatalUnless(t, errData3.PartialRead == false, "Unexpected PartialRead flag")
+					testutils.FatalUnless(t, errData1.BytesRead == 0, "")
+					testutils.FatalUnless(t, errData2.BytesRead == 0, "")
+					testutils.FatalUnless(t, errData3.BytesRead == 0, "")
+				} else if i < 32 { // EOF in the middle of reading
+					testutils.FatalUnless(t, bytesRead1 == i, "Unexpected number of bytes read: Input had length %v, but read %v bytes", i, bytesRead1)
+					testutils.FatalUnless(t, bytesRead2 == i, "Unexpected number of bytes read: Input had length %v, but read %v bytes", i, bytesRead2)
+					testutils.FatalUnless(t, bytesRead3 == i, "Unexpected number of bytes read: Input had length %v, but read %v bytes", i, bytesRead3)
+					testutils.FatalUnless(t, errors.Is(err1, io.ErrUnexpectedEOF), "Unexpected error: Expected ErrUnexpectedEOF, got %v", err1)
+					testutils.FatalUnless(t, errors.Is(err2, io.ErrUnexpectedEOF), "Unexpected error: Expected ErrUnexpectedEOF, got %v", err2)
+					testutils.FatalUnless(t, errors.Is(err3, io.ErrUnexpectedEOF), "Unexpected error: Expected ErrUnexpectedEOF, got %v", err3)
+					errData1 := err1.GetData()
+					errData2 := err2.GetData()
+					errData3 := err3.GetData()
+					testutils.FatalUnless(t, errData1.PartialRead == true, "Unexpected PartialRead flag")
+					testutils.FatalUnless(t, errData2.PartialRead == true, "Unexpected PartialRead flag")
+					testutils.FatalUnless(t, errData3.PartialRead == true, "Unexpected PartialRead flag")
+				} else { // read succeeded
+					testutils.FatalUnless(t, err1 == nil, "Unexpected error %v", err1)
+					testutils.FatalUnless(t, err2 == nil, "Unexpected error %v", err2)
+					testutils.FatalUnless(t, err3 == nil, "Unexpected error %v", err3)
+					testutils.FatalUnless(t, bytesRead1 == 32, "Unexpected number of bytes read, was expecting 32, got %v", bytesRead1)
+					testutils.FatalUnless(t, bytesRead2 == 32, "Unexpected number of bytes read, was expecting 32, got %v", bytesRead2)
+					testutils.FatalUnless(t, bytesRead3 == 32, "Unexpected number of bytes read, was expecting 32, got %v", bytesRead3)
+					testutils.FatalUnless(t, y1 != startVal, "Successful deserialization did not change receiver")
+					testutils.FatalUnless(t, y2 != startVal, "Successful deserialization did not change receiver")
+					testutils.FatalUnless(t, y3 != startVal, "Successful deserialization did not change receiver")
+				}
+
 			}
 
 		}
+
 	}
+
 }
