@@ -317,7 +317,8 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 			errPlain = ErrPrefixMismatch
 			return
 		}
-		bytes_just_read, errPlain := io.ReadFull(input, buf[1:32])
+		var bytes_just_read int
+		bytes_just_read, errPlain = io.ReadFull(input, buf[1:32])
 		bytesRead += bytes_just_read
 		if errPlain != nil {
 			errorTransform.UnexpectEOF(&errPlain) // Replace io.EOF -> io.ErrUnexpectedEOF

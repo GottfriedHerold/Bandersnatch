@@ -12,6 +12,9 @@ import (
 // After either reading or writing faultThreshold many bytes, it will generate a customizable IO error.
 //
 // This is intended to be used by tests to check correct error handling.
+//
+// Note that the zero value of FaultyBuffer is considered an invalid object (as it has no designated error) and will panic on usage.
+// Use NewFaultyBuffer
 type FaultyBuffer struct {
 	designatedErr  error
 	faultThreshold int
@@ -23,6 +26,9 @@ type FaultyBuffer struct {
 // Read is provided to satify the [io.Reader] interface.
 // After reading a total of faultThreshold bytes (and on subsequent read attempt of >0 bytes), we return the designated error.
 func (fb *FaultyBuffer) Read(p []byte) (n int, err error) {
+	if fb.designatedErr == nil {
+		panic("FaultyBuffer without designated error")
+	}
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -50,8 +56,11 @@ func (fb *FaultyBuffer) Read(p []byte) (n int, err error) {
 }
 
 // Write is provided to satisfy the [io.Writer] interface
-// After writing a total of faultThreshold bytes (and  on subsequent write attempts of >0 bytes), we return the designated error.
+// After writing a total of faultThreshold bytes (and on subsequent write attempts of >0 bytes), we return the designated error.
 func (fb *FaultyBuffer) Write(p []byte) (n int, err error) {
+	if fb.designatedErr == nil {
+		panic("FaultyBuffer without designated error")
+	}
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -77,12 +86,28 @@ func (fb *FaultyBuffer) Write(p []byte) (n int, err error) {
 	return
 }
 
+// Reset resets the buffer. This clears whatever was written to the buffer and we can again write/read until faultThreshold is reached.
+//
+// The designated error is kept.
 func (fb *FaultyBuffer) Reset() {
+	if fb.designatedErr == nil {
+		panic("FaultyBuffer without designated error")
+	}
 	fb.buf.Reset()
 	fb.alreadyRead = 0
 	fb.alreadyWritten = 0
 }
 
+// NewFaultyBuffer creates a new (pointer to) a [FaultyBuffer] with the given fault threshold and non-nil designated error.
+//
+// The result behaves similar to a [bytes.Buffer], but after *either* reading or writing faultThreshold many bytes (separate counters)
+// we return the designated error as an IO error. This is intended to test error handling.
+//
+// Note: To trigger the faulty behaviour on reads, enough bytes must be present in the buffer beforehand.
+// These cannot be written by Write, since that would trigger the faulty behaviour already on Write.
+// Use the SetContent to fill the FaultyBuffer.
+//
+// Calling NewFaultyBuffer with a nil designatedError is a bug and causes this function to panic.
 func NewFaultyBuffer(faultThreshold int, designatedError error) *FaultyBuffer {
 	if designatedError == nil {
 		panic("Called NewFaultyBuffer with nil designated error") // This would result in a FaultyBuffer that would just stop after a certain point w/o indicating its error, breaking the io.Reader / io.Writer contract.
@@ -96,6 +121,9 @@ func NewFaultyBuffer(faultThreshold int, designatedError error) *FaultyBuffer {
 // SetContent resets the buffer and sets its content (for reading) to content. Note that content's length may be larger than the fault threshold.
 // The Faulty buffer will trigger an IO error after reading faultThreshold bytes or writing faultThreshold *additional* bytes.
 func (fb *FaultyBuffer) SetContent(content []byte) {
+	if fb.designatedErr == nil {
+		panic("FaultyBuffer without designated error")
+	}
 	fb.Reset()
 	L, err := fb.buf.Write(content)
 	if err != nil {
@@ -105,3 +133,13 @@ func (fb *FaultyBuffer) SetContent(content []byte) {
 		panic("Should be unreachable")
 	}
 }
+
+// Bytes returns the underlying buffer's Bytes.
+// This is a view into the unread portion, used to (readonly) look at what has been written.
+func (fb *FaultyBuffer) Bytes() []byte {
+	if fb.designatedErr == nil {
+		panic("FaultyBuffer without designated error")
+	}
+	return fb.buf.Bytes()
+}
+

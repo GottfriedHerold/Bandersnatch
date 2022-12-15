@@ -89,7 +89,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 //
 // On error, we return a non-nil error in err.
 //
-// possible errors: errors wrapping ErrPrefixLengthInvalid, ErrInvalidByteOrder, io errors
+// possible errors: errors wrapping ErrPrefixLengthInvalid, io errors
 // The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read; ActuallyRead is nil if no read attempt was made due to invalid function arguments.
 func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
@@ -137,7 +137,6 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 // For the little endian case, we always try to read 32 bytes.
 // This behaviour might change in the future. Do not rely on it and check the returned bytesRead.
 func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-
 	// var fieldElementBuffer bsFieldElement_64
 	var zTemp [4]uint64 // we do not write to z directly, because we need to check for errors first.
 	var buf [32]byte    // for receiving the input of io.ReadFull
@@ -165,7 +164,8 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 			errPlain = ErrPrefixMismatch
 			return
 		}
-		bytes_just_read, errPlain := io.ReadFull(input, buf[1:32])
+		var bytes_just_read int
+		bytes_just_read, errPlain = io.ReadFull(input, buf[1:32])
 		bytesRead += bytes_just_read
 		if errPlain != nil {
 			errorTransform.UnexpectEOF(&errPlain) // Replace io.EOF -> io.ErrUnexpectedEOF
@@ -180,7 +180,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 
 	zTemp = byteOrder.Uint256(buf[:])
 
-	// endianness and IO no longer play a role. We have everything in little_endian_words now.
+	// endianness and IO no longer play a role. We have everything in zTemp now.
 	// Note that for BigEndian, we actually check the prefix twice.
 
 	readPrefixBits := common.PrefixBits(zTemp[3] >> (64 - expectedPrefixLength))

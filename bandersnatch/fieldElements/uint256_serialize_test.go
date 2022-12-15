@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
@@ -158,6 +159,215 @@ func TestUint256Deserialize(t *testing.T) {
 			testutils.FatalUnless(t, errData.BytesRead == i, "")
 			actuallyRead := errData.ActuallyRead
 			testutils.FatalUnless(t, bytes.Equal(actuallyRead, correctResult[0:i]), "Expected to have read: 0x%X, actually read 0x%X", correctResult[0:i], actuallyRead)
+		}
+	}
+}
+
+func TestUint256SerializePrefix(t *testing.T) {
+	const num = 1000
+
+	var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{allowedRange: twoTo256_Int, seed: 10001}, num)
+	var prefixes []BitHeader = []BitHeader{
+		BitHeader{}, // == MakeBitHeader(0,0)
+		common.MakeBitHeader(0b0, 1),
+		common.MakeBitHeader(0b1, 1),
+		common.MakeBitHeader(0b10, 2),
+		common.MakeBitHeader(0b00, 2),
+		common.MakeBitHeader(0b100, 3),
+		common.MakeBitHeader(0b11111111, 8),
+	}
+	designatedError := errors.New("some_error")
+
+	for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian, DefaultEndian} {
+		for _, x := range xs {
+			bitLen := x.BitLen()
+
+			// writing to good buffer, roundtrip check for DeserializeAndGetPrefix
+			{
+				var buf bytes.Buffer
+				for _, prefix := range prefixes {
+					// try writing with prefix and check if it works.
+					lenStored := len(buf.Bytes())
+					bytesWritten, writeError := x.SerializeWithPrefix(&buf, prefix, endianness)
+					testutils.FatalUnless(t, len(buf.Bytes()) == lenStored+bytesWritten, "bytesWritten wrong")
+					prefixFit := bitLen+int(prefix.PrefixLen()) <= 256
+					if !prefixFit { // we expect an error
+						testutils.FatalUnless(t, writeError != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
+						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
+						testutils.FatalUnless(t, bytesWritten == 0, "")
+						errData := writeError.GetData()
+						testutils.FatalUnless(t, errData.PartialWrite == false, "")
+						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+						continue // no roundtrip tests
+					}
+					// we expect roundtrip
+					testutils.FatalUnless(t, writeError == nil && bytesWritten == 32, "")
+					var y Uint256
+					bytesRead, prefixBits, readError := y.DeserializeAndGetPrefix(&buf, prefix.PrefixLen(), endianness)
+					testutils.FatalUnless(t, readError == nil && bytesRead == 32, "")
+					testutils.FatalUnless(t, x == y, "Roundtrip error for SerializeWithPrefix: field element")
+					testutils.FatalUnless(t, prefixBits == prefix.PrefixBits(), "Roundtrip error for SerializeWithPrefix: prefix")
+				}
+			}
+
+			// same as above, but writing to bad buffer where we get IO errors.
+			{
+				var faultyBuf testutils.FaultyBuffer = *testutils.NewFaultyBuffer(16, designatedError)
+				for _, prefix := range prefixes {
+					faultyBuf.Reset()
+					prefixFit := bitLen+int(prefix.PrefixLen()) <= 256
+					bytesWritten, writeError := x.SerializeWithPrefix(&faultyBuf, prefix, endianness)
+					if !prefixFit {
+						// same as above
+						testutils.FatalUnless(t, writeError != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
+						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
+						testutils.FatalUnless(t, bytesWritten == 0, "")
+						errData := writeError.GetData()
+						testutils.FatalUnless(t, errData.PartialWrite == false, "")
+						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+						continue
+					}
+					// expect IO error:
+					testutils.FatalUnless(t, writeError != nil, "Write to faulty buf did not cause error")
+					testutils.FatalUnless(t, errors.Is(writeError, designatedError), "Write to faulty buf gave unexpected error %v", writeError)
+					testutils.FatalUnless(t, bytesWritten == 16, "Write to faulty buf gave unexpted number of bytes Written %v", bytesWritten)
+
+					errData := writeError.GetData()
+					testutils.FatalUnless(t, errData.PartialWrite == true, "")
+					testutils.FatalUnless(t, errData.BytesWritten == 16, "")
+				}
+			}
+
+			// reading too large prefix ought to fail as specified
+			{
+				var buf1 *bytes.Buffer = &bytes.Buffer{}
+				var buf2 *bytes.Buffer = bytes.NewBuffer(make([]byte, 32))
+				for _, buf := range []*bytes.Buffer{buf1, buf2} {
+					var y Uint256
+					y.SetUint64(12321) // dummy value
+					yCopy := y
+					bytesRead, _, err := y.DeserializeAndGetPrefix(buf, 9, endianness)
+					testutils.FatalUnless(t, bytesRead == 0, "")
+					testutils.FatalUnless(t, errors.Is(err, ErrPrefixLengthInvalid), "")
+					testutils.FatalUnless(t, yCopy == y, "y was written to on error")
+					errData := err.GetData()
+					testutils.FatalUnless(t, errData.PartialRead == false, "")
+					testutils.FatalUnless(t, errData.ActuallyRead == nil, "")
+					testutils.FatalUnless(t, errData.BytesRead == 0, "")
+				}
+			}
+
+			// Reading from bad Buffer
+			{
+				for _, prefix := range prefixes {
+					var faultyBuf *testutils.FaultyBuffer = testutils.NewFaultyBuffer(16, designatedError)
+					var goodBuf bytes.Buffer
+					_, errGood := x.SerializeWithPrefix(&goodBuf, prefix, endianness)
+					if errGood != nil {
+						continue // same as test above
+					}
+					faultyBuf.SetContent(goodBuf.Bytes())
+					var y Uint256
+					y.SetUint64(12321) // dummy value
+					yCopy := y
+					bytesRead, _, errRead := y.DeserializeAndGetPrefix(faultyBuf, prefix.PrefixLen(), endianness)
+					testutils.FatalUnless(t, bytesRead == 16, "")
+					testutils.FatalUnless(t, errors.Is(errRead, designatedError), "")
+					testutils.FatalUnless(t, y == yCopy, "y was written to on error")
+					errData := errRead.GetData()
+					testutils.FatalUnless(t, errData.PartialRead == true, "")
+					testutils.FatalUnless(t, errData.BytesRead == 16, "")
+					testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, goodBuf.Bytes()[0:16]), "")
+				}
+			}
+
+			// writing to buffer, deserialize with ExpectedPrefix
+			{
+				var buf bytes.Buffer
+				var badBuf1 = testutils.NewFaultyBuffer(1, designatedError)
+				var badBuf2 = testutils.NewFaultyBuffer(31, designatedError)
+
+				for _, prefix := range prefixes {
+					// expectedPrefixes[0] == prefix, all others have 1 bit flipped
+					var expectedPrefixes []common.BitHeader = make([]common.BitHeader, 0)
+					expectedPrefixes = append(expectedPrefixes, prefix)
+					for i := 0; i < int(prefix.PrefixLen()); i++ {
+						prefixBits := prefix.PrefixBits()
+						prefixBits ^= 1 << i
+						expectedPrefixes = append(expectedPrefixes, common.MakeBitHeader(prefixBits, prefix.PrefixLen()))
+					}
+
+					for i, expectedPrefix := range expectedPrefixes {
+
+						var prefixMatch bool = (i == 0)
+						if prefixMatch {
+							testutils.Assert(prefix == expectedPrefix)
+						}
+
+						// write to buf, badBuf1, badBuf2
+						buf.Reset()
+						_, writeError := x.SerializeWithPrefix(&buf, prefix, endianness)
+						if writeError != nil {
+							continue
+						}
+						badBuf1.SetContent(buf.Bytes())
+						badBuf2.SetContent(buf.Bytes())
+
+						// check roundtrip / error behaviour for each of buf, badBuf1, badBuf2 when reading back
+						// via DeserializeWithExpectedPrefix
+						var y Uint256
+						y.SetUint64(12321) // dummy value
+						yCopy := y
+
+						/*
+							bytesRead, readError := y.DeserializeWithExpectedPrefix(&buf, expectedPrefix, endianness)
+
+							if prefixMatch { // expectedPrefix matches the written prefix
+								testutils.FatalUnless(t, bytesRead == 32 && readError == nil, "")
+
+								testutils.FatalUnless(t, x == y, "DeserializeWithExpectedPrefix did not read back bytes: written 0x%x, read 0x%x, prefix was %v", x, y, prefix)
+							} else {
+								testutils.FatalUnless(t, errors.Is(readError, ErrPrefixMismatch), "")
+								testutils.FatalUnless(t, y == yCopy, "y was written to on error")
+								errData := readError.GetData()
+								testutils.FatalUnless(t, errData.PartialRead == (bytesRead > 0 && bytesRead < 32), "")
+								// NOTE: errData.ActuallyRead and errData.BytesRead have unspecified behaviour.
+							}
+						*/
+
+						y = yCopy
+						bytesRead, readError := y.DeserializeWithExpectedPrefix(badBuf1, expectedPrefix, endianness)
+						testutils.FatalUnless(t, readError != nil, "DeserializeWithExpectedPrefix did not return error when called on faultyBuffer, bytesRead == %v. PrefixMatch == %v, endianness == %v", bytesRead, prefixMatch, endianness) // !
+						errData := readError.GetData()
+						testutils.FatalUnless(t, errData.PartialRead == true, "")
+						testutils.FatalUnless(t, bytesRead == 1, "")
+						testutils.FatalUnless(t, y == yCopy, "")
+						// No hard guarantees about the other entries in errData
+						if prefixMatch {
+							testutils.FatalUnless(t, errors.Is(readError, designatedError), "")
+						} else {
+							testutils.FatalUnless(t, errors.Is(readError, designatedError) || errors.Is(readError, ErrPrefixMismatch), "")
+						}
+
+						y = yCopy
+						bytesRead, readError = y.DeserializeWithExpectedPrefix(badBuf2, expectedPrefix, endianness)
+						testutils.FatalUnless(t, readError != nil, "")
+						errData = readError.GetData()
+						testutils.FatalUnless(t, errData.PartialRead == true, "")
+						testutils.FatalUnless(t, y == yCopy, "")
+						testutils.FatalUnless(t, bytesRead >= 1 && bytesRead <= 31, "")
+						// No hard guarantees about the other entries in errData
+						if prefixMatch {
+							testutils.FatalUnless(t, errors.Is(readError, designatedError), "")
+						} else {
+							testutils.FatalUnless(t, errors.Is(readError, designatedError) || errors.Is(readError, ErrPrefixMismatch), "")
+						}
+
+					}
+
+				}
+			}
+
 		}
 	}
 }
