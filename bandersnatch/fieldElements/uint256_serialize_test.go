@@ -11,6 +11,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// Test that Serialize and Deserialize roundtrip.
 func TestUint256_SerializationRoundtrip(t *testing.T) {
 	prepareTestFieldElements(t)
 	const iterations = 1000

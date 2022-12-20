@@ -49,7 +49,8 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 //
 // output is an [io.Writer]. Use e.g. the standard library [bytes.Buffer] type to wrap an existing byte-slice.
 //
-// byteOrder has type [FieldElementEndianness] and wraps either [binary.BigEndian] or [binary.LittleEndian] from the standard library. We provide a BigEndian, LittleEndian, DefaultEndian constant for this.
+// byteOrder has type [FieldElementEndianness] and wraps either [binary.BigEndian] or [binary.LittleEndian] from the standard library.
+// We provide a BigEndian, LittleEndian, DefaultEndian constant for this.
 // Note that the endiannness choice only affects the order in which the bytes are written to output, NOT the replacement above, which always happens inside the most signifant byte.
 //
 // It returns the number of actually written bytes and an error (nil if ok).
@@ -60,13 +61,14 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 // The error data's BytesWritten always equals the directly returned bytesWritten
 func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
-	zCopy := *z
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(z[3]) < int(prefix_length) {
 		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
 		return
 	}
+
+	zCopy := *z
 
 	// put prefix into msb of low_endian_words
 	zCopy[3] |= (uint64(prefix_bits) << (64 - prefix_length))
@@ -87,10 +89,11 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 // As with SerializeWithPrefix, the prefix bits are returned in the lower-order bits (i.e. shifted) inside the 8-bit prefix value, even though they originally belonged to the most significant bits inside the most significant byte of the input.
 // prefixLength can be at most 8.
 //
-// On error, we return a non-nil error in err.
+// On error, we return a non-nil error in err and do not modify z.
 //
 // possible errors: errors wrapping ErrPrefixLengthInvalid, io errors
-// The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read; ActuallyRead is nil if no read attempt was made due to invalid function arguments.
+// The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read;
+// ActuallyRead is nil if no read attempt was made due to invalid function arguments.
 func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
 		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
@@ -130,7 +133,8 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 // DeserializeWithExpectedPrefix works like DeserializeAndGetPrefix, but instead of returning a prefix, it checks whether an expected prefix is present;
 // it is intended to verify and consume expected "headers" of sub-byte size.
 //
-// If the prefix is not present, we return an error wrapping ErrPrefixMismatch and do not write to z.
+// If the prefix is not present, we return an error wrapping ErrPrefixMismatch.
+// On any error, we do not write to z.
 //
 // NOTE: On error, err's BytesRead and ActuallyRead accurately reflect what and how much was read by this method.
 // NOTE2: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
