@@ -23,7 +23,7 @@ import (
 // The input string does not have to represent a number in [0, BaseFieldSize). It may represent any integer, possibly negative, which then gets reduced.
 func InitFieldElementFromString[FE any, FEPtr interface {
 	*FE
-	FieldElementInterface[*FE]
+	FieldElementInterface[FEPtr]
 }](input string) (output FE) {
 	var t *big.Int = new(big.Int)
 	var success bool

@@ -43,37 +43,52 @@ func testFESerialization_All[FEType any, FEPtr interface {
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 
+	// If FEPtr has a method Serialize, we want to get FEPtr.Serialize as a function.
+	// Unfortunately, Go does not let one type-assert on a type parameter (there are numerous feature requests for this),
+	// only on a variable of that type.
+	// This is quite annoying, because we use ReceiverType.MethodName to treat a method as a function,
+
+	// we would want to declare hasSerializer etc. inside this function, but Go currently does not support
+	// type declarations inside generic functions.
+	var dummy FEPtr
+	var funSer fe_serialization_fun[FEPtr]
+	var funDeser fe_deserialization_fun[FEPtr]
+
+	if _, ok := any(dummy).(hasSerializer); ok {
+		funSer = func(x FEPtr, output io.Writer, e FieldElementEndianness) (int, bandersnatchErrors.SerializationError) {
+			return any(x).(hasSerializer).Serialize(output, e)
+		}
+	}
+	if _, ok := any(dummy).(hasDeserializer); ok {
+		funDeser = func(x FEPtr, input io.Reader, e FieldElementEndianness) (int, bandersnatchErrors.DeserializationError) {
+			return any(x).(hasDeserializer).Deserialize(input, e)
+		}
+	}
+
 	for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian} {
-		// we would want to declare hasSerializer etc. inside this function, but Go currently does not support
-		// type declarations inside generic functions.
 
-		// If FEPtr has a method Serialize, we want to get FEPtr.Serialize as a function.
-		// Unfortunately, Go does not let one type-assert on a type parameter (there are numerous feature requests for this),
-		// only on a variable of that type.
-		// This is quite annoying, because we use ReceiverType.MethodName to treat a method as a function,
-		var dummy FEPtr
-		_, okSer := any(dummy).(hasSerializer)
-		_, okDeser := any(dummy).(hasDeserializer)
-		if okSer && okDeser {
-			funSer := func(x FEPtr, output io.Writer, e FieldElementEndianness) (int, bandersnatchErrors.SerializationError) {
-				return any(x).(hasSerializer).Serialize(output, e)
-			}
-			funDeser := func(x FEPtr, input io.Reader, e FieldElementEndianness) (int, bandersnatchErrors.DeserializationError) {
-				return any(x).(hasDeserializer).Deserialize(input, e)
-			}
-
-			t.Run("Serialization Roundtrip (method) "+endianness.String(), bind234(testFeSerialization_Roundtrip[FEType, FEPtr, FEPtr], endianness, funSer, funDeser))
-			t.Run("Deserialization of non-reduced numbers(method) "+endianness.String(), bind23(testFeSerialization_NonNormalizedDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
-			t.Run("Deserialization and EOF (method) "+endianness.String(), bind23(testFeSerialization_EOFDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
+		if funSer != nil && funDeser != nil {
+			t.Run("Serialization Roundtrip (method) "+endianness.String(), bind234(testFESerialization_Roundtrip[FEType, FEPtr, FEPtr], endianness, funSer, funDeser))
+		}
+		if funDeser != nil {
+			t.Run("Deserialization of non-reduced numbers(method) "+endianness.String(), bind23(testFESerialization_NonNormalizedDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
+			t.Run("Deserialization and EOF (method) "+endianness.String(), bind23(testFESerialization_EOFDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
+			t.Run("Deserialization with IO errors (method) "+endianness.String(), bind23(testFEDeserialization_IOError[FEType, FEPtr, FEPtr], endianness, funDeser))
+		}
+		if funSer != nil {
+			t.Run("Serialization with IO errors (method) "+endianness.String(), bind23(testFESerialization_IOError[FEType, FEPtr, FEPtr], endianness, funSer))
 		}
 
-		t.Run("Serialization Roundtrip "+endianness.String(), bind234(testFeSerialization_Roundtrip[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement, DeserializeFieldElement))
-		t.Run("Deserializing non-reduced numbers "+endianness.String(), bind23(testFeSerialization_NonNormalizedDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
-		t.Run("Deserializing and EOF "+endianness.String(), bind23(testFeSerialization_EOFDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
+		t.Run("Serialization Roundtrip "+endianness.String(), bind234(testFESerialization_Roundtrip[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement, DeserializeFieldElement))
+		t.Run("Deserializing non-reduced numbers "+endianness.String(), bind23(testFESerialization_NonNormalizedDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
+		t.Run("Deserializing and EOF "+endianness.String(), bind23(testFESerialization_EOFDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
+		t.Run("Serialization with IO errors "+endianness.String(), bind23(testFESerialization_IOError[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement))
+		t.Run("Deserialization with IO errors "+endianness.String(), bind23(testFEDeserialization_IOError[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
 	}
+
 }
 
-func testFeSerialization_Roundtrip[FEType any, FEPtr interface {
+func testFESerialization_Roundtrip[FEType any, FEPtr interface {
 	*FEType
 	FieldElementInterface[FEPtr]
 	// SerArg -- Go does not let one write this
@@ -103,7 +118,7 @@ func testFeSerialization_Roundtrip[FEType any, FEPtr interface {
 }
 
 // test deserializing data that corresponds to a non-reduced field element.
-func testFeSerialization_NonNormalizedDeserialization[FEType any, FEPtr interface {
+func testFESerialization_NonNormalizedDeserialization[FEType any, FEPtr interface {
 	*FEType
 	FieldElementInterface[FEPtr]
 	// SerArg -- Go does not let one write this
@@ -157,16 +172,16 @@ func testFeSerialization_NonNormalizedDeserialization[FEType any, FEPtr interfac
 }
 
 // check EOF behaviour
-func testFeSerialization_EOFDeserialization[FEType any, FEPtr interface {
+func testFESerialization_EOFDeserialization[FEType any, FEPtr interface {
 	*FEType
 	FieldElementInterface[FEPtr]
 	// SerArg -- Go does not let one write this
 }, SerArg FieldElementInterface_common](t *testing.T, endianness FieldElementEndianness, deserFun fe_deserialization_fun[SerArg]) {
-	// buf is at EOF now, check that this works as expected
 
 	prepareTestFieldElements(t)
 	var buf bytes.Buffer
 	buf.Reset()
+	// buf is at EOF now, check that this works as expected
 
 	// reading from buf should give EOF
 	var y FEType
@@ -206,6 +221,88 @@ func testFeSerialization_EOFDeserialization[FEType any, FEPtr interface {
 		for j := 0; j < i; j++ {
 			testutils.FatalUnless(t, errData.ActuallyRead[j] == byte(j), "")
 		}
+	}
+}
+
+// check IO error behaviour for serializer
+func testFESerialization_IOError[FEType any, FEPtr interface {
+	*FEType
+	FieldElementInterface[FEPtr]
+	// SerArg -- Go does not let one write this
+}, SerArg FieldElementInterface_common](t *testing.T, endianness FieldElementEndianness, serFun fe_serialization_fun[SerArg]) {
+	prepareTestFieldElements(t)
+
+	// arbitrary field element
+	var x FEType = InitFieldElementFromString[FEType, FEPtr]("0x0102030405060708090a0b0c0d0e0f10_1112131415161718191a1b1c1d1e1f20")
+	// xPtr := FEPtr(&x)
+	xSerArg := any(&x).(SerArg)
+
+	designatedError := errors.New("designated error")
+
+	// write to buffer using the current endianness. This is just to get buf.Bytes() holding the result of a good write we can compare against.
+	expectedBytes := func() []byte {
+		var buf bytes.Buffer
+		written, err := serFun(xSerArg, &buf, endianness)
+		testutils.FatalUnless(t, err == nil && written == 32, "Write failure, aborting this test (look at other tests' failure)")
+		return buf.Bytes()
+	}()
+
+	// IO failure after writing i bytes
+	for i := 0; i < 32; i++ {
+		faultyBuf := testutils.NewFaultyBuffer(i, designatedError)
+		bytesWritten, writeError := serFun(xSerArg, faultyBuf, endianness)
+		testutils.FatalUnless(t, errors.Is(writeError, designatedError), "Did not get expected io error, got %v instead", writeError)
+		testutils.FatalUnless(t, bytesWritten == i, "Did not write expected number %v of bytes, wrote %v instead ", i, bytesWritten)
+		errData := writeError.GetData()
+		testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "")
+		testutils.FatalUnless(t, errData.BytesWritten == i, "") // not really required, but we expect it to be true
+		testutils.FatalUnless(t, bytes.Equal(faultyBuf.Bytes(), expectedBytes[:i]), "")
+	}
+}
+
+// check IO error behaviour for deserializer
+func testFEDeserialization_IOError[FEType any, FEPtr interface {
+	*FEType
+	FieldElementInterface[FEPtr]
+	// SerArg -- Go does not let one write this
+}, SerArg FieldElementInterface_common](t *testing.T, endianness FieldElementEndianness, deserFun fe_deserialization_fun[SerArg]) {
+	prepareTestFieldElements(t)
+
+	// arbitrary Uint256
+	var xUint256 Uint256 = InitUint256FromString("0x0102030405060708090a0b0c0d0e0f10_1112131415161718191a1b1c1d1e1f20")
+	designatedError := errors.New("designated error")
+
+	// write to buffer using the current endianness. This is just to get buf.Bytes() holding some meaningful data to read.
+	// We need some non-trivial data (that distinguished the byte ordering) to properly test the error data, hence the particular value of xUint256 above.
+	bytesInBuffer := func() []byte {
+		var buf bytes.Buffer
+		written, err := xUint256.Serialize(&buf, endianness)
+		testutils.FatalUnless(t, err == nil && written == 32, "Write failure, aborting this test (look at other tests' failure)")
+		return buf.Bytes()
+	}()
+	bytesCopy := make([]byte, 32) // for copying bytes into
+
+	// IO failure after reading i bytes
+	for i := 0; i < 32; i++ {
+		// initialize Fault
+		faultyBuf := testutils.NewFaultyBuffer(i, designatedError)
+		copy(bytesCopy, bytesInBuffer) // need to copy, because SetContent takes ownership of the argument.
+		faultyBuf.SetContent(bytesCopy)
+		var x FEType
+		xSerArg := any(&x).(SerArg)
+		xPtr := FEPtr(&x)
+		xPtr.SetInt64(123)
+		xCopy := x
+
+		bytesRead, readError := deserFun(xSerArg, faultyBuf, endianness)
+		testutils.FatalUnless(t, errors.Is(readError, designatedError), "Did not get expected io error, got %v instead", readError)
+		testutils.FatalUnless(t, bytesRead == i, "Did not read expected number %v of bytes, read %v instead ", i, bytesRead)
+		testutils.FatalUnless(t, xPtr.IsEqual(&xCopy), "Failing read changed receiver")
+
+		errData := readError.GetData()
+		testutils.FatalUnless(t, errData.PartialRead == (i != 0), "")
+		testutils.FatalUnless(t, errData.BytesRead == i, "") // not really required, but we expect it to be true
+		testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, bytesInBuffer[:i]), "")
 	}
 }
 
