@@ -34,11 +34,12 @@ var (
 //
 // This function fully reduces z and returns an error wrapping ErrNonNormalizedDeserialization.
 // The bytesRead and bitHeader parameters are only used to get the error metadata right:
-// We use them to write the unreduced z back to
+// We use them to write the unreduced z back to a buffer to reconstruct the actually read data.
 func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHeader, byteOrder FieldElementEndianness) (err bandersnatchErrors.DeserializationError) {
 
-	var buf bytes.Buffer
-	bufBytesWritten, err2 := z.SerializeWithPrefix(&buf, bitHeader, byteOrder)
+	var data [32]byte
+	var buf *bytes.Buffer = bytes.NewBuffer(data[0:0:32])
+	bufBytesWritten, err2 := z.SerializeWithPrefix(buf, bitHeader, byteOrder) // write back to buf to get a buf.Bytes() that contains the actually read bytes.
 	if err2 != nil || buf.Len() != 32 || bufBytesWritten != 32 {
 		panic(ErrorPrefix + "cannot happen")
 	}
@@ -171,6 +172,10 @@ func DeserializeFieldElementWithExpectedPrefix(z FieldElementInterface_common, i
 	z.SetUint256(&zUint256)
 	return
 }
+
+/****
+	Same functionality as member functions.
+****/
 
 // Deserialize(input, byteOrder) deserializes from input, reading 32 bytes from it and interpreting it as an integer.
 // The result is stored in the receiver. byteOrder should be either BigEndian or LittleEndian and relates to the order of bytes in input.

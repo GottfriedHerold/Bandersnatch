@@ -701,8 +701,11 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetBytes(buf []byte) {
 	z.words[3] = binary.LittleEndian.Uint64(buf[24:32])
 }
 
+// BytesLength returns the size of the slice used by [ToBytes] and [SetBytes]
 func (z *bsFieldElement_MontgomeryNonUnique) BytesLength() int { return 32 }
 
+// NOTE: This function may not be part of the interface -- make free function instead
+/*
 // IsEqualAsBigInt converts the argument and itself to [*big.Int]s and checks for equality.
 // This function is not very efficient and should only be used in testing.
 func (z *bsFieldElement_MontgomeryNonUnique) IsEqualAsBigInt(x interface{ ToBigInt() *big.Int }) bool {
@@ -710,6 +713,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqualAsBigInt(x interface{ ToBigI
 	zInt := z.ToBigInt()
 	return xInt.Cmp(zInt) == 0
 }
+*/
 
 // AddInt64 performs addition of a field element and an int64.
 //
