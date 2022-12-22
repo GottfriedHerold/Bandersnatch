@@ -167,7 +167,7 @@ func DeserializeFieldElementWithExpectedPrefix(z FieldElementInterface_common, i
 		return
 	}
 	if !zUint256.is_fully_reduced() {
-		err = handleNonNormalizedReads(&zUint256, bytesRead, common.BitHeader{}, byteOrder)
+		err = handleNonNormalizedReads(&zUint256, bytesRead, expectedPrefix, byteOrder)
 	}
 	z.SetUint256(&zUint256)
 	return
