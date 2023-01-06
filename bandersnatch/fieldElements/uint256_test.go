@@ -13,7 +13,8 @@ import (
 )
 
 // We test uint256.go by running differential tests against big.Int's capabilities.
-// Note that, for now, we don't test "special values" nearly enough: -> TODO:
+// Note that, for now, we don't test "special values" nearly enough:
+// -> TODO:
 // Use PrecomputedCache's capabilities to pre-seed with special elements.
 
 // TestUint256_BigIntRoundtrip checks roundtrip Uint256 <-> BigInt

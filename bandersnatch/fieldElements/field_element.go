@@ -2,8 +2,12 @@ package fieldElements
 
 import (
 	"fmt"
+	"io"
 	"math/big"
 	"math/rand"
+
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 )
 
 // TODO: Package DOC
@@ -47,10 +51,8 @@ type FieldElementInterface_common interface {
 	ToBytes(buf []byte)                    // z.ToBytes(buf) writes the internal representation of z to buf, using z.BytesLength() many bytes. This MUST NOT be used for portable serialization.
 	SetBytes(buf []byte)                   // z.FromBytes(buf) restores z's internal representation from buf, reading z.BytesLength() many bytes. Note: The stored internal format is not guaranteed to be stable across library versions, Go versions, architecture or anything. We only guarantee internal roundtrip.
 	BytesLength() int                      // z.BytesLength() returns the length of buffer needed for ToBytes or SetBytes. Can be called on nil receiver.
-	Normalize()                            // z.Normalize() sets the internal representation of z to a default one without changing the value (as field element). We guarantee that if x.IsEqual(&y), after normalizing both, they have the same internal representation.
-	RerandomizeRepresentation(seed uint64) // z.RerandomizeRepresentation(seed) rerandomizes the internal representation of z. Does not change the value as field element. The resulting internal representation must only depend on seed and z as field element (i.e we normalize internally before rerandomizing). This is only useful for testing. Note that we give no guarantee about the quality of randomness.
-
-	// IsEqualAsBigInt(interface{ ToBigInt() *big.Int }) bool
+	Normalize()                            // z.Normalize() sets the internal representation of z to a default one without changing the value (as field element). We guarantee that if x.IsEqual(&y), after normalizing both x and y, they have the same internal representation.
+	RerandomizeRepresentation(seed uint64) // z.RerandomizeRepresentation(seed) rerandomizes the internal representation of z. Does not change the value as field element. The resulting internal representation must only depend on seed and z as field element (i.e we normalize internally before rerandomizing). This method is useless outside of testing. Note that we give no guarantee about the quality of randomness.
 }
 
 // FieldElementInterface is the (generic, due to argument types depending on the receiver type)
@@ -103,4 +105,17 @@ type FieldElementInterface[FieldElementPointer any] interface {
 	Exp(base FieldElementPointer, exponent *Uint256) // z.Exp(&base,&exponent) performs z = base^exponent. Note that we only support exponent >=0 for simplicity. 0^0 == 1.
 }
 
-// TODO: MulInt64, MulUint64, DivideInt64, DivideUint64 not really optimized for main field element implementation at the moment.
+// TODO: MulInt64, MulUint64, DivideInt64, DivideUint64 not really optimized for main field element implementation at the moment.\
+// The issue is that we would want to use mixed Montgomery multiplication (which boils down to NOT doing Montgomery multiplication) for this case.
+
+// NOTE: Serialization is currently provided both as methods and as free functions.
+
+// temporary interface, may be changed.
+// NOTE: We have free functions as well that do essentially the same.
+type FieldElementSerializeMethods interface {
+	Serialize(io.Writer, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
+	Deserialize(io.Reader, FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
+	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (int, common.PrefixBits, bandersnatchErrors.DeserializationError)
+	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+}

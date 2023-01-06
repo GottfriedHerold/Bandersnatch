@@ -222,7 +222,7 @@ func GetPrecomputedFieldElements[FieldElementType any, FieldElementPtr interface
 	*FieldElementType
 	FieldElementInterface[FieldElementPtr]
 }](key int64, amount int) []FieldElementType {
-	feType := utils.TypeOfType[FieldElementType]()
+	var feType reflect.Type = utils.TypeOfType[FieldElementType]()
 	_cachedFieldElementsMutex.RLock()
 	var cache any
 	cache, ok := _cachedFieldElements[feType] // retrieve cache (of dynamic type *testutils.PrecomputedCache[int64, FieldElementType] if non-nil)
@@ -235,7 +235,7 @@ func GetPrecomputedFieldElements[FieldElementType any, FieldElementPtr interface
 		if !ok {
 			_cachedFieldElements[feType] = &newTypedCache // We put a pointer into the map. This simplifies reasoning, as the pointer never changes.
 			cache = &newTypedCache
-		}
+		} // else: throw away newTypedCache
 		_cachedFieldElementsMutex.Unlock()
 	}
 	typedCache := cache.(*testutils.PrecomputedCache[int64, FieldElementType]) // restore type information

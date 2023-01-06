@@ -25,7 +25,7 @@ type feType_SquareRoot = bsFieldElement_MontgomeryNonUnique
 const (
 	// Note: The BlockSize parameter constrols the tradeoff.
 	// Adjusting this parameter may require to adjust sqrtAlg_NegDlogInSmallDyadicSubgroup, as we need a collision-free (non-cryptographic) hash function for the
-	// appropriate roots of unity. This is checked unconditionally on startup and we panic during initialization of global variables on failure.
+	// appropriate roots of unity. This is checked unconditionally on startup and we panic during initialization of global variables on failure (i.e. if there is a collision).
 	// Note that the functions in this file have been tested for different values of sqrtParam_BlockSize.
 	sqrtParam_BlockSize            = 8                                                                     // SquareRoot computation involves a dlog computation for 2^32th roots of unity. We retrieve this in blocks with this many bits via a lookup-table.
 	sqrtParam_TotalBits            = BaseField2Adicity                                                     // == 32, total number of bits for the dyadic part of the base field computation. The field has 2^32th roots of unity.
@@ -37,7 +37,7 @@ const (
 
 // NOTE: These "variables" are actually pre-computed constants that must not change.
 
-// sqrtPrecomp_PrimitiveDyadicRoots[i] equal DyadicRootOfUnity^(2^i) for 0 <= i <= 32
+// sqrtPrecomp_PrimitiveDyadicRoots[i] equals DyadicRootOfUnity^(2^i) for 0 <= i <= 32
 //
 // This means that it is a 32-i'th primitive root of unitity, obtained by repeatedly squaring a 2^32th primitive root of unity [DyadicRootOfUnity_fe].
 var sqrtPrecomp_PrimitiveDyadicRoots [BaseField2Adicity + 1]feType_SquareRoot = func() (ret [BaseField2Adicity + 1]feType_SquareRoot) {
@@ -103,11 +103,12 @@ func sqrtAlg_OrderAsDyadicRootOfUnity[FE any, FEPtr interface {
 	return -1 // not a root of unity at all
 }
 
-// These two functions compute powers of a given number. We probably want to use optimized "addition chains" (should be called multiplication chains in this context)
-// for those. Using a single function for makePowersForSquareRoot is done such that the computations may share intermediate results.
-// We use a dummy implementation for now.
+// These two functions compute certain powers of a given number. We use hand-optimized "addition chains" (should be called multiplication chains in this context)
+// for those.
+// Using a single function for makePowersForSquareRoot is done such that the computations may share intermediate results.
 
 // *** NOTE: ExpOddOrder modifies the receiver and takes the input as argument. computeRelevantPowers takes the input as receiver and modifies the arguments. ***
+// This is a bit weird, but it's an internal function anyway.
 
 // sqrtAlg_ComputeRelevantPowers computes certain powers of z.
 //

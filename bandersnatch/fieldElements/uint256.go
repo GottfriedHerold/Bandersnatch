@@ -41,7 +41,20 @@ type Uint256 [4]uint64 // low-endian
 // This type works mostly like [Uint256], but we provide relatively little functionaliy, as this type only matters for intermediate results.
 type Uint512 [8]uint64 // low-endian
 
-// ToBigInt converts the given uint256 to a [*big.Int]
+// ToUint256Convertible is satisfied by field element types and Uint256.
+type ToUint256Convertible interface {
+	ToUint256(*Uint256)
+}
+
+// IsEqualAsUint256 converts arg1 and arg2 to Uint256 and compares those for equality.
+func IsEqualAsUint256(arg1 ToUint256Convertible, arg2 ToUint256Convertible) bool {
+	var u1, u2 Uint256
+	arg1.ToUint256(&u1)
+	arg2.ToUint256(&u2)
+	return u1 == u2
+}
+
+// ToBigInt converts the given Uint256 to a [*big.Int]
 func (z *Uint256) ToBigInt() *big.Int {
 	// convert uint256 to big-endian (because big.Int's SetBytes takes a big-endian byte slice)
 	var big_endian_byte_slice [32]byte
@@ -54,7 +67,7 @@ func (z *Uint256) ToBigInt() *big.Int {
 	return new(big.Int).SetBytes(big_endian_byte_slice[:])
 }
 
-// ToBigInt converts the given uint512 to a [*big.Int]
+// ToBigInt converts the given Uint512 to a [*big.Int]
 func (z *Uint512) ToBigInt() *big.Int {
 	// convert uint256 to big-endian (because big.Int's SetBytes takes a big-endian byte slice)
 	var big_endian_byte_slice [64]byte
@@ -107,7 +120,7 @@ func BigIntToUInt256(x *big.Int) (result Uint256) {
 	return utils.BigIntToUIntArray(x)
 }
 
-// BigIntToUint512 converts a [*big.Int] to a uint512
+// BigIntToUint512 converts a [*big.Int] to a Uint512
 //
 // This function panics if x is not between 0 and 2^512 - 1
 func BigIntToUint512(x *big.Int) (result Uint512) {
@@ -163,7 +176,8 @@ func (z *Uint256) ToUint256(x *Uint256) {
 	*x = *z
 }
 
-// SetUint256 sets z := x. Note that plain assignment works just fine. This method solely exists to unify interfaces.
+// SetUint256 sets z := x (resp. *z = *x, as we pass everything as pointers).
+// Note that plain assignment works just fine. This method solely exists to unify interfaces.
 func (z *Uint256) SetUint256(x *Uint256) {
 	*z = *x
 }
@@ -196,7 +210,9 @@ func (z *Uint512) ToUint256(x *Uint256) {
 // Q: Should we have a signed int64 -> Uint256 conversion
 // Q: Should we have a uint256 -> uint64 conversion (same API as in FieldElementInterface)
 
-// BitLen returns the length of z in bits. This means that we return the smallest i>=0, s.t. z < 2^i.
+// BitLen returns the length of z in bits.
+// This means that we return the smallest i>=0 for which z < 2^i holds.
+//
 // The bitlength of 0 is 0.
 func (z *Uint256) BitLen() int {
 	l := bits.Len64(z[3])
@@ -224,8 +240,8 @@ func (z *Uint256) Add(x, y *Uint256) {
 	z[3], _ = bits.Add64(x[3], y[3], carry)
 }
 
-// Note: We don't have a variant that take a carry as input, as we don't need it.
-// carries are stored in an uint64 (even though it's 0/1-valued). This is consistent with bits.Add64 etc.
+// Note: We don't have a variant that takes a carry as input, as we don't need it.
+// carries are stored in an uint64 (even though it's {0,1}-valued). This is consistent with bits.Add64 etc.
 
 // AddAndReturnCarry computes an addition z := x + y.
 // The addition is carried out modulo 2^256
@@ -349,7 +365,7 @@ func (z *Uint256) SetOne() {
 	z[3] = 0
 }
 
-// IsZero checks whether the uint256 is (exactly) zero.
+// IsZero checks whether the Uint256 is (exactly) zero.
 func (z *Uint256) IsZero() bool {
 	return z[0]|z[1]|z[2]|z[3] == 0
 }
@@ -379,7 +395,7 @@ func (z *Uint256) ShiftRightEq(amount uint) {
 	z[3] = (z[3] >> amount)
 }
 
-// ShiftLeftEq_64 left-shifts the internal uint64 array by 64bit (equivalent to multiplication by 2^64) and returns the shifted-out uint64
+// ShiftLeftEq_64 left-shifts the internal uint64 array by 64bit (equivalent to multiplication by 2^64 modulo 2^256) and returns the shifted-out uint64
 func (z *Uint256) ShiftLeftEq_64() (ShiftOut uint64) {
 	ShiftOut = z[3]
 	z[3] = z[2]
@@ -553,18 +569,6 @@ func (z *Uint256) IsLessThan(x *Uint256) bool {
 	return z.Cmp(x) == -1
 }
 
-type ToUint256Convertible interface {
-	ToUint256(*Uint256)
-}
-
-// IsEqualAsUint256 converts arg1 and arg2 to Uint256 and compares those for equality.
-func IsEqualAsUint256(arg1 ToUint256Convertible, arg2 ToUint256Convertible) bool {
-	var u1, u2 Uint256
-	arg1.ToUint256(&u1)
-	arg2.ToUint256(&u2)
-	return u1 == u2
-}
-
 // unsignedExponentDecompositionEntry models entries of a decomposition of a Uint256 x into a sum x = exp_0 << pos_0 + exp_1 << pos_1 + ...
 //
 // such decompositions arise in sliding windows algorithms for exponentiation.
@@ -657,7 +661,7 @@ func (z *Uint256) SlidingWindowDecomposition(windowsize uint8) (decomposition []
 			//   currentPos += windowSize
 			// to maintain the sum_i decomposition[i].pos << decomposition[i].pos == zLow and zCopy >> L == z >> currentPos invariants
 			// However, this would be followed by furtherZeroBits := bits.TrailingZeros64(z0) and then processing those as well.
-			// We instead clear (rather than shift-out) the bits only call TrailingZeros64 once, so zeroBits includes windowSize AND also the next zero bits.
+			// We instead clear (rather than shift-out) the bits and only call TrailingZeros64 once, so zeroBits includes windowSize AND also the next zero bits.
 
 			z0 &= mask_selectHigh
 			zeroBits := bits.TrailingZeros64(z0) // guaranteed to be >= windowSize. Let furtherZeroBits := zeroBits - windowSize

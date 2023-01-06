@@ -48,8 +48,8 @@ type bsFieldElement_MontgomeryNonUnique struct {
 	// Of course, this invariant concerns the Montgomery representation, interpreting words directly as a 256-bit integer.
 	// Since BaseFieldSize is between 1/3*2^256 and 1/2*2^256, a given field element x might have either 1 or 2 possible representations as
 	// a bsFieldElement_64, both of which are equally valid as far as this implementation is concerned.
-	utils.MakeIncomparable
-	words Uint256 // required to be c-reduced
+	utils.MakeIncomparable         // embedded zero-size array. This causes the data type to be incomparable and x==y to cause compiler errors. Is x.IsEqual(&y) instead
+	words                  Uint256 // required to be c-reduced
 }
 
 // Note: We export *copies* of these variables. Internal functions should use the original.
@@ -299,7 +299,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error)
 		result = int64(temp[0])
 		return
 	}
-	temp.Sub(&baseFieldSize_uint256, &temp) // No modular reduction here
+	temp.Sub(&baseFieldSize_uint256, &temp) // No modular reduction here.
 	// Note: need to get -2^63 right (negative range is larger than positive range)
 	if (temp[1]|temp[2]|temp[3] == 0) && (temp[0] <= 1<<63) {
 		result = int64(-temp[0])
@@ -318,14 +318,13 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error)
 // SetRandomUnsafe generates a uniformly random field element.
 // Note that this is not crypto-grade randomness. This is used in unit-testing only.
 // We do NOT guarantee that the distribution is even close to uniform.
+//
+// DEPRECATED
 func (z *bsFieldElement_MontgomeryNonUnique) SetRandomUnsafe(rnd *rand.Rand) {
 	// Not the most efficient way (transformation to Montgomery form is obviously not needed), but for testing purposes we want the _64 and _8 variants to have the same output for given random seed.
 	var xInt *big.Int = new(big.Int).Rand(rnd, baseFieldSize_Int)
 	z.SetBigInt(xInt)
 }
-
-// NOTE: The bsFieldElement_MontgomeryNonUnique implementation actually works for x c-reduced,
-// but we don't want to promise that.
 
 // SetUint256 sets the field element z from the Uint256 x. Note that we do not ask for x to be in the [0, BaseFieldSize) range; we reduce as needed.
 func (z *bsFieldElement_MontgomeryNonUnique) SetUint256(x *Uint256) {

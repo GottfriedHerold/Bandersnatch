@@ -12,7 +12,7 @@ import (
 // This file is an old version of the benchmarking suite back from when Go did not even have generics.
 // It only benchmarks the bsFieldElement_MontgomeryNonUnique implementation of the [FieldElementInterface] interface
 // and does not cover the full interface. We keep it around to compare it against the full generic benchmarking suite, defined in bench_fieldelement_test.go
-// This way we can estimate the overhead the use of generics in the full suite.
+// This way we can estimate the overhead from the use of generics in the full suite.
 
 // BenchmarkEnsureBuildFlags is not really a benchmark.
 // its only purpose is to cause Go's default benchmark runner to emit a diagnostic message if call counters are active.
