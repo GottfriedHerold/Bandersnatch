@@ -9,9 +9,15 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// We make copies of all our (exported and internal) "constant" arrays/structs etc.
-// Since Go lacks const-arrays or structs, these may theoretically be modified (for constants of pointer type such *big.Int, we need to check the pointed-to value)
+// This file contains test for field-element related constants.
 //
+// We have 2 things to test here:
+//   a) we make sanity-checks for certain relationships between constants
+//   b) we ensure the constants stay constant.
+
+// For the latter, note that as Go lacks const-arrays or structs, these may theoretically be modified (for constants of pointer type such *big.Int, we need to check the pointed-to value)
+// To handle that, we make copies of all our (exported and internal) "constant" arrays/structs etc during variable initiatialization (NOT with init). These copies are ONLY touched in this file.
+// We then check that the actual (supposed constants) still match these copies. This check is done as part of tear-down code for all our tests.
 
 var (
 	BaseFieldSize_Int_COPY     = BaseFieldSize_Int
@@ -215,6 +221,9 @@ func TestValidityOfConstants(t *testing.T) {
 	testutils.FatalUnless(t, utils.IsEqualAsBigInt(&DyadicRootOfUnity_fe, &dyadicRootOfUnity_fe), "DyadicRootOfUnity_fe and dyadicRootOfUnity_fe differ")
 
 }
+
+// NOTE: This function is called as part of teardown for all our test.
+// prepareTestFieldElements, which ought to be called in all tests, handles that.
 
 func ensureFieldElementConstantsWereNotChanged() {
 	testutils.Assert(BaseFieldSize_Int_COPY == BaseFieldSize_Int)

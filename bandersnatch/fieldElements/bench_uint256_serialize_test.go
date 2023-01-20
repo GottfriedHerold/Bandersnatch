@@ -25,7 +25,7 @@ func BenchmarkUint256Serialization(b *testing.B) {
 func benchmarkUint256_serialize_SerializeToBuffer(b *testing.B, endianness FieldElementEndianness) {
 	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	var buf bytes.Buffer
-	buf.Grow(32 * 256)
+	buf.Grow(32 * benchS)
 
 	prepareBenchmarkFieldElements(b)
 	for n := 0; n < b.N; n++ {
@@ -43,7 +43,7 @@ func benchmarkUint256_serialize_SerializeToBuffer(b *testing.B, endianness Field
 func benchmarkUint256_serialize_SerializeWithPrefix(b *testing.B, endianness FieldElementEndianness) {
 	var bench_x []Uint256 = CachedUint256.GetElements(pc_uint256_a, benchS)
 	var buf bytes.Buffer
-	buf.Grow(32 * 256)
+	buf.Grow(32 * benchS)
 	prefix := common.MakeBitHeader(common.PrefixBits(0b10), 2)
 	for i := 0; i < benchS; i++ {
 		bench_x[i][3] &= 0x3FFFFFFF_FFFFFFFF

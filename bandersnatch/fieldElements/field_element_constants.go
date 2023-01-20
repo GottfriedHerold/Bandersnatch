@@ -37,7 +37,7 @@ import (
 // Due to overflowing all standard types, this is only useful in constant expressions.
 // In most case, you want to use BaseFieldSize_Int of type big.Int instead
 //
-// The actual value is given as (in different format) as
+// The actual value is given (in different format) as
 //   - 0b111001111101101101001110101001100101001100111010111110101001000001100110011100111011000000010000000100110100001110110000000010101010011101111011010010000000010111111111111111001011011111111101111111111111111111111111111111100000000000000000000000000000001
 //   - 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
 //   - 52435875175126190479447740508185965837690552500527637822603658699938581184513
@@ -88,7 +88,11 @@ const BaseFieldBitLength = common.BaseFieldBitLength // == 255
 // BaseFieldByteLength is the length of BaseFieldSize in bytes.
 const BaseFieldByteLength = common.BaseFieldByteLength // == 32
 
-// We split the size of the multiplicative group as BaseFieldSize - 1 as 2^BaseField2Adicity * BaseFieldMultiplicativeOddOrder with the latter being odd.
+// We split the size of the multiplicative group as
+//
+// BaseFieldSize - 1  == 2^BaseField2Adicity * BaseFieldMultiplicativeOddOrder
+//
+// with the latter being odd.
 // This decomposition matters for some Square root algorithms.
 const (
 	BaseField2Adicity               = 32
@@ -97,7 +101,7 @@ const (
 )
 
 var (
-	BaseFieldMultiplicateOddOrder_uint256 = Uint256{BaseFieldMultiplicativeOddOrder_64_0, BaseFieldMultiplicativeOddOrder_64_1, BaseFieldMultiplicativeOddOrder_64_2, BaseFieldMultiplicativeOddOrder_64_3}
+	BaseFieldMultiplicateOddOrder_uint256 = Uint256{baseFieldMultiplicativeOddOrder_64_0, baseFieldMultiplicativeOddOrder_64_1, baseFieldMultiplicativeOddOrder_64_2, baseFieldMultiplicativeOddOrder_64_3}
 	tonelliShanksExponent_uint256         = Uint256{tonelliShanksExponent_64_0, tonelliShanksExponent_64_1, tonelliShanksExponent_64_2, tonelliShanksExponent_64_3}
 )
 
@@ -222,7 +226,8 @@ const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFF
 // The size of this field matches (by design) the size of the prime-order subgroup of the BLS12-381 curve.
 type FieldElement = bsFieldElement_MontgomeryNonUnique
 
-// DyadicRootOfUnity is a (fixed) 2^32th primitive root of unity. NOTE: This is acutually the smallest such root of unity and fits into 7 uint32's.
+// DyadicRootOfUnity is a (fixed) 2^32th primitive root of unity in the field.
+// NOTE: This is actually the smallest such root of unity and fits into 7 uint32's.
 const (
 	DyadicRootOfUnity_untyped = 0xF32C26F7_82044B66_7336B3F4_7B2464A8_E4FC91B6_3DF3E369_81960EC4 // 25609050042867742175647027564004846496793091465619562978882159513284
 	DyadicRootOfUnity_string  = "25609050042867742175647027564004846496793091465619562978882159513284"
@@ -385,10 +390,10 @@ const (
 )
 
 const (
-	BaseFieldMultiplicativeOddOrder_64_0 = (BaseFieldMultiplicativeOddOrder >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
-	BaseFieldMultiplicativeOddOrder_64_1
-	BaseFieldMultiplicativeOddOrder_64_2
-	BaseFieldMultiplicativeOddOrder_64_3
+	baseFieldMultiplicativeOddOrder_64_0 = (BaseFieldMultiplicativeOddOrder >> (iota * 64)) & 0xFFFFFFFF_FFFFFFFF
+	baseFieldMultiplicativeOddOrder_64_1
+	baseFieldMultiplicativeOddOrder_64_2
+	baseFieldMultiplicativeOddOrder_64_3
 )
 
 const (

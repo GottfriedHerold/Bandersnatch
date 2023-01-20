@@ -7,6 +7,8 @@
 # So I follow https://mdaverde.com/posts/golang-local-docs/
 # Only works in the current dir
 
-browser-sync start --proxy "localhost:8080" --startPath $PWD  &
+# Used to work, but does not any longer:
+# browser-sync start --proxy "localhost:8080" --startPath $PWD  &
+browser-sync start --proxy "localhost:8080" --startPath "github.com/GottfriedHerold/Bandersnatch"  &
 nodemon --signal SIGTERM --watch . --ext "go" --exec "browser-sync reload && ~/go/bin/pkgsite ."
 ~/go/bin/pkgsite

@@ -262,7 +262,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToUint64() (result uint64, err erro
 
 // TODO: Make more efficient
 
-// SetUint64 sets z to the given value.
+// SetUint64 sets z to the given value of type uint64.
 func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
 	// Sets z.words to the correct value (not in Montgomery form)
 	z.words[0] = value
@@ -275,6 +275,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
 
 // TODO: Make more efficient
 
+// SetInt64 sets z to the given value of type int64
 func (z *bsFieldElement_MontgomeryNonUnique) SetInt64(value int64) {
 	if value >= 0 {
 		z.words[0] = uint64(value)
@@ -292,22 +293,32 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetInt64(value int64) {
 	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
 }
 
+// ToInt64 converts the given field element to an int64.
+//
+// If z does not fit into an int64, returns an error wrapping [ErrCannotRepresentFieldElement] and result should not be used.
 func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error) {
+
+	// convert to non-Montgomery - representation:
 	var temp Uint256
 	temp.FromMontgomeryRepresentation_fc(&z.words)
+
+	// Handle case where 0 < temp < MaxInt64
 	if (temp[1]|temp[2]|temp[3] == 0) && (temp[0]>>63 == 0) {
 		result = int64(temp[0])
 		return
 	}
-	temp.Sub(&baseFieldSize_uint256, &temp) // No modular reduction here.
+
+	// Otherwise, temp is negative, provided it fits into an int64 in the first place.
+
+	temp.Sub(&baseFieldSize_uint256, &temp) // No modular reduction here; this cannot underflow.
 	// Note: need to get -2^63 right (negative range is larger than positive range)
 	if (temp[1]|temp[2]|temp[3] == 0) && (temp[0] <= 1<<63) {
 		result = int64(-temp[0])
 		return
 	}
-	err = errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", *z)
+	zCopy := *z // to avoid z escaping to the heap. Now only zCopy escapes, but this is only allocated conditionally in the first place.
+	err = errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", zCopy)
 
-	// err = ErrCannotRepresentAsInt64
 	result = 0 // no-op, but stated for clarity.
 	return
 }
@@ -490,6 +501,9 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 
 // TODO: error or bool? Specify what happens with z on error?
 
+// TODO: Should we make the guarantee that the square root is deterinistic? It is currently the case
+// and will likely stay this way for any optimized algorithm with FieldSize-dependent precomputations.
+
 // SquareRoot computes a SquareRoot in the field.
 //
 // Use ok := z.SquareRoot(&x).
@@ -498,7 +512,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 //
 // If x is not a square, the return value is false and z is untouched.
 // NOTE: For non-zero squares x, there are two possible square roots.
-// We do not guarantee that the choice is deterministic. Multiple calls with the same x can give different z's
+// We do not guarantee that the choice is deterministic. We reserve the option that multiple calls with the same x may give different z's
 func (z *bsFieldElement_MontgomeryNonUnique) SquareRoot(x *bsFieldElement_MontgomeryNonUnique) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	if x.IsZero() {
@@ -703,17 +717,6 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetBytes(buf []byte) {
 // BytesLength returns the size of the slice used by [ToBytes] and [SetBytes]
 func (z *bsFieldElement_MontgomeryNonUnique) BytesLength() int { return 32 }
 
-// NOTE: This function may not be part of the interface -- make free function instead
-/*
-// IsEqualAsBigInt converts the argument and itself to [*big.Int]s and checks for equality.
-// This function is not very efficient and should only be used in testing.
-func (z *bsFieldElement_MontgomeryNonUnique) IsEqualAsBigInt(x interface{ ToBigInt() *big.Int }) bool {
-	xInt := x.ToBigInt()
-	zInt := z.ToBigInt()
-	return xInt.Cmp(zInt) == 0
-}
-*/
-
 // AddInt64 performs addition of a field element and an int64.
 //
 // More precisely, z.AddInt64(&x, y) sets z := x+y (modulo BaseFieldSize)
@@ -732,10 +735,11 @@ func (z *bsFieldElement_MontgomeryNonUnique) SubInt64(x *bsFieldElement_Montgome
 	z.Sub(x, &yFE)
 }
 
-// AddInt64 performs multiplication of a field element and an int64.
+// MulInt64 performs multiplication of a field element and an int64.
 //
 // More precisely, z.MulInt64(&x, y) sets z := x*y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) MulInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
+	// TODO: It is better to use non-Montgomery multiplication here.
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetInt64(y)
 	z.Mul(x, &yFE)
@@ -743,7 +747,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) MulInt64(x *bsFieldElement_Montgome
 
 // DivideInt64 performs division of a field element by an int64.
 //
-// More precisely, z.DivideInt64(&x, y) sets z := x+y (modulo BaseFieldSize).
+// More precisely, z.DivideInt64(&x, y) sets z := x/y (modulo BaseFieldSize).
 // If y == 0, this function panics.
 func (z *bsFieldElement_MontgomeryNonUnique) DivideInt64(x *bsFieldElement_MontgomeryNonUnique, y int64) {
 	var yFE bsFieldElement_MontgomeryNonUnique
@@ -773,6 +777,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SubUint64(x *bsFieldElement_Montgom
 //
 // More precisely, z.MulUint64(&x, y) sets z := x*y (modulo BaseFieldSize)
 func (z *bsFieldElement_MontgomeryNonUnique) MulUint64(x *bsFieldElement_MontgomeryNonUnique, y uint64) {
+	// TODO: It is better to use non-Montgomery multiplication here.
 	var yFE bsFieldElement_MontgomeryNonUnique
 	yFE.SetUint64(y)
 	z.Mul(x, &yFE)
@@ -788,7 +793,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DivideUint64(x *bsFieldElement_Mont
 	z.Divide(x, &yFE)
 }
 
-// z.Exp computes z := base^y in the field, with 0^0 == 1.
+// z.Exp computes z := base^exponent in the field, with 0^0 == 1.
 func (z *bsFieldElement_MontgomeryNonUnique) Exp(base *bsFieldElement_MontgomeryNonUnique, exponent *Uint256) {
 	z.words.ModularExponentiationMontgomery_fa(&base.words, exponent)
 }

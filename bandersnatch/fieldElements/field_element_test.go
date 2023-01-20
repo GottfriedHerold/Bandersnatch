@@ -19,7 +19,6 @@ var _ FieldElementInterface[*bsFieldElement_MontgomeryNonUnique] = &bsFieldEleme
 var _ FieldElementInterface_common = &bsFieldElement_BigInt{}
 var _ FieldElementInterface[*bsFieldElement_BigInt] = &bsFieldElement_BigInt{}
 
-// var fatalUnless = testutils.FatalUnless
 
 func TestFieldElementProperties(t *testing.T) {
 	t.Run("Montgomery implementation", testAllFieldElementProperties[bsFieldElement_MontgomeryNonUnique])

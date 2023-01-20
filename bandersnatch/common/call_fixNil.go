@@ -5,8 +5,8 @@ import "reflect"
 // CallFunction_FixNil is a wrapper around [reflect.Value] Call(...) method that treats zero [reflect.Value] as nil
 //
 // For a [reflect.Value] fun (that is supposed to be callable), CallFunction_FixNil(fun, in) is equivalent to fun.Call(in), except that
-// a zero [reflect.Value] -- which is the result of [reflect.ValueOf](nil) -- is actually treated as nil rather than a panic-causing invalid [reflect.Value].
-// This function modfifies the given `in` slice to replace zero [reflect.Value]s by appropriate replacements.
+// a zero [reflect.Value] appearing as input to fun -- which is the result of [reflect.ValueOf](nil) -- is actually treated as nil rather than a panic-causing invalid [reflect.Value].
+// This function modfifies the given `in` slice in-place to replace zero [reflect.Value]s by appropriate replacements.
 //
 // NOTE: This method actually works around a design flaw in the way reflect handles nil, cf.  https://github.com/golang/go/issues/51649
 // There are serious considerations to actually change the behaviour of the standard library, which would make this function obsolete.

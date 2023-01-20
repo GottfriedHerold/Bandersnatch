@@ -33,7 +33,7 @@ import (
 // We provide methods for elementary arithmetic and for arithmetic modulo BaseFieldSize (the latter explicitly say they perform moular reduction)
 // This type is based on [4]uint64 with low-endian convention as part of the API, so x[i] will retrieve the i'th (low-endian) uint64.
 //
-// Note that this type is mostly for internal and cross-package usage; we do not guarantee that the exported methods (and their names) are stable.
+// This type is mostly for internal and cross-package usage; we do not guarantee that the exported methods (and their names) are stable.
 type Uint256 [4]uint64 // low-endian
 
 // Uint512 is a 512-bit (unsigned) integer.

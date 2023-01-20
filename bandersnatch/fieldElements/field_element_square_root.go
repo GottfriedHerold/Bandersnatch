@@ -26,7 +26,7 @@ const (
 	// Note: The BlockSize parameter constrols the tradeoff.
 	// Adjusting this parameter may require to adjust sqrtAlg_NegDlogInSmallDyadicSubgroup, as we need a collision-free (non-cryptographic) hash function for the
 	// appropriate roots of unity. This is checked unconditionally on startup and we panic during initialization of global variables on failure (i.e. if there is a collision).
-	// Note that the functions in this file have been tested for different values of sqrtParam_BlockSize.
+	// Note that the functions in this file have been successfully tested for different values of sqrtParam_BlockSize.
 	sqrtParam_BlockSize            = 8                                                                     // SquareRoot computation involves a dlog computation for 2^32th roots of unity. We retrieve this in blocks with this many bits via a lookup-table.
 	sqrtParam_TotalBits            = BaseField2Adicity                                                     // == 32, total number of bits for the dyadic part of the base field computation. The field has 2^32th roots of unity.
 	sqrtParam_Blocks               = (sqrtParam_TotalBits + sqrtParam_BlockSize - 1) / sqrtParam_BlockSize // Number of blocks needed
@@ -238,7 +238,7 @@ func sqrtAlg_GetPrecomputedRootOfUnity(target *feType_SquareRoot, multiplier int
 
 }
 
-// sqrtAlg_NegDlogInSmallDyadicSubgroup takes a not (neccessarily primitive) root of unity x of order 2^sqrtParam_BlockSize.
+// sqrtAlg_NegDlogInSmallDyadicSubgroup takes a (not neccessarily primitive) root of unity x of order 2^sqrtParam_BlockSize.
 // x has the form sqrtPrecomp_ReconstructionDyadicRoot^a and returns its negative dlog -a.
 //
 // The returned value is only meaningful modulo 1<<sqrtParam_BlockSize and is fully reduced, i.e. in [0, 1<<sqrtParam_BlockSize )

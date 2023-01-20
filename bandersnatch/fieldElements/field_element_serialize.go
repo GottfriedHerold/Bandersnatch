@@ -195,7 +195,16 @@ func (z *bsFieldElement_MontgomeryNonUnique) Deserialize(input io.Reader, byteOr
 // The return values are the actual number of bytes written and a potential error (such as io errors).
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
 func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	bytesWritten, err = z.SerializeWithPrefix(output, BitHeader{}, byteOrder)
+
+	var zUint256 Uint256 // = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
+	zUint256.FromMontgomeryRepresentation_fc(&z.words)
+
+	var errPlain error
+
+	var buf []byte = make([]byte, 32)
+	byteOrder.PutUint256(buf, zUint256)
+	bytesWritten, errPlain = output.Write(buf)
+	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
 	return
 }
 

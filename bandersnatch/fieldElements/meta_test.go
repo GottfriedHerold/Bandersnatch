@@ -43,21 +43,22 @@ const benchS = 1 << 8
 // based on the fact that they are never read from within the module (I doubt the compiler would do this, but anyway...)
 //
 // [*] in non-test builds this file is ignored anyway
-var DumpBools_fe [dumpSizeBench_fe]bool
-
-var DumpFe_64 [dumpSizeBench_fe]bsFieldElement_MontgomeryNonUnique
-var DumpUint256 [dumpSizeBench_fe]Uint256
-var DumpUint512 [dumpSizeBench_fe]Uint512
-var DumpBigInt [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_fe]*big.Int) {
-	for i := 0; i < dumpSizeBench_fe; i++ {
-		_DumpBigInt[i] = big.NewInt(0)
-		_DumpBigInt[i].Set(twoTo256_Int) // to reserve memory
-	}
-	return
-}()
-var DumpUint64 [dumpSizeBench_fe]uint64
-var DumpUint320 [dumpSizeBench_fe][5]uint64
-var DumpInt [dumpSizeBench_fe]int
+var (
+	DumpBools_fe [dumpSizeBench_fe]bool
+	DumpFe_64    [dumpSizeBench_fe]bsFieldElement_MontgomeryNonUnique
+	DumpUint256  [dumpSizeBench_fe]Uint256
+	DumpUint512  [dumpSizeBench_fe]Uint512
+	DumpUint64   [dumpSizeBench_fe]uint64
+	DumpUint320  [dumpSizeBench_fe][5]uint64
+	DumpInt      [dumpSizeBench_fe]int
+	DumpBigInt   [dumpSizeBench_fe]*big.Int = func() (_DumpBigInt [dumpSizeBench_fe]*big.Int) {
+		for i := 0; i < dumpSizeBench_fe; i++ {
+			_DumpBigInt[i] = big.NewInt(0)
+			_DumpBigInt[i].Set(twoTo256_Int) // to reserve memory
+		}
+		return
+	}()
+)
 
 // prepareBenchmarkFieldElements runs some setup code and should be called in every (sub-)benchmark before the actual code that is to be benchmarked.
 // Note that it resets all counters.
@@ -66,9 +67,9 @@ func prepareBenchmarkFieldElements(b *testing.B) {
 	resetBenchmarkFieldElements(b)
 }
 
-// prepareTestFieldElements run common setup code and should be called in every (sub-)test for field elements.
+// prepareTestFieldElements run common setup code / registers teardown code, and should be called in every (sub-)test for field elements.
 func prepareTestFieldElements(t *testing.T) {
-	t.Cleanup(ensureFieldElementConstantsWereNotChanged)
+	t.Cleanup(ensureFieldElementConstantsWereNotChanged) // registers a teardown-function that will detect any modification of (supposed) constants.
 }
 
 // postProcessBenchmarkFieldElements should be called at the end of each sub-test (preferably using b.Cleanup(...) )
@@ -107,6 +108,8 @@ var (
 		allowedRange: baseFieldSize_Int,
 	}
 )
+
+// Note: My Go linter complains about unneccessary type arguments (as those could be inferred); they are here on purpose, for the sake of readability.
 
 // CachedUint256 is used to retrieve precomputed slices of uint256's. The key of type SeedAndRange allows to select an rng seed an a range.
 //
@@ -260,6 +263,7 @@ func GetPrecomputedFieldElementsNonZero[FieldElementType any, FieldElementPtr in
 	return ret
 }
 
+// CachedRootsOfUnity stores (precomputed) values x^r for random r and x a 2^32th root of unity in the field.
 var CachedRootsOfUnity = testutils.MakePrecomputedCache[int64, feType_SquareRoot](
 	testutils.DefaultCreateRandFromSeed,
 	func(rng *rand.Rand, key int64) (ret feType_SquareRoot) {
@@ -275,6 +279,7 @@ var CachedRootsOfUnity = testutils.MakePrecomputedCache[int64, feType_SquareRoot
 	nil,
 )
 
+// CachedRootsOfUnityWithExponent stores (precomputed) values x^r for random r and x the designated 2^32th root of unity in the field, together with the exponent r that was used.
 var CachedRootsOfUnityWithExponent = testutils.MakePrecomputedCache[int64, struct {
 	fe       feType_SquareRoot
 	exponent uint32
