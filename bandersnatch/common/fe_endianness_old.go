@@ -1,7 +1,5 @@
 package common
 
-import "encoding/binary"
-
 // This file defines a type for endianness to serialize FieldElements.
 // NOTE: Our *internal* representations use a fixed order; endianness choice is only relevant for I/O.
 
@@ -16,13 +14,6 @@ import "encoding/binary"
 // We have no idea what e.g. SetEndianness(MixedEndian) for some custom MixedEndian type satisfying binary.ByteOrder should do.
 // If FieldElementEndianness becomes an interface, this restriction is lifted.
 
-type byteOrder = binary.ByteOrder // type alias to allow private struct embedding
-
-// The implementation assumes that s.byteOrder == binary.LittleEndian or == binary.BigEndian.
-// There is no reason to make this assumption from an API point of view, so we just don't
-// and regard this fact as an implementation detail.
-// We use this to mark places where we make that assumption.
-const onlyLittleAndBigEndianByteOrder = true
 
 /*
 

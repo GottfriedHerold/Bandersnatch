@@ -1,6 +1,7 @@
 package fieldElements
 
 import (
+	"bytes"
 	"io"
 	"math/bits"
 
@@ -34,9 +35,50 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 	var errPlain error
 
 	var buf [32]byte // = make([]byte, 32)
-	byteOrder.PutUint256(buf[:], *z)
+	// byteOrder.PutUint256(buf[:], *z)
+	byteOrder.PutUint256_indirect(buf[:], z[:])
 	bytesWritten, errPlain = output.Write(buf[:])
-	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+	if errPlain != nil {
+		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+	}
+	return
+}
+
+// Serialize_Buffer performs the same functionality as Serialize, but with output of concrete type [*bytes.Buffer].
+//
+// Due to known issues with Go's function API, this is an order of magnitude more efficient than the general version.
+func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+	// var errPlain error
+
+	var buf [32]byte // = make([]byte, 32)
+	// byteOrder.PutUint256(buf[:], *z)
+	byteOrder.PutUint256_indirect(buf[:], z[:])
+	bytesWritten, _ = output.Write(buf[:]) // Note that bytes.Buffer's Write method is guaranteed to never return an error. It panics instead (if out-of-memory, e.g.)
+	/*
+		if errPlain != nil {
+			err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+		}
+	*/
+	return
+}
+
+// Serialize(output, byteOrder) serializes the receiver to output. byteOrder should be BigEndian or LittleEndian and refers to the ordering of bytes in the output.
+//
+// The return values are the actual number of bytes written and a potential error (such as io errors).
+// If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
+func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+
+	// var errPlain error
+
+	// var buf [32]byte // = make([]byte, 32)
+	// byteOrder.PutUint256(buf[:], *z)
+	byteOrder.PutUint256_indirect(output, z[:])
+	bytesWritten = 32
+	err = nil
+	// bytesWritten, errPlain = output.Write(buf[:])
+	// if errPlain != nil {
+	//		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+	//}
 	return
 }
 
