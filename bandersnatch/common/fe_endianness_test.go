@@ -1,5 +1,7 @@
 package common
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 var _ binary.ByteOrder = FieldElementEndianness{}

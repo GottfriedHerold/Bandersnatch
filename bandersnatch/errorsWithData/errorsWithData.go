@@ -40,7 +40,7 @@ import (
 // if t's parameters are changed afterwards.
 //
 // Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions on allowed structs:
-// - All field names must be exported.
+// - All non-embedded field names must be exported.
 // - Fields of interface type are allowed.
 // - Embedded struct are also allowed.
 // - Anything else causes a panic.
@@ -143,8 +143,8 @@ type ErrorWithGuaranteedParameters[StructType any] interface {
 // It's functionally equivalent to an ErrorWithParameters
 type unconstrainedErrorWithGuaranteedParameters = ErrorWithGuaranteedParameters[struct{}]
 
-// errorPrefix is a prefix added to all (internal) error messages/panics that originate from this package. Does not apply to wrapped errors.
-const errorPrefix = "bandersnatch / error handling:"
+// ErrorPrefix is a prefix added to all (internal) error messages/panics that originate from this package. Does not apply to wrapped errors.
+const ErrorPrefix = "bandersnatch / error handling: "
 
 // GetAllParametersFromError returns a map for all parameters stored in the error, including all of err's error chain.
 // For err==nil or if no error in err's error chain has any data, returns an empty map.
@@ -168,13 +168,13 @@ func NewErrorWithGuaranteedParameters[StructType any](baseError error, overrideM
 	// make some validity checks to give meaningful error messages.
 	// Impressive: go - staticcheck actually recognizes this patterns and has my IDE complain at the call site about violations!
 	if len(params)%2 != 0 {
-		panic(errorPrefix + "called NewErrorWithParameters(err, overrideMessage, args...) with an odd number of args. These are supposed to be name-value pairs")
+		panic(ErrorPrefix + "called NewErrorWithParameters(err, overrideMessage, args...) with an odd number of args. These are supposed to be name-value pairs")
 	}
 	extraParams := len(params) / 2
 	if baseError == nil {
 		if overrideMessage == "" {
 			if extraParams > 0 {
-				panic(errorPrefix + "called NewErrorWithParameters(nil,\"\",argName, arg1, ...)")
+				panic(ErrorPrefix + "called NewErrorWithParameters(nil,\"\",argName, arg1, ...)")
 			}
 			return nil
 		}
@@ -190,7 +190,7 @@ func NewErrorWithGuaranteedParameters[StructType any](baseError error, overrideM
 	for i := 0; i < extraParams; i++ {
 		s, ok := params[2*i].(string)
 		if !ok {
-			panic(fmt.Errorf(errorPrefix+"called NewErrorWithParams(err, overrideMessage, args... with invalid parameters. args are supposed to come in (string-any) pairs, but got a non-string in position %v", 2*i))
+			panic(fmt.Errorf(ErrorPrefix+"called NewErrorWithParams(err, overrideMessage, args... with invalid parameters. args are supposed to come in (string-any) pairs, but got a non-string in position %v", 2*i))
 		}
 		ret.params[s] = params[2*i+1]
 	}
@@ -210,7 +210,7 @@ func NewErrorWithGuaranteedParametersFromMap[StructType any](baseError error, ov
 	if baseError == nil {
 		if overrideMessage == "" {
 			if extraParams > 0 {
-				panic(errorPrefix + "called NewErrorWithParametersMap(nil,\"\",actualParams_map)")
+				panic(ErrorPrefix + "called NewErrorWithParametersMap(nil,\"\",actualParams_map)")
 			}
 			return nil
 		}
@@ -298,7 +298,7 @@ func NewErrorWithParametersFromData[StructType any](baseError error, overrideMes
 	if baseError == nil {
 		if overrideMessage == "" {
 			if len(allStructFields) > 0 {
-				panic(errorPrefix + "called NewErrorWithData(nil,\"\",data) with non-empty data")
+				panic(ErrorPrefix + "called NewErrorWithData(nil,\"\",data) with non-empty data")
 			}
 			return nil
 		}
@@ -409,7 +409,7 @@ const nonEmptyMapFormatString = "!M>0" // without %
 // %w will print baseError.Error()
 func formatError(formatString string, parameters map[string]any, baseError error, output bool) (returned_string string, err error) {
 	if !utf8.ValidString(formatString) {
-		panic(errorPrefix + "formatString not a valid UTF-8 string")
+		panic(ErrorPrefix + "formatString not a valid UTF-8 string")
 	}
 
 	// We build up the returned string piece-by-piece by writing to ret.

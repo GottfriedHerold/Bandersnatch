@@ -20,18 +20,25 @@ func TestCheckParamsForStruct(t *testing.T) {
 		Name1 uint // shadows T2.name1
 		Name4 byte
 	}
+	type t1 = T1
+	type NestedT2_anon struct {
+		t1
+		Name4 byte
+	}
 
 	var EmptyList []string = []string{}
 	var T1List []string = []string{"Name1", "Name3", "Name2"} // intentionally different order than in T1
 	var NestedT1List []string = []string{"Name1", "Name3", "Name4", "Name2"}
-	CheckParametersForStruct[EmptyStruct](EmptyList)
-	CheckParametersForStruct[T1](T1List)
-	CheckParametersForStruct[NestedT1](NestedT1List)
+	var NestedT2_anonList []string = []string{"Name1", "Name2", "Name3", "Name4"}
+	CheckParametersForStruct_exact[EmptyStruct](EmptyList)
+	CheckParametersForStruct_exact[T1](T1List)
+	CheckParametersForStruct_exact[NestedT1](NestedT1List)
+	CheckParametersForStruct_exact[NestedT2_anon](NestedT2_anonList)
 
-	if !testutils.CheckPanic(CheckParametersForStruct[T1], NestedT1List) {
+	if !testutils.CheckPanic(CheckParametersForStruct_exact[T1], NestedT1List) {
 		t.Fatalf("T1")
 	}
-	if !testutils.CheckPanic(CheckParametersForStruct[NestedT1], T1List) {
+	if !testutils.CheckPanic(CheckParametersForStruct_exact[NestedT1], T1List) {
 		t.Fatalf("T2")
 	}
 

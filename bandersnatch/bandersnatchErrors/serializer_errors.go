@@ -47,8 +47,8 @@ const FIELDNAME_BYTES_WRITTEN = "BytesWritten"
 
 // Refactoring guard. This panics if the strings above don't correspond to the names of the exported field.
 func init() {
-	errorsWithData.CheckParametersForStruct[WriteErrorData]([]string{FIELDNAME_BYTES_WRITTEN, FIELDNAME_PARTIAL_WRITE})
-	errorsWithData.CheckParametersForStruct[ReadErrorData]([]string{FIELDNAME_BYTES_READ, FIELDNAME_PARTIAL_READ, FIELDNAME_ACTUALLY_READ})
+	errorsWithData.CheckParametersForStruct_exact[WriteErrorData]([]string{FIELDNAME_BYTES_WRITTEN, FIELDNAME_PARTIAL_WRITE})
+	errorsWithData.CheckParametersForStruct_exact[ReadErrorData]([]string{FIELDNAME_BYTES_READ, FIELDNAME_PARTIAL_READ, FIELDNAME_ACTUALLY_READ})
 }
 
 type SerializationError = errorsWithData.ErrorWithGuaranteedParameters[WriteErrorData]

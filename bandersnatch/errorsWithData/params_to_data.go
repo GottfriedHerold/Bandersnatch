@@ -26,7 +26,7 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 	// that e.g. the order of entries in the returned struct is consistent.
 	// (Note sure whether this is needed and this is probably true anyway, but it is not guaranteed by the spec of reflect.VisibleFields otherwise)
 
-	// Check if we the table is cached.
+	// Check if we alread have the table in the cache.
 	enforcedDataTypeMapMutex.RLock()
 	ret, ok := enforcedDataTypeMap[tType]
 	enforcedDataTypeMapMutex.RUnlock()
@@ -37,10 +37,10 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 
 	// Make some sanity checks: This function only makes sense for struct types.
 	if tType == nil {
-		panic(errorPrefix + "called getStructMapConversionLookup with nil argment")
+		panic(ErrorPrefix + "called getStructMapConversionLookup with nil argment")
 	}
 	if tType.Kind() != reflect.Struct {
-		panic(errorPrefix + "using getStructMapConversionLookup with non-struct type")
+		panic(ErrorPrefix + "using getStructMapConversionLookup with non-struct type")
 	}
 
 	// The intended result will be a subset of allVisibleFields
@@ -49,14 +49,14 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 
 	// ensure everything is exported and filter out embedded fields
 	for _, visibleField := range allVisibleFields {
-		if !visibleField.IsExported() {
-			panic(errorPrefix + "using errorWithEnsuredParameters with struct type containing unexported fields")
-		}
 		// .Anonymous denotes whether the field is embedded (a bit of a misnomer).
 		// for an embedded field, reflect.VisibleFields returns both the name of the embedded type and its included field
 		// We only want the latter, so we skip here.
 		if visibleField.Anonymous {
 			continue
+		}
+		if !visibleField.IsExported() {
+			panic(ErrorPrefix + "using errorWithEnsuredParameters with struct type containing unexported fields")
 		}
 		ret = append(ret, visibleField)
 	}
@@ -74,11 +74,12 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 	return
 }
 
-// CheckParametersForStruct[StructType](fieldNames) checks whether the name of the (exported) fields coincides with
-// the slice of fieldNames. This is intented to be used in init-routines or tests accompanying places in the code
+// CheckParametersForStruct_exact[StructType](fieldNames) checks whether the name of the fields coincides with
+// the slice of fieldNames. Note that we require equality, i.e. the list of fieldNames is exhaustive; all fields of StructType must be exported.
+// This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct has exactly a given set of field names.
 // The purpose is to create guards in the code. It panics on failure.
-func CheckParametersForStruct[StructType any](fieldNames []string) {
+func CheckParametersForStruct_exact[StructType any](fieldNames []string) {
 	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	for _, expectedField := range allExpectedFields {
 		expectedFieldName := expectedField.Name
@@ -90,12 +91,12 @@ func CheckParametersForStruct[StructType any](fieldNames []string) {
 			}
 		}
 		if !found {
-			panic(fmt.Errorf(errorPrefix+"Field named %v required is not contained among the given list", expectedFieldName))
+			panic(fmt.Errorf(ErrorPrefix+"Field named %v required is not contained among the given list", expectedFieldName))
 		}
 	}
 	// We intentionally make that check *after* the above checks.
 	if len(allExpectedFields) != len(fieldNames) {
-		panic(fmt.Errorf(errorPrefix + "list of given field names contains more field names than required"))
+		panic(fmt.Errorf(ErrorPrefix + "list of given field names contains more field names than required"))
 	}
 }
 
@@ -110,7 +111,7 @@ func CheckParameterForStruct[StructType any](fieldName string) {
 			return
 		}
 	}
-	panic(fmt.Errorf(errorPrefix+"The given struct does not contain an exported field named %v", fieldName))
+	panic(fmt.Errorf(ErrorPrefix+"The given struct does not contain an exported field named %v", fieldName))
 }
 
 // CheckIsSubtype checks that both StructType1 and StructType2 only contain exported names and those of StructType1 are a subset of those of StructType2.
@@ -134,13 +135,13 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 		// Special case e==nil for better error message.
 		// If e == nil, GetParameterFromError returns (nil, false) so any iteration of the for loop ends up here.
 		if e == nil {
-			err = fmt.Errorf(errorPrefix+"nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
+			err = fmt.Errorf(ErrorPrefix+"nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
 			return
 		}
 
 		mapEntry, exists := m[expectedField.Name]
 		if !exists {
-			err = fmt.Errorf(errorPrefix+"error %v does not contain a parameters named %v, neccessary to export data a a struct of type %v", e, expectedField.Name, structType)
+			err = fmt.Errorf(ErrorPrefix+"error %v does not contain a parameters named %v, neccessary to export data a a struct of type %v", e, expectedField.Name, structType)
 			return
 		}
 		// requires special casing due to what I consider a design error in reflection.
@@ -149,7 +150,7 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 			if utils.IsNilable(expectedField.Type) {
 				continue
 			} else {
-				err = fmt.Errorf(errorPrefix+"error %v contains a parameter %v that is set to nil. This cannot be used to construct a struct of type %v",
+				err = fmt.Errorf(ErrorPrefix+"error %v contains a parameter %v that is set to nil. This cannot be used to construct a struct of type %v",
 					e, expectedField.Name, structType)
 				return
 			}
@@ -158,12 +159,12 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 		// interface types as fields in StructType need special handling, because reflect.TypeOf(mapEntry) contains the dynamic type.
 		if expectedField.Type.Kind() == reflect.Interface {
 			if !mapEntryType.AssignableTo(expectedField.Type) {
-				err = fmt.Errorf(errorPrefix+"error %v has parameter %v set to a value %v; cannot export that in as struct of type %v, because that that value is not assignable to the intended field of interface type", e, expectedField.Name, mapEntry, structType)
+				err = fmt.Errorf(ErrorPrefix+"error %v has parameter %v set to a value %v; cannot export that in as struct of type %v, because that that value is not assignable to the intended field of interface type", e, expectedField.Name, mapEntry, structType)
 				return
 			}
 		} else { // field of non-interface type in T: We require the types to match exactly.
 			if mapEntryType != expectedField.Type {
-				err = fmt.Errorf(errorPrefix+" error %v has parameter %v of wrong type to construct struct of type %v. Value is %v of type %v, expected %v",
+				err = fmt.Errorf(ErrorPrefix+" error %v has parameter %v of wrong type to construct struct of type %v. Value is %v of type %v, expected %v",
 					e, expectedField.Name, structType, mapEntry, mapEntryType, expectedField.Type)
 				return
 			}
@@ -192,7 +193,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 		fieldInRetValue := retValue.FieldByIndex(structField.Index)
 		valueFromMap, ok := m[structField.Name]
 		if !ok {
-			err = fmt.Errorf(errorPrefix+"trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
+			err = fmt.Errorf(ErrorPrefix+"trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
 				reflectedStructType, structField.Name)
 			var zero StructType
 			ret = zero
@@ -206,7 +207,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 				appropriateNil := reflect.Zero(fieldInRetValue.Type())
 				fieldInRetValue.Set(appropriateNil)
 			} else {
-				err = fmt.Errorf(errorPrefix+"trying to construct value of type %v from parameters; parameter named %v is set to nil, which is not valid for the struct field",
+				err = fmt.Errorf(ErrorPrefix+"trying to construct value of type %v from parameters; parameter named %v is set to nil, which is not valid for the struct field",
 					reflectedStructType, structField.Name)
 				var zero StructType
 				ret = zero
@@ -218,7 +219,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 			// type equality for concrete types, but assignability for struct fields of interface type.
 			if fieldInRetValue.Kind() == reflect.Interface {
 				if !reflect.TypeOf(valueFromMap).AssignableTo(fieldInRetValue.Type()) {
-					err = fmt.Errorf(errorPrefix+"trying to construct value of type %v from parameters; parameter named %v is not assignable type: expected %v, got %v",
+					err = fmt.Errorf(ErrorPrefix+"trying to construct value of type %v from parameters; parameter named %v is not assignable type: expected %v, got %v",
 						reflectedStructType, structField.Name, fieldInRetValue.Type(), reflect.TypeOf(valueFromMap))
 					var zero StructType
 					ret = zero
@@ -226,7 +227,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 				}
 			} else { // non-interface type for the field
 				if fieldInRetValue.Type() != reflect.TypeOf(valueFromMap) {
-					err = fmt.Errorf(errorPrefix+" trying to construct value of type %v from parameters; parameter named %v is of wrong type: expected %v, got %v",
+					err = fmt.Errorf(ErrorPrefix+" trying to construct value of type %v from parameters; parameter named %v is of wrong type: expected %v, got %v",
 						reflectedStructType, structField.Name, fieldInRetValue.Type(), reflect.TypeOf(valueFromMap))
 					var zero StructType
 					ret = zero

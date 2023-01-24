@@ -2,6 +2,7 @@ package common
 
 import "encoding/binary"
 
+
 // This file defines a type for endianness to serialize FieldElements.
 // NOTE: Our *internal* representations use a fixed order; endianness choice is only relevant for I/O.
 
@@ -174,6 +175,8 @@ func (s FieldElementEndianness) Uint256(in []byte) (little_endian_ret [4]uint64)
 	return
 }
 
+// same as above, but instead of returning a [4]uint64, we provide the address where to put them.
+
 func (s FieldElementEndianness) Uint256_indirect(in []byte, little_endian_ret *[4]uint64) {
 	if len(in) < 32 {
 		panic(ErrorPrefix + "Uint256 called on a slice of insufficient length")
@@ -190,6 +193,8 @@ func (s FieldElementEndianness) Uint256_indirect(in []byte, little_endian_ret *[
 		little_endian_ret[0] = binary.BigEndian.Uint64(in[24:32])
 	}
 }
+
+// same as above, but the input is a pointer-to-array (of the correct size) instead of a slice.
 
 func (s FieldElementEndianness) Uint256_array(in *[32]byte, little_endian_ret *[4]uint64) {
 	if s.v == v_littleEndian {
@@ -261,11 +266,18 @@ func (s FieldElementEndianness) PutUint64(out []byte, in uint64) {
 	}
 }
 
+// LittleEndian and BigEndian of type FieldElementEndianness are used for big resp. little endian serialization of field elements.
 var (
 	LittleEndian FieldElementEndianness = FieldElementEndianness{v: v_littleEndian}
 	BigEndian    FieldElementEndianness = FieldElementEndianness{v: v_bigEndian}
 )
 
+// NOTE: DefaultEndian is the zero value of FieldElementEndianness (by design).
+// While intentional, we do not promise that as part of the API, becaue it would preclude us from turning FieldElementEndianness into an interface
+// (maybe in same later version of Go)
+
+// DefaultEndian is the default setting we use in our serializers unless overridden.
+// NOTE: Users should not modify DefaultEndian; if you want to deviate from the default, create a new serializer with modified endianness.
 var (
 	DefaultEndian = LittleEndian
 )

@@ -26,7 +26,7 @@ type errorWithParameters_T[StructType any] struct {
 // Error is provided to satisfy the error interface
 func (e *errorWithParameters_common) Error() string {
 	if e == nil {
-		panic(errorPrefix + "called Error() on nil error of concrete type errorWithParams. This is a bug, since nil errors of this type should never exist.")
+		panic(ErrorPrefix + "called Error() on nil error of concrete type errorWithParams. This is a bug, since nil errors of this type should never exist.")
 	}
 	s, formattingError := formatError(e.message, e.params, e.contained_error, true)
 	if formattingError != nil {
@@ -85,7 +85,7 @@ func (e *errorWithParameters_common) GetAllParameters() (ret map[string]any) {
 
 func makeErrorWithParametersCommon(baseError error, overrideMessage string) (ret errorWithParameters_common) {
 	if !utf8.ValidString(overrideMessage) {
-		panic(errorPrefix + "override message for error creation was not a valid UTF-8 string")
+		panic(ErrorPrefix + "override message for error creation was not a valid UTF-8 string")
 	}
 	if overrideMessage == "" {
 		overrideMessage = DefaultOverrideMessage
@@ -94,7 +94,7 @@ func makeErrorWithParametersCommon(baseError error, overrideMessage string) (ret
 	}
 	_, formattingError := formatError(overrideMessage, nil, nil, false)
 	if formattingError != nil {
-		panic(fmt.Errorf(errorPrefix+"creating of an error with parameters failed, because the error override message was malformed.\noverrideMessage = %v.\nreported error was: %v", overrideMessage, formattingError))
+		panic(fmt.Errorf(ErrorPrefix+"creating of an error with parameters failed, because the error override message was malformed.\noverrideMessage = %v.\nreported error was: %v", overrideMessage, formattingError))
 	}
 	ret.contained_error = baseError
 	ret.message = overrideMessage
