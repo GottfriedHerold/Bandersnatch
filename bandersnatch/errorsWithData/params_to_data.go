@@ -9,6 +9,9 @@ import (
 )
 
 // this file contains functionality used for translating maps[string]any <-> struct{...}
+// The translation works by treating a struct Foo struct{A int; B byte} as a map m of type
+// map[string]any where m["A"] has type int, m["B"] has type byte.
+// Some care needs to be taken with non-exported, embedded and shadowed fields:
 
 // lookupStructMapConversion is a lookup table (only depending of T) that contains the
 // relevant data for converting an instance of a struct T to a map[string]any.
@@ -48,6 +51,7 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 	ret = make(lookupStructMapConversion, 0, len(allVisibleFields))
 
 	// ensure everything is exported and filter out embedded fields
+outer_loop:
 	for _, visibleField := range allVisibleFields {
 		// .Anonymous denotes whether the field is embedded (a bit of a misnomer).
 		// for an embedded field, reflect.VisibleFields returns both the name of the embedded type and its included field
@@ -56,8 +60,38 @@ func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConver
 			continue
 		}
 		if !visibleField.IsExported() {
-			panic(ErrorPrefix + "using errorWithEnsuredParameters with struct type containing unexported fields")
+			panic(ErrorPrefix + "using errorsWithData with struct type containing unexported fields")
 		}
+
+		for pos, existingField := range ret {
+			// Shadowing:
+			if existingField.Name == visibleField.Name {
+				// shorter length of Index is the one that get precedence (according to Go's shadowing rules).
+				// In case of ambiguity, we panic:
+				if len(existingField.Index) == len(visibleField.Index) {
+					panic(ErrorPrefix + "using errorsWithData with struct type that has an ambiguous promoted field")
+				}
+				// ensure that for existingField.Index and visibleField.Index, one is a prefix of the other.
+				// Note that this is stronger that the usual rules, which just compare len of Index.
+				if len(existingField.Index) < len(visibleField.Index) {
+					for i := 0; i < len(existingField.Index); i++ {
+						if existingField.Index[i] != visibleField.Index[i] {
+							panic(ErrorPrefix + "using errorsWithData with struct type that has a promoted field through different embedded fields")
+						}
+					}
+					continue outer_loop // don't add visible field, the existing one takes precedence
+				} else { // len(existingField.Index) > len(visibleField.Index)
+					for i := 0; i < len(visibleField.Index); i++ {
+						if existingField.Index[i] != visibleField.Index[i] {
+							panic(ErrorPrefix + "using errorsWithData with struct type that has a promoted field through different embedded fields")
+						}
+					}
+					ret[pos] = visibleField // overwrite previous entry
+					continue outer_loop     // to skip the append below
+				}
+			}
+		}
+
 		ret = append(ret, visibleField)
 	}
 
@@ -116,6 +150,8 @@ func CheckParameterForStruct[StructType any](fieldName string) {
 
 // CheckIsSubtype checks that both StructType1 and StructType2 only contain exported names and those of StructType1 are a subset of those of StructType2.
 // Note that Struct embedding StructType1 in the definition of StructType2 may be preferred to this approach.
+//
+// CheckIsSubtype only cares about the names of the fields. It completely ignores the types.
 // The purpose is to create guards in the code. It panics on failure.
 func CheckIsSubtype[StructType1 any, StructType2 any]() {
 	allExpectedFields1 := getStructMapConversionLookup(utils.TypeOfType[StructType1]())
@@ -134,6 +170,7 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 	for _, expectedField := range allExpectedFields {
 		// Special case e==nil for better error message.
 		// If e == nil, GetParameterFromError returns (nil, false) so any iteration of the for loop ends up here.
+		// (We check this inside the loop, because expectedFields may be an empty list)
 		if e == nil {
 			err = fmt.Errorf(ErrorPrefix+"nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
 			return
@@ -141,7 +178,7 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 
 		mapEntry, exists := m[expectedField.Name]
 		if !exists {
-			err = fmt.Errorf(ErrorPrefix+"error %v does not contain a parameters named %v, neccessary to export data a a struct of type %v", e, expectedField.Name, structType)
+			err = fmt.Errorf(ErrorPrefix+"error %v does not contain a parameter named %v, neccessary to export data a a struct of type %v", e, expectedField.Name, structType)
 			return
 		}
 		// requires special casing due to what I consider a design error in reflection.
@@ -174,7 +211,7 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 }
 
 // Note: returning an error rather than panicking is somewhat difficult here, because several of the called functions
-// can panic, including some standard library functions. Catching all error cases here is annoying.
+// can panic, including some standard library functions. Catching all error cases here would be very difficult.
 
 // makeStructFromMap constructs a struct of type T from a map m of type map[string]any by
 // setting all visible fields (possibly from embedded anonymous structs) in T according to m.
@@ -183,10 +220,10 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 //
 // Returns an error if m does not contain data for some struct fields or data of invalid type;
 // On error, the value for the returned struct ret is the zero value of the struct.
-// We ask that data has exaclty matching type except for interface types in the struct or nil values (of type any) in the map.
+// We ask that data has exactly matching type except for interface types in the struct or nil values (of type any) in the map.
 // m == nil is treated like an empty map. Using an invalid T causes panic.
 func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err error) {
-	reflectedStructType := utils.TypeOfType[StructType]() // could do reflect.TypeOf(ret), but this gives better errors in case someone wrongly sets T to an interface type.
+	reflectedStructType := utils.TypeOfType[StructType]() // could do reflect.TypeOf(ret), but this gives better errors in case someone wrongly sets StructType to an interface type.
 	allStructFields := getStructMapConversionLookup(reflectedStructType)
 	retValue := reflect.ValueOf(&ret).Elem() // need to pass pointer for settability
 	for _, structField := range allStructFields {
