@@ -211,7 +211,7 @@ func testFESerialization_NonNormalizedDeserialization[FEType any, FEPtr interfac
 			var expected Uint256 = us[i]
 			expected.Reduce()
 			testutils.FatalUnless(t, IsEqualAsUint256(yFEPtr, &expected), "Roundtrip failure")
-			errData := errRead.GetData()
+			errData := errRead.GetData_struct()
 			testutils.FatalUnless(t, errData.PartialRead == false, "")
 			testutils.FatalUnless(t, errData.BytesRead == 32, "")
 			testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, bytesCopy[32*i:32*(i+1)]), "ErrorData.actually read was inaccurate") // failing this would actually be OK per spec, but we don't want that.
@@ -241,7 +241,7 @@ func testFESerialization_EOFDeserialization[FEType any, FEPtr interface {
 	testutils.FatalUnless(t, errors.Is(errRead, io.EOF), "Deserializing empty buffer returned unexpected non-EOF error %v", errRead)
 	testutils.FatalUnless(t, bytesRead == 0, "Deserializing empty buffer returned unexpected number of bytes read %v", bytesRead)
 	testutils.FatalUnless(t, yFEPtr.IsEqual(&yCopy), "Deserializing empty buffer wrote to receiver")
-	errData := errRead.GetData()
+	errData := errRead.GetData_struct()
 	testutils.FatalUnless(t, errData.PartialRead == false, "")
 	testutils.FatalUnless(t, errData.BytesRead == 0, "")
 	testutils.FatalUnless(t, len(errData.ActuallyRead) == 0, "") // nil or zero-length slice
@@ -262,7 +262,7 @@ func testFESerialization_EOFDeserialization[FEType any, FEPtr interface {
 		testutils.FatalUnless(t, errors.Is(errRead, io.ErrUnexpectedEOF), "Deserializing too short buffer returned not ErrUnexpectedEOF, but %v", errRead)
 		testutils.FatalUnless(t, bytesRead == i, "Deserializing too short buffer of lenght %v returned %v bytes read", i, bytesRead)
 		testutils.FatalUnless(t, yFEPtr.IsEqual(&yCopy), "Deserializing too short buffer wrote to receiver")
-		errData := errRead.GetData()
+		errData := errRead.GetData_struct()
 		testutils.FatalUnless(t, errData.PartialRead == true, "")
 		testutils.FatalUnless(t, errData.BytesRead == i, "")
 		testutils.FatalUnless(t, len(errData.ActuallyRead) == i, "")
@@ -301,7 +301,7 @@ func testFESerialization_IOError[FEType any, FEPtr interface {
 		bytesWritten, writeError := serFun(xSerArg, faultyBuf, endianness)
 		testutils.FatalUnless(t, errors.Is(writeError, designatedError), "Did not get expected io error, got %v instead", writeError)
 		testutils.FatalUnless(t, bytesWritten == i, "Did not write expected number %v of bytes, wrote %v instead ", i, bytesWritten)
-		errData := writeError.GetData()
+		errData := writeError.GetData_struct()
 		testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "")
 		testutils.FatalUnless(t, errData.BytesWritten == i, "") // not really required, but we expect it to be true
 		testutils.FatalUnless(t, bytes.Equal(faultyBuf.Bytes(), expectedBytes[:i]), "")
@@ -347,7 +347,7 @@ func testFEDeserialization_IOError[FEType any, FEPtr interface {
 		testutils.FatalUnless(t, bytesRead == i, "Did not read expected number %v of bytes, read %v instead ", i, bytesRead)
 		testutils.FatalUnless(t, xPtr.IsEqual(&xCopy), "Failing read changed receiver")
 
-		errData := readError.GetData()
+		errData := readError.GetData_struct()
 		testutils.FatalUnless(t, errData.PartialRead == (i != 0), "")
 		testutils.FatalUnless(t, errData.BytesRead == i, "") // not really required, but we expect it to be true
 		testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, bytesInBuffer[:i]), "")
@@ -396,7 +396,7 @@ func testFESerialization_PrefixRoundtrip[FEType any, FEPtr interface {
 			if !prefixFit {
 				testutils.FatalUnless(t, errors.Is(errWrite, ErrPrefixDoesNotFit), "")
 				testutils.FatalUnless(t, bytesWritten == 0, "")
-				errData := errWrite.GetData()
+				errData := errWrite.GetData_struct()
 				testutils.FatalUnless(t, errData.BytesWritten == 0, "")
 				testutils.FatalUnless(t, errData.PartialWrite == false, "")
 				continue // skip roundtrip test
@@ -446,7 +446,7 @@ func testFESerialization_PrefixRoundtrip[FEType any, FEPtr interface {
 				// read with wrong prefix
 				bytesRead, errRead = deserWithExpectedPrefix(ySer, &buf, modifiedPrefix, endianness)
 				testutils.FatalUnless(t, errors.Is(errRead, ErrPrefixMismatch), "")
-				errData := errRead.GetData()
+				errData := errRead.GetData_struct()
 				testutils.FatalUnless(t, bytesRead > 0, "") // must have read something
 				testutils.FatalUnless(t, errData.PartialRead == (bytesRead < 32), "")
 				testutils.FatalUnless(t, yPtr.IsEqual(&yCopy), "")
@@ -515,7 +515,7 @@ func testFESerialization_PrefixErrorHandling[FEType any, FEPtr interface {
 					testutils.FatalUnless(t, bytesRead == i, "")
 					testutils.FatalUnless(t, errors.Is(errRead, expectedError), "")
 					testutils.FatalUnless(t, yPtr.IsEqual(&yCopy), "")
-					errData := errRead.GetData()
+					errData := errRead.GetData_struct()
 					testutils.FatalUnless(t, errData.PartialRead == (i != 0), "")
 					testutils.FatalUnless(t, errData.BytesRead == i, "")
 					testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, xSerializedBytes[:i]), "")
@@ -563,7 +563,7 @@ func testFESerialization_PrefixErrorHandling[FEType any, FEPtr interface {
 				bytesWritten, errWrite := serWithPrefix(xSer, faultyBuf, prefix, endianness)
 				testutils.FatalUnless(t, errors.Is(errWrite, expectedError), "")
 				testutils.FatalUnless(t, bytesWritten == i, "")
-				errData := errWrite.GetData()
+				errData := errWrite.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "")
 				testutils.FatalUnless(t, errData.BytesWritten == i, "") // not required by spec
 				actuallyWritten := faultyBuf.Bytes()
@@ -588,7 +588,7 @@ func testFESerialization_PrefixErrorHandling[FEType any, FEPtr interface {
 			testutils.FatalUnless(t, bytesRead == 32, "")
 			testutils.FatalUnless(t, errors.Is(errRead, ErrNonNormalizedDeserialization), "")
 			testutils.FatalUnless(t, prefixRead == prefix.PrefixBits(), "")
-			errData := errRead.GetData()
+			errData := errRead.GetData_struct()
 			testutils.FatalUnless(t, errData.PartialRead == false, "")
 			testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, xSerializedBytes), "")
 			testutils.FatalUnless(t, errData.BytesRead == 32, "")
@@ -602,7 +602,7 @@ func testFESerialization_PrefixErrorHandling[FEType any, FEPtr interface {
 			testutils.FatalUnless(t, bytesRead == 32, "")
 			testutils.FatalUnless(t, errors.Is(errRead, ErrNonNormalizedDeserialization), "")
 			testutils.FatalUnless(t, prefixRead == prefix.PrefixBits(), "")
-			errData = errRead.GetData()
+			errData = errRead.GetData_struct()
 			testutils.FatalUnless(t, errData.PartialRead == false, "")
 			testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, xSerializedBytes), "prefix: %v\n%v\n%v\n", prefix, errData.ActuallyRead, xSerializedBytes)
 			testutils.FatalUnless(t, errData.BytesRead == 32, "")

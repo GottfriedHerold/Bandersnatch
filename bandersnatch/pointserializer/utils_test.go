@@ -44,7 +44,7 @@ func TestConsumeExpectRead(t *testing.T) {
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("consumeExpectRead on empty read did not report EOF. Got %v instead", err)
 	}
-	errData := err.GetData()
+	errData := err.GetData_struct()
 
 	if errData.BytesRead != 0 || len(errData.ActuallyRead) != 0 || errData.PartialRead {
 		t.Fatalf("consumderExpectRead on empty read did reported unexpected metadata %v", errData)
@@ -59,7 +59,7 @@ func TestConsumeExpectRead(t *testing.T) {
 		t.Fatalf("consumeExpectRead on too short reader did not report io.ErrUnexpectedEOF. Got %v instead", err)
 	}
 
-	errData = err.GetData()
+	errData = err.GetData_struct()
 	if !bytes.Equal(errData.ActuallyRead, data[0:3]) || !errData.PartialRead {
 		t.Fatalf("consumeExpectRead on too short reader reported unexpected metadata. Got %v", errData)
 	}
@@ -75,7 +75,7 @@ func TestConsumeExpectRead(t *testing.T) {
 		t.Fatalf("consumeExpectRead on mismatched data did not report expected error. Got %v instead", err)
 	}
 
-	errData = err.GetData()
+	errData = err.GetData_struct()
 	if !bytes.Equal(errData.ActuallyRead, data[0:5]) || !bytes.Equal(errData.ExpectedToRead, data2) {
 		t.Fatalf("consumeExpectRead on mismatched data did not return expected metadata. Got %v instead", errData)
 	}
@@ -108,7 +108,7 @@ func TestConsumeExpectRead(t *testing.T) {
 	bytes_read, err = consumeExpectRead(faultyBuf, expectedRead)
 	testutils.FatalUnless(t, bytes_read == 2, "consumeExpectRead did not read 2 bytes on faulty buffer")
 	testutils.FatalUnless(t, errors.Is(err, designatedErr), "consumeExpectRead did not return expected error on faulty buffer read")
-	errData = err.GetData()
+	errData = err.GetData_struct()
 	testutils.FatalUnless(t, errData.PartialRead == true, "consumeExpectRead did not report partial read")
 	testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, []byte{6, 7}), "consumeExpectRead did not report actually read data")
 	testutils.FatalUnless(t, bytes.Equal(errData.ExpectedToRead, expectedRead), "consumeExpectRead did not report intended read")
@@ -180,10 +180,10 @@ func TestWriteFull(t *testing.T) {
 	testutils.FatalUnless(t, bytesWritten == 2, "writeFull wrote %v bytes instead of the expected 2 on faultyBuf2", bytesWritten)
 	testutils.FatalUnless(t, errors.Is(err, designatedErr), "writeFull did not fail on write with faultyBuf2 with the expected error. Error was %v", err)
 
-	var errData bandersnatchErrors.WriteErrorData = err.GetData()
+	var errData bandersnatchErrors.WriteErrorData = err.GetData_struct()
 	testutils.FatalUnless(t, errData.PartialWrite == true, "writeFull did not report partialWrite")
 	testutils.FatalUnless(t, errData.BytesWritten == 2, "writeFull did not report BytesWritten")
-	intendedToWrite := errorsWithData.GetDataFromError[struct{ Data []byte }](err).Data
+	intendedToWrite := errorsWithData.GetData_struct[struct{ Data []byte }](err).Data
 
 	testutils.FatalUnless(t, bytes.Equal(intendedToWrite, realWriteCopy), "writeFull did not write to buffer as expected. Content after write %v", content)
 	testutils.FatalUnless(t, !testutils.CheckSliceAlias(intendedToWrite, realWrite), "writeFull's error Data aliases the given data")

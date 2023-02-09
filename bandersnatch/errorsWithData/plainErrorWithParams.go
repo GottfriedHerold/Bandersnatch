@@ -9,7 +9,7 @@ import (
 
 // errorWithParameters_common is a simple implementation of the ErrorWithParameters interface
 // NOTE:
-// functions must ALWAYS return an error as an interface, never as a concrete type.
+// exported functions must ALWAYS return an error as an interface, never as a concrete type.
 // (since otherwise, nil errors are returned as typed nil pointers, which is a serious footgun)
 type errorWithParameters_common struct {
 	contained_error error          // wrapped underlying error
@@ -49,7 +49,7 @@ func (e *errorWithParameters_common) Unwrap() error {
 // GetData is provided to satisfy ErrorWithParameters[StructType].
 //
 // It constructs a value of type StructType from the provided parameters.
-func (e *errorWithParameters_T[StructType]) GetData() (ret StructType) {
+func (e *errorWithParameters_T[StructType]) GetData_struct() (ret StructType) {
 	ret, err := makeStructFromMap[StructType](e.params)
 	if err != nil {
 		panic(err)
@@ -73,7 +73,7 @@ func (e *errorWithParameters_common) GetParameter(parameterName string) (value a
 
 // GetAllParameters returns a map of all parameters present in the error.
 // The returned map is a (shallow) copy, so modification of values of the returned map does not affect the error.
-func (e *errorWithParameters_common) GetAllParameters() (ret map[string]any) {
+func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 	ret = make(map[string]any)
 	for key, value := range e.params {
 		ret[key] = value
@@ -98,6 +98,6 @@ func makeErrorWithParametersCommon(baseError error, overrideMessage string) (ret
 	}
 	ret.contained_error = baseError
 	ret.message = overrideMessage
-	ret.params = GetAllParametersFromError(baseError)
+	ret.params = GetData_map(baseError)
 	return
 }

@@ -254,7 +254,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToUint64() (result uint64, err erro
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
 		// err = ErrCannotRepresentAsUint64
-		err = errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as a uint64", "FieldElement", *z)
+		err = errorsWithData.NewErrorWithData_any_params(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as a uint64", "FieldElement", *z)
 		result = 0
 	}
 	return
@@ -317,7 +317,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error)
 		return
 	}
 	zCopy := *z // to avoid z escaping to the heap. Now only zCopy escapes, but this is only allocated conditionally in the first place.
-	err = errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", zCopy)
+	err = errorsWithData.NewErrorWithData_any_params(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", zCopy)
 
 	result = 0 // no-op, but stated for clarity.
 	return

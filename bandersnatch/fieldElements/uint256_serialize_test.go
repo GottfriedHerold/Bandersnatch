@@ -55,7 +55,7 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 			bytesRead, errRead := x.Deserialize(buf, endianness)
 			if errors.Is(errRead, io.EOF) {
 				testutils.FatalUnless(t, bytesRead == 0, "")
-				errData := errRead.GetData()
+				errData := errRead.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialRead == false, "")
 				testutils.FatalUnless(t, errData.BytesRead == 0, "")
 				testutils.FatalUnless(t, len(errData.ActuallyRead) == 0, "") // might be nil or zero-length slice -- either is OK.
@@ -115,7 +115,7 @@ func TestUint256Serialize(t *testing.T) {
 			// check correct error handling:
 			testutils.FatalUnless(t, bytesWritten == i, "")
 			testutils.FatalUnless(t, errors.Is(err, designatedErr), "")
-			errData := err.GetData()
+			errData := err.GetData_struct()
 			testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "")
 			testutils.FatalUnless(t, errData.BytesWritten == i, "")
 
@@ -155,7 +155,7 @@ func TestUint256Deserialize(t *testing.T) {
 			// check correct error handling:
 			testutils.FatalUnless(t, bytesRead == i, "")
 			testutils.FatalUnless(t, errors.Is(err, designatedErr), "")
-			errData := err.GetData()
+			errData := err.GetData_struct()
 			testutils.FatalUnless(t, errData.PartialRead == (i != 0), "")
 			testutils.FatalUnless(t, errData.BytesRead == i, "")
 			actuallyRead := errData.ActuallyRead
@@ -196,7 +196,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 						testutils.FatalUnless(t, writeError != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
 						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
 						testutils.FatalUnless(t, bytesWritten == 0, "")
-						errData := writeError.GetData()
+						errData := writeError.GetData_struct()
 						testutils.FatalUnless(t, errData.PartialWrite == false, "")
 						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
 						continue // no roundtrip tests
@@ -223,7 +223,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 						testutils.FatalUnless(t, writeError != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
 						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
 						testutils.FatalUnless(t, bytesWritten == 0, "")
-						errData := writeError.GetData()
+						errData := writeError.GetData_struct()
 						testutils.FatalUnless(t, errData.PartialWrite == false, "")
 						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
 						continue
@@ -233,7 +233,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 					testutils.FatalUnless(t, errors.Is(writeError, designatedError), "Write to faulty buf gave unexpected error %v", writeError)
 					testutils.FatalUnless(t, bytesWritten == 16, "Write to faulty buf gave unexpted number of bytes Written %v", bytesWritten)
 
-					errData := writeError.GetData()
+					errData := writeError.GetData_struct()
 					testutils.FatalUnless(t, errData.PartialWrite == true, "")
 					testutils.FatalUnless(t, errData.BytesWritten == 16, "")
 				}
@@ -251,7 +251,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 					testutils.FatalUnless(t, bytesRead == 0, "")
 					testutils.FatalUnless(t, errors.Is(err, ErrPrefixLengthInvalid), "")
 					testutils.FatalUnless(t, yCopy == y, "y was written to on error")
-					errData := err.GetData()
+					errData := err.GetData_struct()
 					testutils.FatalUnless(t, errData.PartialRead == false, "")
 					testutils.FatalUnless(t, errData.ActuallyRead == nil, "")
 					testutils.FatalUnless(t, errData.BytesRead == 0, "")
@@ -275,7 +275,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 					testutils.FatalUnless(t, bytesRead == 16, "")
 					testutils.FatalUnless(t, errors.Is(errRead, designatedError), "")
 					testutils.FatalUnless(t, y == yCopy, "y was written to on error")
-					errData := errRead.GetData()
+					errData := errRead.GetData_struct()
 					testutils.FatalUnless(t, errData.PartialRead == true, "")
 					testutils.FatalUnless(t, errData.BytesRead == 16, "")
 					testutils.FatalUnless(t, bytes.Equal(errData.ActuallyRead, goodBuf.Bytes()[0:16]), "")
@@ -330,7 +330,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 							} else {
 								testutils.FatalUnless(t, errors.Is(readError, ErrPrefixMismatch), "")
 								testutils.FatalUnless(t, y == yCopy, "y was written to on error")
-								errData := readError.GetData()
+								errData := readError.GetData_struct()
 								testutils.FatalUnless(t, errData.PartialRead == (bytesRead > 0 && bytesRead < 32), "")
 								// NOTE: errData.ActuallyRead and errData.BytesRead have unspecified behaviour.
 							}
@@ -339,7 +339,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 						y = yCopy
 						bytesRead, readError := y.DeserializeWithExpectedPrefix(badBuf1, expectedPrefix, endianness)
 						testutils.FatalUnless(t, readError != nil, "DeserializeWithExpectedPrefix did not return error when called on faultyBuffer, bytesRead == %v. PrefixMatch == %v, endianness == %v", bytesRead, prefixMatch, endianness) // !
-						errData := readError.GetData()
+						errData := readError.GetData_struct()
 						testutils.FatalUnless(t, errData.PartialRead == true, "")
 						testutils.FatalUnless(t, bytesRead == 1, "")
 						testutils.FatalUnless(t, y == yCopy, "")
@@ -353,7 +353,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 						y = yCopy
 						bytesRead, readError = y.DeserializeWithExpectedPrefix(badBuf2, expectedPrefix, endianness)
 						testutils.FatalUnless(t, readError != nil, "")
-						errData = readError.GetData()
+						errData = readError.GetData_struct()
 						testutils.FatalUnless(t, errData.PartialRead == true, "")
 						testutils.FatalUnless(t, y == yCopy, "")
 						testutils.FatalUnless(t, bytesRead >= 1 && bytesRead <= 31, "")
@@ -423,9 +423,9 @@ func TestUint256DeserializeEOF(t *testing.T) {
 					testutils.FatalUnless(t, errors.Is(err2, io.EOF), "Unexpected error: Expected EOF, got %v", err2)
 					testutils.FatalUnless(t, errors.Is(err3, io.EOF), "Unexpected error: Expected EOF, got %v", err3)
 					// y's unchanged by the above
-					errData1 := err1.GetData()
-					errData2 := err2.GetData()
-					errData3 := err3.GetData()
+					errData1 := err1.GetData_struct()
+					errData2 := err2.GetData_struct()
+					errData3 := err3.GetData_struct()
 					testutils.FatalUnless(t, errData1.PartialRead == false, "Unexpected PartialRead flag")
 					testutils.FatalUnless(t, errData2.PartialRead == false, "Unexpected PartialRead flag")
 					testutils.FatalUnless(t, errData3.PartialRead == false, "Unexpected PartialRead flag")
@@ -439,9 +439,9 @@ func TestUint256DeserializeEOF(t *testing.T) {
 					testutils.FatalUnless(t, errors.Is(err1, io.ErrUnexpectedEOF), "Unexpected error: Expected ErrUnexpectedEOF, got %v", err1)
 					testutils.FatalUnless(t, errors.Is(err2, io.ErrUnexpectedEOF), "Unexpected error: Expected ErrUnexpectedEOF, got %v", err2)
 					testutils.FatalUnless(t, errors.Is(err3, io.ErrUnexpectedEOF), "Unexpected error: Expected ErrUnexpectedEOF, got %v", err3)
-					errData1 := err1.GetData()
-					errData2 := err2.GetData()
-					errData3 := err3.GetData()
+					errData1 := err1.GetData_struct()
+					errData2 := err2.GetData_struct()
+					errData3 := err3.GetData_struct()
 					testutils.FatalUnless(t, errData1.PartialRead == true, "Unexpected PartialRead flag")
 					testutils.FatalUnless(t, errData2.PartialRead == true, "Unexpected PartialRead flag")
 					testutils.FatalUnless(t, errData3.PartialRead == true, "Unexpected PartialRead flag")

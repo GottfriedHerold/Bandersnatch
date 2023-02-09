@@ -21,9 +21,9 @@ import (
 // rather than being equal to it.
 func UnexpectEOF(errPtr *error) {
 	if errors.Is(*errPtr, io.EOF) {
-		m := errorsWithData.GetAllParametersFromError(*errPtr)
+		m := errorsWithData.GetData_map(*errPtr)
 		if len(m) > 0 {
-			*errPtr = errorsWithData.NewErrorWithParametersFromMap(io.ErrUnexpectedEOF, "", m)
+			*errPtr = errorsWithData.NewErrorWithData_any_map(io.ErrUnexpectedEOF, "", m)
 		} else {
 			*errPtr = io.ErrUnexpectedEOF
 		}
@@ -31,9 +31,9 @@ func UnexpectEOF(errPtr *error) {
 }
 
 // UnexpectEOF2 does the same as UnexpectEOF, except that it preserves the compile-time information about the StructType in ErrorWithGuaranteedParameters[StructType]
-func UnexpectEOF2[StructType any](errPtr *errorsWithData.ErrorWithGuaranteedParameters[StructType]) {
+func UnexpectEOF2[StructType any](errPtr *errorsWithData.ErrorWithData[StructType]) {
 	if errors.Is(*errPtr, io.EOF) {
-		m := errorsWithData.GetAllParametersFromError(*errPtr)
-		*errPtr = errorsWithData.NewErrorWithGuaranteedParametersFromMap[StructType](io.ErrUnexpectedEOF, "", m)
+		m := errorsWithData.GetData_map(*errPtr)
+		*errPtr = errorsWithData.NewErrorWithData_map[StructType](io.ErrUnexpectedEOF, "", m)
 	}
 }

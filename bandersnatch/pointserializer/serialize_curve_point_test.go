@@ -299,7 +299,7 @@ func TestOutputSliceLengthForMultiSerializer(t *testing.T) {
 	testutils.FatalUnless(t, x == math.MaxInt32, "unexpected Slice serialization size")
 	_, err = serBig.SliceOutputLength(1)
 	testutils.FatalUnless(t, err != nil, "NO error")
-	x64, ok := errorsWithData.GetParameterFromError(err, "Size")
+	x64, ok := errorsWithData.GetParameter(err, "Size")
 	testutils.FatalUnless(t, ok, "internal error")
 	testutils.FatalUnless(t, x64.(int64) == math.MaxInt32+64, "")
 
@@ -362,7 +362,7 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 				bytesWritten, err := ser.SerializeCurvePoint(faultyBuf, &curvePoints.SubgroupGenerator_xtw_subgroup)
 				testutils.FatalUnless(t, bytesWritten == i, "Did not write until error")
 				testutils.FatalUnless(t, err != nil, "Did not get error on faulty buffer")
-				errData := err.GetData()
+				errData := err.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "Invalid PartialWrite flag")
 				testutils.FatalUnless(t, errors.Is(err, designatedError), "Unexpected Error")
 			}
@@ -379,7 +379,7 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
 				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
 				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
-				var errData bandersnatchErrors.ReadErrorData = err.GetData()
+				var errData bandersnatchErrors.ReadErrorData = err.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
 
 				faultyBuf = testutils.NewFaultyBuffer(i, designatedError)
@@ -390,7 +390,7 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
 				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
 				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
-				errData = err.GetData()
+				errData = err.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
 
 				eofBuf := bytes.NewBuffer(copyByteSlice(correctBytes)[0:i])
@@ -405,7 +405,7 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 					testutils.FatalUnless(t, errors.Is(err, io.ErrUnexpectedEOF), "Did not get ErrUnexpectedEOF error. Got instead:\n%v\n %v %v %v", err, headerLen, footerLen, i)
 				}
 
-				errData = err.GetData()
+				errData = err.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
 
 				eofBuf = bytes.NewBuffer(copyByteSlice(correctBytes)[0:i])
@@ -420,7 +420,7 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 					testutils.FatalUnless(t, errors.Is(err, io.ErrUnexpectedEOF), "Did not get ErrUnexpectedEOF error. Got instead:\n%v\n %v %v %v", err, headerLen, footerLen, i)
 				}
 
-				errData = err.GetData()
+				errData = err.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
 
 			}

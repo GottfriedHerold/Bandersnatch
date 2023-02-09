@@ -47,12 +47,12 @@ const FIELDNAME_BYTES_WRITTEN = "BytesWritten"
 
 // Refactoring guard. This panics if the strings above don't correspond to the names of the exported field.
 func init() {
-	errorsWithData.CheckParametersForStruct_exact[WriteErrorData]([]string{FIELDNAME_BYTES_WRITTEN, FIELDNAME_PARTIAL_WRITE})
-	errorsWithData.CheckParametersForStruct_exact[ReadErrorData]([]string{FIELDNAME_BYTES_READ, FIELDNAME_PARTIAL_READ, FIELDNAME_ACTUALLY_READ})
+	errorsWithData.CheckParametersForStruct_all[WriteErrorData]([]string{FIELDNAME_BYTES_WRITTEN, FIELDNAME_PARTIAL_WRITE})
+	errorsWithData.CheckParametersForStruct_all[ReadErrorData]([]string{FIELDNAME_BYTES_READ, FIELDNAME_PARTIAL_READ, FIELDNAME_ACTUALLY_READ})
 }
 
-type SerializationError = errorsWithData.ErrorWithGuaranteedParameters[WriteErrorData]
-type DeserializationError = errorsWithData.ErrorWithGuaranteedParameters[ReadErrorData]
+type SerializationError = errorsWithData.ErrorWithData[WriteErrorData]
+type DeserializationError = errorsWithData.ErrorWithData[ReadErrorData]
 
 // TODO: Move these definitions around?
 
@@ -83,5 +83,5 @@ var (
 	ErrCannotSerializePointAtInfinity = errors.New("bandersnatch / point serialization: The selected serializer cannot serialize points at infinity")
 	ErrCannotSerializeNaP             = errors.New("bandersnatch / point serialization: cannot serialize NaP")
 	ErrCannotDeserializeNaP           = errors.New("bandersnatch / point deserialization: cannot deserialize coordinates corresponding to NaP")
-	ErrCannotDeserializeXYAllZero     = errorsWithData.NewErrorWithGuaranteedParameters[struct{}](ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0")
+	ErrCannotDeserializeXYAllZero     = errorsWithData.NewErrorWithData_params[struct{}](ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0")
 )

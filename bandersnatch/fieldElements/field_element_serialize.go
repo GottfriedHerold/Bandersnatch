@@ -49,7 +49,7 @@ func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHea
 		BytesRead:    bytesRead,
 		ActuallyRead: buf.Bytes(), // Note: buf.Bytes() does not copy, but that's OK here, as we throw away the bytes.Buffer
 	}
-	err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &errData)
+	err = errorsWithData.NewErrorWithData_struct(ErrNonNormalizedDeserialization, "", &errData)
 
 	// fully reduce z
 	z.Reduce_fa()
@@ -235,7 +235,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Write
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(zUint256[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+		err = errorsWithData.NewErrorWithData_struct(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
 		return
 	}
 
@@ -283,7 +283,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Re
 			BytesRead:    bytesRead,
 			ActuallyRead: buf.Bytes(),
 		}
-		err = errorsWithData.NewErrorWithParametersFromData(ErrNonNormalizedDeserialization, "", &errData)
+		err = errorsWithData.NewErrorWithData_struct(ErrNonNormalizedDeserialization, "", &errData)
 
 		// We do not immediately return, because we put z in Montgomery form before, such that the output is what we read modulo BaseFieldSize, even though we have an error.
 		z.words.Reduce_ca()

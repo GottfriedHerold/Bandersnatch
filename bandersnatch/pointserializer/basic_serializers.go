@@ -106,7 +106,7 @@ func addErrorDataNoWrite(err error) bandersnatchErrors.SerializationError {
 	if err == nil {
 		return nil
 	}
-	return errorsWithData.NewErrorWithParametersFromData(err, "", &bandersnatchErrors.WriteErrorData{
+	return errorsWithData.NewErrorWithData_struct(err, "", &bandersnatchErrors.WriteErrorData{
 		PartialWrite: false,
 		BytesWritten: 0,
 	})
@@ -159,7 +159,7 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 		var P curvePoints.Point_axtw_subgroup
 		P, errPlain := curvePoints.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
 		if errPlain != nil {
-			err = errorsWithData.NewErrorWithParametersFromData(errPlain, "", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errPlain, "", &bandersnatchErrors.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -175,7 +175,7 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 		var P curvePoints.Point_axtw_full
 		P, errPlain := curvePoints.CurvePointFromXYAffine_full(&X, &Y, trustLevel)
 		if errPlain != nil {
-			err = errorsWithData.NewErrorWithParametersFromData(errPlain, "", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errPlain, "", &bandersnatchErrors.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -302,7 +302,7 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 		var P curvePoints.Point_axtw_subgroup
 		P, errCurvePoint := curvePoints.CurvePointFromXAndSignY_subgroup(&X, signInt, trustLevel)
 		if errCurvePoint != nil {
-			err = errorsWithData.NewErrorWithParametersFromData(errCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -318,7 +318,7 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 		var P curvePoints.Point_axtw_full
 		P, errCurvePoint := curvePoints.CurvePointFromXAndSignY_full(&X, signInt, trustLevel)
 		if errCurvePoint != nil {
-			err = errorsWithData.NewErrorWithParametersFromData(errCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -458,7 +458,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		var P curvePoints.Point_axtw_subgroup
 		P, errConvertToPoint := curvePoints.CurvePointFromYAndSignX_subgroup(&Y, signInt, trustLevel)
 		if errConvertToPoint != nil {
-			err = errorsWithData.NewErrorWithParametersFromData(errConvertToPoint, "", utils.AddressOfCopy(errData))
+			err = errorsWithData.NewErrorWithData_struct(errConvertToPoint, "", utils.AddressOfCopy(errData))
 			if trustLevel.Bool() {
 				panic(err) // not supposed to be reachable
 			}
@@ -469,7 +469,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		// Y = -1 is already accounted for (not in subgroup)
 		// For Y = +1, we only accept signBit = false, as that's what we write when serializing.
 		if P.IsNeutralElement() && signBit {
-			err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrUnexpectedNegativeZero, "", utils.AddressOfCopy(errData))
+			err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrUnexpectedNegativeZero, "", utils.AddressOfCopy(errData))
 			if trustLevel.Bool() {
 				panic(err) // This is actually reachable
 			}
@@ -481,7 +481,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		var P curvePoints.Point_axtw_full
 		P, errConvertToPoint := curvePoints.CurvePointFromYAndSignX_full(&Y, signInt, trustLevel)
 		if errConvertToPoint != nil {
-			err = errorsWithData.NewErrorWithParametersFromData(errConvertToPoint, "", utils.AddressOfCopy(errData))
+			err = errorsWithData.NewErrorWithData_struct(errConvertToPoint, "", utils.AddressOfCopy(errData))
 			if trustLevel.Bool() {
 				panic(err) // not supposed to be reachable
 			}
@@ -492,7 +492,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		{
 			var X fieldElements.FieldElement = P.X_decaf_affine()
 			if X.IsZero() && signBit {
-				err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrUnexpectedNegativeZero, "", utils.AddressOfCopy(errData))
+				err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrUnexpectedNegativeZero, "", utils.AddressOfCopy(errData))
 				if trustLevel.Bool() {
 					panic(err) // This is actually reachable
 				}
@@ -609,7 +609,7 @@ func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trus
 	var P curvePoints.Point_axtw_subgroup
 	P, errConversionToCurvePoint := curvePoints.CurvePointFromXTimesSignY_subgroup(&XSignY, trustLevel)
 	if errConversionToCurvePoint != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(errConversionToCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errConversionToCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    int(s.OutputLength()),
 			ActuallyRead: nil,
@@ -736,7 +736,7 @@ func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, tru
 	var P curvePoints.Point_axtw_subgroup
 	P, errConversionToCurvePoint := curvePoints.CurvePointFromXYTimesSignY_subgroup(&XSignY, &YSignY, trustLevel)
 	if errConversionToCurvePoint != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(errConversionToCurvePoint, "", &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errConversionToCurvePoint, "", &bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    int(s.OutputLength()),
 			ActuallyRead: nil,

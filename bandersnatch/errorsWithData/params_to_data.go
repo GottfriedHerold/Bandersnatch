@@ -8,10 +8,17 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// TODO: Move this file to internal
+
 // this file contains functionality used for translating maps[string]any <-> struct{...}
 // The translation works by treating a struct Foo struct{A int; B byte} as a map m of type
 // map[string]any where m["A"] has type int, m["B"] has type byte.
-// Some care needs to be taken with non-exported, embedded and shadowed fields:
+// Some care needs to be taken with non-exported, embedded and shadowed fields and untyped nil:
+//
+// embedded fields are ignored (or rather, "flattened" -- On the map level, all promoted fields are at the same level)
+// non-exported fields are disallowed (except for embedded fields)
+// shadowed fields are allowed (the map has only one field per name)
+// untyped nil entries in the maps get converted to a typed nil of the appropriate type in the struct (the conversion vice-versa is to a typed nil)
 
 // lookupStructMapConversion is a lookup table (only depending of T) that contains the
 // relevant data for converting an instance of a struct T to a map[string]any.
@@ -23,7 +30,7 @@ var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[re
 // getStructMapConversionLookup obtains a lookup table for converting a struct data type (passed as reflect.Type)
 // to a map[string]any. Repeated calls with the same argument give identical results (slice with same backing array)
 //
-// This essentially is just reflect.VisibleFields with some extra checks upfront and skipping embedded fields.
+// This essentially is just reflect.VisibleFields with some extra checks upfront, skipping embedded fields and handing shadowed fields.
 func getStructMapConversionLookup(tType reflect.Type) (ret lookupStructMapConversion) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.
@@ -108,12 +115,22 @@ outer_loop:
 	return
 }
 
-// CheckParametersForStruct_exact[StructType](fieldNames) checks whether the name of the fields coincides with
-// the slice of fieldNames. Note that we require equality, i.e. the list of fieldNames is exhaustive; all fields of StructType must be exported.
+// CheckParametersForStruct_all[StructType](fieldNames) checks whether the name of the fields coincides with
+// the slice of fieldNames. Note that we require equality, i.e. the list of fieldNames is exhaustive;
+//
+// Note that all fields of StructType must be exported and shadowed names must only appear once.
 // This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct has exactly a given set of field names.
 // The purpose is to create guards in the code. It panics on failure.
-func CheckParametersForStruct_exact[StructType any](fieldNames []string) {
+func CheckParametersForStruct_all[StructType any](fieldNames []string) {
+	// quadratic, but I don't care.
+	for i := 0; i < len(fieldNames); i++ {
+		for j := i + 1; j < len(fieldNames); j++ {
+			if fieldNames[i] == fieldNames[j] {
+				panic(fmt.Errorf(ErrorPrefix+"In call to CheckParametersForStruct, the given list of field names contains a duplicate: %v", fieldNames[i]))
+			}
+		}
+	}
 	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	for _, expectedField := range allExpectedFields {
 		expectedFieldName := expectedField.Name
@@ -148,7 +165,7 @@ func CheckParameterForStruct[StructType any](fieldName string) {
 	panic(fmt.Errorf(ErrorPrefix+"The given struct does not contain an exported field named %v", fieldName))
 }
 
-// CheckIsSubtype checks that both StructType1 and StructType2 only contain exported names and those of StructType1 are a subset of those of StructType2.
+// CheckIsSubtype checks that both StructType1 and StructType2 are valid for errorsWithData and the exported fields of StructType1 are a subset of those of StructType2.
 // Note that Struct embedding StructType1 in the definition of StructType2 may be preferred to this approach.
 //
 // CheckIsSubtype only cares about the names of the fields. It completely ignores the types.
@@ -161,16 +178,17 @@ func CheckIsSubtype[StructType1 any, StructType2 any]() {
 }
 
 // canMakeStructFromParametersInError checks whether e actually contains data for all fields of a struct of type StructType.
+//
 // This is called after creating an error with T==StructType.
 // e == nil is treated as error without any data.
 func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 	structType := utils.TypeOfType[StructType]()
 	allExpectedFields := getStructMapConversionLookup(structType)
-	m := GetAllParametersFromError(e)
+	m := GetData_map(e)
 	for _, expectedField := range allExpectedFields {
 		// Special case e==nil for better error message.
 		// If e == nil, GetParameterFromError returns (nil, false) so any iteration of the for loop ends up here.
-		// (We check this inside the loop, because expectedFields may be an empty list)
+		// (We check this inside the loop, because expectedFields may be an empty list -- then we don't hit this, as is intended)
 		if e == nil {
 			err = fmt.Errorf(ErrorPrefix+"nil error does not contain any parameters, but a parameter named %v was requested", expectedField.Name)
 			return
@@ -210,12 +228,13 @@ func canMakeStructFromParametersInError[StructType any](e error) (err error) {
 	return nil
 }
 
-// Note: returning an error rather than panicking is somewhat difficult here, because several of the called functions
-// can panic, including some standard library functions. Catching all error cases here would be very difficult.
+// Note: Always returning an error rather than panicking is somewhat finicky, because several of the called functions
+// can panic, including some standard library functions. Catching all error cases here is very difficult.
+// So be aware that this may possibly panic (even though returning an error seems to indicate otherwise)
 
 // makeStructFromMap constructs a struct of type T from a map m of type map[string]any by
 // setting all visible fields (possibly from embedded anonymous structs) in T according to m.
-// The map must contain an entry for every such field of T and T must not not contain non-exported fields.
+// The map must contain an entry for every such field of T and T must not contain non-exported fields.
 // m is allowed to contain additional entries that are not required/used for T.
 //
 // Returns an error if m does not contain data for some struct fields or data of invalid type;
@@ -236,7 +255,7 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 			ret = zero
 			return
 		}
-		// This is stupid, but Go1.18 requires special-casing here.
+		// This is annoying, but Go1.18 requires special-casing here.
 		// There is even a discussion to change the behaviour of reflect.ValueOf(nil)
 		// cf. https://github.com/golang/go/issues/51649
 		if valueFromMap == nil {
@@ -281,9 +300,9 @@ func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err er
 
 // fillMapFromStruct converts a struct of type StructType into a map[string]any
 // by adding an entry to the provided (existing) map m for each visible field of StructType (including from embedded structs).
-// This modifies m, treating a nil map as an empty map.
+// This modifies m, converting a nil map to an empty map.
 //
-// StructType must contain only exported fields. If m points to something inside s (or similar shenanigans), the behaviour is undefined.
+// StructType must contain only exported fields. If *m is a field inside s (or similar shenanigans), the behaviour is undefined.
 // Preexisting entries of m that do not correspond to a field of the struct are left unchanged.
 func fillMapFromStruct[StructType any](s *StructType, m *map[string]any) {
 	if *m == nil {

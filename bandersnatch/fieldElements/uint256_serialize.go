@@ -36,7 +36,7 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 
 	var buf [32]byte // = make([]byte, 32)
 	// byteOrder.PutUint256(buf[:], *z)
-	byteOrder.PutUint256_indirect(buf[:], z[:])
+	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 	bytesWritten, errPlain = output.Write(buf[:])
 	if errPlain != nil {
 		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
@@ -52,7 +52,7 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 
 	var buf [32]byte // = make([]byte, 32)
 	// byteOrder.PutUint256(buf[:], *z)
-	byteOrder.PutUint256_indirect(buf[:], z[:])
+	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 	bytesWritten, _ = output.Write(buf[:]) // Note that bytes.Buffer's Write method is guaranteed to never return an error. It panics instead (if out-of-memory, e.g.)
 	/*
 		if errPlain != nil {
@@ -72,7 +72,7 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 
 	// var buf [32]byte // = make([]byte, 32)
 	// byteOrder.PutUint256(buf[:], *z)
-	byteOrder.PutUint256_indirect(output, z[:])
+	byteOrder.PutUint256_ptr(output, (*[4]uint64)(z))
 	bytesWritten = 32
 	err = nil
 	// bytesWritten, errPlain = output.Write(buf[:])
@@ -112,7 +112,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(z[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+		err = errorsWithData.NewErrorWithData_struct(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
 		return
 	}
 
@@ -144,7 +144,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 // ActuallyRead is nil if no read attempt was made due to invalid function arguments.
 func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
-		err = errorsWithData.NewErrorWithParametersFromData(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.NewErrorWithData_struct(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    0,
 			ActuallyRead: nil, // We do not even try to read

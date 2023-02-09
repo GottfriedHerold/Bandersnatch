@@ -136,7 +136,7 @@ func (z *bsFieldElement_BigInt) SetInt64(x int64) {
 func (z *bsFieldElement_BigInt) ToUint64() (uint64, error) {
 	zInt := z.ToBigInt()
 	if !zInt.IsUint64() {
-		return 0, errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an uint64", "FieldElement", *z)
+		return 0, errorsWithData.NewErrorWithData_any_params(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an uint64", "FieldElement", *z)
 	}
 	return zInt.Uint64(), nil
 }
@@ -153,7 +153,7 @@ func (z *bsFieldElement_BigInt) ToInt64() (int64, error) {
 		zInt.Neg(zInt)
 	}
 	if !zInt.IsInt64() {
-		return 0, errorsWithData.NewErrorWithParameters(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", *z)
+		return 0, errorsWithData.NewErrorWithData_any_params(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", *z)
 	} else {
 		return zInt.Int64(), nil
 	}

@@ -44,11 +44,11 @@ func init() {
 
 // BatchSerializationError is the error type returned by Serialization methods that serialize multiple points at once.
 // errors of this type contain an instance of [BatchSerializationErrorData].
-type BatchSerializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchSerializationErrorData]
+type BatchSerializationError = errorsWithData.ErrorWithData[BatchSerializationErrorData]
 
 // BatchDeserializationError is the error type returned by Deserialization methods that deserialize multiple points at once.
 // errors of this type contain an instance of [BatchDeserializationErrorData].
-type BatchDeserializationError = errorsWithData.ErrorWithGuaranteedParameters[BatchDeserializationErrorData]
+type BatchDeserializationError = errorsWithData.ErrorWithData[BatchDeserializationErrorData]
 
 // *******************************************************************************
 //
@@ -96,7 +96,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoints(inputStream io.R
 			}
 
 			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errSingle, ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w", "PointsDeserialized", i)
+			err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errSingle, ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w", "PointsDeserialized", i)
 			return
 		}
 	}
@@ -141,7 +141,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoints(inputStream io.Rea
 			}
 
 			// the index i gives the correct value for the PointsDeserialized error data. The other data (including PartialRead) is actually correct.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errSingle,
+			err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errSingle,
 				ErrorPrefix+"batch deserialization failed after deserializing %{PointsDeserialized} points with error %w",
 				"PointsDeserialized", i)
 			return
@@ -162,7 +162,7 @@ func DeserializeCurvePoints_Bounded(deserializer CurvePointDeserializer, inputSt
 		return
 	}
 	// err != nil at this point
-	errData := err.GetData()
+	errData := err.GetData_struct()
 	pointsWritten = errData.PointsDeserialized
 	if errData.PartialRead {
 		return
@@ -194,7 +194,7 @@ func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputT
 		bytesJustRead, errNonBatch = deserializer_header.deserializePerPointHeader(inputStream)
 		bytesRead += bytesJustRead
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch,
+			err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch,
 				ErrorPrefix+"slice deserialization failed when reading per-point header after reading %v{PointsDeserialized} points. Errors was %w",
 				"PointsDeserialized", i,
 				FIELDNAME_PARTIAL_READ, true)
@@ -205,12 +205,12 @@ func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputT
 		bytesRead += bytesJustRead
 		if errNonBatch != nil {
 			if i != size || !deserializer_header.trivialPerPointFooter() || !deserializer_header.trivialPerPointFooter() || bytesJustRead == 0 {
-				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch,
+				err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch,
 					ErrorPrefix+"slice deserialization failed after successfully reading %v{PointsDeserialized} points. The error was %w",
 					"PointsDeserialized", i,
 					FIELDNAME_PARTIAL_READ, true)
 			} else {
-				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch,
+				err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch,
 					ErrorPrefix+"slice deserialization failed after successfully reading %v{PointsDeserialized} points. The error was %w",
 					"PointsDeserialized", i)
 			}
@@ -220,7 +220,7 @@ func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputT
 		bytesJustRead, errNonBatch = deserializer_header.deserializePerPointFooter(inputStream)
 		bytesRead += bytesJustRead
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed when reading per-point footer after reading %v{PointsDeserialized} points. Errors was %w", "PointsDeserialized", i+1, FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+"slice deserialization failed when reading per-point footer after reading %v{PointsDeserialized} points. Errors was %w", "PointsDeserialized", i+1, FIELDNAME_PARTIAL_READ, true)
 			return
 		}
 	}
@@ -252,7 +252,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 
 	// If reading the slice header fails, bail out
 	if errNonBatch != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+		err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
 
 		output, _, _ = sliceMaker(-1) // create a dummy value for output
 		return
@@ -261,7 +261,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 	// Make sure the total number of bytes that we will read from will not overflow int32. If it does, we bail out early.
 	_, overflowErr := md.SliceOutputLength(size)
 	if overflowErr != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		err = errorsWithData.NewErrorWithData_struct(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
 		output, _, _ = sliceMaker(-1) // create a dummy value for output
 		return
 	}
@@ -271,7 +271,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 	var errSliceCreate error
 	output, outputPointSlice, errSliceCreate = sliceMaker(size)
 	if errSliceCreate != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(errSliceCreate, "%w", &BatchDeserializationErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errSliceCreate, "%w", &BatchDeserializationErrorData{
 			ReadErrorData:      bandersnatchErrors.ReadErrorData{PartialRead: true},
 			PointsDeserialized: 0,
 		})
@@ -290,7 +290,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 	bytesJustRead, errNonBatch = md.headerDeserializer.deserializeGlobalSliceFooter(inputStream)
 	bytesRead += bytesJustRead
 	if errNonBatch != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
+		err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
 		return
 	}
 
@@ -319,14 +319,14 @@ func (md *multiSerializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, t
 
 	bytesRead, size, errNonBatch = md.headerSerializer.deserializeGlobalSliceHeader(inputStream)
 	if errNonBatch != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
+		err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read header (including size). Error was: %w", FIELDNAME_PARTIAL_READ, bytesRead != 0, FIELDNAME_POINTSDESERIALIZED, 0)
 
 		output, _, _ = sliceMaker(-1)
 		return
 	}
 	_, overflowErr := md.SliceOutputLength(size)
 	if overflowErr != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		err = errorsWithData.NewErrorWithData_struct(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
 		output, _, _ = sliceMaker(-1)
 		return
 	}
@@ -335,7 +335,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, t
 	var errSliceCreate error
 	output, outputPointSlice, errSliceCreate = sliceMaker(size)
 	if errSliceCreate != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(errSliceCreate, "%w", &BatchDeserializationErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errSliceCreate, "%w", &BatchDeserializationErrorData{
 			ReadErrorData:      bandersnatchErrors.ReadErrorData{PartialRead: true},
 			PointsDeserialized: 0,
 		})
@@ -351,7 +351,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, t
 	bytesJustRead, errNonBatch = md.headerSerializer.deserializeGlobalSliceFooter(inputStream)
 	bytesRead += bytesJustRead
 	if errNonBatch != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
+		err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](errNonBatch, ErrorPrefix+" slice deserialization could not read footer. Error was: %w", FIELDNAME_POINTSDESERIALIZED, int(size))
 		return
 	}
 
@@ -414,13 +414,13 @@ func UseExistingSlice[PointType any, PointTypePtr interface {
 			output = int(0)
 			// The error message depends on whether the capacity is too small as well.
 			if cap(existingSlice) < int(length) {
-				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
+				err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
 					"%w: in UseExistingSlice, The length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}",
 					"BufferSize", targetSliceLen,
 					"ReadSliceLen", int(length),
 					"BufferCapacity", cap(existingSlice))
 			} else {
-				err = errorsWithData.NewErrorWithGuaranteedParameters[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
+				err = errorsWithData.NewErrorWithData_params[BatchDeserializationErrorData](ErrInsufficientBufferForDeserialization,
 					"%w: in UseExistingSlice, the length of the given buffer was %v{BufferSize}, but the slice read would have size %v{ReadSliceLen}. Note that the given buffer would have had sufficient capacity %v{BufferCapacity}",
 					"BufferSize", targetSliceLen,
 					"ReadSliceLen", int(length),
@@ -469,7 +469,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoints(outputStream io.Writ
 			if i != 0 {
 				errorTransform.UnexpectEOF2(&errSingle)
 			}
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errSingle,
+			err = errorsWithData.NewErrorWithData_params[BatchSerializationErrorData](errSingle,
 				ErrorPrefix+"batch serialization failed after deserializing %{PointsSerialized} many points with error %w",
 				"PointsSerialized", i)
 			return
@@ -492,7 +492,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 	if errOverflow != nil {
 		// var noWriteAttempt :=
 		overflowErrData := BatchSerializationErrorData{WriteErrorData: bandersnatchErrors.NoWriteAttempt, PointsSerialized: 0}
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrSizeDoesNotFitInt32, ErrorPrefix+"called SerializeSlice with a slice that would require more than MaxInt32 bytes to serialize", &overflowErrData)
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrSizeDoesNotFitInt32, ErrorPrefix+"called SerializeSlice with a slice that would require more than MaxInt32 bytes to serialize", &overflowErrData)
 		return
 	}
 
@@ -500,7 +500,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 	bytesJustWritten, errHeader := md.headerSerializer.serializeGlobalSliceHeader(outputStream, L)
 	bytesWritten += bytesJustWritten
 	if errHeader != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errHeader,
+		err = errorsWithData.NewErrorWithData_params[BatchSerializationErrorData](errHeader,
 			ErrorPrefix+"failed to write slice header. Error was %w",
 			"PointsSerialized", 0,
 			"PartialWrite", bytesWritten != 0)
@@ -521,7 +521,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 		bytesJustWritten, errNonBatch = md.headerSerializer.serializePerPointHeader(outputStream)
 		bytesWritten += bytesJustWritten
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+			err = errorsWithData.NewErrorWithData_params[BatchSerializationErrorData](errNonBatch,
 				ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
 				"PointsSerialized", i,
 				FIELDNAME_PARTIAL_WRITE, true)
@@ -532,7 +532,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 		bytesJustWritten, errNonBatch = md.basicSerializer.SerializeCurvePoint(outputStream, inputPoints.GetByIndex(i))
 		bytesWritten += bytesJustWritten
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+			err = errorsWithData.NewErrorWithData_params[BatchSerializationErrorData](errNonBatch,
 				ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
 				"PointsSerialized", i,
 				FIELDNAME_PARTIAL_WRITE, true)
@@ -543,7 +543,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 		bytesJustWritten, errNonBatch = md.headerSerializer.serializePerPointFooter(outputStream)
 		bytesWritten += bytesJustWritten
 		if errNonBatch != nil {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+			err = errorsWithData.NewErrorWithData_params[BatchSerializationErrorData](errNonBatch,
 				ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
 				"PointsSerialized", i+1,
 				FIELDNAME_PARTIAL_WRITE, true)
@@ -555,7 +555,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 	bytesJustWritten, errNonBatch = md.headerSerializer.serializeGlobalSliceFooter(outputStream)
 	bytesWritten += bytesJustWritten
 	if errNonBatch != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[BatchSerializationErrorData](errNonBatch,
+		err = errorsWithData.NewErrorWithData_params[BatchSerializationErrorData](errNonBatch,
 			ErrorPrefix+"slice serialization failed after successfully writing %v{PointsSerialized} points. The error was: %w",
 			"PointsSerialized", LInt, // Note: PointsSerialized needs type int, not int32
 			FIELDNAME_PARTIAL_WRITE, true)

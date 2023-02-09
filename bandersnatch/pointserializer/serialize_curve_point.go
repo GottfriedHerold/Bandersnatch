@@ -234,7 +234,7 @@ func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) AsDeser
 // ErrInsufficientBufferForDeserialization is the (base) error output when DeserializeSliceToBuffer is called with a buffer of insufficient size.
 //
 // Note that the actual error returned wraps this error (and the error message of the wrapping error reports the actual sizes)
-var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWithData.NewErrorWithParametersFromData(nil,
+var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWithData.NewErrorWithData_struct(nil,
 	ErrorPrefix+"The provided buffer is too small to store the curve point slice",
 	&BatchDeserializationErrorData{
 		PointsDeserialized: 0, // We check this before we do any IO on the actual points
@@ -539,7 +539,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	if err != nil {
 		if bytesRead > 0 {
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -558,7 +558,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
 		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
 		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerDeserializer.trivialSinglePointFooter() && bytesRead > 0) {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -567,7 +567,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	if err != nil {
 		errorTransform.UnexpectEOF2(&err)
 		if bytesJustRead == 0 {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
@@ -583,7 +583,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	if err != nil {
 		if bytesRead > 0 {
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 
 		return
@@ -604,7 +604,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
 		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
 		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerSerializer.trivialSinglePointFooter() && bytesRead > 0) {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 
 		return
@@ -614,7 +614,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	if err != nil {
 		errorTransform.UnexpectEOF2(&err)
 		if bytesJustRead == 0 {
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
@@ -628,7 +628,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 {
 			errorTransform.UnexpectEOF2(&err) // does nothing, actually, because err cannot be EOF for bytesWritten > 0
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 		return
 	}
@@ -637,7 +637,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
 			errorTransform.UnexpectEOF2(&err)
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 		return
 	}
@@ -646,7 +646,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
 			errorTransform.UnexpectEOF2(&err)
-			err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 	}
 	return
@@ -740,18 +740,18 @@ func (md *multiDeserializer[_, _, _, _]) SliceOutputLength(numPoints int32) (int
 
 		OverheadSizeExists := errorsWithData.HasParameter(errOverhead, "Size") // Check whether the error has an embedded "Size" datum (which is an int64 containing the true non-overflown value)
 		if OverheadSizeExists {
-			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
+			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
 			err = errorsWithData.DeleteParameterFromError(err, "Size") // Delete parameter, because it only relates to the header size.
 			// TODO: Update with "Size" + pointCost64?
 		} else {
-			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
+			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
 		}
 		return -1, err // we return -1 for the int32 in case of error here, as the actual value is meaningless. Note that that overhead might well be negative at this point anyway.
 
 	}
 	var ret64 int64 = int64(overhead) + pointCost64 // Cannot overflow, because it is bounded by MaxInt32^2 + MaxInt32
 	if ret64 > math.MaxInt32 {
-		err = errorsWithData.NewErrorWithParameters(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
+		err = errorsWithData.NewErrorWithData_any_params(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
 		return -1, err
 	}
 	return int32(ret64), nil
@@ -774,11 +774,11 @@ func (md *multiSerializer[_, _, _, _]) SliceOutputLength(numPoints int32) (int32
 
 		OverheadSizeExists := errorsWithData.HasParameter(errOverhead, "Size") // Check whether the error has an embedded "Size" datum (which is an int64 containing the true non-overflown value)
 		if OverheadSizeExists {
-			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
+			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
 			err = errorsWithData.DeleteParameterFromError(err, "Size") // Delete parameter, because it only relates to the header size.
 			// TODO: Update with "Size" + pointCost64?
 		} else {
-			err = errorsWithData.NewErrorWithParameters(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
+			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
 		}
 		return -1, err
 
@@ -786,7 +786,7 @@ func (md *multiSerializer[_, _, _, _]) SliceOutputLength(numPoints int32) (int32
 
 	var ret64 int64 = int64(overhead) + pointCost64 // Cannot overflow, because it is bounded by MaxInt32^2 + MaxInt32
 	if ret64 > math.MaxInt32 {
-		err = errorsWithData.NewErrorWithParameters(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
+		err = errorsWithData.NewErrorWithData_any_params(nil, ErrorPrefix+"SliceOutputLength would return %v{Size}, which exceeds MaxInt32", "Size", ret64)
 		return -1, err
 	}
 	return int32(ret64), nil

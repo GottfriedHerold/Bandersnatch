@@ -58,7 +58,7 @@ func MapToFieldElement(input CurvePointPtrInterfaceRead) (ret FieldElement) {
 //
 // Possible errors are (possibly errors wrapping) ErrXNotOnCurve and ErrXNotInSubgroup.
 // Note that for ErrXNotInSubgroup, the returned y is still meaningful.
-func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, err errorsWithData.ErrorWithGuaranteedParameters[struct{ X FieldElement }]) {
+func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, err errorsWithData.ErrorWithData[struct{ X FieldElement }]) {
 
 	// We have y^2 = (1-ax^2) / (1-dx^2)
 	// So, we first compute (1-ax^2) / 1-dx^2
@@ -95,10 +95,10 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 			// The type of error depends on whether denom is a square or not.
 			num.DivideEq(&denom)
 			if y.SquareRoot(&num) {
-				err = errorsWithData.NewErrorWithGuaranteedParameters[struct{ X FieldElement }](bandersnatchErrors.ErrXNotInSubgroup, "%w. The received X coordinates was %v{X}", "X", *x)
+				err = errorsWithData.NewErrorWithData_params[struct{ X FieldElement }](bandersnatchErrors.ErrXNotInSubgroup, "%w. The received X coordinates was %v{X}", "X", *x)
 
 			} else {
-				err = errorsWithData.NewErrorWithGuaranteedParameters[struct{ X FieldElement }](bandersnatchErrors.ErrXNotOnCurve, "%w. The received X coordinate was %v{X}", "X", *x)
+				err = errorsWithData.NewErrorWithData_params[struct{ X FieldElement }](bandersnatchErrors.ErrXNotOnCurve, "%w. The received X coordinate was %v{X}", "X", *x)
 				y.SetZero() // not needed, but we like being explicit.
 			}
 			return
@@ -107,7 +107,7 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 	}
 	num.DivideEq(&denom) // (1-ax^2)/(1-dx^2). Note that 1-dx^2 cannot be 0, as d is a non-square.
 	if !y.SquareRoot(&num) {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[struct{ X FieldElement }](bandersnatchErrors.ErrXNotOnCurve, "%w. The received X coordinate was %v{X}", "X", *x)
+		err = errorsWithData.NewErrorWithData_params[struct{ X FieldElement }](bandersnatchErrors.ErrXNotOnCurve, "%w. The received X coordinate was %v{X}", "X", *x)
 		return
 	}
 	err = nil // err is nil at this point anyway, but we prefer to be explicit.
@@ -119,7 +119,7 @@ func recoverYFromXAffine(x *FieldElement, legendreCheckX bool) (y FieldElement, 
 // We make no guarantees about which x we return; it need not even be consistent for multiple calls with the same y.
 //
 // Possible errors: ErrYNotOnCurve
-func recoverXFromYAffine(y *FieldElement) (x FieldElement, err errorsWithData.ErrorWithGuaranteedParameters[struct{ Y FieldElement }]) {
+func recoverXFromYAffine(y *FieldElement) (x FieldElement, err errorsWithData.ErrorWithData[struct{ Y FieldElement }]) {
 	// We solve ax^2 + y^2 = 1+dx^2y^2 for x,
 	// which means x^2 = (y^2-1)/(dy^2 - a)
 	var num, denom FieldElement
@@ -129,7 +129,7 @@ func recoverXFromYAffine(y *FieldElement) (x FieldElement, err errorsWithData.Er
 	denom.SubEq(&CurveParameterA_fe)     // dy^2 - a
 	if denom.IsZero() {
 		// Note: This case really corresponds to the points at infinity. We give a more specific error.
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrYNotOnCurve, "%w. The affine Y/Z coordinate received was %v{Y}. Note that this particular value actually corresponds to a point at infinity, if one interprets Y/Z = 0/0 appropriately.", &struct{ Y FieldElement }{Y: *y})
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrYNotOnCurve, "%w. The affine Y/Z coordinate received was %v{Y}. Note that this particular value actually corresponds to a point at infinity, if one interprets Y/Z = 0/0 appropriately.", &struct{ Y FieldElement }{Y: *y})
 		x.SetZero() // x = 0, just to be explicit. (it is zero-initialized to this value anyway)
 		return
 	}
@@ -137,7 +137,7 @@ func recoverXFromYAffine(y *FieldElement) (x FieldElement, err errorsWithData.Er
 	ok := x.SquareRoot(&num)
 	if !ok {
 		x.SetZero() // We prefer to have some consistent return value for x on error. It must not be used anyway.
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrYNotOnCurve, "%w. The received affine Y/Z coordinate was %v{Y}", &struct{ Y FieldElement }{Y: *y})
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrYNotOnCurve, "%w. The received affine Y/Z coordinate was %v{Y}", &struct{ Y FieldElement }{Y: *y})
 	}
 	return
 }
@@ -167,7 +167,7 @@ func recoverXFromYAffine(y *FieldElement) (x FieldElement, err errorsWithData.Er
 //
 // Possible error values are (possibly errors wrapping) ErrNotOnCurve and ErrCannotDeserializeXYAllZero, ErrCannotDeserializeNaP
 // Note that ErrCannotDeserializeXYAllZero wraps ErrCannotDeserializeNaP.
-func CurvePointFromXYAffine_full(x *FieldElement, y *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_full, err errorsWithData.ErrorWithGuaranteedParameters[struct{ X, Y FieldElement }]) {
+func CurvePointFromXYAffine_full(x *FieldElement, y *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_full, err errorsWithData.ErrorWithData[struct{ X, Y FieldElement }]) {
 	point.x = *x
 	point.y = *y
 	point.t.Mul(x, y)
@@ -178,15 +178,15 @@ func CurvePointFromXYAffine_full(x *FieldElement, y *FieldElement, trustLevel Is
 		if point.IsNaP() {
 			point = Point_axtw_full{} // standard NaP
 			if x.IsZero() && y.IsZero() {
-				err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrCannotDeserializeXYAllZero, "%w", &struct{ X, Y FieldElement }{X: *x, Y: *y})
+				err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrCannotDeserializeXYAllZero, "%w", &struct{ X, Y FieldElement }{X: *x, Y: *y})
 			} else {
-				err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrCannotDeserializeNaP, "%w. Received affine coordinates X=%v{X}, Y=%v{Y}.", &struct{ X, Y FieldElement }{X: *x, Y: *y})
+				err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrCannotDeserializeNaP, "%w. Received affine coordinates X=%v{X}, Y=%v{Y}.", &struct{ X, Y FieldElement }{X: *x, Y: *y})
 			}
 			return
 
 		}
 		if !point.isPointOnCurve() {
-			err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrNotOnCurve, "%w. Received affine coordinates X=%v{X}, Y=%v{Y}", &struct{ X, Y FieldElement }{X: *x, Y: *y})
+			err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrNotOnCurve, "%w. Received affine coordinates X=%v{X}, Y=%v{Y}", &struct{ X, Y FieldElement }{X: *x, Y: *y})
 			// some extra footgun-protection for users who don't check the error return value (which is a mistake).
 			point = Point_axtw_full{}
 			return
@@ -206,13 +206,13 @@ func CurvePointFromXYAffine_full(x *FieldElement, y *FieldElement, trustLevel Is
 // ErrNotOnCurve, ErrCannotDeserializeXYAllZero, ErrCannotDeserializeNaP, ErrNotInSubgroup
 //
 // Note that ErrCannotDeserializeXYAllZero wraps ErrCannotDeserializeNaP.
-func CurvePointFromXYAffine_subgroup(x *FieldElement, y *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithGuaranteedParameters[struct{ X, Y FieldElement }]) {
+func CurvePointFromXYAffine_subgroup(x *FieldElement, y *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithData[struct{ X, Y FieldElement }]) {
 	point_full, err := CurvePointFromXYAffine_full(x, y, trustLevel)
 	if err != nil {
 		return
 	}
 	if !point.SetFromSubgroupPoint(&point_full, trustLevel) {
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrNotInSubgroup, "%w. Affine coordinatate are X=%v{X}, Y=%v{Y}", &struct{ X, Y FieldElement }{X: *x, Y: *y})
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrNotInSubgroup, "%w. Affine coordinatate are X=%v{X}, Y=%v{Y}", &struct{ X, Y FieldElement }{X: *x, Y: *y})
 	}
 	return
 }
@@ -236,7 +236,7 @@ func CurvePointFromXYAffine_subgroup(x *FieldElement, y *FieldElement, trustLeve
 // Possible errors are (errors possibly wrapping)
 //
 // bandersnatchErrors.ErrInvalidSign, ErrXNotOnCurve, ErrXNotInSubgroup,
-func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsInputTrusted) (point Point_axtw_full, err errorsWithData.ErrorWithGuaranteedParameters[struct {
+func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsInputTrusted) (point Point_axtw_full, err errorsWithData.ErrorWithData[struct {
 	X     FieldElement
 	SignY int
 }]) {
@@ -252,7 +252,7 @@ func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsInput
 	// Note that we generally define Sign(0) == 0, so signs usually are from -1,0,+1. Since Y cannot be zero, we only
 	// accept signs from +/- 1 in this function.
 	if signY != 1 && signY != -1 {
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrInvalidSign,
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrInvalidSign,
 			ErrorPrefix_CurveFieldElementSerializers+"CurvePointFromXAndSignY_full expects the sign argument be either -1 or +1. Got %v{signY} instead. The X coordinate given was %v{X}",
 			&retData{X: *x, SignY: signY},
 		)
@@ -266,7 +266,7 @@ func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsInput
 
 	// Use recoverYFromXAffine to get some y coordinate
 	point.x = *x
-	var errWithX errorsWithData.ErrorWithGuaranteedParameters[struct{ X FieldElement }] // returned error has wrong type
+	var errWithX errorsWithData.ErrorWithData[struct{ X FieldElement }] // returned error has wrong type
 	point.y, errWithX = recoverYFromXAffine(x, false)
 
 	if errWithX != nil {
@@ -298,7 +298,7 @@ func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsInput
 //
 // Possible errors returned are errors possibly wrapping
 // ErrInvalidSign, ErrXNotOnCurve, ErrXNotInSubgroup, ErrNotInSubgroup
-func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithGuaranteedParameters[struct {
+func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithData[struct {
 	X     FieldElement
 	SignY int
 }]) {
@@ -313,7 +313,7 @@ func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsI
 	// Note that we generally define Sign(0) == 0, so signs usually are from -1,0,+1. Since Y cannot be zero, we only
 	// accept signs from +/- 1 in this function.
 	if signY != 1 && signY != -1 {
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrInvalidSign,
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrInvalidSign,
 			ErrorPrefix_CurveFieldElementSerializers+"CurvePointFromXAndSignY_subgroup expects the sign argument be either -1 or +1. Got %v{signY} instead. The X coordinate given was %v{X}",
 			&retData{X: *x, SignY: signY},
 		)
@@ -344,7 +344,7 @@ func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsI
 	ok := point.SetFromSubgroupPoint(&point_full, trustLevel)
 	if !ok {
 
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrNotInSubgroup,
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrNotInSubgroup,
 			ErrorPrefix_CurveFieldElementSerializers+"Called CurvePointFromXAndSignY_subgroup with inputs that define a point outside the prime-order subgroup. The received X was %v{X} and SignY was %v{SignY}.",
 			&retData{X: *x, SignY: signY})
 		point = Point_axtw_subgroup{} // This is redundant, actually, but added for clarity
@@ -381,7 +381,7 @@ func CurvePointFromXAndSignY_subgroup(x *FieldElement, signY int, trustLevel IsI
 // Possible errors returned are (errors possibly wrapping)
 //
 // ErrInvalidZeroSignX, ErrInvalidSign, ErrYNotOnCurve
-func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsInputTrusted) (point Point_axtw_full, err errorsWithData.ErrorWithGuaranteedParameters[struct {
+func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsInputTrusted) (point Point_axtw_full, err errorsWithData.ErrorWithData[struct {
 	Y     FieldElement
 	SignX int
 }]) {
@@ -403,7 +403,7 @@ func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsInput
 			}
 		} else {
 			point = Point_axtw_full{}
-			err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrInvalidZeroSignX, "%w, Provided Y coordinate was %v{Y}", &errData{Y: *y, SignX: 0})
+			err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrInvalidZeroSignX, "%w, Provided Y coordinate was %v{Y}", &errData{Y: *y, SignX: 0})
 			if trustLevel.Bool() {
 				panic(err)
 			}
@@ -412,7 +412,7 @@ func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsInput
 
 	}
 	if signX != +1 && signX != -1 {
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrInvalidSign,
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrInvalidSign,
 			ErrorPrefix_CurveFieldElementSerializers+"CurvePointFromYAndSignX_full and CurvePointFromYAndSignX_subgroup expect signX from {-1,0,+1}. Got: %v{SignX}. The provided Y coorindate was %v{Y}",
 			&errData{Y: *y, SignX: signX})
 		if trustLevel.Bool() {
@@ -428,7 +428,7 @@ func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsInput
 	var errFromRecoverX error // due to different extension of the error interface type
 	point.x, errFromRecoverX = recoverXFromYAffine(y)
 	if errFromRecoverX != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[errData](errFromRecoverX, ErrorPrefix_CurveFieldElementSerializers+"Error in CurvePointFromYAndSignX_full: %w, signX = %v{SignX}",
+		err = errorsWithData.NewErrorWithData_params[errData](errFromRecoverX, ErrorPrefix_CurveFieldElementSerializers+"Error in CurvePointFromYAndSignX_full: %w, signX = %v{SignX}",
 			"SignX", signX)
 		if trustLevel.Bool() {
 			panic(err)
@@ -462,7 +462,7 @@ func CurvePointFromYAndSignX_full(y *FieldElement, signX int, trustLevel IsInput
 //
 // Possible errors returned are errors (possibly wrapping)
 // ErrInvalidZeroSignX, ErrInvalidSign, ErrYNotOnCurve, ErrNotInSubgroup
-func CurvePointFromYAndSignX_subgroup(y *FieldElement, signX int, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithGuaranteedParameters[struct {
+func CurvePointFromYAndSignX_subgroup(y *FieldElement, signX int, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithData[struct {
 	Y     FieldElement
 	SignX int
 }]) {
@@ -478,7 +478,7 @@ func CurvePointFromYAndSignX_subgroup(y *FieldElement, signX int, trustLevel IsI
 	}
 	ok := point.SetFromSubgroupPoint(&point_full, trustLevel)
 	if !ok {
-		err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrNotInSubgroup,
+		err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrNotInSubgroup,
 			ErrorPrefix_CurveFieldElementSerializers+"Called CurvePointFromYAndSignX_subgroup with parameters that are not in the prime order subgroup. Y was %v{Y}. signX was %v{SignX}.",
 			&struct {
 				Y     FieldElement
@@ -507,14 +507,14 @@ func CurvePointFromYAndSignX_subgroup(y *FieldElement, signX int, trustLevel IsI
 // Possible errors are (errors possibly wrapping)
 //
 // ErrXNotOnCurve, ErrXNotInSubgroup; the returned error parameter X equals the value of xSignY up to sign -- note that errors only depend on |X|.
-func CurvePointFromXTimesSignY_subgroup(xSignY *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithGuaranteedParameters[struct{ X FieldElement }]) {
+func CurvePointFromXTimesSignY_subgroup(xSignY *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithData[struct{ X FieldElement }]) {
 	point.x = *xSignY // this is only correct up to sign, but point.x is only defined up to sign anyway for our Point_axtw_subgroup implementation.
 
 	// Note that recoverYFromXAffine only depends on the square of x, so the sign of xSignY does not matter.
 	point.y, err = recoverYFromXAffine(xSignY, !trustLevel.Bool())
 	if err != nil {
 		// update error message.
-		err = errorsWithData.NewErrorWithGuaranteedParameters[struct{ X FieldElement }](err, ErrorPrefix_CurveFieldElementSerializers+"Error in CurvePointFromXTimesSignY_subgroup: %w. Note that this error only depends on the absolute value |X|")
+		err = errorsWithData.NewErrorWithData_params[struct{ X FieldElement }](err, ErrorPrefix_CurveFieldElementSerializers+"Error in CurvePointFromXTimesSignY_subgroup: %w. Note that this error only depends on the absolute value |X|")
 		point = Point_axtw_subgroup{}
 		if trustLevel.Bool() {
 			panic(err)
@@ -546,7 +546,7 @@ func CurvePointFromXTimesSignY_subgroup(xSignY *FieldElement, trustLevel IsInput
 // Possible errors are (errors possibly wrapping)
 //
 // ErrWrongSignY, ErrNotInSubgroup, ErrNotOnCurve
-func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElement, trustlevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithGuaranteedParameters[struct {
+func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElement, trustlevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithData[struct {
 	XSignY, YSignY FieldElement
 }]) {
 
@@ -559,7 +559,7 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 	if !trustlevel.Bool() {
 		// y * Sign(Y) must have Sign > 0. This also check that y!=0
 		if ySignY.Sign() <= 0 {
-			err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrWrongSignY, "%w. X*SignY was %v{XSignY}. The offending Y*SignY was %v{YSignY}", &errData{XSignY: *xSignY, YSignY: *ySignY})
+			err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrWrongSignY, "%w. X*SignY was %v{XSignY}. The offending Y*SignY was %v{YSignY}", &errData{XSignY: *xSignY, YSignY: *ySignY})
 			point = Point_axtw_subgroup{} // no-op, but we prefer to be explicit.
 			return
 		}
@@ -585,7 +585,7 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 		accumulator.AddEq(&fieldElementOne) // 1+5x^2 == 1-ax^2
 
 		if accumulator.Jacobi() < 0 {
-			err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrNotInSubgroup, "%w. The received X*SignY and Y*SignY were %v{XSignY} and %v{YSignY} respectively.", &errData{XSignY: *xSignY, YSignY: *ySignY})
+			err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrNotInSubgroup, "%w. The received X*SignY and Y*SignY were %v{XSignY} and %v{YSignY} respectively.", &errData{XSignY: *xSignY, YSignY: *ySignY})
 			// no return here. We continue computing.
 			// This way, if we have both "not on curve" and "not in subgroup", we get "not on curve", which is more informative.
 			// We also do not yet set point to a NaP, because we use point.t in the "not on curve" check.
@@ -597,7 +597,7 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 		temp.MulEq(&CurveParameterD_fe) // dt^2
 		accumulator.AddEq(&temp)        // 1 - ax^2 - y^2 + dt^2
 		if !accumulator.IsZero() {
-			err = errorsWithData.NewErrorWithParametersFromData(bandersnatchErrors.ErrNotOnCurve, "%w. The received X*SignY and Y*SignY were %v{XSignY} and %v{YSignY} respectively.", &errData{XSignY: *xSignY, YSignY: *ySignY})
+			err = errorsWithData.NewErrorWithData_struct(bandersnatchErrors.ErrNotOnCurve, "%w. The received X*SignY and Y*SignY were %v{XSignY} and %v{YSignY} respectively.", &errData{XSignY: *xSignY, YSignY: *ySignY})
 		}
 		if err != nil {
 			point = Point_axtw_subgroup{}
@@ -624,6 +624,6 @@ func CurvePointFromXYTimesSignY_subgroup(xSignY *FieldElement, ySignY *FieldElem
 // Possible errors are (errors possibly wrapping)
 //
 // ErrWrongSignY, ErrNotInSubgroup, ErrNotOnCurve
-func CurvePointFromYXTimesSignY_subgroup(ySignY *FieldElement, xSignY *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithGuaranteedParameters[struct{ XSignY, YSignY FieldElement }]) {
+func CurvePointFromYXTimesSignY_subgroup(ySignY *FieldElement, xSignY *FieldElement, trustLevel IsInputTrusted) (point Point_axtw_subgroup, err errorsWithData.ErrorWithData[struct{ XSignY, YSignY FieldElement }]) {
 	return CurvePointFromXYTimesSignY_subgroup(xSignY, ySignY, trustLevel)
 }

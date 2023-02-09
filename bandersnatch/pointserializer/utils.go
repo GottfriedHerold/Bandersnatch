@@ -63,7 +63,7 @@ func init() {
 //
 // Possible errors (modulo wrapping):
 // io errors, io.EOF, io.ErrUnexpectedEOF, ErrDidNotReadExpectedString
-func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError errorsWithData.ErrorWithGuaranteedParameters[headerRead]) {
+func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, returnedError errorsWithData.ErrorWithData[headerRead]) {
 	// We do not treat nil as an empyt byte slice here. This is an internal function and we expect ourselves to behave properly: nil indicates a bug.
 	if expectToRead == nil {
 		panic(ErrorPrefix + "consumeExpectRead called with nil input for expectToRead")
@@ -98,7 +98,7 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 			// Note: Sprintf is only used for the length of the expected input. The other %%v{arg} are done via errorsWithData, hence escaping the %.
 			message := fmt.Sprintf(ErrorPrefix+"Unexpected EOF after reading %%v{BytesRead} out of %v bytes when reading header.\nReported error was %%w.\nBytes expected were 0x%%x{ExpectedToRead}, got 0x%%x{ActuallyRead}", len(expectToRead))
 			returnedErrorData.PartialRead = true
-			returnedError = errorsWithData.NewErrorWithParametersFromData(err, message, &returnedErrorData)
+			returnedError = errorsWithData.NewErrorWithData_struct(err, message, &returnedErrorData)
 			return
 		} else if errors.Is(err, io.EOF) {
 			message := ErrorPrefix + "EOF when trying to read buffer.\nExpected to read 0x%x{ExpectedToRead}, got EOF instead"
@@ -108,11 +108,11 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 			returnedErrorData.ActuallyRead = make([]byte, 0)
 			returnedErrorData.PartialRead = false
 
-			returnedError = errorsWithData.NewErrorWithParametersFromData(err, message, &returnedErrorData)
+			returnedError = errorsWithData.NewErrorWithData_struct(err, message, &returnedErrorData)
 			return
 		} else { // other io error
 			returnedErrorData.PartialRead = (bytes_read > 0) // NOTE: io.ReadFull guarantees bytes_read < l, since errors after full reads are dropped.
-			returnedError = errorsWithData.NewErrorWithParametersFromData(err, "", &returnedErrorData)
+			returnedError = errorsWithData.NewErrorWithData_struct(err, "", &returnedErrorData)
 			return
 		}
 
@@ -125,7 +125,7 @@ func consumeExpectRead(input io.Reader, expectToRead []byte) (bytes_read int, re
 
 		err = bandersnatchErrors.ErrDidNotReadExpectedString
 		message := ErrorPrefix + "Unexpected Header encountered upon deserialization. Expected 0x%x{ExpectedToRead}, got 0x%x{ActuallyRead}"
-		returnedError = errorsWithData.NewErrorWithParametersFromData(err, message, &returnedErrorData)
+		returnedError = errorsWithData.NewErrorWithData_struct(err, message, &returnedErrorData)
 		return
 	}
 	returnedError = nil // this is true anyway at this point; just added for clarity.
@@ -170,7 +170,7 @@ func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatc
 
 	bytesWritten, errPlain := output.Write(data)
 	if errPlain != nil {
-		err = errorsWithData.NewErrorWithGuaranteedParameters[bandersnatchErrors.WriteErrorData](errPlain, ErrorPrefix+"An error occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data. The error was:\n%w",
+		err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errPlain, ErrorPrefix+"An error occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data. The error was:\n%w",
 			"Data", copyByteSlice(data),
 			bandersnatchErrors.FIELDNAME_BYTES_WRITTEN, bytesWritten,
 			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten < len(data),

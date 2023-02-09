@@ -30,15 +30,15 @@ func TestCheckParamsForStruct(t *testing.T) {
 	var T1List []string = []string{"Name1", "Name3", "Name2"} // intentionally different order than in T1
 	var NestedT1List []string = []string{"Name1", "Name3", "Name4", "Name2"}
 	var NestedT2_anonList []string = []string{"Name1", "Name2", "Name3", "Name4"}
-	CheckParametersForStruct_exact[EmptyStruct](EmptyList)
-	CheckParametersForStruct_exact[T1](T1List)
-	CheckParametersForStruct_exact[NestedT1](NestedT1List)
-	CheckParametersForStruct_exact[NestedT2_anon](NestedT2_anonList)
+	CheckParametersForStruct_all[EmptyStruct](EmptyList)
+	CheckParametersForStruct_all[T1](T1List)
+	CheckParametersForStruct_all[NestedT1](NestedT1List)
+	CheckParametersForStruct_all[NestedT2_anon](NestedT2_anonList)
 
-	if !testutils.CheckPanic(CheckParametersForStruct_exact[T1], NestedT1List) {
+	if !testutils.CheckPanic(CheckParametersForStruct_all[T1], NestedT1List) {
 		t.Fatalf("T1")
 	}
-	if !testutils.CheckPanic(CheckParametersForStruct_exact[NestedT1], T1List) {
+	if !testutils.CheckPanic(CheckParametersForStruct_all[NestedT1], T1List) {
 		t.Fatalf("T2")
 	}
 

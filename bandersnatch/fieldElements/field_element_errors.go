@@ -41,7 +41,7 @@ type MultiInversionErrorData struct {
 
 // MultiInversionError is an interface extending error.
 // It is used to indicate errors in multiinversion algorithms.
-type MultiInversionError = errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData]
+type MultiInversionError = errorsWithData.ErrorWithData[MultiInversionErrorData]
 
 // Canary: This will panic if we refactor field names. The reason is that some functions below use %v{FieldName} - syntax, which depends on these particular names.
 func init() {
@@ -54,7 +54,7 @@ func init() {
 // If none of the fieldElements are zero, returns nil
 //
 // NOTE: This is an internal function that is exported for cross-package usage.
-func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_MontgomeryNonUnique, prefixForError string) errorsWithData.ErrorWithGuaranteedParameters[MultiInversionErrorData] {
+func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_MontgomeryNonUnique, prefixForError string) errorsWithData.ErrorWithData[MultiInversionErrorData] {
 	var errorData MultiInversionErrorData
 	errorData.ZeroIndices = make([]int, 0)
 	for i, fe := range fieldElements {
@@ -83,5 +83,5 @@ func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_Montgomery
 		errorString = fmt.Sprintf("%v\nThere were %%v{NumberOfZeroIndices} many arguments that were zero. The first ten were at indices (starting from 0) %v", prefixForError, errorData.ZeroIndices[0:10])
 	}
 
-	return errorsWithData.NewErrorWithParametersFromData(ErrDivisionByZero, errorString, &errorData)
+	return errorsWithData.NewErrorWithData_struct(ErrDivisionByZero, errorString, &errorData)
 }

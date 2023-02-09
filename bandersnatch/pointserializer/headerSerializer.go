@@ -308,9 +308,9 @@ func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reade
 
 	var sizeUInt32 uint32 = shd.sliceSizeEndianness.Uint32(buf[:])
 	if sizeUInt32 > math.MaxInt32 {
-		errPlain = errorsWithData.NewErrorWithParameters(bandersnatchErrors.ErrSizeDoesNotFitInt32, "%w. Size read when deserializing was %v{Size}",
+		errPlain = errorsWithData.NewErrorWithData_any_params(bandersnatchErrors.ErrSizeDoesNotFitInt32, "%w. Size read when deserializing was %v{Size}",
 			"Size", sizeUInt32)
-		err = errorsWithData.NewErrorWithParametersFromData(errPlain, "%w", &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errPlain, "%w", &bandersnatchErrors.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    bytesJustRead,
 			ActuallyRead: buf[:],
@@ -331,7 +331,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 	// Write GlobalSliceHeader
 	bytesWritten, errPlain := output.Write(shs.headerSlice[:])
 	if errPlain != nil {
-		err = errorsWithData.NewErrorWithParametersFromData(errPlain, "%w", &bandersnatchErrors.WriteErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errPlain, "%w", &bandersnatchErrors.WriteErrorData{
 			BytesWritten: bytesWritten,
 			PartialWrite: bytesWritten != 0,
 		})
@@ -345,7 +345,7 @@ func (shs *simpleHeaderSerializer) serializeGlobalSliceHeader(output io.Writer, 
 	bytesWritten += bytesJustWritten // ensureInt32Constrains ensures this fits into int32
 	if errPlain != nil {
 		errorTransform.UnexpectEOF(&errPlain)
-		err = errorsWithData.NewErrorWithParametersFromData(errPlain, "%w", &bandersnatchErrors.WriteErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errPlain, "%w", &bandersnatchErrors.WriteErrorData{
 			BytesWritten: bytesJustWritten,
 			PartialWrite: bytesJustWritten != simpleHeaderSliceLengthOverhead,
 		})
@@ -367,7 +367,7 @@ func (shd *simpleHeaderDeserializer) GetGlobalSliceFooter() []byte {
 
 // addPartialReadInfo is a helper function that just "downcasts" the extra data type for the error.
 // This is because consumeExpectRead returns headerRead as additional data, which also contains ExpectedToRead.
-func fixReadErrorType(errIn errorsWithData.ErrorWithGuaranteedParameters[headerRead]) (errOut bandersnatchErrors.DeserializationError) {
+func fixReadErrorType(errIn errorsWithData.ErrorWithData[headerRead]) (errOut bandersnatchErrors.DeserializationError) {
 	return errorsWithData.AsErrorWithData[bandersnatchErrors.ReadErrorData](errIn)
 }
 
@@ -501,7 +501,7 @@ func (shd *simpleHeaderDeserializer) MultiPointHeaderOverhead(numPoints int32) (
 	ret64 += int64(len(shd.headerSlice) + len(shd.footerSlice))                                 // term added is guaranteed to fit into int32
 	// NOTE: ret64 is guaranteed to not have overflown an int64, since it is at most (2^31-1) * (2^31-1) + 4 + (2^31-1), which is smaller than 2^63-1
 	if ret64 > math.MaxInt32 {
-		err = errorsWithData.NewErrorWithParameters(nil, "MultiPointOverhead does not fit into int32, size was %v{Size}",
+		err = errorsWithData.NewErrorWithData_any_params(nil, "MultiPointOverhead does not fit into int32, size was %v{Size}",
 			"Size", ret64)
 	}
 	ret = int32(ret64)

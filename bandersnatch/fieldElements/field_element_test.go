@@ -19,7 +19,6 @@ var _ FieldElementInterface[*bsFieldElement_MontgomeryNonUnique] = &bsFieldEleme
 var _ FieldElementInterface_common = &bsFieldElement_BigInt{}
 var _ FieldElementInterface[*bsFieldElement_BigInt] = &bsFieldElement_BigInt{}
 
-
 func TestFieldElementProperties(t *testing.T) {
 	t.Run("Montgomery implementation", testAllFieldElementProperties[bsFieldElement_MontgomeryNonUnique])
 	t.Run("trivial big.Int implementation", testAllFieldElementProperties[bsFieldElement_BigInt])
@@ -801,7 +800,7 @@ func testFEProperty_SmallIntConversion[FE any, FEPtr interface {
 			} else {
 				testutils.FatalUnless(t, err != nil, "ToInt64 caused no error, even though we expected it")
 				testutils.FatalUnless(t, errors.Is(err, ErrCannotRepresentFieldElement), "ToInt64 did not return expected error")
-				feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+				feAny, ok := errorsWithData.GetParameter(err, "FieldElement")
 				testutils.FatalUnless(t, ok, "")
 				feFe := feAny.(FE)
 				testutils.FatalUnless(t, fe.IsEqual(&feFe), "error did not contain erroneous field element")
@@ -823,7 +822,7 @@ func testFEProperty_SmallIntConversion[FE any, FEPtr interface {
 			} else {
 				testutils.FatalUnless(t, err != nil, "ToUint64 caused no error, even though we expected it")
 				testutils.FatalUnless(t, errors.Is(err, ErrCannotRepresentFieldElement), "ToUint64 did not return expected error")
-				feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+				feAny, ok := errorsWithData.GetParameter(err, "FieldElement")
 				testutils.FatalUnless(t, ok, "")
 				feFe := feAny.(FE)
 				testutils.FatalUnless(t, fe.IsEqual(&feFe), "error did not contain erroneous field element")
@@ -850,7 +849,7 @@ func testFEProperty_SmallIntConversion[FE any, FEPtr interface {
 				if err == nil {
 					testutils.FatalUnless(t, asUint64 == xInt.Uint64(), "")
 				} else {
-					feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+					feAny, ok := errorsWithData.GetParameter(err, "FieldElement")
 					testutils.FatalUnless(t, ok, "")
 					feFe := feAny.(FE)
 					feBig := FEPtr(&feFe).ToBigInt()
@@ -863,7 +862,7 @@ func testFEProperty_SmallIntConversion[FE any, FEPtr interface {
 				if err == nil {
 					testutils.FatalUnless(t, asInt64 == xInt.Int64(), "")
 				} else {
-					feAny, ok := errorsWithData.GetParameterFromError(err, "FieldElement")
+					feAny, ok := errorsWithData.GetParameter(err, "FieldElement")
 					testutils.FatalUnless(t, ok, "")
 					feFe := feAny.(FE)
 					feBig := FEPtr(&feFe).ToBigInt()

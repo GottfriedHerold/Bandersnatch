@@ -359,7 +359,7 @@ func TestOverheadReporting(t *testing.T) {
 	const TOO_LARGE_SLICE = 1 << 30
 	_, err = someSimpleHeaderDeserializer.MultiPointHeaderOverhead(TOO_LARGE_SLICE)
 	testutils.FatalUnless(t, err != nil, "Multi-Overhead reported no error")
-	realOverhead, ok := errorsWithData.GetParameterFromError(err, "Size")
+	realOverhead, ok := errorsWithData.GetParameter(err, "Size")
 	testutils.Assert(ok)
 	testutils.FatalUnless(t, realOverhead.(int64) == 1+2+simpleHeaderSliceLengthOverhead+TOO_LARGE_SLICE*(16+32), "Unexpected Overhead 4")
 

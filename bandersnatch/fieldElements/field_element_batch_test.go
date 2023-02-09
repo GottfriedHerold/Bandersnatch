@@ -113,8 +113,8 @@ func TestMultiInvert(t *testing.T) {
 	if !errors.Is(err2, ErrDivisionByZero) {
 		t.Fatalf("Inverting zero did not produce division by Zero error")
 	}
-	data := err.GetData()
-	data2 := err2.GetData()
+	data := err.GetData_struct()
+	data2 := err2.GetData_struct()
 	if data.NumberOfZeroIndices != 1 {
 		t.Fatalf("Wrong data reported when inverting single 0")
 	}
@@ -178,7 +178,7 @@ func TestMultiInvert(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Inverting slice with 0s did not report error")
 	}
-	data = err.GetData()
+	data = err.GetData_struct()
 	if data.NumberOfZeroIndices != (MAXSIZE+1)/2 {
 		t.Fatalf("Reported error had number of 0 indices wrong")
 	}
@@ -204,7 +204,7 @@ func TestMultiInvert(t *testing.T) {
 	if err2 == nil {
 		t.Fatalf("MultInvertEq did not report error on 0 args")
 	}
-	data2 = err2.GetData()
+	data2 = err2.GetData_struct()
 	if data.NumberOfZeroIndices != data2.NumberOfZeroIndices {
 		t.Fatalf("MultiInvertEq did not report same error as MultiInvertEqSlice")
 	}
