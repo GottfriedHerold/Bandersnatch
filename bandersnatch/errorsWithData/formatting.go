@@ -237,9 +237,9 @@ func formatError_new(formatString string, parameters_own map[string]any, paramet
 				ret.WriteString(remaining_string)
 			}
 			if passmap {
-				err = fmt.Errorf("invalid terminating \"%%\"")
-			} else {
 				err = fmt.Errorf("invalid terminating \"$\"")
+			} else {
+				err = fmt.Errorf("invalid terminating \"%%\"")
 			}
 			return
 		}
