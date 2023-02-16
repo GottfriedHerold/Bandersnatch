@@ -1,24 +1,21 @@
 // Package errorsWithData defines functionality to add arbitrary parameters to errors in a way that is compatible with error wrapping.
 //
-// Parameters can be added and retrieved to errors in two flavours: as a map[string]interface{} or a structs.
+// Parameters can be added and retrieved to errors in two flavours: as a map[string]interface{} or as structs.
 // We allow both interchangably, identifying a struct{A: x, B: y} with a map {"A":x, "B":y}, i.e.
 // the map keys are the field names (this gives some minor restrictions on what struct types are allowed).
-// The map/struct interfaces can be mixed-and-matched and when retrieving a struct, the fields may be a subset of the parameters present.
+// The map/struct interfaces can be mixed-and-matched and when retrieving as a struct, the fields may be a strict subset of the parameters present.
 //
-// TODO: CHANGE
-// Naming-wise, the API (arbitrarily) uses the term "parameters" for the map interface and the term "data" for the struct interface.
-//
-// The publicly-facing API operates on errors of plain type [error] and is compatible with error wrapping.
-// We (need to) treat errors as immutable objects, so any modification to the parameters of an error will create a new one,
+// The free functions that are part of the public API operate on errors of plain type [error] and are compatible with error wrapping.
+// We (need to) treat errors as (shallowly) immutable objects, so any (shallow) modification to the parameters of an error will create a new one,
 // typically wrapping the old one.
 //
-// Errors are returned either as an interface [ErrorWithParameters] or through a generic interface ErrorWithGuaranteedParameters[StructType].
+// Errors are returned either as an interface of type [ErrorWithData_any] or through a generic interface ErrorWithData[StructType].
 // the first option corresponds roughly to StructType = struct{}, but is special-cased.
 //
 // StructType is used to communicate through the type system that certain parameters are present with certain types.
-// Notably, all these interfaces extend error and for a StructType= struct{A:type1, B:type2}, non-nil errors of type ErrorWithGuaranteedParameters[StructType]
+// Notably, all these interfaces extend error and for a StructType= struct{A:type1, B:type2}, non-nil errors of type ErrorWithData[StructType]
 // are guaranteed to contain (at least) parameters under keys "A" and "B" of appropriate type.
-// For ErrorWithParameters, we make no such guarantee about what parameters are present.
+// For [ErrorWithData_any], we make no such guarantee about what parameters are present.
 // Generally speaking, this (and retrievability as structs in general) exists purely as a way to get some partial type-safety.
 //
 // We recommend adding / retrieving via the struct rather than the map interface for at least some compile-time type-safety.
@@ -27,15 +24,28 @@
 // We assert that any errors that are contained in error chains are either nil *interfaces* or non-nil.
 // In particular, no nil error of concrete struct (pointer) type shall ever appear.
 //
-// We further assume that all errors involved are immutable (and in particular, their associated data is). This is satisfied by our own implementation.
+// We further assume that all errors involved are immutable (and in particular, their associated data is). This is enforced by our own implementation at least for shallow modification.
 // In particular, when we have some error e with data m (in map form) with m["Foo"] = "Bar", then the supposed way to "modify" m is by creating
 // a new error e2 wrapping e with modified map m2 and replace e by e2.
-// The reason is that e2 "inherits" its map from e and we changed e after creating e2, it is unclear whether we should track the changes, leading to confusion.
+// The reason is that e2 "inherits" its map from e and if we change e after creating e2, it is unclear whether we should track the changes, leading to confusion.
 // We generally ask that for any error e, the output of e.Error() does not change in time.
-// The library allows using a plain error as the base of an error chaing with parameters added to the wrapping errors. When, violating immutability for the base
-// we make no guarantee at what point(s) in time the base's Error() method are called.
+// The library allows using a plain error as the base of an error chain with parameters added to the wrapping errors.
+// When violating immutability for the base error, we make no guarantee at what point(s) in time the base error's Error() method are called.
 // Similarly, the actual associated data that is contained in error should not be modified. While we provide no way to modify the data, this also means that care should be taken
 // when using slices or pointers as associated data (as the contents of the backing array or the value pointed-to may change). We recommend deep-copying slices.
+//
+// A second reason for the recommendation to deep-copy slices is that the pattern
+//
+//	   var [some_number]T s
+//	   ...
+//	   if <bad thing>{
+//			some_slice := make([]some_type, len(s))
+//	    	copy(some_slice, s[:])
+//	     	return NewErrorWithData_params(..., some_slice)
+//	   }
+//
+// avoids always heap-allocating s even if no error occurs. In general, the parameters passed to create errors with data should be created only in the failing branch;
+// doing otherwise may carry a large perfomance penalty (since Go's interfaces essentially break Go's escape analysis).
 //
 // Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions on allowed structs:
 //   - All non-embedded field names must be exported.
@@ -57,7 +67,7 @@
 // When retrieving data as an instance s of Struct2, s.Struct1.Data2 may be zero-inintialized.
 // In particular, roundtrip fails for shadowed fields:
 // Creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are embedded fields.
-// For the map[string]any API, note that we allow nil interface entries (i.e. m["Foo"]=nil); when using the struct API, with struct{Foo *int}, this gets converted into a nil of appropriate type.
+// For the map[string]any API, note that we allow (and special-case) nil interface entries (i.e. m["Foo"]=nil); when using the struct API, with struct{Foo *int}, this gets converted into a nil of appropriate type *int.
 //
 // TODO: REDO!
 // Interfaces creating new errors take an overrideMessage string parameter.
@@ -125,10 +135,11 @@ import (
 // ErrorWithData_any is an interface extending error to also contain arbitrary parameters
 // in the form of a map[string]any
 // Obtaining the additional data can and should be done via the more general free functions
-// [GetAllParametersFromError], [GetParameterFromError], [GetDataFromError], etc.
+// [GetAllParametersFromError], [GetParameterFromError], [GetDataFromError], etc, as these work for arbitrary errors.
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
+	Error_interpolate(params map[string]any) string // extended version of Error() string that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) formatting verbs work.
 	GetParameter(parameterName string) (value any, wasPresent bool)
 	// HasParameter returns whether parameterName is a key of the parameter map.
 	HasParameter(parameterName string) bool
@@ -153,7 +164,7 @@ type ErrorWithData[StructType any] interface {
 // It's functionally equivalent to [ErrorWithData_any]
 type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
 
-// ErrorPrefix is a prefix added to all *internal* error messages/panics that originate from this package.
+// ErrorPrefix is a prefix added to all *internal* error messages/panics (such as invalid formatting strings) that originate from this package.
 const ErrorPrefix = "bandersnatch / error handling: "
 
 // GetData_map returns a map for all parameters stored in the error, including all of err's error chain.
