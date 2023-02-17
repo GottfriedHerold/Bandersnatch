@@ -34,3 +34,15 @@ func TestTokenizer(t *testing.T) {
 	test_token_case("%{Foo%%}", `[% "v" { "Foo%" }]`)
 	test_token_case("${Foo%%}", `[$ "v" { "Foo%" }]`)
 }
+
+var (
+	_ ast_I = new_ast_root()
+	_ ast_I = new_ast_list()
+	_ ast_I = new_ast_string("")
+	_ ast_I = new_ast_fmtPercent()
+	_ ast_I = new_ast_fmtDollar()
+	_ ast_I = new_ast_parentPercent()
+	_ ast_I = new_ast_parentDollar()
+	_ ast_I = new_ast_condPercent()
+	_ ast_I = new_ast_condDollar()
+)
