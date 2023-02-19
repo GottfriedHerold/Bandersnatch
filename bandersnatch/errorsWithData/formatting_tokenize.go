@@ -23,13 +23,14 @@ import (
 // Consecutive string tokens get concatenated into a single string token. This includes string tokens that result from escape sequences for %,$,{,}
 
 // Regular expression to greedily subdivide the input string into non-overlapping instances of
-//   - all escape sequences %%, %$, $$, {{, %}
+//   - all escape sequences \%, \$, \{, \}, \\
 //   - all token sequences %!, $!, %, $, {, }, %w, $w
-//   - strings without $, %, {, }
+//   - strings without $, %, {, }, \
+//   - plain unescaped \ (not followed by %, $, {, } or another \) -- taken as literal \
 //
-// NOTE: (?s) turns off special handling newlines in the string to be tokenized. Literal $ and { and } in the regexp string must be escaped as \$ \{ \}
+// NOTE: (?s) turns off special handling newlines within the string to be tokenized. Literal $ and { and } in the regexp string must be escaped as \$ \{ \}
 // NOTE2: %%, %w, %} must come before % etc, because | is greedy.
-var re_tokenize = regexp.MustCompile(`(?s)(%%|%$|\$\$|\{\{|%\}|%!|\$!|%w|\$w|%|\$|\{|\}|[^\$\{\}%]+)`)
+var re_tokenize = regexp.MustCompile(`(?s)(\\%|\\\$|\\\{|\\\}|\\\\|%!|\$!|%w|\$w|%|\$|\{|\}|[^\$\{\}%\\]+)|\\`)
 
 type token_I interface {
 	IsToken()       // only used to mark the types as valid for token_I
@@ -133,14 +134,16 @@ func tokenizeFormatString(s string) (ret tokenList) {
 	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies this), we don't use i, entry := range decomposition
 	for _, entry := range decomposition {
 		switch entry {
-		case `%%`:
+		case `\%`:
 			ret[i] = stringToken(`%`)
-		case `%$`, `$$`:
+		case `\$`:
 			ret[i] = stringToken(`$`)
-		case `{{`:
+		case `\{`:
 			ret[i] = stringToken(`{`)
-		case `%}`:
+		case `\}`:
 			ret[i] = stringToken(`}`)
+		case `\\`, `\`:
+			ret[i] = stringToken(`\`)
 		case `%!`:
 			ret[i] = tokenPercentCond
 		case `$!`:
