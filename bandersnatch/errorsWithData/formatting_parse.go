@@ -249,7 +249,10 @@ func (a ast_root) String() string {
 func (a ast_list) String() string {
 	var b strings.Builder
 	b.WriteRune('[')
-	for _, c := range *a {
+	for i, c := range *a {
+		if i > 0 {
+			b.WriteRune(',')
+		}
 		b.WriteString(c.String())
 	}
 	b.WriteRune(']')
@@ -359,6 +362,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 	if tokens[0] != tokenStart {
 		panic(ErrorPrefix + "invalid token list (missing start marker)")
 	}
+	tokens = tokens[1:]
 
 	var mode parseMode = parseMode_Sequence
 
@@ -387,18 +391,12 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				case tokenPercentCond:
 					newNode := new_ast_condPercent()
 					currentNode.append_ast(newNode)
-					newList := new_ast_list()
-					newNode.(childSetter).set_child(newList)
 					stack.Push(newNode)
-					stack.Push(newList)
 					mode = parseMode_Condition
 				case tokenDollarCond:
 					newNode := new_ast_condDollar()
 					currentNode.append_ast(newNode)
-					newList := new_ast_list()
-					newNode.(childSetter).set_child(newList)
 					stack.Push(newNode)
-					stack.Push(newList)
 					mode = parseMode_Condition
 				case tokenOpenBracket:
 					err = fmt.Errorf(ErrorPrefix + "Unexpected { in format string")
@@ -430,7 +428,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					newNode := new_ast_parentDollar()
 					currentNode.append_ast(newNode)
 				default:
-					panic(ErrorPrefix + "Unhandled token")
+					panic(fmt.Errorf(ErrorPrefix+"Unhandled token: %v", token))
 				}
 			default: // token not of type stringToken or specialToken
 				panic(ErrorPrefix + "Invalid entry in token list")
@@ -443,7 +441,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			} else {
 				token_string, ok := token.(stringToken)
 				if !ok {
-					err = fmt.Errorf("%s", `Missing format verb. % or $ must be followed by an (optional) format verb ("v" if absent), then {VariableName}`)
+					err = fmt.Errorf("%s", `Missing format verb. % or $ must be followed by an (optional) format verb ("v" if absent), then {VariableName}.Literal % must be (possibly doubly) escaped as \%`)
 					return
 				}
 				top.(fmtStringSetter).set_formatString(token_string)
@@ -456,6 +454,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				return
 			}
 			top.(conditionSetter).set_condition(token_string)
+
 			mode = parseMode_OpenSequence // expect to read {, followed by a sequence
 		case parseMode_VariableName: // expect to read the name of a variable (which must be a string literal)
 			token_string, ok := token.(stringToken)
@@ -466,13 +465,18 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			top.(variableNameSetter).set_variableName(token_string)
 			mode = parseMode_CloseVariable // expect to read } next
 
-		case parseMode_OpenSequence: // expect to read a { either at the very beginning or after %!COND or $!COND
+		case parseMode_OpenSequence: // expect to read a after %!COND or $!COND
 			// parseMode_OpenSequence only happens after reading a string token in mode parseMode_Condition.
 			token := token.(specialToken) // token of type string cannot happen, because consecutive string tokens are merged by the tokenizer, so panic on type-assertion failure is OK.
 			if token != tokenOpenBracket {
 				err = fmt.Errorf("%s", `%!Condition or $!Condition must be followed by a {...}`)
 				return
 			}
+
+			newList := new_ast_list()
+			top.(childSetter).set_child(newList)
+			stack.Push(newList)
+
 			mode = parseMode_Sequence
 		case parseMode_OpenVariable: // expect to read a { initiating a variable name
 			// parseMode_OpenVariable only happens after reading a string token in mode parseMode_FmtString.

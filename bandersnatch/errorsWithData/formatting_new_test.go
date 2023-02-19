@@ -34,14 +34,23 @@ func TestTokenizer(t *testing.T) {
 	// test_token_case("$%%x{%{")
 }
 
-var (
-	_ ast_I = new_ast_root()
-	_ ast_I = new_ast_list()
-	_ ast_I = new_ast_string("")
-	_ ast_I = new_ast_fmtPercent()
-	_ ast_I = new_ast_fmtDollar()
-	_ ast_I = new_ast_parentPercent()
-	_ ast_I = new_ast_parentDollar()
-	_ ast_I = new_ast_condPercent()
-	_ ast_I = new_ast_condDollar()
-)
+func TestParser(t *testing.T) {
+	test_parse_case := func(s string, expected string) {
+		tokenized := tokenizeFormatString(s)
+		parse_result, err := make_ast(tokenized)
+		ast_as_string := parse_result.String()
+		if err != nil {
+			t.Fatalf("Parsing error when processing input %v, tokenized as %v\n Built-up ast was %v\n Error was %v\n", s, tokenized, ast_as_string, err)
+		}
+
+		testutils.FatalUnless(t, ast_as_string == expected, "parser did not get expected result for input string \"%s\".\nGot: %s. Expected:%s\n", s, ast_as_string, expected)
+	}
+	test_parse_case(``, `AST([])`)
+	test_parse_case(`ABC`, `AST("ABC")`)
+	test_parse_case(`%w%w`, `AST([%w,%w])`)
+	test_parse_case(`%w`, `AST(%w)`)
+	test_parse_case(`ABC%wDEF`, `AST(["ABC",%w,"DEF"])`)
+	test_parse_case(`%{\$Foo}`, `AST(%v{$Foo})`)
+	test_parse_case(`a$!C{DEF}`, `AST(["a",$!C{"DEF"}])`)
+	test_parse_case(`a%!C1{%!C2{a$w}}`, `AST(["a",%!C1{%!C2{["a",$w]}}])`)
+}
