@@ -93,6 +93,9 @@ import (
 	"errors"
 )
 
+const ConditionNonEmptyMap = "m>0"
+const ConditionEmptyMap = "m=0"
+
 /////////////
 
 // Since not even the standard library function specifies whether error wrapping works by reference or copy and we

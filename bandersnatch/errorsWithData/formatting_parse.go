@@ -57,9 +57,10 @@ import (
 type ast_I interface {
 	IsNode()        // Only to "mark" relevant types
 	String() string // only for debugging
-	// Interpolate(parameters_direct paramMap, parameters_passed paramMap, baseError error, s strings.Builder) (err error)
-	// VerifyWeak(parameters_direct paramMap, baseError error) error
-	// VerifyStrong(parameters_direct paramMap, parameters_passed paramMap, baseError error) error
+	VerifySyntax() (err error)
+	VerifyParameters_direct(parameters_direct paramMap, baseError error) (err error)
+	VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) (err error)
+	Interpolate(parameters_direct paramMap, parameters_passed paramMap, baseError error, s *strings.Builder) (err error)
 }
 
 // We add interfaces for extra functionality that is shared by multiple node types:
@@ -516,17 +517,4 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 	}
 
 	return
-}
-
-func (a ast_string) Interpolate(p1 paramMap, p2 paramMap, b error, s strings.Builder) error {
-	s.WriteString(string(a))
-	return nil
-}
-
-func (a ast_string) VerifyWeak(paramMap, error) error {
-	return nil
-}
-
-func (a ast_string) VerifyStrong(paramMap, paramMap, error) error {
-	return nil
 }
