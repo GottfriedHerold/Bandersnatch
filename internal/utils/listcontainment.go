@@ -36,7 +36,7 @@ func ConcatenateListsWithoutDuplicates[T comparable](list1 []T, list2 []T, norma
 	// Not terribly efficient. This has O(N^2), when N is the length of the input lists.
 	// It's fine for our purpose, though.
 
-	// naive implementation: Just checks for every elemenet from list1 if it already appears; if not, append it.
+	// naive implementation: Just checks for every element from list1 if it already appears; if not, append it.
 	// Then repeat with list2.
 
 	var ret []T = make([]T, 0, len(list1)+len(list2))

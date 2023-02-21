@@ -10,6 +10,7 @@ import (
 
 // valid entries for Condition strings
 var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
+var validMapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
 
 func IsExportedIdentifier(s string) bool {
 	return token.IsIdentifier(s) && token.IsExported(s)
