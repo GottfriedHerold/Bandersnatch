@@ -11,7 +11,7 @@ import (
 //
 //   - Tokenize the interpolation string
 //   - Parse the tokenized string into a syntax tree
-//   - [Optional] Perform some validity checks. (2 subchecks, actually. Those would be checked when actually producing output anyway, but sometime we want those checks early)
+//   - [Optional] Perform some validity checks. (3 subchecks, actually. Those would be checked when actually producing output anyway, but sometime we want those checks early)
 //   - Actually prodcuce the interpolated error string.
 
 // This file contains the code for parsing into a syntax tree.
@@ -241,7 +241,7 @@ func (a ast_parentDollar) IsNode()  {}
 func (a ast_condPercent) IsNode()   {}
 func (a ast_condDollar) IsNode()    {}
 
-// We define String methods on each AST node type. These are only used for debugging.
+// We define String methods on each AST node type. These are exclusively used for debugging.
 
 func (a ast_root) String() string {
 	return "AST(" + (a.ast).String() + ")"
@@ -333,13 +333,31 @@ const (
 	parseMode_Condition                      // expecting a condition (after %)
 	parseMode_VariableName                   // expecting a variable name
 	parseMode_OpenSequence                   // expecting a { to start a sequence (after %!COND or $!COND)
-	parseMode_OpenVariable                   // expecting a { to be followed by a variable name (after %fmtString)
-	parseMode_CloseVariable                  // expecting a } terminating a variable name (other uses of } are handled by parseMode_Sequence)
+	parseMode_OpenVariable                   // expecting a { to be followed by a variable name (after %fmtString or $fmtString)
+	parseMode_CloseVariable                  // expecting a } terminating a variable name
+	// NOTE: There is no parseMode_CloseSequence: The terminating '}' in %!COND{...} and $!COND{...} is handled by parseMode_Sequence
 )
 
-// NOTE: We asserts that token_list has no consecutive tokens of type string to simplify error reporting
 // (as in: this allows us to skip treating those case, which means that violations results in possibly non-informative panics rather than non-nil error output. )
 
+// make_ast creates a syntax tree out of the list of tokens.
+//
+// On failure, reports an error.
+// The returned tree is built as we single-pass iterate over the tokenList and we return after first error.
+// This means that on error, the returned ret can provide clues about the error location.
+//
+// To simplify the parser, we make the following assumption about the input list of tokens:
+//   - tokens[0] == tokenStart
+//   - token[len(token)-1] == tokenEnd
+//   - no other tokenStart or tokenEnd appear
+//   - no two consecutive tokens have type stringToken
+//   - stringTokens are not the empty string (We have no token at all instead).
+//
+// These assumptions are satisfied by the output of our tokenizer.
+// Note that failure of these assumptions will cause a panic (or possibly concatenate strings) rather than unexpected output; we just don't do graceful error reporting for these cases.
+//
+// Also note that make_ast only constructs the tree. It does not care whether the tokens "make sense".
+// In particular, formatStrings can contain %, Variable names could be unexported, conditions not recognized etc. These (optional) checks come later.
 func make_ast(tokens tokenList) (ret ast_I, err error) {
 
 	ret = new_ast_root() // Make root node. This is directly stored in ret, because we abort on first error and this allows looking at the partially constructed tree at the call site for debugging.
@@ -365,82 +383,82 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 	}
 	tokens = tokens[1:]
 
-	var mode parseMode = parseMode_Sequence
+	var mode parseMode = parseMode_Sequence // we expect a list of stringTokens, %w, $w etc.
 
 	for _, token := range tokens {
 		var top ast_I = *stack.Top() // Peek at top of stack. NOTE: stack cannot be empty
 		switch mode {
 		case parseMode_Sequence: // expect to get a sequence of strings or tokens
-			currentNode := top.(ast_list) // top is a ast_list
+			currentNode := top.(ast_list) // top is a ast_list if we are in parseMode_Sequence
 
 			switch token := token.(type) {
-			case stringToken:
+			case stringToken: // append token for the string literal in the list and continue in parseMode_sequence
 				newNode := new_ast_string(token)
 				currentNode.append_ast(newNode)
-			case specialToken:
+			case specialToken: // read token that is not a string literal
 				switch token {
-				case tokenPercent:
+				case tokenPercent: // create and add node for %fmtString{Variable}. fmtString and VariableName are set later
 					newNode := new_ast_fmtPercent()
 					currentNode.append_ast(newNode)
 					stack.Push(newNode)
-					mode = parseMode_FmtString
-				case tokenDollar:
+					mode = parseMode_FmtString // read (optional) format string next
+				case tokenDollar: // create and add node for $fmtString{Variable}. fmtString and VariableName are set later
 					newNode := new_ast_fmtDollar()
 					currentNode.append_ast(newNode)
 					stack.Push(newNode)
-					mode = parseMode_FmtString
-				case tokenPercentCond:
+					mode = parseMode_FmtString // read (optional) format string next
+				case tokenPercentCond: // create and add node for %!Condition{Sub-AST}. Condition and Sub-AST are set later.
 					newNode := new_ast_condPercent()
 					currentNode.append_ast(newNode)
 					stack.Push(newNode)
-					mode = parseMode_Condition
-				case tokenDollarCond:
+					mode = parseMode_Condition // read Condition string next
+				case tokenDollarCond: // create and add node for $!Condition{Sub-AST}. Condition and Sub-AST are set later.
 					newNode := new_ast_condDollar()
 					currentNode.append_ast(newNode)
 					stack.Push(newNode)
-					mode = parseMode_Condition
-				case tokenOpenBracket:
+					mode = parseMode_Condition // read Condition string next
+				case tokenOpenBracket: // { without prior %, $, %! or $!
 					err = fmt.Errorf(ErrorPrefix + "Unexpected { in format string")
 					return
-				case tokenCloseBracket, tokenEnd:
+				case tokenCloseBracket, tokenEnd: // terminating a list. tokenCloseBracket is for %!Cond{List} and $!Cond{List}. tokenEnd is for the root.
 					// } cannot appear at the top level.
 					if (token == tokenCloseBracket) && (stack.Len() <= 3) { // We have at least ROOT - LIST - COND - LIST on the stack if } is valid.
 						err = fmt.Errorf(ErrorPrefix + "Unexpected } in format string")
 						return
-					} // EOF must only appear at the top level
+					} // tokenEnd must only appear at the top level
 					if (token == tokenEnd) && (stack.Len() != 2) {
 						err = fmt.Errorf(ErrorPrefix + "Missing } in format string")
 						return
 					}
 					// stack.Len() >= 2 is guaranteed
 
-					_ = stack.Pop() // type is ast_list
-					rootOrCond := stack.Pop()
+					_ = stack.Pop()                    // type popped is ast_list.
+					rootOrCond := stack.Pop()          // type popped is either ast_condPercent, ast_condDollar or ast_root
 					rootOrCond.(simplifier).simplify() // is the child list contains 1 element, replace list by single element.
 
-					// If token == EOF, mode no longer matters
+					// If token == EOF, mode no longer matters. In fact, since stack.Len() == 0 now, any further iteration will panic @ ast_I = *stack.Top()
 					// If token == parseMode_Sequence, we continue with the parent sequence
 					mode = parseMode_Sequence // no-op, but added for clarity
 
-				case tokenParentPercent:
+				case tokenParentPercent: // create and add node for %w and continue with the list.
 					newNode := new_ast_parentPercent()
 					currentNode.append_ast(newNode)
-				case tokenParentDollar:
+				case tokenParentDollar: // create and add node for $w and continue with the list.
 					newNode := new_ast_parentDollar()
 					currentNode.append_ast(newNode)
 				default:
-					panic(fmt.Errorf(ErrorPrefix+"Unhandled token: %v", token))
+					panic(fmt.Errorf(ErrorPrefix+"Unhandled token: %v", token)) // cannot happen for tokenLists output by the tokenizer.
 				}
 			default: // token not of type stringToken or specialToken
 				panic(ErrorPrefix + "Invalid entry in token list")
 			}
 
-		case parseMode_FmtString: // expect to read format string (which must be a string literal)
+		case parseMode_FmtString: // expect to read (optional) format string (which must be a string literal)
 			if token == tokenOpenBracket { // %{ or ${ is interpreted as %v{ or $v{
-				top.(fmtStringSetter).set_formatString(stringToken('v'))
-				mode = parseMode_VariableName
+				top.(fmtStringSetter).set_formatString(stringToken('v')) // pretend as if 'v' was read
+				mode = parseMode_VariableName                            // and proceed to the variable name
 			} else {
-				token_string, ok := token.(stringToken)
+				token_string, ok := token.(stringToken) // next token, if not {, must be a literal string
 				if !ok {
 					err = fmt.Errorf("%s", `Missing format verb. % or $ must be followed by an (optional) format verb ("v" if absent), then {VariableName}.Literal % must be (possibly doubly) escaped as \%`)
 					return
@@ -456,7 +474,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			}
 			top.(conditionSetter).set_condition(token_string)
 
-			mode = parseMode_OpenSequence // expect to read {, followed by a sequence
+			mode = parseMode_OpenSequence // expect to read { next, followed by a sequence.
 		case parseMode_VariableName: // expect to read the name of a variable (which must be a string literal)
 			token_string, ok := token.(stringToken)
 			if !ok {
@@ -482,7 +500,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 		case parseMode_OpenVariable: // expect to read a { initiating a variable name
 			// parseMode_OpenVariable only happens after reading a string token in mode parseMode_FmtString.
 			// Since consecutive string tokens are merged by the tokenizer, panic on type-assertion failure is fine:
-			// Empty format string jumps directly from parseMode_FmtString to parseMode_VariableName
+			// Missing format string jumps directly from parseMode_FmtString to parseMode_VariableName.
 			token := token.(specialToken)
 			if token != tokenOpenBracket {
 				err = fmt.Errorf("%s", `%fmtString or $fmtString (with possibly empty fmtString) must be followed by a {VariableName}. Missing {`)

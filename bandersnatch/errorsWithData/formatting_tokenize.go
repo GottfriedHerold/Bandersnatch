@@ -69,6 +69,9 @@ const (
 	tokenEnd                               // added to the end of the tokenized string; this simplifies things a bit
 )
 
+var allSpecialTokens = []specialToken{tokenInvalid, tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd}
+var allSpecialTokensInString = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
+
 // String will output a string representation of the special token. It mostly matches the string that gets parsed into it
 func (token specialToken) String() string {
 	switch token {

@@ -7,6 +7,8 @@ import (
 	"unicode/utf8"
 )
 
+// DEPRECATED FILE
+
 // Providing this value as overrideMessage for creating an ErrorWithParameters will create an actual empty string
 // (Giving a literal empty string will instead default to DefaultOverrideMessage)
 const (

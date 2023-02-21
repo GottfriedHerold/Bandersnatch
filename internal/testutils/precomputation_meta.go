@@ -26,7 +26,7 @@ import (
 // to MakePrecomputedCache that control the process.
 //
 // (*) We could instead just support a datastructure for a single list and have the user create a map[KeyType] -> this datastructure.
-// However, then we would need to deal with concurrency issues when accessing/adding new keys for each such map. Doing this just *once* properly is better.
+// However, then we would need to deal with concurrency issues when accessing/adding new keys for each such map. Implementing this *once* properly is better.
 
 // precomputedCachePage is the data structure holding the cache for a single given key
 type precomputedCachePage[MapType comparable, ElementType any] struct {

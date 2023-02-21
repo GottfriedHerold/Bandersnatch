@@ -93,6 +93,8 @@ import (
 	"errors"
 )
 
+type paramMap = map[string]any // alias to avoid typing
+
 const ConditionNonEmptyMap = "m>0"
 const ConditionEmptyMap = "m=0"
 

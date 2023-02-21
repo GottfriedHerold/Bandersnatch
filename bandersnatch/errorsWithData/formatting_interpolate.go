@@ -8,6 +8,40 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// Parsing and Interpolating format strings goes through multiple steps:
+//
+//   - Tokenize the interpolation string
+//   - Parse the tokenized string into a syntax tree
+//   - [Optional] Perform some validity checks. (3 subchecks, actually. Those would be checked when actually producing output anyway, but sometime we want those checks early)
+//   - Actually prodcuce the interpolated error string.
+
+// This file contains the code for the last 2 steps.
+
+// For the validity checks, we have
+//
+//  - VerifySyntax() error
+//  - VerifyParameters_direct(parameters_direct paramMap, baseError error) error
+//  - VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) error
+//
+// Each of these checks subsumes the checks above it and requires more "context".
+// The checks assume that they are called on the output of a call to make_ast that produced no error.
+// (In particular, the internal tree structure of the parsed tree is valid)
+//
+//  - VerifySyntax makes only some basic check if the (parsed) interpolation string is potentially meaningful and catches
+//     - format strings verbs cannot contain literal %
+//     - VariableNames must be exported Go identifiers (or denote the paramter map)
+//     - Conditions after %! or $! must be recognized by our language.
+//  - VerifyParameters_direct furthermore checks that:
+//     - %w or $w is only present if there is actually a non-nil wrapped error and, for $w, supports this.
+//     - variables referred to by %fmtString{VariableName} actually exist in parameters_direct
+//     The condition in %!COND{...}, but not $!COND{...} is evaluated for this purpose and failures (apart from VerifySyntax-failures) are ignored in a non-taken sub-tree.
+//  - VerifyParameters_passed furthermore checks that:
+//     - variables referred to by $fmtString{VariableName} actually exist in paramters_passed
+//     The conditions in both %!COND{...} and $!COND{...} are evaluated for this purpose. Failures (apart from VerifySyntax-failures) are ignored in a non-taken sub-tree.
+
+// Note that even VerifyParameters_passed does not guarantee that Interpolation works, because the format verb might be invalid for the given type or a custom String or Format method might even panic.
+// For the latter, note that the fmt package actually recovers from such panics and reports it in the output string. This is beyond the scope of this package.
+
 // valid entries for Condition strings
 var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
 var validMapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
