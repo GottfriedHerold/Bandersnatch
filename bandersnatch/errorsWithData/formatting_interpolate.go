@@ -34,7 +34,8 @@ import (
 //  - VerifyParameters_direct furthermore checks that:
 //     - %w or $w is only present if there is actually a non-nil wrapped error and, for $w, supports this.
 //     - variables referred to by %fmtString{VariableName} actually exist in parameters_direct
-//     The condition in %!COND{...}, but not $!COND{...} is evaluated for this purpose and failures (apart from VerifySyntax-failures) are ignored in a non-taken sub-tree.
+//     The condition in %!COND{...} is evaluated for this purpose and failures (apart from VerifySyntax-failures) are ignored in a non-taken sub-tree.
+//     $!COND{...} is only Syntax-checked
 //  - VerifyParameters_passed furthermore checks that:
 //     - variables referred to by $fmtString{VariableName} actually exist in paramters_passed
 //     The conditions in both %!COND{...} and $!COND{...} are evaluated for this purpose. Failures (apart from VerifySyntax-failures) are ignored in a non-taken sub-tree.
@@ -386,7 +387,7 @@ func (a ast_condDollar) VerifyParameters_direct(parameters_direct paramMap, base
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
-	return a.child.VerifyParameters_direct(parameters_direct, baseError)
+	return a.child.VerifySyntax()
 }
 
 func (a ast_condDollar) VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) (err error) {
