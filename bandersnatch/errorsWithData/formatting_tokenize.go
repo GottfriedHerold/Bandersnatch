@@ -127,7 +127,7 @@ func (tokens tokenList) String() string {
 	return ret.String()
 }
 
-func tokenizeFormatString(s string) (ret tokenList) {
+func tokenizeInterpolationString(s string) (ret tokenList) {
 	if !utf8.ValidString(s) {
 		panic(ErrorPrefix + "formatString not a valid UTF-8 string")
 	}
