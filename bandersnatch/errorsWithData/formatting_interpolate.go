@@ -65,21 +65,21 @@ func (a ast_root) VerifySyntax() (err error) {
 	return a.ast.VerifySyntax()
 }
 
-func (a ast_root) VerifyParameters_direct(parameters_direct paramMap, baseError error) error {
+func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError error) error {
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
 	return a.ast.VerifyParameters_direct(parameters_direct, baseError)
 }
 
-func (a ast_root) VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) error {
+func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) error {
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
 	return a.ast.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
 }
 
-func (a ast_root) Interpolate(parameters_direct paramMap, parameters_passed paramMap, baseError error, s *strings.Builder) error {
+func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) error {
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
@@ -99,7 +99,7 @@ func (a ast_list) VerifySyntax() (err error) {
 	return nil
 }
 
-func (a ast_list) VerifyParameters_direct(parameters_direct paramMap, baseError error) (err error) {
+func (a ast_list) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
 	}
@@ -112,7 +112,7 @@ func (a ast_list) VerifyParameters_direct(parameters_direct paramMap, baseError 
 	return nil
 }
 
-func (a ast_list) VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) (err error) {
+func (a ast_list) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
 	}
@@ -125,7 +125,7 @@ func (a ast_list) VerifyParameters_passed(parameters_direct paramMap, parameters
 	return nil
 }
 
-func (a ast_list) Interpolate(parameters_direct paramMap, parameters_passed paramMap, baseError error, s *strings.Builder) (err error) {
+func (a ast_list) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) (err error) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
 	}
@@ -142,15 +142,15 @@ func (a ast_string) VerifySyntax() error {
 	return nil
 }
 
-func (a ast_string) VerifyParameters_direct(paramMap, error) error {
+func (a ast_string) VerifyParameters_direct(ParamMap, error) error {
 	return nil
 }
 
-func (a ast_string) VerifyParameters_passed(paramMap, paramMap, error) error {
+func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) error {
 	return nil
 }
 
-func (a ast_string) Interpolate(_ paramMap, _ paramMap, _ error, s *strings.Builder) error {
+func (a ast_string) Interpolate(_ ParamMap, _ ParamMap, _ error, s *strings.Builder) error {
 	s.WriteString(string(a)) // NOTE: need string(a), not a.String() here
 	return nil
 }
@@ -179,7 +179,7 @@ func (abase *base_ast_fmt) VerifySyntax() error {
 	}
 }
 
-func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct paramMap, _ error) (err error) {
+func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err error) {
 	err = a.VerifySyntax()
 	if err != nil {
 		return
@@ -191,11 +191,11 @@ func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct paramMap, _ er
 	return nil
 }
 
-func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct paramMap, _ paramMap, _ error) (err error) {
+func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ ParamMap, _ error) (err error) {
 	return a.VerifyParameters_direct(parameters_direct, nil)
 }
 
-func (a ast_fmtPercent) Interpolate(parameters_direct paramMap, _ paramMap, _ error, s *strings.Builder) (err error) {
+func (a ast_fmtPercent) Interpolate(parameters_direct ParamMap, _ ParamMap, _ error, s *strings.Builder) (err error) {
 	err = a.VerifyParameters_direct(parameters_direct, nil)
 	if err != nil {
 		return
@@ -211,11 +211,11 @@ func (a ast_fmtPercent) Interpolate(parameters_direct paramMap, _ paramMap, _ er
 	return
 }
 
-func (a ast_fmtDollar) VerifyParameters_direct(_ paramMap, _ error) error {
+func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) error {
 	return a.VerifySyntax()
 }
 
-func (a ast_fmtDollar) VerifyParameters_passed(_ paramMap, parameters_passed paramMap, _ error) (err error) {
+func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, _ error) (err error) {
 	if err = a.VerifySyntax(); err != nil {
 		return
 	}
@@ -226,7 +226,7 @@ func (a ast_fmtDollar) VerifyParameters_passed(_ paramMap, parameters_passed par
 	return nil
 }
 
-func (a ast_fmtDollar) Interpolate(_ paramMap, parameters_passed paramMap, _ error, s *strings.Builder) (err error) {
+func (a ast_fmtDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, _ error, s *strings.Builder) (err error) {
 	if err = a.VerifyParameters_passed(nil, parameters_passed, nil); err != nil {
 		return
 	}
@@ -245,7 +245,7 @@ func (a ast_parentPercent) VerifySyntax() error {
 	return nil
 }
 
-func (a ast_parentPercent) VerifyParameters_direct(_ paramMap, baseError error) error {
+func (a ast_parentPercent) VerifyParameters_direct(_ ParamMap, baseError error) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
 	} else {
@@ -253,7 +253,7 @@ func (a ast_parentPercent) VerifyParameters_direct(_ paramMap, baseError error) 
 	}
 }
 
-func (a ast_parentPercent) VerifyParameters_passed(_ paramMap, _ paramMap, baseError error) error {
+func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
 	} else {
@@ -261,7 +261,7 @@ func (a ast_parentPercent) VerifyParameters_passed(_ paramMap, _ paramMap, baseE
 	}
 }
 
-func (a ast_parentPercent) Interpolate(_ paramMap, _ paramMap, baseError error, s *strings.Builder) error {
+func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, s *strings.Builder) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
 	} else {
@@ -274,7 +274,7 @@ func (a ast_parentDollar) VerifySyntax() error {
 	return nil
 }
 
-func (a ast_parentDollar) VerifyParameters_direct(_ paramMap, baseError error) error {
+func (a ast_parentDollar) VerifyParameters_direct(_ ParamMap, baseError error) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
@@ -285,7 +285,7 @@ func (a ast_parentDollar) VerifyParameters_direct(_ paramMap, baseError error) e
 	}
 }
 
-func (a ast_parentDollar) VerifyParameters_passed(_ paramMap, _ paramMap, baseError error) error {
+func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
@@ -296,7 +296,7 @@ func (a ast_parentDollar) VerifyParameters_passed(_ paramMap, _ paramMap, baseEr
 	}
 }
 
-func (a ast_parentDollar) Interpolate(_ paramMap, parameters_passed paramMap, baseError error, s *strings.Builder) error {
+func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
@@ -315,7 +315,7 @@ func (abase *base_ast_condition) VerifySyntax() error {
 	return abase.child.VerifySyntax()
 }
 
-func (a ast_condPercent) VerifyParameters_direct(parameters_direct paramMap, baseError error) (err error) {
+func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
@@ -338,7 +338,7 @@ func (a ast_condPercent) VerifyParameters_direct(parameters_direct paramMap, bas
 	}
 }
 
-func (a ast_condPercent) VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) (err error) {
+func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
@@ -361,7 +361,7 @@ func (a ast_condPercent) VerifyParameters_passed(parameters_direct paramMap, par
 	}
 }
 
-func (a ast_condPercent) Interpolate(parameters_direct paramMap, parameters_passed paramMap, baseError error, s *strings.Builder) (err error) {
+func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) (err error) {
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
@@ -383,14 +383,14 @@ func (a ast_condPercent) Interpolate(parameters_direct paramMap, parameters_pass
 	}
 }
 
-func (a ast_condDollar) VerifyParameters_direct(parameters_direct paramMap, baseError error) (err error) {
+func (a ast_condDollar) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
 	return a.child.VerifySyntax()
 }
 
-func (a ast_condDollar) VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) (err error) {
+func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
@@ -413,7 +413,7 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct paramMap, para
 	}
 }
 
-func (a ast_condDollar) Interpolate(parameters_direct paramMap, parameters_passed paramMap, baseError error, s *strings.Builder) (err error) {
+func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) (err error) {
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}

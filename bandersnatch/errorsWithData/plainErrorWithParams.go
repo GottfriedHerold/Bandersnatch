@@ -1,7 +1,7 @@
 package errorsWithData
 
 import (
-	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -10,9 +10,9 @@ import (
 // exported functions must ALWAYS return an error as an interface, never as a concrete type.
 // (since otherwise, nil errors are returned as typed nil pointers, which is a serious footgun)
 type errorWithParameters_common struct {
-	contained_error error          // wrapped underlying error, can be nil
-	message         string         // error message, subject to interpolation
-	params          map[string]any // map strings -> data.
+	contained_error           error    // wrapped underlying error, can be nil
+	parsedInterpolationString ast_I    // (parsed) error message
+	params                    ParamMap // map strings -> data.
 }
 
 // extension of errorWithParameters_common that satisfies ErrorWithData[StructType]
@@ -28,12 +28,13 @@ func (e *errorWithParameters_common) Error_interpolate(params_passed map[string]
 	if e == nil {
 		panic(ErrorPrefix + "called Error_interpolate() on nil error of concrete type errorWithParameters_common. This is a bug, since nil errors of this type should never exist.")
 	}
-	s, formattingError := formatError_new(e.message, e.params, params_passed, e.contained_error, full_eval)
+	var s strings.Builder
+	formattingError := e.parsedInterpolationString.Interpolate(e.params, params_passed, e.contained_error, &s)
 	if formattingError != nil {
 		// TODO: error handler
 		panic(formattingError)
 	}
-	return s
+	return s.String()
 }
 
 // Error is provided to satisfy the error interface
@@ -81,7 +82,7 @@ func (e *errorWithParameters_common) GetParameter(parameterName string) (value a
 // GetAllParameters returns a map of all parameters present in the error.
 // The returned map is a (shallow) copy, so modification of values of the returned map does not affect the error.
 func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
-	ret = make(map[string]any)
+	ret = make(map[string]any, len(e.params))
 	for key, value := range e.params {
 		ret[key] = value
 	}
@@ -92,22 +93,22 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 // NOTE: This is an internal function, used by the (exported) functions in modify_errors.go
 // These functions actually modify ret.params after creation. The purpose of this method is just to unify those functions.
 //
-// NOTE: This functions performs a parse check, i.e. we check that override message is well-formed and panic if not.
-func makeErrorWithParametersCommon(baseError error, overrideMessage string) (ret errorWithParameters_common) {
-	if !utf8.ValidString(overrideMessage) {
-		panic(ErrorPrefix + "override message for error creation was not a valid UTF-8 string")
+// NOTE: This functions performs a syntax parse check, i.e. we check that override message is well-formed. and panic if not.
+func makeErrorWithParametersCommon(baseError error, interpolationString string) (ret errorWithParameters_common) {
+	if !utf8.ValidString(interpolationString) {
+		panic(ErrorPrefix + "message for error creation was not a valid UTF-8 string")
 	}
-	if overrideMessage == "" {
-		overrideMessage = DefaultOverrideMessage
-	} else if overrideMessage == OverrideByEmptyMessage {
-		overrideMessage = ""
-	}
+
 	ret.contained_error = baseError
-	ret.message = overrideMessage
-	ret.params = GetData_map(baseError)
-	_, formattingError := formatError_new(overrideMessage, ret.params, ret.params, baseError, parse_check)
-	if formattingError != nil {
-		panic(fmt.Errorf(ErrorPrefix+"creating of an error with parameters failed, because the error message was malformed.\noverrideMessage = %v.\nreported error was: %v", overrideMessage, formattingError))
+	tokens := tokenizeInterpolationString(interpolationString)
+
+	var errParsing error
+	ret.parsedInterpolationString, errParsing = make_ast(tokens)
+	if errParsing != nil {
+		panic(errParsing)
+
 	}
+
+	ret.params = GetData_map(baseError)
 	return
 }
