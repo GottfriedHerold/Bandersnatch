@@ -24,8 +24,7 @@ import (
 //  - VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) error
 //
 // Each of these checks subsumes the checks above it and requires more "context".
-// The checks assume that they are called on the output of a call to make_ast that produced no error.
-// (In particular, the internal tree structure of the parsed tree is valid)
+// If there was an error in make_ast, the error is just repeated
 //
 //  - VerifySyntax makes only some basic check if the (parsed) interpolation string is potentially meaningful and catches
 //     - format strings verbs cannot contain literal %
@@ -62,6 +61,9 @@ func (a ast_root) VerifySyntax() (err error) {
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
+	if a.parseError != nil {
+		return a.parseError
+	}
 	return a.ast.VerifySyntax()
 }
 
@@ -69,6 +71,10 @@ func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError 
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
+	if a.parseError != nil {
+		return a.parseError
+	}
+
 	return a.ast.VerifyParameters_direct(parameters_direct, baseError)
 }
 
@@ -76,14 +82,17 @@ func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
+	if a.parseError != nil {
+		return a.parseError
+	}
 	return a.ast.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
 }
 
-func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) error {
+func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
-	return a.ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
+	a.ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
 }
 
 func (a ast_list) VerifySyntax() (err error) {
@@ -125,17 +134,14 @@ func (a ast_list) VerifyParameters_passed(parameters_direct ParamMap, parameters
 	return nil
 }
 
-func (a ast_list) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) (err error) {
+func (a ast_list) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
 	}
 	for _, ast := range *a {
-		err = ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		if err != nil {
-			return
-		}
+		ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
 	}
-	return nil
+
 }
 
 func (a ast_string) VerifySyntax() error {
@@ -150,27 +156,27 @@ func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) error {
 	return nil
 }
 
-func (a ast_string) Interpolate(_ ParamMap, _ ParamMap, _ error, s *strings.Builder) error {
+func (a ast_string) Interpolate(_ ParamMap, _ ParamMap, _ error, s *strings.Builder) {
 	s.WriteString(string(a)) // NOTE: need string(a), not a.String() here
-	return nil
 }
 
 func (abase *base_ast_fmt) VerifySyntax() error {
 	if strings.ContainsRune(abase.formatString, '%') {
 		return fmt.Errorf(ErrorPrefix+`Interpolation string contained a format string verb %s, which contained (escaped) %%. This will not work with the fmt package`, abase.formatString)
 	}
+	if abase.invalidParse { // should be detected at root
+		panic(ErrorPrefix + "Invalidly parsed format string not detected at root")
+	}
 	if abase.variableName == "" {
 		panic(ErrorPrefix + "Uninitialized variable name") // ought to have been caught by the parser.
 	}
 
 	switch abase.variableName {
-	case "":
-		panic(ErrorPrefix + "Uninitialized variable name") // ought to have been caught by the parser.
 	case "m", "map", "parameters", "params":
 		return nil
 	default:
 		if !token.IsIdentifier(abase.variableName) {
-			return fmt.Errorf(ErrorPrefix+"Variable Name in interpolation string is not a valid Go identifier. The offending variable name was: %s", abase.variableName)
+			return fmt.Errorf(ErrorPrefix+"Variable name in interpolation string is not a valid Go identifier. The offending variable name was: %s", abase.variableName)
 		}
 		if !token.IsExported(abase.variableName) {
 			return fmt.Errorf(ErrorPrefix+"Variable name %s in interpolation string is unexported. This does not work", abase.variableName)
@@ -179,11 +185,43 @@ func (abase *base_ast_fmt) VerifySyntax() error {
 	}
 }
 
+// joint helper for ast_fmtPercent and ast_fmtDollar
+
+func (a *base_ast_fmt) _Interpolate(parameters_relevant ParamMap, s *strings.Builder) {
+	if a.invalidParse { // special case: If there was a parse error, we just plain output the format string
+		s.WriteString(a.formatString)
+		s.WriteString(a.variableName) // always "", actually
+		return
+	}
+	var value any
+	var ok bool = true
+	switch a.variableName {
+	case "m", "map", "parameters", "params":
+		value = parameters_relevant
+		if value == nil {
+			value = make(ParamMap) // nil -> empty map. This should not happen, but better safe than sorry.
+		}
+	default:
+		value, ok = parameters_relevant[a.variableName]
+	}
+	if a.formatString == "" {
+		panic(ErrorPrefix + "Empty format string. This cannot happen")
+	}
+
+	if !ok {
+		s.WriteString(`%!` + a.formatString + `<missing value>`)
+	} else {
+		fmt.Fprintf(s, "%"+a.formatString, value) // NOTE: a.formatString may contain/start with a literal '%'. This will just be reported by fmt.Fprintf accordingly, so we don't check this.
+	}
+	return
+}
+
 func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err error) {
 	err = a.VerifySyntax()
 	if err != nil {
 		return
 	}
+
 	_, ok := parameters_direct[a.variableName]
 	if !ok {
 		return fmt.Errorf(ErrorPrefix+"Interpolations string contains variable name %s, which is not present in the error", a.variableName)
@@ -195,20 +233,8 @@ func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ Pa
 	return a.VerifyParameters_direct(parameters_direct, nil)
 }
 
-func (a ast_fmtPercent) Interpolate(parameters_direct ParamMap, _ ParamMap, _ error, s *strings.Builder) (err error) {
-	err = a.VerifyParameters_direct(parameters_direct, nil)
-	if err != nil {
-		return
-	}
-	var value any
-	switch a.variableName {
-	case "m", "map", "parameters", "params":
-		value = parameters_direct
-	default:
-		value = parameters_direct[a.variableName]
-	}
-	_, err = fmt.Fprintf(s, "%"+a.formatString, value)
-	return
+func (a ast_fmtPercent) Interpolate(parameters_direct ParamMap, _ ParamMap, _ error, s *strings.Builder) {
+	a._Interpolate(parameters_direct, s)
 }
 
 func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) error {
@@ -226,19 +252,8 @@ func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed Par
 	return nil
 }
 
-func (a ast_fmtDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, _ error, s *strings.Builder) (err error) {
-	if err = a.VerifyParameters_passed(nil, parameters_passed, nil); err != nil {
-		return
-	}
-	var value any
-	switch a.variableName {
-	case "m", "map", "parameters", "params":
-		value = parameters_passed
-	default:
-		value = parameters_passed[a.variableName]
-	}
-	_, err = fmt.Fprintf(s, "%"+a.formatString, value)
-	return
+func (a ast_fmtDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, _ error, s *strings.Builder) {
+	a._Interpolate(parameters_passed, s)
 }
 
 func (a ast_parentPercent) VerifySyntax() error {
@@ -261,12 +276,11 @@ func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseE
 	}
 }
 
-func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, s *strings.Builder) error {
+func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, s *strings.Builder) {
 	if baseError == nil {
-		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
+		s.WriteString(`%!w(<nil>)`)
 	} else {
 		s.WriteString(baseError.Error())
-		return nil
 	}
 }
 
@@ -296,19 +310,21 @@ func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseEr
 	}
 }
 
-func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) error {
+func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if baseError == nil {
-		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
+		s.WriteString(`$!w<nil>`)
 	}
 	if errInterpolatable, ok := baseError.(ErrorInterpolater); !ok {
-		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the base error does not support this")
+		s.WriteString(`$!w($w not supported)`)
 	} else {
 		s.WriteString(errInterpolatable.Error_interpolate(parameters_passed))
-		return nil
 	}
 }
 
 func (abase *base_ast_condition) VerifySyntax() error {
+	if abase.invalidParse {
+		panic(ErrorPrefix + "Invalid parse not handled") // should be caught be ast_root.
+	}
 	if !utils.ElementInList[string](abase.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", abase.condition)
 	}
@@ -361,22 +377,27 @@ func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, par
 	}
 }
 
-func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) (err error) {
+func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
+	if a.invalidParse {
+		s.WriteString(a.condition)
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		return
+	}
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
-		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
+		s.WriteString(`%!<INVALID CONDITION:`)
+		s.WriteString(a.condition)
+		s.WriteRune('>')
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		return
 	}
 	switch a.condition {
 	case ConditionEmptyMap:
 		if len(parameters_direct) == 0 {
-			return a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		} else {
-			return nil
+			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 		}
 	case ConditionNonEmptyMap:
 		if len(parameters_direct) != 0 {
-			return a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		} else {
-			return nil
+			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 		}
 	default:
 		panic(ErrorPrefix + "Unsupported condition")
@@ -413,22 +434,27 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 	}
 }
 
-func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) (err error) {
+func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
+	if a.invalidParse {
+		s.WriteString(a.condition)
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		return
+	}
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
-		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
+		s.WriteString(`$!<INVALID CONDITION:`)
+		s.WriteString(a.condition)
+		s.WriteRune('>')
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		return
 	}
 	switch a.condition {
 	case ConditionEmptyMap:
 		if len(parameters_passed) == 0 {
-			return a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		} else {
-			return nil
+			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 		}
 	case ConditionNonEmptyMap:
 		if len(parameters_passed) != 0 {
-			return a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		} else {
-			return nil
+			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 		}
 	default:
 		panic(ErrorPrefix + "Unsupported condition")

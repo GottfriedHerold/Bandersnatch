@@ -23,14 +23,16 @@ import (
 // Consecutive string tokens get concatenated into a single string token. This includes string tokens that result from escape sequences for %,$,{,}
 
 // Regular expression to greedily subdivide the input string into non-overlapping instances of
-//   - all escape sequences \%, \$, \{, \}, \\
+//   - all escape sequences \%, \$, \{, \}, \\, %%
 //   - all token sequences %!, $!, %, $, {, }, %w, $w
 //   - strings without $, %, {, }, \
 //   - plain unescaped \ (not followed by %, $, {, } or another \) -- taken as literal \
 //
 // NOTE: (?s) turns off special handling newlines within the string to be tokenized. Literal $ and { and } in the regexp string must be escaped as \$ \{ \}
-// NOTE2: %%, %w, %} must come before % etc, because | is greedy.
-var re_tokenize = regexp.MustCompile(`(?s)(\\%|\\\$|\\\{|\\\}|\\\\|%!|\$!|%w|\$w|%|\$|\{|\}|[^\$\{\}%\\]+)|\\`)
+// NOTE2: %%, %w, %!, must come before % etc, because | is greedy.
+// NOTE3: We don't have a $$ - escape for $, because this makes $$$ ambigous. For %%%, we parse as literal %, followed by token %, because the other
+// order is always invalid (format verbs cannot start with %). For $$$, both orders are potentially valid ($ is a legit format string verb)
+var re_tokenize = regexp.MustCompile(`(?s)(\\%|\\\$|\\\{|\\\}|\\\\|%%|%!|\$!|%w|\$w|%|\$|\{|\}|[^\$\{\}%\\]+)|\\`)
 
 type token_I interface {
 	IsToken()       // only used to mark the types as valid for token_I
@@ -50,7 +52,7 @@ type stringToken string
 func (stringToken) IsToken() {}
 
 // String just converts the stringToken back to the string.
-// NOTE regarding escaping: If the original interpolation string was `%%`, tokenizing results in the stringToken `%` and stringToken.String outputs `%`).
+// NOTE regarding escaping: If the original interpolation string was `%%`, tokenizing results in stringToken(`%`) and stringToken.String outputs `%`).
 func (s stringToken) String() string { return string(s) }
 
 type tokenList []token_I // each entry is either a stringToken or a specialToken. The first and last are the (only) tokens with values tokenStart and tokenEnd
@@ -69,10 +71,73 @@ const (
 	tokenEnd                               // added to the end of the tokenized string; this simplifies things a bit
 )
 
-var allSpecialTokens = []specialToken{tokenInvalid, tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd}
-var allSpecialTokensInString = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
+var (
+	allSpecialTokens         = []specialToken{tokenInvalid, tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd}
+	allSpecialTokensInString = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
+)
 
-// String will output a string representation of the special token. It mostly matches the string that gets parsed into it
+func tokenizeInterpolationString(s string) (ret tokenList) {
+	if !utf8.ValidString(s) {
+		panic(ErrorPrefix + "formatString not a valid UTF-8 string")
+	}
+	decomposition := re_tokenize.FindAllString(s, -1)
+	ret = make(tokenList, len(decomposition)+2) // +2 comes from tokenStart and tokenEnd.
+	ret[0] = tokenStart
+	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies this), we don't use i, entry := range decomposition
+	for _, entry := range decomposition {
+		switch entry {
+		case `\%`, `%%`:
+			ret[i] = stringToken(`%`)
+		case `\$`:
+			ret[i] = stringToken(`$`)
+		case `\{`:
+			ret[i] = stringToken(`{`)
+		case `\}`:
+			ret[i] = stringToken(`}`)
+		case `\\`, `\`:
+			ret[i] = stringToken(`\`)
+		case `%!`:
+			ret[i] = tokenPercentCond
+		case `$!`:
+			ret[i] = tokenDollarCond
+		case `%`:
+			ret[i] = tokenPercent
+		case `$`:
+			ret[i] = tokenDollar
+		case `{`:
+			ret[i] = tokenOpenBracket
+		case `}`:
+			ret[i] = tokenCloseBracket
+		case `%w`:
+			ret[i] = tokenParentPercent
+		case `$w`:
+			ret[i] = tokenParentDollar
+		default:
+			ret[i] = stringToken(entry)
+		}
+
+		// merge consecutive entries of type stringToken.
+		// This is required for escaped %,$,{ or } that appear in identifiers such as format string verbs.
+		// It also makes writing the parser easier if we know that no consecutive stringTokens appear.
+		if i > 0 {
+			newlyadded, ok1 := ret[i].(stringToken)
+			addedbefore, ok2 := ret[i-1].(stringToken)
+			if ok1 && ok2 {
+				ret[i-1] = stringToken(addedbefore.String() + newlyadded.String())
+				i--
+			}
+
+		}
+
+		i++
+	}
+	ret[i] = tokenEnd
+	ret = ret[0 : i+1 : i+1]
+	return
+}
+
+// String will output a string representation of the special token. It mostly matches the string that gets parsed into it.
+// Note that this is only used for debugging.
 func (token specialToken) String() string {
 	switch token {
 	case tokenInvalid:
@@ -125,64 +190,4 @@ func (tokens tokenList) String() string {
 		}
 	}
 	return ret.String()
-}
-
-func tokenizeInterpolationString(s string) (ret tokenList) {
-	if !utf8.ValidString(s) {
-		panic(ErrorPrefix + "formatString not a valid UTF-8 string")
-	}
-	decomposition := re_tokenize.FindAllString(s, -1)
-	ret = make(tokenList, len(decomposition)+2) // +2 comes from tokenStart and tokenEnd.
-	ret[0] = tokenStart
-	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies this), we don't use i, entry := range decomposition
-	for _, entry := range decomposition {
-		switch entry {
-		case `\%`:
-			ret[i] = stringToken(`%`)
-		case `\$`:
-			ret[i] = stringToken(`$`)
-		case `\{`:
-			ret[i] = stringToken(`{`)
-		case `\}`:
-			ret[i] = stringToken(`}`)
-		case `\\`, `\`:
-			ret[i] = stringToken(`\`)
-		case `%!`:
-			ret[i] = tokenPercentCond
-		case `$!`:
-			ret[i] = tokenDollarCond
-		case `%`:
-			ret[i] = tokenPercent
-		case `$`:
-			ret[i] = tokenDollar
-		case `{`:
-			ret[i] = tokenOpenBracket
-		case `}`:
-			ret[i] = tokenCloseBracket
-		case `%w`:
-			ret[i] = tokenParentPercent
-		case `$w`:
-			ret[i] = tokenParentDollar
-		default:
-			ret[i] = stringToken(entry)
-		}
-
-		// merge consecutive entries of type stringToken.
-		// This is required for escaped %,$,{ or } that appear in identifiers such as format string verbs.
-		// It also makes writing the parser easier if we know that no consecutive stringTokens appear.
-		if i > 0 {
-			newlyadded, ok1 := ret[i].(stringToken)
-			addedbefore, ok2 := ret[i-1].(stringToken)
-			if ok1 && ok2 {
-				ret[i-1] = stringToken(addedbefore.String() + newlyadded.String())
-				i--
-			}
-
-		}
-
-		i++
-	}
-	ret[i] = tokenEnd
-	ret = ret[0 : i+1 : i+1]
-	return
 }
