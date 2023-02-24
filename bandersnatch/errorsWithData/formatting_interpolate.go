@@ -187,10 +187,11 @@ func (abase *base_ast_fmt) VerifySyntax() error {
 
 // joint helper for ast_fmtPercent and ast_fmtDollar
 
-func (a *base_ast_fmt) _Interpolate(parameters_relevant ParamMap, s *strings.Builder) {
+func (a *base_ast_fmt) _Interpolate(parameters_relevant ParamMap, s *strings.Builder, PercentOrDollar rune) {
 	if a.invalidParse { // special case: If there was a parse error, we just plain output the format string
+		s.WriteRune(PercentOrDollar)
 		s.WriteString(a.formatString)
-		s.WriteString(a.variableName) // always "", actually
+		s.WriteString(a.variableName)
 		return
 	}
 	var value any
@@ -234,7 +235,7 @@ func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ Pa
 }
 
 func (a ast_fmtPercent) Interpolate(parameters_direct ParamMap, _ ParamMap, _ error, s *strings.Builder) {
-	a._Interpolate(parameters_direct, s)
+	a._Interpolate(parameters_direct, s, '%')
 }
 
 func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) error {
@@ -253,7 +254,7 @@ func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed Par
 }
 
 func (a ast_fmtDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, _ error, s *strings.Builder) {
-	a._Interpolate(parameters_passed, s)
+	a._Interpolate(parameters_passed, s, '$')
 }
 
 func (a ast_parentPercent) VerifySyntax() error {
@@ -379,8 +380,11 @@ func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, par
 
 func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if a.invalidParse {
+		s.WriteString("%!")
 		s.WriteString(a.condition)
-		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		if a.child != nil {
+			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		}
 		return
 	}
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
@@ -436,8 +440,11 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 
 func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if a.invalidParse {
+		s.WriteString("$!")
 		s.WriteString(a.condition)
-		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		if a.child != nil {
+			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		}
 		return
 	}
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {

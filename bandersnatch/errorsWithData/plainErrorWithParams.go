@@ -29,11 +29,7 @@ func (e *errorWithParameters_common) Error_interpolate(params_passed map[string]
 		panic(ErrorPrefix + "called Error_interpolate() on nil error of concrete type errorWithParameters_common. This is a bug, since nil errors of this type should never exist.")
 	}
 	var s strings.Builder
-	formattingError := e.parsedInterpolationString.Interpolate(e.params, params_passed, e.contained_error, &s)
-	if formattingError != nil {
-		// TODO: error handler
-		panic(formattingError)
-	}
+	e.parsedInterpolationString.Interpolate(e.params, params_passed, e.contained_error, &s)
 	return s.String()
 }
 

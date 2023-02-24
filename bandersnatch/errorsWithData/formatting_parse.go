@@ -72,7 +72,6 @@ type (
 	conditionSetter    interface{ set_condition(stringToken) }    // ast_condPercent, ast_condDollar
 	simplifier         interface{ simplify() }                    // ast_root, ast_condPercent, ast_condDollar
 	invalidatable      interface{ make_invalid() }                // ast_fmtPercent, ast_fmtDollar, ast_condPercent, ast_condDollar
-	isInvalidParse     interface{ is_invalid_parse() bool }       // ast_fmtPercent, ast_fmtDollar, ast_condPercent, ast_condDollar
 )
 
 // *****
@@ -180,18 +179,6 @@ func (a *base_ast_fmt) make_invalid() {
 	a.invalidParse = true
 }
 
-func (a *base_ast_fmt) is_invalid_parse() bool {
-	return a.invalidParse
-}
-
-func (a *base_ast_fmt) get_formatString() string {
-	return a.formatString
-}
-
-func (a *base_ast_fmt) get_variableName() string {
-	return a.variableName
-}
-
 // new_ast_fmtPercent creates a new node of type ast_fmtPercent. Its formatString and variableName have yet to be set.
 func new_ast_fmtPercent() ast_I {
 	return &v_ast_fmtPercent{}
@@ -235,16 +222,8 @@ func (a *base_ast_condition) set_condition(cond stringToken) {
 	a.condition = string(cond)
 }
 
-func (a *base_ast_condition) get_condition() string {
-	return a.condition
-}
-
 func (a *base_ast_condition) make_invalid() {
 	a.invalidParse = true
-}
-
-func (a *base_ast_condition) is_invalid_parse() bool {
-	return a.invalidParse
 }
 
 // set_child sets the child node (essentially always an ast_list that is later simplify()ed) for the ast_condPercent or ast_condDollar.
@@ -481,7 +460,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					stack.Push(newNode)
 					mode = parseMode_Condition // read Condition string next
 				case tokenOpenBracket: // { without prior %, $, %! or $!
-					if err != nil {
+					if err == nil {
 						err = fmt.Errorf(ErrorPrefix + "Unexpected { in format string")
 					}
 					// we create a fake %!COND{... - expression, to enforce a matching terminating }
@@ -500,7 +479,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					// recall that stack is (starting from bottom) ROOT, LIST, followed by COND, LIST - pairs
 					// } is only valid if there is at least one such cond,list - pairs, which it terminates.
 					if (token == tokenCloseBracket) && (stack.Len() <= 3) {
-						if err != nil {
+						if err == nil {
 							err = fmt.Errorf(ErrorPrefix + "Unexpected } in format string")
 						}
 						// We always have ROOT-LIST on the stack until we read tokenEnd.
@@ -515,7 +494,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					} // tokenEnd must only appear at the top level.
 					// If we read a tokenEnd while the stack size is != 2, we have an unterminated %!COND{... somewhere
 					if (token == tokenEnd) && (stack.Len() != 2) {
-						if err != nil {
+						if err == nil {
 							err = fmt.Errorf(ErrorPrefix + "Missing } in format string")
 						}
 						newNode := new_ast_string(stringToken(`<META-ERROR! Missing "}">`))
@@ -554,7 +533,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			} else {
 				token_string, ok := token.(stringToken) // next token, if not {, must be a literal string
 				if !ok {
-					if err != nil {
+					if err == nil {
 						err = fmt.Errorf("%s", `Missing format verb. % or $ must be followed by an (optional) format verb ("v" if absent), then {VariableName}.Literal % must be (possibly doubly) escaped as \%`)
 					}
 					// remove the previously added node and replace it by a string literal (in particular don't expect a { to follow)
@@ -581,16 +560,16 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 		case parseMode_Condition: // expect to read a condition string (which must be a non-empty string literal)
 			token_string, ok := token.(stringToken)
 			if !ok {
-				if err != nil {
+				if err == nil {
 					err = fmt.Errorf("%s", `Missing conditional. %! or $! must be followed by a (non-empty) condition, then {format string}`)
 				}
-				// remove the previously read %! or $! and replace it by string literal indicating an error.
+				// invalidate started %! or $! and append literal error string
+				top.(invalidatable).make_invalid()
+				top.(conditionSetter).set_condition(`<META-ERROR! Missing condition>`)
 				_ = stack.Pop()
-				top = *stack.Top()
-				top.(ast_list).remove_last()
+				// top = *stack.Top()
+				// top.(ast_list).remove_last()
 
-				newNode := new_ast_string(stringToken(`<META-ERROR! Missing condition>`))
-				top.(ast_list).append_ast(newNode)
 				mode = parseMode_Sequence
 				if token == tokenEnd {
 					continue // break, really
@@ -604,7 +583,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 		case parseMode_VariableName: // expect to read the name of a variable (which must be a string literal)
 			token_string, ok := token.(stringToken)
 			if !ok {
-				if err != nil {
+				if err == nil {
 					err = fmt.Errorf("%s", `unescaped control character or EOF occurred in format string where the name of a variable was expected`)
 				}
 				// we invalidate the current node
@@ -612,15 +591,19 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				// We don't want to to drop that.
 				top.(invalidatable).make_invalid()
 				stack.Pop()
+				top = *stack.Top()
 				mode = parseMode_Sequence
 
 				if token == tokenEnd {
+					newNode := new_ast_string(`<META-ERROR! Unexpected end when variable name was expected>`)
+					top.(ast_list).append_ast(newNode)
 					continue // break, really
 				} else {
 					// we create a "fake" %!{ - node in order to gracefully capture the terminating } that is likely to follow
 					newNode := new_ast_condPercent().(ast_condPercent)
 					newNode.set_condition(stringToken(`<META-ERROR! Missing variable name after>`))
 					newNode.make_invalid()
+					top.(ast_list).append_ast(newNode)
 					newList := new_ast_list().(ast_list)
 					newNode.set_child(newList)
 					stack.Push(newNode)
@@ -636,7 +619,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			// parseMode_OpenSequence only happens after reading a string token in mode parseMode_Condition.
 			token := token.(specialToken) // token of type string cannot happen, because consecutive string tokens are merged by the tokenizer, so panic on type-assertion failure is OK.
 			if token != tokenOpenBracket {
-				if err != nil {
+				if err == nil {
 					err = fmt.Errorf("%s", `%!Condition or $!Condition must be followed by a {...}`)
 				}
 				top.(invalidatable).make_invalid()
@@ -659,7 +642,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			// Missing format string jumps directly from parseMode_FmtString to parseMode_VariableName.
 			token := token.(specialToken)
 			if token != tokenOpenBracket {
-				if err != nil {
+				if err == nil {
 					err = fmt.Errorf("%s", `%fmtString or $fmtString (with possibly empty fmtString) must be followed by a {VariableName}. Missing {`)
 				}
 				// invalidate current node. We need to keep it, because it's format string is likely some message that was misparsed
@@ -685,7 +668,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			token := token.(specialToken)
 			// token must be tokenCloseBracket. The case distinction is just for the error message.
 			if token == tokenEnd {
-				if err != nil {
+				if err == nil {
 					err = fmt.Errorf("%s", `unexpected end of format string after reading a variable name without closing }.`)
 				}
 				top = *stack.Top()
@@ -694,7 +677,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				continue // or break, really
 			}
 			if token != tokenCloseBracket {
-				if err != nil {
+				if err == nil {
 					err = fmt.Errorf("%s", `parsing error: In %fmtString{VariableName}, VariableName contained an unescaped control character`)
 				}
 				top = *stack.Top()
@@ -711,8 +694,17 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 	if mode != parseMode_Sequence {
 		panic(ErrorPrefix + "Cannot happen")
 	}
-	if (stack.Len() != 0) && (err != nil) {
-		panic(ErrorPrefix + "Cannot happen")
+	if stack.Len() != 0 {
+		if err == nil {
+			panic(ErrorPrefix + "Cannot happen")
+		}
+		for stack.Len() > 0 {
+			node := stack.Pop()
+			nodeInv, ok := node.(invalidatable)
+			if ok {
+				nodeInv.make_invalid()
+			}
+		}
 	}
 
 	ret.(ast_root).parseError = err

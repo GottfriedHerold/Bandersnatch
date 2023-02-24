@@ -2,6 +2,7 @@ package errorsWithData
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -33,6 +34,7 @@ func TestTokenizer(t *testing.T) {
 	test_token_case("$!w", `[ $! "w" ]`)
 	test_token_case(`%{Foo\%}`, `[ % { "Foo%" } ]`)
 	test_token_case(`${Foo\%}`, `[ $ { "Foo%" } ]`)
+	test_token_case(`%%%`, `[ "%" % ]`)
 	// test_token_case("$%%x{%{")
 }
 
@@ -282,9 +284,7 @@ func TestInterpolation(t *testing.T) {
 			t.Fatalf("Unexpected error during passed param check for input %s\n%v", inputString, err)
 		}
 		var builder strings.Builder
-		if err = tree.Interpolate(p_direct, p_passed, errBase, &builder); err != nil {
-			t.Fatalf("Unexpected error during actual interpolation for input %s\n%v", inputString, err)
-		}
+		tree.Interpolate(p_direct, p_passed, errBase, &builder)
 		interpolatedString := builder.String()
 		if interpolatedString != expectedOutput {
 			t.Fatalf("Unexpected output from string interpolation. Expected\n%s\nGot\n%s", expectedOutput, interpolatedString)
@@ -309,5 +309,68 @@ func TestInterpolation(t *testing.T) {
 	testInterpolation("%!m>0{Bar}", "Bar")
 	testInterpolation("$!m=0{%{ValHundreds}}", "")
 	testInterpolation("$!m>0{%{ValHundreds}}", "128")
+}
+
+func PrintInterpolationWrong(t *testing.T, s string, parseError bool) {
+	var p_direct ParamMap = ParamMap{"ValHundreds": 128, "StringABC": "abc"}
+	var p_passed ParamMap = ParamMap{"ValHundreds": 256, "StringDEF": "def"}
+	errPlain := errors.New("BASE")
+	errBase := &dummy_interpolatableError{error: errPlain, f: func(p ParamMap) string {
+		r := p["StringDEF"]
+		if r == "def" {
+			return "OK"
+		} else {
+			return "NOTOK"
+		}
+	}}
+
+	tokens := tokenizeInterpolationString(s)
+	tree, err := make_ast(tokens)
+	testutils.FatalUnless(t, parseError == (err != nil), "\nInput string:%s\n, tokenized as:%v\nParsed as:%v\nWas parse error expected: %t\nGot: %v\n", s, tokens, tree, parseError, err)
+	if parseError {
+		testutils.FatalUnless(t, err == tree.VerifySyntax(), "")
+		testutils.FatalUnless(t, err == tree.VerifyParameters_direct(p_direct, errBase), "")
+		testutils.FatalUnless(t, err == tree.VerifyParameters_passed(p_direct, p_passed, errBase), "")
+	}
+	var b strings.Builder
+	tree.Interpolate(p_direct, p_passed, errBase, &b)
+	output := b.String()
+	fmt.Println(output)
+}
+
+func TestPrintSomeOutput(t *testing.T) {
+
+	PrintInterpolationWrong(t, "Invalid", false)
+	PrintInterpolationWrong(t, "%%%", true)
+	PrintInterpolationWrong(t, "Fine1 %${{}{}} FineEnd", true)
+	PrintInterpolationWrong(t, "Fine2 %${{{}{}} FineEnd", true)
+	PrintInterpolationWrong(t, "Fine3 $$!} FineEnd", true)
+	PrintInterpolationWrong(t, "Fine4 #fmt{Foo} FineEnd", true)
+
+	PrintInterpolationWrong(t, "Fine5 %!", true)
+	PrintInterpolationWrong(t, "Fine6 %!{", true)
+	PrintInterpolationWrong(t, "Fine7 %!m=0", true)
+	PrintInterpolationWrong(t, "Fine8 %!m=0{", true)
+	PrintInterpolationWrong(t, "Fine9 %!m=0{Bar", true)
+
+	PrintInterpolationWrong(t, "Fine10 $!", true)
+	PrintInterpolationWrong(t, "Fine11 $!{", true)
+	PrintInterpolationWrong(t, "Fine12 $!m=0", true)
+	PrintInterpolationWrong(t, "Fine13 $!m=0{", true)
+	PrintInterpolationWrong(t, "Fine14 $!m=0{Bar", true)
+
+	PrintInterpolationWrong(t, "Fine15 %", true)
+	PrintInterpolationWrong(t, "Fine16 %fmt", true)
+	PrintInterpolationWrong(t, "Fine17 %fmt{", true)
+	PrintInterpolationWrong(t, "Fine18 %{", true)
+	PrintInterpolationWrong(t, "Fine19 %fmt{Var", true)
+	PrintInterpolationWrong(t, "Fine20 %{Var", true)
+
+	PrintInterpolationWrong(t, "Fine21 $", true)
+	PrintInterpolationWrong(t, "Fine22 $fmt", true)
+	PrintInterpolationWrong(t, "Fine23 $fmt{", true)
+	PrintInterpolationWrong(t, "Fine24 ${", true)
+	PrintInterpolationWrong(t, "Fine25 $fmt{Var", true)
+	PrintInterpolationWrong(t, "Fine26 ${Var", true)
 
 }
