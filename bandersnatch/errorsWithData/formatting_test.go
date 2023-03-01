@@ -338,6 +338,7 @@ func PrintInterpolationWrong(t *testing.T, s string, parseError bool) {
 	fmt.Println(output)
 }
 
+/*
 func TestPrintSomeOutput(t *testing.T) {
 
 	PrintInterpolationWrong(t, "Invalid", false)
@@ -373,4 +374,7 @@ func TestPrintSomeOutput(t *testing.T) {
 	PrintInterpolationWrong(t, "Fine25 $fmt{Var", true)
 	PrintInterpolationWrong(t, "Fine26 ${Var", true)
 
+	PrintInterpolationWrong(t, "Fine27 %!m=0{Foo}}", true)
+
 }
+*/

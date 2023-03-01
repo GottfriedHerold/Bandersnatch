@@ -92,7 +92,26 @@ func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed Para
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
-	a.ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
+	if parameters_passed == nil {
+		a.ast.Interpolate(parameters_direct, parameters_direct, baseError, s)
+	} else {
+		a.ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
+	}
+
+	if a.parseError != nil {
+		if baseError != nil {
+			s.WriteString("\nBase error:\n")
+			s.WriteString(baseError.Error()) // Note: We don't check for baseError.(ErrorInterpolater), because we output the parameters anyway.
+		}
+		if len(parameters_direct) != 0 {
+			s.WriteString("\nParameters in error:\n")
+			fmt.Fprintf(s, "%v", parameters_direct)
+		}
+		if parameters_passed != nil {
+			s.WriteString("\nParameters from outer error:\n")
+			fmt.Fprintf(s, "%v", parameters_passed)
+		}
+	}
 }
 
 func (a ast_list) VerifySyntax() (err error) {
@@ -188,18 +207,12 @@ func (abase *base_ast_fmt) VerifySyntax() error {
 // joint helper for ast_fmtPercent and ast_fmtDollar
 
 func (a *base_ast_fmt) _Interpolate(parameters_relevant ParamMap, s *strings.Builder, PercentOrDollar rune) {
-	if a.invalidParse { // special case: If there was a parse error, we just plain output the format string
-		s.WriteRune(PercentOrDollar)
-		s.WriteString(a.formatString)
-		s.WriteString(a.variableName)
-		return
-	}
 	var value any
 	var ok bool = true
 	switch a.variableName {
 	case "m", "map", "parameters", "params":
 		value = parameters_relevant
-		if value == nil {
+		if parameters_relevant == nil {
 			value = make(ParamMap) // nil -> empty map. This should not happen, but better safe than sorry.
 		}
 	default:
@@ -214,7 +227,6 @@ func (a *base_ast_fmt) _Interpolate(parameters_relevant ParamMap, s *strings.Bui
 	} else {
 		fmt.Fprintf(s, "%"+a.formatString, value) // NOTE: a.formatString may contain/start with a literal '%'. This will just be reported by fmt.Fprintf accordingly, so we don't check this.
 	}
-	return
 }
 
 func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err error) {
@@ -379,18 +391,14 @@ func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, par
 }
 
 func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
-	if a.invalidParse {
-		s.WriteString("%!")
-		s.WriteString(a.condition)
-		if a.child != nil {
-			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		}
-		return
-	}
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		s.WriteString(`%!<INVALID CONDITION:`)
 		s.WriteString(a.condition)
 		s.WriteRune('>')
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		return
+	}
+	if a.invalidParse {
 		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 		return
 	}
@@ -439,14 +447,6 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 }
 
 func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
-	if a.invalidParse {
-		s.WriteString("$!")
-		s.WriteString(a.condition)
-		if a.child != nil {
-			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		}
-		return
-	}
 	if !utils.ElementInList[string](a.condition, validConditions[:]) {
 		s.WriteString(`$!<INVALID CONDITION:`)
 		s.WriteString(a.condition)
@@ -454,6 +454,11 @@ func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passe
 		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 		return
 	}
+	if a.invalidParse {
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+		return
+	}
+
 	switch a.condition {
 	case ConditionEmptyMap:
 		if len(parameters_passed) == 0 {
