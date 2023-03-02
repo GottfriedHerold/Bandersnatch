@@ -13,7 +13,7 @@ import (
 //   - Tokenize the interpolation string
 //   - Parse the tokenized string into a syntax tree
 //   - [Optional] Perform some validity checks. (3 subchecks, actually. Those would be checked when actually producing output anyway, but sometime we want those checks early)
-//   - Actually prodcuce the interpolated error string.
+//   - Actually produce the interpolated error string.
 
 // This file contains the code for the last 2 steps.
 
@@ -42,12 +42,17 @@ import (
 // Note that even VerifyParameters_passed does not guarantee that Interpolation works, because the format verb might be invalid for the given type or a custom String or Format method might even panic.
 // For the latter, note that the fmt package actually recovers from such panics and reports it in the output string. This is beyond the scope of this package.
 
+// Interpolate actually produces the required output string.
+// For reasons of efficiency, the Interpolate-functions here do not return a string, but rather take a strings.Builder argument and append to that.
+
 // valid entries for Condition strings
 var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
 var validMapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
 
+// IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
+// (Meaning it starts with a capital letter, followed by letters digits and underscores -- note that letters and digits may be non-ASCII)
 func IsExportedIdentifier(s string) bool {
-	return token.IsIdentifier(s) && token.IsExported(s)
+	return token.IsIdentifier(s) && token.IsExported(s) // use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise due to potential non-ASCII letters and digits.
 }
 
 // Validation stages:
@@ -56,6 +61,11 @@ func IsExportedIdentifier(s string) bool {
 // 3.) $ valid (fmt strings not checked)
 
 // NOTE: Assumes a was created with make_ast
+// Furthermore, we assume that all calls go through ast_root. In particular, parse errors are caught by ast_root and we never recurse the tree.
+
+// For parameters_passed, note that we make a distinction between nil and empty map:
+// parameters_passed == nil means that parameters_passed is the very same as parameters_direct and we do not use that mechanic.
+// This means we interpret it (mostly) as parameters_passed == parameters_direct, but in some case produce more accurate error messages.
 
 func (a ast_root) VerifySyntax() (err error) {
 	if a.ast == nil {
@@ -160,7 +170,6 @@ func (a ast_list) Interpolate(parameters_direct ParamMap, parameters_passed Para
 	for _, ast := range *a {
 		ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
 	}
-
 }
 
 func (a ast_string) VerifySyntax() error {
@@ -176,15 +185,15 @@ func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) error {
 }
 
 func (a ast_string) Interpolate(_ ParamMap, _ ParamMap, _ error, s *strings.Builder) {
-	s.WriteString(string(a)) // NOTE: need string(a), not a.String() here
+	s.WriteString(string(a)) // NOTE: need string(a), not a.String() here; the latter would add literal "-marks.
 }
 
 func (abase *base_ast_fmt) VerifySyntax() error {
 	if strings.ContainsRune(abase.formatString, '%') {
-		return fmt.Errorf(ErrorPrefix+`Interpolation string contained a format string verb %s, which contained (escaped) %%. This will not work with the fmt package`, abase.formatString)
+		return fmt.Errorf(ErrorPrefix+`Interpolation string contains a format string verb %s, which contains  '%%'. This will not work with the fmt package`, abase.formatString)
 	}
 	if abase.invalidParse { // should be detected at root
-		panic(ErrorPrefix + "Invalidly parsed format string not detected at root")
+		panic(ErrorPrefix + "Invalidly parsed interpolation string not detected at root")
 	}
 	if abase.variableName == "" {
 		panic(ErrorPrefix + "Uninitialized variable name") // ought to have been caught by the parser.
@@ -223,7 +232,7 @@ func (a *base_ast_fmt) _Interpolate(parameters_relevant ParamMap, s *strings.Bui
 	}
 
 	if !ok {
-		s.WriteString(`%!` + a.formatString + `<missing value>`)
+		s.WriteString(`%` + a.formatString + `!<missing value>`)
 	} else {
 		fmt.Fprintf(s, "%"+a.formatString, value) // NOTE: a.formatString may contain/start with a literal '%'. This will just be reported by fmt.Fprintf accordingly, so we don't check this.
 	}
@@ -277,16 +286,21 @@ func (a ast_parentPercent) VerifyParameters_direct(_ ParamMap, baseError error) 
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
 	} else {
-		return nil
+		if errValidatable, ok := baseError.(ErrorInterpolater); ok {
+			errFromBase := errValidatable.ValidateError_Params(nil)
+			if errFromBase != nil {
+				return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromBase)
+			} else {
+				return nil
+			}
+		} else {
+			return nil
+		}
 	}
 }
 
 func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
-	if baseError == nil {
-		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
-	} else {
-		return nil
-	}
+	return a.VerifyParameters_direct(nil, baseError) // first argument is ignored anyway
 }
 
 func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, s *strings.Builder) {
@@ -305,22 +319,31 @@ func (a ast_parentDollar) VerifyParameters_direct(_ ParamMap, baseError error) e
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
-	if _, ok := baseError.(ErrorInterpolater); !ok {
+	if errValidatable, ok := baseError.(ErrorInterpolater); !ok {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the base error does not support this")
 	} else {
-		return nil
+		errFromBase := errValidatable.ValidateError_Base()
+		if errFromBase != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromBase)
+		}
 	}
+
+	return nil
 }
 
-func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
+func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, baseError error) error {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
-	if _, ok := baseError.(ErrorInterpolater); !ok {
+	if errValidatable, ok := baseError.(ErrorInterpolater); !ok {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the base error does not support this")
 	} else {
-		return nil
+		errFromBase := errValidatable.ValidateError_Params(parameters_passed)
+		if errFromBase != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromBase)
+		}
 	}
+	return nil
 }
 
 func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
@@ -338,14 +361,14 @@ func (abase *base_ast_condition) VerifySyntax() error {
 	if abase.invalidParse {
 		panic(ErrorPrefix + "Invalid parse not handled") // should be caught be ast_root.
 	}
-	if !utils.ElementInList[string](abase.condition, validConditions[:]) {
+	if !utils.ElementInList(abase.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", abase.condition)
 	}
 	return abase.child.VerifySyntax()
 }
 
 func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
-	if !utils.ElementInList[string](a.condition, validConditions[:]) {
+	if !utils.ElementInList(a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
 	// We actually evalutate the condition here. If the condition is false, we weaken the child-check to syntax only
@@ -368,7 +391,7 @@ func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, bas
 }
 
 func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
-	if !utils.ElementInList[string](a.condition, validConditions[:]) {
+	if !utils.ElementInList(a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
 	// We actually evalutate the condition here. If the condition is false, we weaken the child-check to syntax only
@@ -391,7 +414,7 @@ func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, par
 }
 
 func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
-	if !utils.ElementInList[string](a.condition, validConditions[:]) {
+	if !utils.ElementInList(a.condition, validConditions[:]) {
 		s.WriteString(`%!<INVALID CONDITION:`)
 		s.WriteString(a.condition)
 		s.WriteRune('>')
@@ -417,14 +440,14 @@ func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_pass
 }
 
 func (a ast_condDollar) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
-	if !utils.ElementInList[string](a.condition, validConditions[:]) {
+	if !utils.ElementInList(a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
 	return a.child.VerifySyntax()
 }
 
 func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
-	if !utils.ElementInList[string](a.condition, validConditions[:]) {
+	if !utils.ElementInList(a.condition, validConditions[:]) {
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)
 	}
 	// We actually evalutate the condition here. If the condition is false, we weaken the child-check to syntax only
@@ -447,7 +470,7 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 }
 
 func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
-	if !utils.ElementInList[string](a.condition, validConditions[:]) {
+	if !utils.ElementInList(a.condition, validConditions[:]) {
 		s.WriteString(`$!<INVALID CONDITION:`)
 		s.WriteString(a.condition)
 		s.WriteRune('>')

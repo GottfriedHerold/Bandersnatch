@@ -38,7 +38,7 @@ func (e *errorWithParameters_common) Error() string {
 	if e == nil {
 		panic(ErrorPrefix + "called Error() on nil error of concrete type errorWithParameters_common. This is a bug, since nil errors of this type should never exist.")
 	}
-	return e.Error_interpolate(e.params)
+	return e.Error_interpolate(nil)
 }
 
 // Unwrap is provided to work with errors.Is
@@ -85,11 +85,11 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 	return
 }
 
-// makeErrorWithParameterCommon creates a new errorWithParameters_common from the given baseError and override message.
+// makeErrorWithParameterCommon creates a new errorWithParameters_common from the given baseError and interpolation string.
+// The parameter map is copied from baseError
+//
 // NOTE: This is an internal function, used by the (exported) functions in modify_errors.go
 // These functions actually modify ret.params after creation. The purpose of this method is just to unify those functions.
-//
-// NOTE: This functions performs a syntax parse check, i.e. we check that override message is well-formed. and panic if not.
 func makeErrorWithParametersCommon(baseError error, interpolationString string) (ret errorWithParameters_common) {
 	if !utf8.ValidString(interpolationString) {
 		panic(ErrorPrefix + "message for error creation was not a valid UTF-8 string")
@@ -98,13 +98,30 @@ func makeErrorWithParametersCommon(baseError error, interpolationString string) 
 	ret.contained_error = baseError
 	tokens := tokenizeInterpolationString(interpolationString)
 
-	var errParsing error
-	ret.parsedInterpolationString, errParsing = make_ast(tokens)
-	if errParsing != nil {
-		panic(errParsing)
-
-	}
-
+	// Parse the intepolation string.
+	// We ignore potential returned errors: If there is a parsing error, this is additionally recorded in ret.parsedInterpolationString itself.
+	ret.parsedInterpolationString, _ = make_ast(tokens)
 	ret.params = GetData_map(baseError)
 	return
+}
+
+// ValidateSyntax checks whether the created error has any syntax error in its interpolation string
+func (e *errorWithParameters_common) ValidateSyntax() error {
+	return e.parsedInterpolationString.VerifySyntax()
+}
+
+// ValidateError_Final checks whether the created error contains certain errors that would trigger on .Error()
+func (e *errorWithParameters_common) ValidateError_Final() error {
+	return e.parsedInterpolationString.VerifyParameters_passed(e.params, e.params, e.contained_error)
+}
+
+// ValidateError_Base checks whether the created errors contains certain errors, up to the fact that any $-statements are only syntax-checked
+func (e *errorWithParameters_common) ValidateError_Base() error {
+	return e.parsedInterpolationString.VerifyParameters_direct(e.params, e.contained_error)
+}
+
+// ValidateError_Params checks whether the created error contains errors (in particular, ${VarName}-statements are valid), given the passed parameter map.
+// params_passed == nil is taken as using e's own parameters (this is distinct from passing an empty map)
+func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap) error {
+	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.contained_error)
 }

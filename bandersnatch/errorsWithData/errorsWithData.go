@@ -153,9 +153,12 @@ type ErrorWithData_any interface {
 	GetParameter(parameterName string) (value any, wasPresent bool)
 	// HasParameter returns whether parameterName is a key of the parameter map.
 	HasParameter(parameterName string) bool
-	// GetData_map returns a shallow copy of the parameter map.
+	// GetData_map returns a shallow copy of the parameter map. Note that this must never return a nil map.
 	GetData_map() map[string]any
 	// typically also has Unwrap() error -- all errors created by this package do.
+	ValidateError_Base() error
+	ValidateError_Final() error
+	ValidateSyntax() error
 }
 
 // Q: Make this internal?
@@ -165,7 +168,18 @@ type ErrorWithData_any interface {
 type ErrorInterpolater interface {
 	error
 	Error_interpolate(ParamMap) string
+	ValidateError_Params(params_passed ParamMap) error
+	ValidateError_Base() error
 }
+
+// DummyValidator is an empty struct that dummy-implements ValidateError_Base, ValidateError_Final, ValidateSyntax and ValidateError_Params (with value receivers). These method all return true.
+// The usage scenario is struct-embedding them in an implementation of the ErrorWithData to satisfy the interface if no validation is supported.
+type DummyValidator struct{}
+
+func (DummyValidator) ValidateError_Base() error           { return nil }
+func (DummyValidator) ValidateError_Final() error          { return nil }
+func (DummyValidator) ValidateSyntax() error               { return nil }
+func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 
 // ErrorWithData[StructType] is a generic interface extending [ErrorWithData_any].
 // Any non-nil error returned in such an interface is guaranteed to contain some additional data sufficient to create an instance of StructType.

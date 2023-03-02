@@ -7,153 +7,157 @@ import (
 )
 
 // NewErrorWithData_struct creates a new [ErrorWithData] wrapping the given baseError if non-nil.
-// overrideMessage is used to create the new error message, where an empty string is
-// interpreted as a default error message (containing %w and %m).
+// interpolationString is used to create the new error message, where an empty string is
+// interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil
 // Parameters are added for each visible field of StructType.
 //
-// For baseError == nil, overrideMessage == "", #visibleFields of (*data) > 0, this function panics.
-// For baseError == nil, overrideMessage == "", #visibleFields of (*data) ==0, returns nil
-// For baseError == nil, overrideMessage != "", creates a new error that does not wrap an error.
-func NewErrorWithData_struct[StructType any](baseError error, overrideMessage string, data *StructType) ErrorWithData[StructType] {
+// For baseError == nil, interpolationString == "", this function panics.
+// For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
+// The function also panics if StructType is unsuited (e.g. contains unexported fields)
+func NewErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType) ErrorWithData[StructType] {
 	reflectedStructType := utils.TypeOfType[StructType]()
-	allStructFields := getStructMapConversionLookup(reflectedStructType)
-	if baseError == nil {
-		if overrideMessage == "" {
-			if len(allStructFields) > 0 {
-				panic(ErrorPrefix + "called NewErrorWithData(nil,\"\",data) with non-empty data")
-			}
-			return nil
-		}
-		// If we get here, err==nil, overrideMessage != "".
-		// If we just proceed, the returned error will have contained_error == nil in this case.
-		// This is actually fine.
+	_ = getStructMapConversionLookup(reflectedStructType) // trigger early panic for invalid StructType
+	if baseError == nil && interpolationString == "" {
+		panic(ErrorPrefix + "called NewErrorWithData_struct with nil base error and empty interpolation string")
 	}
+	if interpolationString == "" {
+		// Note: baseError != nil
+		if _, baseSupportParams := baseError.(ErrorInterpolater); baseSupportParams {
+			interpolationString = "$w"
+		} else {
+			interpolationString = "%w"
+		}
+	}
+	// Note: baseError may be nil. This is actually fine.
 
-	createdError := makeErrorWithParametersCommon(baseError, overrideMessage)
+	createdError := makeErrorWithParametersCommon(baseError, interpolationString)
+
+	// TODO: Validation
 
 	fillMapFromStruct(data, &createdError.params)
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: createdError}
 }
 
-// NewErrorWithData_params creates a new ErrorWithParameters wrapping the given baseError,
-// possibly overriding the error message message and adding parameters.
-// If overrideMessage == "", DefaultOverrideMessage is used (except if baseError == nil).
-// Note: The only difference between this and IncludeParametersInError is the message and nil handling:
+// NewErrorWithData_params creates a new [ErrorWithData] wrapping the given baseError if non-nil.
+// interpolationString is used to create the new error message, where an empty string is
+// interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil
+// Parameters are supposed to be passed as string - value pairs, e.g:
 //
-// For baseError == nil and overrideMessage == "", #params > 0, we panic
-// For baseError == nil, overrideMessage == "", #params == 0, we return a nil interface
-func NewErrorWithData_params[StructType any](baseError error, overrideMessage string, params ...any) ErrorWithData[StructType] {
+//	NewErrorWIthData_params[StrucType](nil, "Some error with $v{Param1} and $s{Param2}", "Param1", 5, "Param2", `some_string`)
+//
+// For baseError == nil, interpolationString == "", this function panics.
+// For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
+// The function also panics if StructType is unsuited (e.g. contains unexported fields), params is malformed or the set of all params does not allow construct an instance of StructType.
+func NewErrorWithData_params[StructType any](baseError error, interpolationString string, params ...any) ErrorWithData[StructType] {
 	// make some validity checks to give meaningful error messages.
 	// Impressive: go - staticcheck actually recognizes this pattern and has my IDE complain at the call site about violations (calling with odd number of args)!
 	if len(params)%2 != 0 {
-		panic(ErrorPrefix + "called NewErrorWithParameters(err, overrideMessage, args...) with an odd number of args. These are supposed to be name-value pairs")
+		panic(ErrorPrefix + "called NewErrorWithData_params(err, interpolationString, args...) with an odd number of args. These are supposed to be name-value pairs")
 	}
 	extraParams := len(params) / 2
-	if baseError == nil {
-		if overrideMessage == "" {
-			if extraParams > 0 {
-				panic(ErrorPrefix + "called NewErrorWithParameters(nil,\"\",argName, arg1, ...)")
-			}
-			return nil
+	if baseError == nil && interpolationString == "" {
+		panic(ErrorPrefix + "called NewErrorWithData_params with nil base error and empty interpolation string")
+	}
+	if interpolationString == "" {
+		if _, baseSupportParams := baseError.(ErrorInterpolater); baseSupportParams {
+			interpolationString = "$w"
+		} else {
+			interpolationString = "%w"
 		}
-		// If we get here, err==nil, overrideMessage != "".
-		// If we just proceed, the returned error will have contained_error == nil in this case.
-		// This is actually fine.
 	}
 
-	// create a wrapper, copying all parameters from baseError
-	ret := makeErrorWithParametersCommon(baseError, overrideMessage)
+	// create new error, copying all parameters from baseError
+	ret := makeErrorWithParametersCommon(baseError, interpolationString)
 
 	// add new parameters to it
 	for i := 0; i < extraParams; i++ {
 		s, ok := params[2*i].(string)
 		if !ok {
-			panic(fmt.Errorf(ErrorPrefix+"called NewErrorWithParams(err, overrideMessage, args... with invalid parameters. args are supposed to come in (string-any) pairs, but got a non-string in position %v", 2*i))
+			panic(fmt.Errorf(ErrorPrefix+"called NewErrorWithData_params(err, interpolationString, args... with invalid parameters. args are supposed to come in (string-any) pairs, but got a non-string in position %v", 2*i))
 		}
 		ret.params[s] = params[2*i+1]
 	}
 
 	// Check whether the promise of being able to construct an instance of StructType is satisfied.
-	validationError := canMakeStructFromParametersInError[StructType](&ret)
-	if validationError != nil {
-		panic(validationError)
+	cannotMakeStructError := canMakeStructFromParametersInError[StructType](&ret)
+	if cannotMakeStructError != nil {
+		panic(cannotMakeStructError)
 	}
 
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
-// NewErrorWithData_map has the same meaning as NewErrorWithGuaranteedParameters, but the parameters are passed as a map rather than string, any - pairs.
-func NewErrorWithData_map[StructType any](baseError error, overrideMessage string, params map[string]any) ErrorWithData[StructType] {
-	extraParams := len(params) // 0 for nil
-	if baseError == nil {
-		if overrideMessage == "" {
-			if extraParams > 0 {
-				panic(ErrorPrefix + "called NewErrorWithParametersMap(nil,\"\",actualParams_map)")
-			}
-			return nil
+// NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than string, any - pairs.
+func NewErrorWithData_map[StructType any](baseError error, interpolationString string, params map[string]any) ErrorWithData[StructType] {
+
+	if baseError == nil && interpolationString == "" {
+		panic(ErrorPrefix + "called NewErrorWithData_map with nil base error and empty interpolation string")
+	}
+	if interpolationString == "" {
+		if _, baseSupportParams := baseError.(ErrorInterpolater); baseSupportParams {
+			interpolationString = "$w"
+		} else {
+			interpolationString = "%w"
 		}
-		// If we get here, err==nil, overrideMessage != "".
-		// If we just proceed, the returned error will have contained_error == nil in this case.
-		// This is actually fine.
 	}
 
-	ret := makeErrorWithParametersCommon(baseError, overrideMessage)
+	ret := makeErrorWithParametersCommon(baseError, interpolationString)
 
 	for key, value := range params {
 		ret.params[key] = value
 	}
-	validationError := canMakeStructFromParametersInError[StructType](&ret)
-	if validationError != nil {
-		panic(validationError)
+	cannotMakeStructError := canMakeStructFromParametersInError[StructType](&ret)
+	if cannotMakeStructError != nil {
+		panic(cannotMakeStructError)
 	}
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
-// NewErrorWithData_any_params is identical to NewErrorWithGuaranteedParameters except for the guarantee about containing data.
-func NewErrorWithData_any_params(baseError error, overrideMessage string, parameters ...any) ErrorWithData_any {
-	return NewErrorWithData_params[struct{}](baseError, overrideMessage, parameters...)
+// NewErrorWithData_any_params is identical to [NewErrorWithData_params] except for the guarantee about containing data.
+func NewErrorWithData_any_params(baseError error, interpolationString string, parameters ...any) ErrorWithData_any {
+	return NewErrorWithData_params[struct{}](baseError, interpolationString, parameters...)
 }
 
-// NewErrorWithData_any_map is identical to NewErrorWithGuaranteedParametersFromMap except for the guarantee about containing data.
-func NewErrorWithData_any_map(baseError error, overrideMessage string, parameters map[string]any) ErrorWithData_any {
-	return NewErrorWithData_map[struct{}](baseError, overrideMessage, parameters)
+// NewErrorWithData_any_map is identical to [NewErrorWithData_map] except for the guarantee about containing data.
+func NewErrorWithData_any_map(baseError error, interpolationString string, parameters map[string]any) ErrorWithData_any {
+	return NewErrorWithData_map[struct{}](baseError, interpolationString, parameters)
 }
 
-// IncludeGuaranteedParametersInError creates a new error wrapping baseError with additional parameters set.
-// This is identical to NewErrorWithGuaranteedParameters, except that it always used the default overrideMessage
+// AddDataToError_params creates a new error wrapping baseError with additional parameters set.
+// This is identical to [NewErrorWithData_params], except that it always used the default interpolationString
 // and for the err==nil case:
-// If err == nil, returns nil
-func IncludeGuaranteedParametersInError[StructType any](baseError error, parameters ...any) ErrorWithData[StructType] {
+// If err == nil, this function returns nil
+func AddDataToError_params[StructType any](baseError error, parameters ...any) ErrorWithData[StructType] {
 	if baseError == nil {
 		return nil
 	}
 	return NewErrorWithData_params[StructType](baseError, "", parameters...)
 }
 
-// IncludeGuaranteedParametersInErrorFromMap is identical to IncludeGuaranteedParametersInError, except it
+// AddDataToError_map is identical to [AddDataToError_params], except it
 // takes parameters as a map[string]any rather than variadic string, any - pairs.
-func IncludeGuaranteedParametersInErrorFromMap[StructType any](err error, parameters map[string]any) ErrorWithData[StructType] {
+func AddDataToError_map[StructType any](err error, parameters map[string]any) ErrorWithData[StructType] {
 	if err == nil {
 		return nil
 	}
 	return NewErrorWithData_map[StructType](err, "", parameters)
 }
 
-// IncludeParametersInError is identical to IncludeGuaranteedParametersInError except for the guarantee about containing data.
-func IncludeParametersInError(baseError error, parameters ...any) ErrorWithData_any {
-	return IncludeGuaranteedParametersInError[struct{}](baseError, parameters...)
+// AddDataToError_any_params is identical to [AddDataToError_params] except for the guarantee about containing data.
+func AddDataToError_any_params(baseError error, parameters ...any) ErrorWithData_any {
+	return AddDataToError_params[struct{}](baseError, parameters...)
 }
 
-// IncludeParametersInErrorsFromMap is identical to IncludeGuaranteedParametersInErrorFromMap except for the guaranteed about containing data.
-func IncludeParametersInErrorsFromMap(baseError error, parameters map[string]any) ErrorWithData_any {
-	return IncludeGuaranteedParametersInErrorFromMap[struct{}](baseError, parameters)
+// AddDataToError_any_map is identical to [AddDataToError_map] except for the guaranteed about containing data.
+func AddDataToError_any_map(baseError error, parameters map[string]any) ErrorWithData_any {
+	return AddDataToError_map[struct{}](baseError, parameters)
 }
 
-// IncludeDataInError returns a new error with the data provided.
-// This is identical to NewErrorWithParametersFromData except for the baseError == nil case.
+// AddDataToError_struct returns a new error based on baseError with the data struct merged to the parameters.
+// This is identical to NewErrorWithData_struct except for the baseError == nil case:
 //
 // On nil input for baseError, returns nil, ignoring the provided data.
-func IncludeDataInError[StructType any](baseError error, data *StructType) ErrorWithData[StructType] {
+func AddDataToError_struct[StructType any](baseError error, data *StructType) ErrorWithData[StructType] {
 	if baseError == nil {
 		return nil
 	}
@@ -169,23 +173,42 @@ func DeleteParameterFromError(err error, parameterName string) unconstrainedErro
 	if err == nil {
 		return nil
 	}
-	ret := makeErrorWithParametersCommon(err, "")
+	var ret errorWithParameters_common
+	if errInterpolatable, baseSupportsParams := err.(ErrorInterpolater); baseSupportsParams {
+		ret = makeErrorWithParametersCommon(errInterpolatable, "$w")
+	} else {
+		ret = makeErrorWithParametersCommon(err, "%w")
+	}
+
 	delete(ret.params, parameterName)
 	return &errorWithParameters_T[struct{}]{errorWithParameters_common: ret}
 }
 
-// WrapErrorWithParameters returns a new error based on baseError with error message given by message (which is subject to interpolation).
-func WrapErrorWithParameter[StructType any](baseError ErrorWithData[StructType], message string) ErrorWithData[StructType] {
-	return NewErrorWithData_params[StructType](baseError, message)
+// TODO: Rename? The purpose of this function is to change the displayed string.
+
+// WrapAsErrorWithData returns a new ErrorWithData[StructType] based on baseError with error message given by the interpolation string.
+// If baseError == nil, this function return nil
+//
+// DEPRECATED
+func WrapAsErrorWithData[StructType any](baseError ErrorWithData[StructType], interpolationString string) ErrorWithData[StructType] {
+	if baseError == nil {
+		return nil
+	}
+	return NewErrorWithData_params[StructType](baseError, interpolationString)
 }
 
 // AsErrorWithData[StructType](err) returns a copy of the error with a data type that guarantees that a struct of type StructType is contained in the data.
 // This is intended to "downcast" StructTypes to a sub-struct. Returns nil on nil input.
 //
-// NOTE: We make no guarantees about whether the returned error wraps the input error;
+// NOTE: We make no guarantees about whether the returned error wraps baseError; if it does not, it wraps whatever baseError wrapped.
 func AsErrorWithData[StructType any](baseError error) ErrorWithData[StructType] {
 	if baseError == nil {
 		return nil
 	}
-	return NewErrorWithData_params[StructType](baseError, "%w")
+	if _, baseSupportsParams := baseError.(ErrorInterpolater); baseSupportsParams {
+		return NewErrorWithData_params[StructType](baseError, "$w")
+	} else {
+		return NewErrorWithData_params[StructType](baseError, "%w")
+	}
+
 }

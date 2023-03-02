@@ -31,9 +31,9 @@ func TestErrorWithParameters(t *testing.T) {
 		}
 	}
 
-	nilModified := IncludeParametersInError(nilError, "foo", true)
-	nilModified2 := IncludeGuaranteedParametersInError[struct{ Bar bool }](nilError, "Foo", true) // mismatch, but nil stays nil
-	nilModified3 := IncludeParametersInError(nilError)
+	nilModified := AddDataToError_any_params(nilError, "foo", true)
+	nilModified2 := AddDataToError_params[struct{ Bar bool }](nilError, "Foo", true) // mismatch, but nil stays nil
+	nilModified3 := AddDataToError_any_params(nilError)
 	if nilModified != nil {
 		t.Fatalf("E1-1")
 	}
@@ -76,8 +76,8 @@ func TestErrorWithParameters(t *testing.T) {
 		t.Fatalf("E3")
 	}
 
-	wrappedEOFWithData1 := IncludeParametersInError(wrappedEOF, "Data1", 5, "Data2", 6)
-	wrappedEOFWithData12 := fmt.Errorf("Wrapping %w", IncludeParametersInError(wrappedEOFWithData1, "Data2", "arg2"))
+	wrappedEOFWithData1 := AddDataToError_any_params(wrappedEOF, "Data1", 5, "Data2", 6)
+	wrappedEOFWithData12 := fmt.Errorf("Wrapping %w", AddDataToError_any_params(wrappedEOFWithData1, "Data2", "arg2"))
 
 	m := GetData_map(wrappedEOFWithData12)
 	if m["Data1"] != 5 || m["Data2"] != "arg2" {
@@ -143,7 +143,7 @@ func TestErrorWithParameters(t *testing.T) {
 	}
 
 	wrapper := fmt.Errorf("%w", wrappedEOFWithData34)
-	wrappedEOFWithData345 := IncludeDataInError(wrapper, &struct35{nil, "foo"})
+	wrappedEOFWithData345 := AddDataToError_struct(wrapper, &struct35{nil, "foo"})
 
 	var data35 struct35 = wrappedEOFWithData345.GetData_struct()
 	if data35.Data3 != nil || data35.Data5 != "foo" {
@@ -180,8 +180,8 @@ func TestErrorWithParameters(t *testing.T) {
 	if e2.Error() != "ABC 5" {
 		t.Fatalf("Error message output not as expected")
 	}
-	e3 := IncludeParametersInError(e1)
+	e3 := AddDataToError_any_params(e1)
 	if e3.Error() != "ABC" {
-		t.Fatalf("Error message output not as expected for empty map")
+		t.Fatalf("Error message output not as expected for empty map. Output was %v", e3.Error())
 	}
 }

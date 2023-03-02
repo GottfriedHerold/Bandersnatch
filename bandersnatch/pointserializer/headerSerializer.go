@@ -290,7 +290,7 @@ func (shd *simpleHeaderDeserializer) GetGlobalSliceHeader() []byte {
 func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reader) (bytesRead int, size int32, err bandersnatchErrors.DeserializationError) {
 	bytesRead, errCER := consumeExpectRead(input, shd.headerSlice[:])
 	if errCER != nil {
-		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errCER, FIELDNAME_PARTIAL_READ, bytesRead != 0)
+		err = errorsWithData.AddDataToError_params[bandersnatchErrors.ReadErrorData](errCER, FIELDNAME_PARTIAL_READ, bytesRead != 0)
 		return
 	}
 	var buf [simpleHeaderSliceLengthOverhead]byte
@@ -298,7 +298,7 @@ func (shd *simpleHeaderDeserializer) deserializeGlobalSliceHeader(input io.Reade
 	bytesRead += bytesJustRead // Validate ensures this fits into int32
 	if errPlain != nil {
 		errorTransform.UnexpectEOF(&errPlain) // turn io.EOF into io.ErrUnexpectedEOF
-		err = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](errPlain,
+		err = errorsWithData.AddDataToError_params[bandersnatchErrors.ReadErrorData](errPlain,
 			FIELDNAME_PARTIAL_READ, bytesJustRead != simpleHeaderSliceLengthOverhead,
 			FIELDNAME_ACTUALLY_READ, buf[:],
 			FIELDNAME_BYTES_READ, bytesJustRead,

@@ -60,6 +60,7 @@ func TestParser(t *testing.T) {
 }
 
 type dummy_interpolatableError struct {
+	DummyValidator
 	f func(ParamMap) string
 	error
 }
@@ -70,7 +71,6 @@ func (d *dummy_interpolatableError) Error_interpolate(p ParamMap) string {
 	} else {
 		return d.f(p)
 	}
-
 }
 
 var _ ErrorInterpolater = &dummy_interpolatableError{}

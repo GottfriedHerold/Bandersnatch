@@ -39,7 +39,7 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 	bytesWritten, errPlain = output.Write(buf[:])
 	if errPlain != nil {
-		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+		err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
 	}
 	return
 }
@@ -126,7 +126,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256(buf[:], zCopy)
 	bytesWritten, errPlain = output.Write(buf[:])
-	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+	err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
 	return
 }
 
@@ -157,7 +157,7 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 	var buf [32]byte // := make([]byte, 32)
 	bytesRead, errPlain = io.ReadFull(input, buf[:])
 	if errPlain != nil {
-		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.ReadErrorData{
 			PartialRead:  bytesRead != 0 && bytesRead != 32,
 			BytesRead:    bytesRead,
 			ActuallyRead: buf[0:bytesRead],
@@ -196,7 +196,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 	var errPlain error // errors returned to this function;
 	// automatically fill err from errPlain at the end
 	defer func() {
-		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.ReadErrorData{
 			PartialRead:  bytesRead != 0 && bytesRead != 32,
 			BytesRead:    bytesRead,
 			ActuallyRead: buf[0:bytesRead],

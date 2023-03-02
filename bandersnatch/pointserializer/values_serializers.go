@@ -72,7 +72,7 @@ type valuesSerializer interface {
 func updateReadError(errPtr *bandersnatchErrors.DeserializationError, bytesReadPtr *int, expectToRead int) {
 	if *errPtr != nil {
 		var bytesRead int = *bytesReadPtr
-		*errPtr = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.ReadErrorData](*errPtr,
+		*errPtr = errorsWithData.AddDataToError_params[bandersnatchErrors.ReadErrorData](*errPtr,
 			FIELDNAME_PARTIAL_READ, bytesRead != 0 && bytesRead != expectToRead,
 			// NOTE: We do not update the "BytesRead" metadata in the error. This is intentional: "BytesRead" refers to the failing sub-call.
 		)
@@ -85,7 +85,7 @@ func updateReadError(errPtr *bandersnatchErrors.DeserializationError, bytesReadP
 func updateWriteError(errPtr *bandersnatchErrors.SerializationError, bytesWrittenPtr *int, expectToWrite int) {
 	if *errPtr != nil {
 		var bytesWritten int = *bytesWrittenPtr
-		*errPtr = errorsWithData.IncludeGuaranteedParametersInError[bandersnatchErrors.WriteErrorData](*errPtr,
+		*errPtr = errorsWithData.AddDataToError_params[bandersnatchErrors.WriteErrorData](*errPtr,
 			FIELDNAME_PARTIAL_WRITE, (bytesWritten != 0) && (bytesWritten != expectToWrite),
 			// NOTE: We do not update the "BytesWritten" metadata in the error. This is intentional: "BytesWritten" refers to the failing sub-call.
 		)

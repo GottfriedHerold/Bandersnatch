@@ -204,7 +204,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrd
 	var buf []byte = make([]byte, 32)
 	byteOrder.PutUint256(buf, zUint256)
 	bytesWritten, errPlain = output.Write(buf)
-	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+	err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
 	return
 }
 
@@ -247,7 +247,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Write
 	var buf []byte = make([]byte, 32)
 	byteOrder.PutUint256(buf, zUint256)
 	bytesWritten, errPlain = output.Write(buf)
-	err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+	err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
 	return
 }
 
@@ -312,7 +312,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 	var errPlain error // errors returned to this function;
 	// automatically fill err from errPlain at the end
 	defer func() {
-		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.ReadErrorData{
 			PartialRead:  bytesRead != 0 && bytesRead != 32,
 			BytesRead:    bytesRead,
 			ActuallyRead: buf[0:bytesRead],

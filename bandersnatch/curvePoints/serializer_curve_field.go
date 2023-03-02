@@ -270,7 +270,7 @@ func CurvePointFromXAndSignY_full(x *FieldElement, signY int, trustLevel IsInput
 	point.y, errWithX = recoverYFromXAffine(x, false)
 
 	if errWithX != nil {
-		err = errorsWithData.IncludeGuaranteedParametersInError[retData](errWithX, "%w", "SignY", signY)
+		err = errorsWithData.AddDataToError_params[retData](errWithX, "%w", "SignY", signY)
 		// On trusted input, we panic on error.
 		if trustLevel.Bool() {
 			panic(fmt.Errorf(ErrorPrefix_CurveFieldElementSerializers+"CurvePointFromXAndSignY_full encountered error on trusted input. Error was %w", err))
