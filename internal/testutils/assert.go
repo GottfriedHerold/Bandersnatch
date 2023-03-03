@@ -21,6 +21,11 @@ func Assert(condition bool, err ...interface{}) {
 	}
 }
 
+// FatalUnless is used in testing functions. It checks if condition is satisfied; if not, the test is aborted with failure.
+// formatString and args are used to construct the failure message.
+//
+// Note that this function does *NOT* panic on failure, but (manually) prints a stack dump in what looks like a panic.
+// This is neccessary to pinpoint the line/file of the failing caller.
 func FatalUnless(t *testing.T, condition bool, formatstring string, args ...any) {
 	if !condition {
 		debug.PrintStack()

@@ -7,6 +7,7 @@ import (
 
 // TODO: Move to uint256 type
 
+// ErrorPrefix is prepended to all errors messages originating from this package.
 const ErrorPrefix = "bandersnatch / internal / utils: "
 
 // UintarrayToInt converts a low-endian [4]uint64 array to big.Int, without any Montgomery conversions
@@ -42,7 +43,9 @@ func BigIntToUIntArray(x *big.Int) (result [4]uint64) {
 // This internally uses [*big.Int]'s SetString and understands exactly those string formats.
 // This implies that the given string can be decimal, hex, octal or binary, but needs to be prefixed if not decimal.
 //
-// This essentially is equivalent to [*big.Int]'s SetString method, except that it panics on error (which is appropriate for initialization of globals from constant strings literal).
+// This essentially is equivalent to [*big.Int]'s SetString method, except that it panics on error.
+//
+// The use-case for this function is initializing (global constant, really) *big.Int's from string constants. As such, panic on failure is appropriate.
 func InitIntFromString(input string) *big.Int {
 	var t *big.Int = big.NewInt(0)
 	var success bool

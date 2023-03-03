@@ -11,6 +11,7 @@ import "reflect"
 // NOTE: This method actually works around a design flaw in the way reflect handles nil, cf.  https://github.com/golang/go/issues/51649
 // There are serious considerations to actually change the behaviour of the standard library, which would make this function obsolete.
 // Potentially, such changes might actually break this function.
+// This function may or may not work for variadic functions.
 func CallFunction_FixNil(fun reflect.Value, in []reflect.Value) (out []reflect.Value) {
 	if fun.Kind() != reflect.Func {
 		panic(ErrorPrefix + "CallMethod_FixNil expects a reflect.Value wrapping a function as first argument")

@@ -11,7 +11,7 @@ import (
 // Note that input and output types only need to match up to assignability. On failure, gives a reason string explaining the failure.
 // On success, reason == ""
 //
-// Note: If receiverType is a pointer type, this also finds methods with value receivers.
+// Note: If receiverType is a pointer type, this function also finds methods with value receivers.
 func DoesMethodExist(receiverType reflect.Type, methodName string, inputs []reflect.Type, outputs []reflect.Type) (good bool, reason string) {
 	var typeName string = GetReflectName(receiverType)
 

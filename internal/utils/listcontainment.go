@@ -1,10 +1,11 @@
 package utils
 
+// Identity is the identity function, i.e. Identity(x) returns (a copy of) x.
 func Identity[T any](x T) T {
 	return x
 }
 
-// Checks whether list contains element.
+// ElementInList checks whether the given list contains the given element.
 // normalizer is an optional argument of type func(T) T. If given, the comparison is made modulo normalizer,
 // where we assume normalizer is an involution (i.e. normalizer(normalizer(x)) == normalizer(x)  )
 func ElementInList[T comparable](element T, list []T, normalizer ...func(T) T) bool {
@@ -29,6 +30,11 @@ func ElementInList[T comparable](element T, list []T, normalizer ...func(T) T) b
 	return false
 }
 
+// ConcatenateListsWithoutDuplicates takes 2 lists list1 and list2 and returns a new list that contains every element from both list,
+// but with duplicates removed. The normalizer argument (of type func(T) T) is optional; if given, it should be an involution and we consider duplicates
+// modulo normalizer.
+//
+// Note: The current implementation is naive and has O(N^2) running time, where N is the length of the lists. This is fine for the use-case.
 func ConcatenateListsWithoutDuplicates[T comparable](list1 []T, list2 []T, normalizer ...func(T) T) []T {
 	if len(normalizer) > 1 {
 		panic("Can only provide 1 optional function argument for normalization")

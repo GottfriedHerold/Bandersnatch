@@ -2,7 +2,6 @@ package common
 
 import "encoding/binary"
 
-
 // This file defines a type for endianness to serialize FieldElements.
 // NOTE: Our *internal* representations use a fixed order; endianness choice is only relevant for I/O.
 
@@ -21,6 +20,7 @@ import "encoding/binary"
 // The issue is that with an interface, there is an order of magnitude of performance loss, due to the fact that
 // with var x FieldElementEndianness, calling x.PutUint256(arg) through an interface forces heap-allocation of arg.
 
+// is this still used?
 type byteOrder = binary.ByteOrder // type alias to allow private struct embedding
 
 // The implementation assumes that s.byteOrder == binary.LittleEndian or == binary.BigEndian.
@@ -88,7 +88,8 @@ func (s FieldElementEndianness) StartsWithMSB() bool {
 //
 // Note that the endianness choice determined by s only affects the output stream, not the input.
 //
-// DEPRECATED in favor of the _ptr version
+// This function is provided solely for API consistency with [PutUint16], [PutUint32] and [PutUint64].
+// Users should use [PutUint256_ptr] or [PutUint256_array], which is much faster.
 func (s FieldElementEndianness) PutUint256(out []byte, little_endian_words [4]uint64) {
 
 	if len(out) < 32 {
@@ -111,12 +112,14 @@ func (s FieldElementEndianness) PutUint256(out []byte, little_endian_words [4]ui
 	}
 }
 
-// PutUint256 writes the given uint256 (given as 4 uint64's in little endian order) to out with given byte endianness.
+// PutUint256_ptr writes the given uint256 (given as 4 uint64's in little endian order) to out with given byte endianness.
 // Note that values of type [Uint256] need to be converted to [4]uint64 (which [Uint256] is based on).
 //
 // out must have a length (not only capacity) of at least 32.
 //
 // Note that the endianness choice determined by s only affects the output stream, not the input.
+//
+// This method is similar to [PutUint256], but more efficient.
 func (s FieldElementEndianness) PutUint256_ptr(out []byte, little_endian_words *[4]uint64) {
 
 	if len(out) < 32 {
@@ -139,6 +142,12 @@ func (s FieldElementEndianness) PutUint256_ptr(out []byte, little_endian_words *
 	}
 }
 
+// PutUint256_array writes the given uint256 (given as 4 uint64's in little endian order) to out with given byte endianness.
+// Note that values of type [Uint256] need to be converted to [4]uint64 (which [Uint256] is based on).
+//
+// Note that the endianness choice determined by s only affects the output stream, not the input.
+//
+// This method is similar to [PutUint256] or [PutUint256_ptr], but more efficient.
 func (s FieldElementEndianness) PutUint256_array(out *[32]byte, little_endian_words *[4]uint64) {
 	if s.v == v_littleEndian {
 		binary.LittleEndian.PutUint64(out[0:8], little_endian_words[0])
@@ -177,6 +186,7 @@ func (s FieldElementEndianness) Uint256(in []byte) (little_endian_ret [4]uint64)
 
 // same as above, but instead of returning a [4]uint64, we provide the address where to put them.
 
+// Uint256_indirect is similar to [Uint256], but writes to a given [4]uint64 rather than returnig it.
 func (s FieldElementEndianness) Uint256_indirect(in []byte, little_endian_ret *[4]uint64) {
 	if len(in) < 32 {
 		panic(ErrorPrefix + "Uint256 called on a slice of insufficient length")
@@ -196,6 +206,7 @@ func (s FieldElementEndianness) Uint256_indirect(in []byte, little_endian_ret *[
 
 // same as above, but the input is a pointer-to-array (of the correct size) instead of a slice.
 
+// Uint256_array is similar to [Uint256_indirect], but the input is given as pointer-to-array (of correct size) rather than as a slice.
 func (s FieldElementEndianness) Uint256_array(in *[32]byte, little_endian_ret *[4]uint64) {
 	if s.v == v_littleEndian {
 		little_endian_ret[0] = binary.LittleEndian.Uint64(in[0:8])
@@ -210,6 +221,7 @@ func (s FieldElementEndianness) Uint256_array(in *[32]byte, little_endian_ret *[
 	}
 }
 
+// Uint16 is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) Uint16(in []byte) uint16 {
 	if s.v == v_littleEndian {
 		return binary.LittleEndian.Uint16(in)
@@ -218,6 +230,7 @@ func (s FieldElementEndianness) Uint16(in []byte) uint16 {
 	}
 }
 
+// Uint32 is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) Uint32(in []byte) uint32 {
 	if s.v == v_littleEndian {
 		return binary.LittleEndian.Uint32(in)
@@ -226,6 +239,7 @@ func (s FieldElementEndianness) Uint32(in []byte) uint32 {
 	}
 }
 
+// Uint64 is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) Uint64(in []byte) uint64 {
 	if s.v == v_littleEndian {
 		return binary.LittleEndian.Uint64(in)
@@ -234,6 +248,7 @@ func (s FieldElementEndianness) Uint64(in []byte) uint64 {
 	}
 }
 
+// String is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) String() string {
 	if s.v == v_littleEndian {
 		return "LittleEndian"
@@ -242,6 +257,7 @@ func (s FieldElementEndianness) String() string {
 	}
 }
 
+// PutUint16 is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) PutUint16(out []byte, in uint16) {
 	if s.v == v_littleEndian {
 		binary.LittleEndian.PutUint16(out, in)
@@ -250,6 +266,7 @@ func (s FieldElementEndianness) PutUint16(out []byte, in uint16) {
 	}
 }
 
+// PutUint32 is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) PutUint32(out []byte, in uint32) {
 	if s.v == v_littleEndian {
 		binary.LittleEndian.PutUint32(out, in)
@@ -258,6 +275,7 @@ func (s FieldElementEndianness) PutUint32(out []byte, in uint32) {
 	}
 }
 
+// PutUint64 is provided to satisfy the [binary.ByteOrder] interface
 func (s FieldElementEndianness) PutUint64(out []byte, in uint64) {
 	if s.v == v_littleEndian {
 		binary.LittleEndian.PutUint64(out, in)

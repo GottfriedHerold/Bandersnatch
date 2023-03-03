@@ -5,8 +5,16 @@ import (
 	"testing"
 )
 
+// NOTE:
+// Technically, in a sequence of calls MakeVariableEscape(&x); MakeVariableEscape(&y)
+// the compiler could elide the intermediate unlock - lock calls to the mutex without violating any guarantees, so there is now a single protection code section.
+// Then the store of &x could be elided and optimzed away.
+//
+// Still, given that the compiler is doing a generally poor job at optimizing (the whole language was not designed for optimizations anyway), fixing
+// this is probably not worth it.
+
 var DumpGeneral struct {
-	x any
+	x any // a single slot only. This is actually enough.
 	m sync.Mutex
 }
 

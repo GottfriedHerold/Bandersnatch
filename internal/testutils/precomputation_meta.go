@@ -8,13 +8,13 @@ import (
 
 // This file defines and exports a PrecomputedCache functionality used mainly for testing.
 // Precomputed caches are, in essence, (pseudorandom) lists []ElementType for some appropriate ElementType
-// that our tests run against. Since we may need multiple, potentially different such types, we actually key this and instead
-// consider (from a users point of view) a map[KeyType] -> []ElementType. (*)
+// that our tests run against. Since we may need multiple, potentially different such lists, we actually key this and instead
+// consider (at least from a user's point of view) a map[KeyType] -> []ElementType. (*)
 // (KeyType and ElementType are generic parameters)
 //
 // We imagine the KeyType to hold an rng seed (+ potentially some tags).
-// Then, we can ask a cache to get the first n elements for a given key.
-// Subsequently asking the first m elements for the same key will give back a fresh copy of appropriate elements, where
+// Then, we can ask a cache to get the first n elements for a given key k.
+// Subsequently asking the first m elements for the same key k will give back a fresh copy of appropriate elements, where
 // one list is a prefix of the other.
 //
 // The point here is that
@@ -26,7 +26,8 @@ import (
 // to MakePrecomputedCache that control the process.
 //
 // (*) We could instead just support a datastructure for a single list and have the user create a map[KeyType] -> this datastructure.
-// However, then we would need to deal with concurrency issues when accessing/adding new keys for each such map. Implementing this *once* properly is better.
+// However, then the caller would need to deal with concurrency issues when accessing/adding new keys.
+// Implementing this *once* properly is better.
 
 // precomputedCachePage is the data structure holding the cache for a single given key
 type precomputedCachePage[MapType comparable, ElementType any] struct {
@@ -40,7 +41,7 @@ type precomputedCachePage[MapType comparable, ElementType any] struct {
 // These can be cheaply retrieved.
 type PrecomputedCache[MapType comparable, ElementType any] struct {
 	tableMutex         sync.RWMutex                                            // mutex for the table itself
-	data               map[MapType]*precomputedCachePage[MapType, ElementType] // actual cache(s) NOTE: The element type is pointer here. This is not really needed, but makes arguing about thread-safety much easier: Once an entry data[key] has been created, this entry (i.e. the pointer) never changes, even though what is pointed to may.
+	data               map[MapType]*precomputedCachePage[MapType, ElementType] // actual cache(s) NOTE: The element type is pointer here. This is not really needed and adds extra indirection, but makes arguing about thread-safety much easier: Once an entry data[key] has been created, this entry (i.e. the pointer) never changes, even though what is pointed to may.
 	createRandFromSeed func(key MapType) *rand.Rand                            // function that is used to initialize the rng from the key
 	creationFun        func(*rand.Rand, MapType) ElementType                   // function that is used to extend the cache for a given key. THIS MAY BE NIL, in which case extension will fail. Note: This function is the same for all keys for simplicity. If needed, users can always include the actual function as a field of KeyType.
 	copyFun            func(ElementType) ElementType                           // function used to (appropriately deep-) copy elements. We always output copies, since users should have no way to modify the cache.

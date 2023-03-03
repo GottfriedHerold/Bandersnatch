@@ -139,7 +139,7 @@ func TrustLevelFromBool(v bool) IsInputTrusted {
 	return IsInputTrusted{v: v}
 }
 
-// utility constants
+// utility constants of type *big.Int
 
 var (
 	One_Int      = utils.InitIntFromString("1")

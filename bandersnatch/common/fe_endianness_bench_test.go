@@ -8,6 +8,9 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// Benchmark for FieldElementEndianness.
+// We compare various ways of passing parameters. This kind of micro-optimization is kind-of relevant, unfortunately.
+
 func BenchmarkFieldElementEndianness(b *testing.B) {
 	b.Run("PutUint256LittleEndian", utils.Bind2(benchmarkFieldElementEndianness_writeToBuf, LittleEndian))
 	b.Run("PutUint256BigEndian", utils.Bind2(benchmarkFieldElementEndianness_writeToBuf, BigEndian))

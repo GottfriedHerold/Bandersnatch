@@ -1,5 +1,7 @@
 package utils
 
+// various functions to bind arguments to functions.
+
 func Bind2[Arg1 any, Arg2 any](f func(arg1 Arg1, arg2 Arg2), arg2 Arg2) func(arg1 Arg1) {
 	return func(arg1 Arg1) { f(arg1, arg2) }
 }

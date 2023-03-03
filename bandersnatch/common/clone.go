@@ -14,6 +14,7 @@ var anyType = utils.TypeOfType[any]()
 //
 // The issue is that this method works (as opposed to calling p.Clone() directly) even if p.Clone()'s return type does not match exactly.
 // As such, this is just a workaround for Go's lack of interface-co/contravariance.
+// (at the expense of being ridiculously slow)
 func Clone[T any, Ptr interface{ *T }](p Ptr) Ptr {
 	switch p := any(p).(type) {
 	case interface{ Clone() Ptr }:

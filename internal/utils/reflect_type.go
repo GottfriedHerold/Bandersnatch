@@ -7,7 +7,7 @@ import (
 
 // TypeOfType[T]() returns the [reflect.Type] of T.
 //
-// As opposed to [reflect.TypeOf], this works with a type parameter rather than a value and
+// As opposed to [reflect.TypeOf], this works with a type parameter rather than a passed value and
 // also works for interface types T
 func TypeOfType[T any]() reflect.Type {
 	var t *T
