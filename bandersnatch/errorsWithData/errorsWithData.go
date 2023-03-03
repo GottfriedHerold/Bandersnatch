@@ -69,9 +69,10 @@
 //   - Fields of interface type are allowed.
 //   - Embedded structs are also allowed.
 //
-// Anything else causes a panic. These properties should also be satisfied for the map keys.
-// Note that the map API could (and currently does) in principle work with arbitrary keys, but some functionality is limited, particularly interpolation string.
-// We might disallow such map keys in the future.
+// Anything else causes a panic.
+//
+// The map API does not have such a restriction and works with arbitrary keys, but some functionality is limited, particularly interpolation strings.
+// For that reason it is recommended to only use keys that satisfy [IsExportedIdentifier].
 //
 // Shadowed fields:
 // When converting to a map, the promoted-field hierarchy get flattened. I.e. embededded fields act in the following way:
@@ -84,17 +85,76 @@
 // after adding data from an instance of type Struct2, we can retrieve parameters (using the map interface) under the keys
 // "Data1" (yielding a bool) and "Data2" (yielding a string). There are no keys "Struct1" or "Struct1.Data1", "Struct1.Data2".
 // In particular, the shadowed int from Struct1.Data2 is completely ignored when adding data.
-// When retrieving data as an instance s of Struct2, s.Struct1.Data2 may be zero-inintialized.
+// When retrieving data as an instance s of Struct2, s.Struct1.Data2 may or may not be zero-inintialized.
 // In particular, roundtrip fails for shadowed fields:
 // Creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are shadowed embedded fields.
 // For the map[string]any API, note that we allow (and special-case) nil interface entries (i.e. m["Foo"]=nil ); when using the struct API, with struct{Foo *int}, this gets converted into a nil of appropriate type *int.
 //
-// TODO: Describe API for creating errors
+// To create errors, we provide functions [NewErrorWithData_params], [NewErrorWithData_map], [NewErrorWithData_struct], [NewErrorWithData_any_params], [NewErrorWithData_any_map].
+// These functions only differ in whether they return an [ErrorWithData] or [ErrorWithData_any] and how the data is passed.
+// Each of these takes a base error (possibly nil) that the new error should wrap, an interpolation string used to create an error message and newly added parameters.
+// The newly created error wraps the base error, inherits its data and add some of its own.
+//
+// Interpolation strings:
+//
+// The main power of this package is in the ability to refer to the parameters' values in the error message, e.g.
+//
+//	err := NewErrorWithData_params(nil, "Something bad happended, the value of Foo is ${Foo}.", "Foo", 5)
+//	fmt.Println(err)
+//
+// will print "Something bad happened, the value of Foo is 5." (without the quotation marks)
+//
+// The language for interpolation strings is as follows:
+//   - literal `%`, `$`, `{`, `}` and `\` have to be escaped as \%, \$, \{, \} and \\. Alternatively, %% also works for `%`. The backslash itself has no meaning beyond escaping and we recommend using `raw string`-syntax to avoid having to double-escape.
+//   - %w and $w insert the error message of the wrapped error (with special behaviour for $w).
+//   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
+//     An empty FormatVerb defaults to v. FormatVerb must not start with w or !.
+//   - VariableName must either be an exported identifier or one of the special strings 'm', 'map', 'parameters', 'params'. For these we print all parameters as a map[string]any.
+//   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar. We currently support the conditions
+//     "m=0" and "m>0" (without the quotation marks). These conditions mean that the parameter map is empty or non-empty, respectively.
+//   - The difference between $ and % is the following: % always refers to the parameters stored in the error itself to look up values or evalate conditions. %w just calls a wrapped error's Error() method.
+//     By contrast, $ allows passing parameters through an error chain: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
+//     this does not call errBase's Error() string, but rather errBase.Error_interpolate(passed_params) where passed_params are errFinal's parameters (or those of another wrapping error calling via $w).
+//     Error_Interpolate() will evaluate all $ with passed_params rather than the error's own parameters. It still uses its own for %.
+//     Of course, this requires extra support from errBase beyond the error interface (notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters).
+//
+// Note that the $-syntax allows to globally define errors such as
+//
+//	errBase := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
+//
+// without actually setting the value of "Foo". Calling errBase.Error() will complain about a missing value for Foo.
+// However, one can "derive" errors from errBase such as
+//
+//	errFinal := NewErrorWithData_any_params(errBase, "", "Foo", 5)
+//
+// (the empty interpolation string defaults to "$w" or "%w" depending on what the wrapped error supports). Then errFinal.Error() will output
+// "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is common.
+//
+// Of course, there is the possibility of making a mistake when writing interpolation strings.
+//
+// The package handles such mistakes by still creating an error with the desired error wrapping behaviour and contained parameters, but calling
+// its Error() method will return an error message instead telling about the mistake instead of the intended errror message.
+// (In case of parse errors, this error message is rather verbose and prints the whole parameter map)
+// The potential mistakes are
+//   - syntax errors
+//   - missing parameters
+//   - using $w or %w if there is no wrapped error or the wrapped error does not support $w
+//
+// We provide methods ValidateSyntax, ValidateError_Base, ValidateError_Final to check whether an error was constructed OK.
+//   - ValidateSyntax only checks the syntax of the interpolation string.
+//   - ValidateError_Final additionally (recursively) checks whether rerefences to parameters or wrapped errors work OK.
+//   - ValidateError_Base (recursively) is similar to ValidateError_Final, but assumes that $FmtVerb{Var} is filled in later and does not report an error if Var is missing.
+//
+// ValidateError_Final and ValidateError_Base only syntax-check sub-interpolation strings in $!Cond{sub-interpolationstring}, unless
+// they can prove that the branch is taken, so missing variables in untaken branches are OK.
+//
+// This package does not check or report errors from invalid format verbs that are not supported by the data type at hand.
+// This is handled solely by the [fmt] package, which just returns an error report where the formatted output should go; while this is similar to what we do, our Validate-methods do not report this.
 package errorsWithData
 
 import (
 	"errors"
-	"sync/atomic"
+	"go/token"
 )
 
 // ParamMap is an alias to map[string]any. It is used to store arbitrary collections of data associated to a given error.
@@ -200,6 +260,12 @@ type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
 // ErrorPrefix is a prefix added to all *internal* error messages/panics (such as invalid interpolation strings) that originate from this package.
 const ErrorPrefix = "bandersnatch / error handling: "
 
+// IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
+// (Meaning it starts with a capital letter, followed by letters digits and underscores -- note that letters and digits may be non-ASCII)
+func IsExportedIdentifier(s string) bool {
+	return token.IsIdentifier(s) && token.IsExported(s) // use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise due to potential non-ASCII letters and digits.
+}
+
 // NOTE: Some complication in the specs of these functions is the option to DELETE parameters from the parameter map.
 // Assume errBase has parameter "V" with value 1. Deleting "V" from it means creating a new errParent wrapping errBase,
 // where "V" is absent from errParent's parameter map (note the distinction between nil and absent). Of course, errBase still has "V" due to
@@ -280,6 +346,10 @@ func GetData_struct[StructType any](err error) (ret StructType) {
 	return
 }
 
+// Callback if some parameter name is not a valid exported identifier.
+// Removed, because we might as well support this on the map API.
+
+/*
 type invalidParameterNameHandlerType = func(s string)
 
 var defaultInvalidParamerNameHandler invalidParameterNameHandlerType = func(s string) {}
@@ -310,3 +380,5 @@ func SetInvalidParameterNameHandler(handler invalidParameterNameHandlerType) (ol
 func GetInvalidParameterNameHandler() invalidParameterNameHandlerType {
 	return *(invalidParameterNameHandler.Load())
 }
+
+*/

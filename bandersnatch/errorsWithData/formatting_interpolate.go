@@ -49,12 +49,6 @@ import (
 var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
 var validMapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
 
-// IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
-// (Meaning it starts with a capital letter, followed by letters digits and underscores -- note that letters and digits may be non-ASCII)
-func IsExportedIdentifier(s string) bool {
-	return token.IsIdentifier(s) && token.IsExported(s) // use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise due to potential non-ASCII letters and digits.
-}
-
 // Validation stages:
 // 1.) syntactic
 // 2.) % valid

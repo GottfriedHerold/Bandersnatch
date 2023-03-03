@@ -11,6 +11,99 @@ import (
 
 var _ ErrorWithData_any = &errorWithParameters_common{}
 
+type data struct{ Data int }
+type invalidType struct{ data int }
+
+var error1 error = fmt.Errorf("error1")
+var wrappedError1 error = fmt.Errorf("error wrapping %w", error1)
+var wrappedEOF = fmt.Errorf("error wrapping EOF %w", io.EOF)
+
+var errorWithData_any_Empty = NewErrorWithData_any_params(nil, "ewd1")
+var errorWithData_any_Data1 = NewErrorWithData_any_params(nil, "ewd2", "Data", 1)
+var errorWithData_Empty = NewErrorWithData_params[struct{}](nil, "ewd3")
+var errorWithData_Data2 = NewErrorWithData_struct[data](nil, "ewd4", &data{Data: 2})
+var errorWithData_Data3 = NewErrorWithData_map[data](nil, "ewd5", ParamMap{"Data": 3, "Other": `foo`})
+
+var errorWithData_emptyBase = NewErrorWithData_any_params(nil, "Data=${Data}")
+var errorWithData_wrappedBase = AddDataToError_any_params(errorWithData_emptyBase, "Data", 3)
+var errorWithData_deletedBase = DeleteParameterFromError(errorWithData_wrappedBase, "Data")
+
+func TestHasParameter(t *testing.T) {
+	for _, err := range []error{nil, error1, wrappedError1, wrappedEOF, errorWithData_any_Empty, errorWithData_any_Data1, errorWithData_Data2, errorWithData_Data3, errorWithData_emptyBase, errorWithData_wrappedBase, errorWithData_deletedBase} {
+		testutils.FatalUnless(t, !HasParameter(err, "Invalid"), "HasParameter returns true for non-existent parameter")
+		testutils.FatalUnless(t, !HasParameter(err, ""), "HasParameter returns true for empty-string parameter")
+		value, present := GetParameter(err, "Invalid")
+		testutils.FatalUnless(t, value == nil, "GetParameter returns non-nil for non existing parameter")
+		testutils.FatalUnless(t, !present, "GetParameter wrongly returns parameter as existent")
+	}
+	for _, err := range []error{errorWithData_any_Data1, errorWithData_Data2, errorWithData_Data3, errorWithData_wrappedBase} {
+		testutils.FatalUnless(t, HasParameter(err, "Data"), "HasParameter does not detect parameter")
+	}
+	testutils.FatalUnless(t, !HasParameter(errorWithData_emptyBase, "Data"), "")
+	testutils.FatalUnless(t, !HasParameter(errorWithData_deletedBase, "Data"), "HasParameter detects deleted parameter")
+}
+
+func FullValidate(t *testing.T, err interface {
+	ValidateSyntax() error
+	ValidateError_Base() error
+	ValidateError_Final() error
+}) {
+	errSyntax := err.ValidateSyntax()
+	testutils.FatalUnless(t, errSyntax == nil, "Syntax error: %v", errSyntax)
+	errBase := err.ValidateError_Base()
+	testutils.FatalUnless(t, errBase == nil, "Base error: %v", errBase)
+	errFinal := err.ValidateError_Final()
+	testutils.FatalUnless(t, errFinal == nil, "Final error: %v", errBase)
+}
+
+func TestNewErrorWithData(t *testing.T) {
+	var didPanic bool
+
+	// invalid Struct type causes panic:
+	didPanic = testutils.CheckPanic(NewErrorWithData_struct[invalidType], nil, "foo", &invalidType{})
+	testutils.FatalUnless(t, didPanic, "")
+	didPanic = testutils.CheckPanic(NewErrorWithData_params[invalidType], error1, "foo", "data", 5) // nil -> error1 due to restriction of CheckPanic
+	testutils.FatalUnless(t, didPanic, "")
+	didPanic = testutils.CheckPanic(NewErrorWithData_map[invalidType], nil, "foo", ParamMap{"data": 5})
+	testutils.FatalUnless(t, didPanic, "")
+
+	// failing to provide parameters for data struct causes panic.
+	didPanic = testutils.CheckPanic(NewErrorWithData_params[data], error1, "foo", "Stuff", -1)
+	testutils.FatalUnless(t, didPanic, "")
+	didPanic = testutils.CheckPanic(NewErrorWithData_map[data], error1, "foo", ParamMap{"Stuff": -1})
+	testutils.FatalUnless(t, didPanic, "")
+
+	// nil base error and empty interpolation string is not allowed.
+	// NOTE: No check for _param variants. This is due to current limitations of CheckPanic
+	didPanic = testutils.CheckPanic(NewErrorWithData_struct[data], nil, "", &data{})
+	testutils.FatalUnless(t, didPanic, "")
+	didPanic = testutils.CheckPanic(NewErrorWithData_map[data], nil, "", ParamMap{"Data": 1})
+	testutils.FatalUnless(t, didPanic, "")
+	didPanic = testutils.CheckPanic(NewErrorWithData_any_map, nil, "", ParamMap{"Data": 1})
+	testutils.FatalUnless(t, didPanic, "")
+
+	err1 := NewErrorWithData_struct(nil, "D%v{Data}", &data{Data: 1})
+	testutils.FatalUnless(t, err1.Error() == "D1", "")
+	FullValidate(t, err1)
+	err2 := NewErrorWithData_params[data](nil, "D%v{Data}", "Data", 2, "Other", 5)
+	testutils.FatalUnless(t, err2.Error() == "D2", "")
+	FullValidate(t, err2)
+	err3 := NewErrorWithData_map[data](nil, "D%v{Data}", ParamMap{"Data": 3, "Other": "foo"})
+	testutils.FatalUnless(t, err3.Error() == "D3", "")
+	FullValidate(t, err3)
+
+	errBase := NewErrorWithData_any_params(nil, "D${Data}")
+	testutils.FatalUnless(t, errBase.ValidateSyntax() == nil, "")
+	testutils.FatalUnless(t, errBase.ValidateError_Base() == nil, "")
+	testutils.FatalUnless(t, errBase.ValidateError_Final() != nil, "")
+	errFinal := NewErrorWithData_any_params(errBase, "", "Data", 4)
+	FullValidate(t, errFinal)
+	testutils.FatalUnless(t, errFinal.Error() == "D4", "")
+
+}
+
+// some old test; kept around because it still works.
+
 func TestErrorWithParameters(t *testing.T) {
 	var nilError error = nil
 	err1 := fmt.Errorf("error1")
@@ -18,6 +111,7 @@ func TestErrorWithParameters(t *testing.T) {
 	errEOF := io.EOF
 	wrappedEOF := fmt.Errorf("error wrapping EOF %w", errEOF)
 
+	// check that HasParameter works for errors without any parameters
 	for _, err := range []error{nilError, err1, err2, errEOF, wrappedEOF} {
 		if HasParameter(err, "x") || HasParameter(err, "") {
 			t.Fatalf("HasParameters returns true for plain error")
@@ -69,11 +163,6 @@ func TestErrorWithParameters(t *testing.T) {
 
 	if !testutils.CheckPanic(func() { NewErrorWithData_params[struct{ Foo1 bool }](err1, "", "Foo2", false) }) {
 		t.Fatalf("E3-6")
-	}
-
-	stillNil := NewErrorWithData_any_params(nilError, "")
-	if stillNil != nil {
-		t.Fatalf("E3")
 	}
 
 	wrappedEOFWithData1 := AddDataToError_any_params(wrappedEOF, "Data1", 5, "Data2", 6)
