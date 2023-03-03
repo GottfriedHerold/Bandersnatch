@@ -294,11 +294,13 @@ func GetData_map(err error) map[string]any {
 // HasParameter checks whether some error in err's error chain contains a parameter keyed by parameterName
 // HasParameter(nil, <anything>) returns false
 func HasParameter(err error, parameterName string) bool {
-	if f := GetInvalidParameterNameHandler(); f != nil {
-		if !IsExportedIdentifier(parameterName) {
-			f(parameterName)
+	/*
+		if f := GetInvalidParameterNameHandler(); f != nil {
+			if !IsExportedIdentifier(parameterName) {
+				f(parameterName)
+			}
 		}
-	}
+	*/
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.HasParameter(parameterName)
@@ -319,11 +321,13 @@ func HasData[StructType any](err error) bool {
 //
 // If no entry was found in the error chain or err==nil, returns (nil, false). Note that the err argument is of plain error type.
 func GetParameter(err error, parameterName string) (value any, wasPresent bool) {
-	if f := GetInvalidParameterNameHandler(); f != nil {
-		if !IsExportedIdentifier(parameterName) {
-			f(parameterName)
+	/*
+		if f := GetInvalidParameterNameHandler(); f != nil {
+			if !IsExportedIdentifier(parameterName) {
+				f(parameterName)
+			}
 		}
-	}
+	*/
 
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
