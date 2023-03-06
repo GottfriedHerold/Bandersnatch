@@ -5,8 +5,8 @@ import "fmt"
 const ErrorPrefix = "bandersnatch / stack "
 
 // Stack is a simple generic stack, parameterized by the element type.
-// Note that values on the stack / returned are copied.
-// The zero value of Stack is invalud. Use [MakeStack].
+// Note that values put on the stack / returned are copied.
+// The zero value of Stack is invalud. Use [MakeStack] or [NewStack].
 //
 // Values of type Stack should not be copied unless the source is no longer using it.
 type Stack[T any] struct {

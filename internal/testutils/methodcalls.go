@@ -11,7 +11,7 @@ import (
 // It takes care about some part of the boilerplate and hides reflect.Value / reflect.Type at the expense of some
 // issues with settability.
 //
-// Currently, it won't work with variadic methods.
+// Currently, it won't work with variadic methods and panics for those.
 func CallMethodByName(receiver interface{}, methodName string, inputs ...interface{}) (outputs []interface{}) {
 	var receiverValue reflect.Value = reflect.ValueOf(receiver)
 	var receiverType reflect.Type = receiverValue.Type()

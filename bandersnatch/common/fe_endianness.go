@@ -21,7 +21,7 @@ import "encoding/binary"
 // with var x FieldElementEndianness, calling x.PutUint256(arg) through an interface forces heap-allocation of arg.
 
 // is this still used?
-type byteOrder = binary.ByteOrder // type alias to allow private struct embedding
+// type byteOrder = binary.ByteOrder // type alias to allow private struct embedding
 
 // The implementation assumes that s.byteOrder == binary.LittleEndian or == binary.BigEndian.
 // There is no reason to make this assumption from an API point of view, so we just don't

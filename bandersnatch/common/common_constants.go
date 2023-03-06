@@ -152,4 +152,5 @@ var (
 	MinusOne_Int = utils.InitIntFromString("-1")
 )
 
+// ErrorPrefix is a joint prefix that all error messages / panics origination from this package share.
 const ErrorPrefix = "bandersnatch / common: "

@@ -8,7 +8,7 @@ import (
 
 // NewErrorWithData_struct creates a new [ErrorWithData] wrapping the given baseError if non-nil.
 // interpolationString is used to create the new error message, where an empty string is
-// interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil
+// interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil.
 // Parameters are added for each visible field of StructType.
 //
 // For baseError == nil, interpolationString == "", this function panics.
@@ -45,8 +45,11 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 //
 //	NewErrorWIthData_params[StrucType](nil, "Some error with $v{Param1} and $s{Param2}", "Param1", 5, "Param2", `some_string`)
 //
-// For baseError == nil, interpolationString == "", this function panics.
-// For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
+// We only default to %w or $w (which refers to the base's error message) if there is a baseError to start with and we disallow empty error messages:
+//
+//   - For baseError == nil, interpolationString == "", this function panics.
+//   - For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
+//
 // The function also panics if StructType is unsuited (e.g. contains unexported fields), params is malformed or the set of all params does not allow construct an instance of StructType.
 func NewErrorWithData_params[StructType any](baseError error, interpolationString string, params ...any) ErrorWithData[StructType] {
 	// make some validity checks to give meaningful error messages.
@@ -87,7 +90,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
 }
 
-// NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than string, any - pairs.
+// NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than (string, any) - pairs.
 func NewErrorWithData_map[StructType any](baseError error, interpolationString string, params map[string]any) ErrorWithData[StructType] {
 
 	if baseError == nil && interpolationString == "" {
@@ -135,7 +138,9 @@ func AddDataToError_params[StructType any](baseError error, parameters ...any) E
 }
 
 // AddDataToError_map is identical to [AddDataToError_params], except it
-// takes parameters as a map[string]any rather than variadic string, any - pairs.
+// takes parameters as a map[string]any rather than variadic (string, any) - pairs.
+//
+// Like [AddDataToError_params], it returns nil if the provided err==nil.
 func AddDataToError_map[StructType any](err error, parameters map[string]any) ErrorWithData[StructType] {
 	if err == nil {
 		return nil
@@ -189,7 +194,7 @@ func DeleteParameterFromError(err error, parameterName string) unconstrainedErro
 // WrapAsErrorWithData returns a new ErrorWithData[StructType] based on baseError with error message given by the interpolation string.
 // If baseError == nil, this function return nil
 //
-// DEPRECATED
+// WrapAsErrorWithData is deprecated
 func WrapAsErrorWithData[StructType any](baseError ErrorWithData[StructType], interpolationString string) ErrorWithData[StructType] {
 	if baseError == nil {
 		return nil

@@ -30,20 +30,20 @@ import (
 // Implementing this *once* properly is better.
 
 // precomputedCachePage is the data structure holding the cache for a single given key
-type precomputedCachePage[MapType comparable, ElementType any] struct {
+type precomputedCachePage[KeyType comparable, ElementType any] struct {
 	rng       *rand.Rand    // rng state used to extend the elements list. This may be nil
 	elements  []ElementType // actual cache of elements.
-	key       MapType       // We store a copy of the map key for this page. We maintain somePrecomputedCache[someKey].key == someKey.
+	key       KeyType       // We store a copy of the map key for this page. We maintain somePrecomputedCache[someKey].key == someKey.
 	pageMutex sync.RWMutex  // mutex
 }
 
-// PrecomputedCache stores, for each key of type MapType, a precomputed cache (i.e. a list) of ElementType.
+// PrecomputedCache stores, for each key of type KeyType, a precomputed cache (i.e. a list) of ElementType.
 // These can be cheaply retrieved.
-type PrecomputedCache[MapType comparable, ElementType any] struct {
+type PrecomputedCache[KeyType comparable, ElementType any] struct {
 	tableMutex         sync.RWMutex                                            // mutex for the table itself
-	data               map[MapType]*precomputedCachePage[MapType, ElementType] // actual cache(s) NOTE: The element type is pointer here. This is not really needed and adds extra indirection, but makes arguing about thread-safety much easier: Once an entry data[key] has been created, this entry (i.e. the pointer) never changes, even though what is pointed to may.
-	createRandFromSeed func(key MapType) *rand.Rand                            // function that is used to initialize the rng from the key
-	creationFun        func(*rand.Rand, MapType) ElementType                   // function that is used to extend the cache for a given key. THIS MAY BE NIL, in which case extension will fail. Note: This function is the same for all keys for simplicity. If needed, users can always include the actual function as a field of KeyType.
+	data               map[KeyType]*precomputedCachePage[KeyType, ElementType] // actual cache(s) NOTE: The element type is pointer here. This is not really needed and adds extra indirection, but makes arguing about thread-safety much easier: Once an entry data[key] has been created, this entry (i.e. the pointer) never changes, even though what is pointed to may.
+	createRandFromSeed func(key KeyType) *rand.Rand                            // function that is used to initialize the rng from the key
+	creationFun        func(*rand.Rand, KeyType) ElementType                   // function that is used to extend the cache for a given key. THIS MAY BE NIL, in which case extension will fail. Note: This function is the same for all keys for simplicity. If needed, users can always include the actual function as a field of KeyType.
 	copyFun            func(ElementType) ElementType                           // function used to (appropriately deep-) copy elements. We always output copies, since users should have no way to modify the cache.
 }
 
@@ -98,7 +98,7 @@ func (pc *PrecomputedCache[KeyType, ElementType]) PrepopulateCache(key KeyType, 
 	Assert(page == nil)
 	page = pc.newCachePage(key)
 	pc.data[key] = page
-	page.pageMutex.Lock() // cannot block
+	page.pageMutex.Lock() // cannot block, because no other goroutine can see the newly created cache page until we unlock the table mutex.
 	pc.tableMutex.Unlock()
 	for _, entry := range cacheEntries {
 		page.elements = append(page.elements, copyFun(entry))
@@ -113,7 +113,7 @@ func (pc *PrecomputedCache[KeyType, ElementType]) GetElements(key KeyType, amoun
 	if amount == 0 {
 		return make([]ElementType, 0)
 	}
-	// writing down the types on purpose
+	// writing down the types on purpose rather than using :=
 	var page *precomputedCachePage[KeyType, ElementType]
 	var ok bool
 
@@ -131,14 +131,15 @@ func (pc *PrecomputedCache[KeyType, ElementType]) GetElements(key KeyType, amoun
 		pc.tableMutex.Lock()
 		existingPage, ok := pc.data[key] // check again if data was present
 		if ok {
-			page = existingPage // if some other goroutine alread filled the entry, discard our work and use that. The first goroutine to write "wins".
+			// If some other goroutine alread filled the entry, discard our work and use that.
+			// The first goroutine to write "wins". This design the advantage that the value (of pointer type) of pc.data[key] remains constant over its whole lifetime.
+			page = existingPage
 		} else {
 			pc.data[key] = page
 		}
 		pc.tableMutex.Unlock()
 	}
 	// in any case, we now have a valid entry. Get ret from it.
-
 	return page.getElements(amount, pc)
 }
 
@@ -197,7 +198,9 @@ func (pc *precomputedCachePage[KeyType, ElementType]) getElements(
 }
 
 // DefaultCreateRandFromSeed is a default function that can be used as an argument to [MakePrecomputedCache] if the KeyType is int64.
-// Note that this differs from given a nil argument to [MakePrecomputedCache].
+// Note that this differs from giving a nil argument to [MakePrecomputedCache].
+//
+// This function essentially just wraps the default methods from the [rand] standard library package.
 func DefaultCreateRandFromSeed(key int64) *rand.Rand {
 	return rand.New(rand.NewSource(key))
 }
