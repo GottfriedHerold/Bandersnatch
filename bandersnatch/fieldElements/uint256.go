@@ -22,10 +22,10 @@ import (
 // NOTE: The set of exported functions and methods that perform *modular* arithmetic is not particularly stable;
 // we export it mostly to enable certain advanced optimizations outside the package (mixed Montgomery multiplication, for instance) or for users who want to perform extensive computations in the base field.
 
-// Note that the code is split into 3 parts:
-//   uint256.go (integer arithmetic / arithmetic modulo 2^256) -- this file
-//   uint256_modular.go (arithmetic that works modulo BaseFieldSize)
-//   uint256_montgomery.go (Montgomery arithmetic)
+// Note that the code is split into multiple parts:
+// -  uint256.go (integer arithmetic / arithmetic modulo 2^256) -- this file
+// -  uint256_modular.go (arithmetic that works modulo BaseFieldSize)
+// -  uint256_montgomery.go (Montgomery arithmetic)
 //
 
 // Uint256 is a 256-bit (unsigned) integer.
@@ -47,6 +47,8 @@ type ToUint256Convertible interface {
 }
 
 // IsEqualAsUint256 converts arg1 and arg2 to Uint256 and compares those for equality.
+//
+// This function serves mostly to unify some testing code.
 func IsEqualAsUint256(arg1 ToUint256Convertible, arg2 ToUint256Convertible) bool {
 	var u1, u2 Uint256
 	arg1.ToUint256(&u1)
@@ -98,14 +100,14 @@ func (z Uint512) String() string {
 
 // Format is provided to satisfy the [fmt.Formatter] interface. Note that this is defined on value receivers.
 //
-// We internally convert to [*big.Int] and hence support the same formats as [big.Int].
+// We internally convert to [*big.Int] and hence support the same formats as [big.Int], at the expense of speed.
 func (z Uint256) Format(s fmt.State, ch rune) {
 	z.ToBigInt().Format(s, ch)
 }
 
 // Format is provided to satisfy the [fmt.Formatter] interface. Note that this is defined on value receivers.
 //
-// We internally convert to [*big.Int] and hence support the same formats as [big.Int].
+// We internally convert to [*big.Int] and hence support the same formats as [big.Int], at the expense of speed.
 func (z Uint512) Format(s fmt.State, ch rune) {
 	z.ToBigInt().Format(s, ch)
 }
@@ -152,7 +154,7 @@ func (z *Uint256) SetBigInt(x *big.Int) {
 
 // SetBigInt sets z:=x, where x is a [*big.Int].
 //
-// We assume that 0 <= x < 2**512, else we panic.
+// We assume that 0 <= x < 2^512, else we panic.
 func (z *Uint512) SetBigInt(x *big.Int) {
 	*z = BigIntToUint512(x)
 }

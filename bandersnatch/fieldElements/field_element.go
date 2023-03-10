@@ -51,7 +51,7 @@ type FieldElementInterface_common interface {
 	ToBytes(buf []byte)                    // z.ToBytes(buf) writes the internal representation of z to buf, using z.BytesLength() many bytes. This MUST NOT be used for portable serialization.
 	SetBytes(buf []byte)                   // z.FromBytes(buf) restores z's internal representation from buf, reading z.BytesLength() many bytes. Note: The stored internal format is not guaranteed to be stable across library versions, Go versions, architecture or anything. We only guarantee internal roundtrip.
 	BytesLength() int                      // z.BytesLength() returns the length of buffer needed for ToBytes or SetBytes. Can be called on nil receiver.
-	Normalize()                            // z.Normalize() sets the internal representation of z to a default one without changing the value (as field element). We guarantee that if x.IsEqual(&y), after normalizing both x and y, they have the same internal representation.
+	Normalize()                            // z.Normalize() sets the internal representation of z to a default one without changing the value (as field element). We guarantee that if x.IsEqual(&y), then after normalizing both x and y, they have the same internal representation.
 	RerandomizeRepresentation(seed uint64) // z.RerandomizeRepresentation(seed) rerandomizes the internal representation of z. Does not change the value as field element. The resulting internal representation must only depend on seed and z as field element (i.e we normalize internally before rerandomizing). This method is useless outside of testing. Note that we give no guarantee about the quality of randomness.
 }
 

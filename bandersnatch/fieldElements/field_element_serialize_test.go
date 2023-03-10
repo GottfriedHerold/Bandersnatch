@@ -11,15 +11,29 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
+
+// Due to deficiencies / priorities that are not what we would need of the Go language, we have multiple very similar methods for (de)serialization, which differ only very little.
+// Furthermore, we want to test this for all our implementations of the FieldElementInterface. Additionally, we want to test this for both LittleEndian and BigEndian byte orders.
+// Next, we also want to test io error behaviour (which just boils down to using an io.Writer / io.Reader that returns errors).
+// To avoid writing a separate test for every combination, we do some functional programming and use generics (we don't care about efficiency for the tests, anyway).
+//
+// Notably, our actual test functions take a "serialization method" (such as *bsFieldElement_MontgomeryNonUnique.Serialize), viewed as a function, as input.
+// Due to interplay with generics and how they work with Go, there is some meaningless, but complicated boilerplate.
+// First, we define (generic) function types that match the signatures of the methods that we want to test.
 
 type fe_serialization_fun[FEPtr FieldElementInterface_common] func(x FEPtr, output io.Writer, byteOrder FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
 type fe_deserialization_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, byteOrder FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
 type fe_serializeWithPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
 type fe_deserializeAndGetPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (int, common.PrefixBits, bandersnatchErrors.DeserializationError)
 type fe_deserializeWithExpectedPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+
+// serialization / deserialization routines are currently not part of the FieldElement interface. So we need to type-assert to actually retrieve the methods.
+
+// TODO: Rename and export, once things have stabilized.
 
 type hasSerializer interface {
 	Serialize(io.Writer, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
@@ -41,32 +55,27 @@ var (
 	_ hasPrefixSerializerAndDeserializer = &bsFieldElement_MontgomeryNonUnique{}
 )
 
-func bind23[Arg1 any, Arg2 any, Arg3 any](f func(arg1 Arg1, arg2 Arg2, arg3 Arg3), arg2 Arg2, arg3 Arg3) func(arg1 Arg1) {
-	return func(arg1 Arg1) { f(arg1, arg2, arg3) }
-}
-
-func bind234[Arg1 any, Arg2 any, Arg3 any, Arg4 any](f func(arg1 Arg1, arg2 Arg2, arg3 Arg3, arg4 Arg4), arg2 Arg2, arg3 Arg3, arg4 Arg4) func(arg1 Arg1) {
-	return func(arg1 Arg1) { f(arg1, arg2, arg3, arg4) }
-}
-
-func bind2345[Arg1 any, Arg2 any, Arg3 any, Arg4 any, Arg5 any](f func(arg1 Arg1, arg2 Arg2, arg3 Arg3, arg4 Arg4, arg5 Arg5), arg2 Arg2, arg3 Arg3, arg4 Arg4, arg5 Arg5) func(arg1 Arg1) {
-	return func(arg1 Arg1) { f(arg1, arg2, arg3, arg4, arg5) }
-}
-
+// TestFESerialization runs [testFESerialization_All] against all implementations of the FieldElementInterface.
 func TestFESerialization(t *testing.T) {
 	t.Run("MontgomeryRepresentation", testFESerialization_All[bsFieldElement_MontgomeryNonUnique])
 	t.Run("BigInt-Implementation", testFESerialization_All[bsFieldElement_BigInt])
 }
 
+// testFESerialization_All runs tests for the serialization methods for a given type satisfying the FieldElementInterface.
 func testFESerialization_All[FEType any, FEPtr interface {
 	*FEType
 	FieldElementInterface[FEPtr]
 }](t *testing.T) {
 
-	// If FEPtr has a method Serialize, we want to get FEPtr.Serialize as a function.
+	// FieldElementInterface does not include the serialization methods that we want to test.
+	// So we have to first check via type-assertion which serialization methods are even present for the given type and retrieve
+	// the corresponding methods. Since we pass these methods around functional-programming-style, we need to convert them to functions.
+
+	// E.g. If FEPtr has a method Serialize, we want to get FEPtr.Serialize as a function (with explicit receiver argument).
 	// Unfortunately, Go does not let one type-assert on a type parameter (there are numerous feature requests for this),
 	// only on a variable of that type.
-	// This is quite annoying, because we use ReceiverType.MethodName to treat a method as a function,
+	// This is quite annoying, because we use it means we cannot easily write ReceiverType.MethodName to treat a method as a function.
+	// Instead, we define wrapper functions to turn methods -> functions.
 
 	// we would want to declare hasSerializer etc. inside this function, but Go currently does not support
 	// type declarations inside generic functions.
@@ -98,39 +107,40 @@ func testFESerialization_All[FEType any, FEPtr interface {
 			return any(x).(hasPrefixSerializerAndDeserializer).DeserializeWithExpectedPrefix(input, expectedPrefix, e)
 		}
 	}
-	_ = funSerWithPrefix
-	_ = funDeserAndGetPrefix
-	_ = funDeserWithExpectedPrefix
+
+	// we now dispatch to various testFESerialization_Foo - sub-tests and pass the above functions are arguments to those.
 
 	for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian} {
 
+		// Note: t.Run takes a function with only one argument (of type *testing.T); we use utils.Bindxyz to create a closure and hard-wire the other arguments.
+		// This just avoids writing func(t *testing.T){foo(t, args...)} by writing utils.Bindxyz(foo, args...) instead. The numbers xyz in he Bind function are the argument position where to bind the arguments.
 		if funSer != nil && funDeser != nil {
-			t.Run("Serialization Roundtrip (method) "+endianness.String(), bind234(testFESerialization_Roundtrip[FEType, FEPtr, FEPtr], endianness, funSer, funDeser))
+			t.Run("Serialization Roundtrip (method) "+endianness.String(), utils.Bind234(testFESerialization_Roundtrip[FEType, FEPtr, FEPtr], endianness, funSer, funDeser))
 		}
 		if funDeser != nil {
-			t.Run("Deserialization of non-reduced numbers(method) "+endianness.String(), bind23(testFESerialization_NonNormalizedDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
-			t.Run("Deserialization and EOF (method) "+endianness.String(), bind23(testFESerialization_EOFDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
-			t.Run("Deserialization with IO errors (method) "+endianness.String(), bind23(testFEDeserialization_IOError[FEType, FEPtr, FEPtr], endianness, funDeser))
+			t.Run("Deserialization of non-reduced numbers(method) "+endianness.String(), utils.Bind23(testFESerialization_NonNormalizedDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
+			t.Run("Deserialization and EOF (method) "+endianness.String(), utils.Bind23(testFESerialization_EOFDeserialization[FEType, FEPtr, FEPtr], endianness, funDeser))
+			t.Run("Deserialization with IO errors (method) "+endianness.String(), utils.Bind23(testFEDeserialization_IOError[FEType, FEPtr, FEPtr], endianness, funDeser))
 		}
 		if funSer != nil {
-			t.Run("Serialization with IO errors (method) "+endianness.String(), bind23(testFESerialization_IOError[FEType, FEPtr, FEPtr], endianness, funSer))
+			t.Run("Serialization with IO errors (method) "+endianness.String(), utils.Bind23(testFESerialization_IOError[FEType, FEPtr, FEPtr], endianness, funSer))
 		}
 		if funSerWithPrefix != nil && funDeserAndGetPrefix != nil && funDeserWithExpectedPrefix != nil {
-			t.Run("Serialization with Prefix roundtrip (method) "+endianness.String(), bind2345(testFESerialization_PrefixRoundtrip[FEType, FEPtr, FEPtr],
+			t.Run("Serialization with Prefix roundtrip (method) "+endianness.String(), utils.Bind2345(testFESerialization_PrefixRoundtrip[FEType, FEPtr, FEPtr],
 				endianness, funSerWithPrefix, funDeserAndGetPrefix, funDeserWithExpectedPrefix))
-			t.Run("Serialization with Prefix error handling (method) "+endianness.String(), bind2345(testFESerialization_PrefixErrorHandling[FEType, FEPtr, FEPtr],
+			t.Run("Serialization with Prefix error handling (method) "+endianness.String(), utils.Bind2345(testFESerialization_PrefixErrorHandling[FEType, FEPtr, FEPtr],
 				endianness, funSerWithPrefix, funDeserAndGetPrefix, funDeserWithExpectedPrefix))
 
 		}
 
-		t.Run("Serialization Roundtrip "+endianness.String(), bind234(testFESerialization_Roundtrip[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement, DeserializeFieldElement))
-		t.Run("Deserializing non-reduced numbers "+endianness.String(), bind23(testFESerialization_NonNormalizedDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
-		t.Run("Deserializing and EOF "+endianness.String(), bind23(testFESerialization_EOFDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
-		t.Run("Serialization with IO errors "+endianness.String(), bind23(testFESerialization_IOError[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement))
-		t.Run("Deserialization with IO errors "+endianness.String(), bind23(testFEDeserialization_IOError[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
-		t.Run("Serialization with Prefix roundtrip "+endianness.String(), bind2345(testFESerialization_PrefixRoundtrip[FEType, FEPtr, FieldElementInterface_common],
+		t.Run("Serialization Roundtrip "+endianness.String(), utils.Bind234(testFESerialization_Roundtrip[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement, DeserializeFieldElement))
+		t.Run("Deserializing non-reduced numbers "+endianness.String(), utils.Bind23(testFESerialization_NonNormalizedDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
+		t.Run("Deserializing and EOF "+endianness.String(), utils.Bind23(testFESerialization_EOFDeserialization[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
+		t.Run("Serialization with IO errors "+endianness.String(), utils.Bind23(testFESerialization_IOError[FEType, FEPtr, FieldElementInterface_common], endianness, SerializeFieldElement))
+		t.Run("Deserialization with IO errors "+endianness.String(), utils.Bind23(testFEDeserialization_IOError[FEType, FEPtr, FieldElementInterface_common], endianness, DeserializeFieldElement))
+		t.Run("Serialization with Prefix roundtrip "+endianness.String(), utils.Bind2345(testFESerialization_PrefixRoundtrip[FEType, FEPtr, FieldElementInterface_common],
 			endianness, SerializeFieldElementWithPrefix, DeserializeFieldElementAndGetPrefix, DeserializeFieldElementWithExpectedPrefix))
-		t.Run("Serialization with Prefix error handling "+endianness.String(), bind2345(testFESerialization_PrefixErrorHandling[FEType, FEPtr, FieldElementInterface_common],
+		t.Run("Serialization with Prefix error handling "+endianness.String(), utils.Bind2345(testFESerialization_PrefixErrorHandling[FEType, FEPtr, FieldElementInterface_common],
 			endianness, SerializeFieldElementWithPrefix, DeserializeFieldElementAndGetPrefix, DeserializeFieldElementWithExpectedPrefix))
 	}
 
