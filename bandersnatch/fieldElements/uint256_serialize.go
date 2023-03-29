@@ -143,6 +143,7 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 //
 // The output slice must have at least a size of 32 bytes, otherwise we panic.
 // This method cannot return an io error, so the only potential error is ErrPrefixDoesNotFit.
+// Due to the way interfaces in Go work, this method is an order of magnitude faster than the general version.
 func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
 	prefix_length := prefix.PrefixLen()
@@ -165,7 +166,47 @@ func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byt
 //
 // If any error occurs, z is not modified.
 func (z *Uint256) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
-	bytesRead, _, err = z.DeserializeAndGetPrefix(input, 0, byteOrder) // The ignored _ is guaranteed to be 0
+	// We read all input into buf first, because we don't want to touch z on intermediate IO errors.
+	var errPlain error
+	var buf [32]byte // := make([]byte, 32)
+	bytesRead, errPlain = io.ReadFull(input, buf[:])
+	if errPlain != nil {
+		err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.ReadErrorData{
+			PartialRead:  bytesRead != 0 && bytesRead != 32,
+			BytesRead:    bytesRead,
+			ActuallyRead: buf[0:bytesRead],
+		})
+		return
+	}
+
+	// Write to z
+	byteOrder.Uint256_array(&buf, (*[4]uint64)(z))
+
+	return
+}
+
+func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+
+	// Optimization: Instead of copying the input into buf, we check for the correct size (this is the only possible error condition) and then read directly from the underlying wrapped []byte.
+	if input.Len() < 32 {
+		// If the input does not have sufficent size, we actually read it all (draining the buffer) and report an error (This is mostly to be consistent with the general method)
+		// For simplicity, we just call the general function, as we don't care about speed on error.
+		return z.Deserialize(input, byteOrder)
+	}
+
+	// Write to z
+	byteOrder.Uint256_indirect(input.Bytes(), (*[4]uint64)(z))
+	return
+}
+
+func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+
+	if len(input) < 32 {
+		panic("Not handled yet") // TODO
+	}
+
+	// Write to z
+	byteOrder.Uint256_indirect(input, (*[4]uint64)(z))
 	return
 }
 
@@ -191,8 +232,9 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 		// Should we panic(err) ???
 		return
 	}
-	var errPlain error
+
 	// We read all input into buf first, because we don't want to touch z on intermediate IO errors.
+	var errPlain error
 	var buf [32]byte // := make([]byte, 32)
 	bytesRead, errPlain = io.ReadFull(input, buf[:])
 	if errPlain != nil {
@@ -205,8 +247,68 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 	}
 
 	// Write to z
-	*z = byteOrder.Uint256(buf[:])
+	byteOrder.Uint256_array(&buf, (*[4]uint64)(z))
 
+	// read out the top prefixLength many bits.
+	prefix = common.PrefixBits(z[3] >> (64 - prefixLength))
+
+	// clear those bits from z
+	var bitmask_remaining uint64 = 0xFFFFFFFF_FFFFFFFF >> prefixLength
+	z[3] &= bitmask_remaining
+
+	return
+}
+
+func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
+		err = errorsWithData.NewErrorWithData_struct(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
+			PartialRead:  false,
+			BytesRead:    0,
+			ActuallyRead: nil, // We do not even try to read
+		})
+		// Should we panic(err) ???
+		return
+	}
+
+	// Optimization: Instead of copying the data into buf, we check for the correct size and then read directly from the underlying wrapped []byte via input.Bytes()
+
+	// check that the input has sufficient size
+	if inputSize := input.Len(); inputSize < 32 {
+		// If the input does not have sufficent size, we actually read it all (draining the buffer) and report an error (This is mostly to be consistent with the general method)
+		// For simplicity, we just call the general function, as we don't care about speed on error.
+		return z.DeserializeAndGetPrefix(input, prefixLength, byteOrder)
+	}
+
+	// Write to z
+	byteOrder.Uint256_indirect(input.Bytes(), (*[4]uint64)(z))
+
+	// read out the top prefixLength many bits.
+	prefix = common.PrefixBits(z[3] >> (64 - prefixLength))
+
+	// clear those bits from z
+	var bitmask_remaining uint64 = 0xFFFFFFFF_FFFFFFFF >> prefixLength
+	z[3] &= bitmask_remaining
+
+	return
+}
+
+func (z *Uint256) DeserializeAndGetPrefix_Bytes(input []byte, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
+		err = errorsWithData.NewErrorWithData_struct(ErrPrefixLengthInvalid, "", &bandersnatchErrors.ReadErrorData{
+			PartialRead:  false,
+			BytesRead:    0,
+			ActuallyRead: nil, // We do not even try to read
+		})
+		// Should we panic(err) ???
+		return
+	}
+
+	if len(input) < 32 {
+		panic("Not handled yet") // TODO
+	}
+
+	// Write to z
+	byteOrder.Uint256_indirect(input, (*[4]uint64)(z))
 	// read out the top prefixLength many bits.
 	prefix = common.PrefixBits(z[3] >> (64 - prefixLength))
 

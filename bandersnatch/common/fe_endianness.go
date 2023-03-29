@@ -20,8 +20,9 @@ import "encoding/binary"
 // The issue is that with an interface, there is an order of magnitude of performance loss, due to the fact that
 // with var x FieldElementEndianness, calling x.PutUint256(arg) through an interface forces heap-allocation of arg.
 
-// is this still used?
-// type byteOrder = binary.ByteOrder // type alias to allow private struct embedding
+// For consistency with binary.ByteOrder, the methods provided here all panic if the provided input resp. output does not
+// have sufficient length.
+// Note that we have to explicitly check that, because the condition is on length, not capacity (by design).
 
 // The implementation assumes that s.byteOrder == binary.LittleEndian or == binary.BigEndian.
 // There is no reason to make this assumption from an API point of view, so we just don't
@@ -166,6 +167,7 @@ func (s FieldElementEndianness) PutUint256_array(out *[32]byte, little_endian_wo
 // returns a 256-bit integer, encoded as 4 uint64's in little endian order.
 //
 // Note that the endianness choice of s only affects the input stream, not the output.
+// This method panics if the length of the input is not at least 32.
 func (s FieldElementEndianness) Uint256(in []byte) (little_endian_ret [4]uint64) {
 	if len(in) < 32 {
 		panic(ErrorPrefix + "Uint256 called on a slice of insufficient length")

@@ -28,10 +28,24 @@ func BenchmarkUint256Serialization(b *testing.B) {
 	b.Run("SerializeUint256Prefix_Bytes_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_SerializeWithPrefix_Bytes(b, LittleEndian) })
 	b.Run("SerializeUint256Prefix_Bytes_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_SerializeWithPrefix_Bytes(b, BigEndian) })
 
-	b.Run("DeserializeUint256_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeFromBuffer(b, LittleEndian) })
-	b.Run("DeserializeUint256_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeFromBuffer(b, BigEndian) })
-	b.Run("DeserializeUint256GetPrefix_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix(b, LittleEndian) })
-	b.Run("DeserializeUint256ExpectedPrefix_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeWithExpectedPrefix(b, BigEndian) })
+	b.Run("DeserializeUint256_General_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_Deserialize(b, LittleEndian) })
+	b.Run("DeserializeUint256_General_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_Deserialize(b, BigEndian) })
+
+	b.Run("DeserializeUint256_Buffer_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_Deserialize_Buffer(b, LittleEndian) })
+	b.Run("DeserializeUint256_Buffer_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_Deserialize_Buffer(b, BigEndian) })
+
+	b.Run("DeserializeUint256_Bytes_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_Deserialize_Bytes(b, LittleEndian) })
+	b.Run("DeserializeUint256_Bytes_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_Deserialize_Bytes(b, BigEndian) })
+
+	b.Run("DeserializeUint256GetPrefix_General_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix(b, LittleEndian) })
+	b.Run("DeserializeUint256GetPrefix_General_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix(b, BigEndian) })
+
+	b.Run("DeserializeUint256GetPrefix_Buffer_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix_Buffer(b, LittleEndian) })
+	b.Run("DeserializeUint256GetPrefix_Buffer_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix_Buffer(b, BigEndian) })
+
+	b.Run("DeserializeUint256GetPrefix_Bytes_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix_Bytes(b, LittleEndian) })
+	b.Run("DeserializeUint256GetPrefix_Bytes_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeAndGetPrefix_Bytes(b, BigEndian) })
+
 	b.Run("DeserializeUint256ExpectedPrefix_LittleEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeWithExpectedPrefix(b, LittleEndian) })
 	b.Run("DeserializeUint256ExpectedPrefix_BigEndian", func(b *testing.B) { benchmarkUint256_serialize_DeserializeWithExpectedPrefix(b, BigEndian) })
 }
@@ -148,7 +162,7 @@ func benchmarkUint256_serialize_SerializeWithPrefix_Bytes(b *testing.B, endianne
 	}
 }
 
-func benchmarkUint256_serialize_DeserializeFromBuffer(b *testing.B, endianness FieldElementEndianness) {
+func benchmarkUint256_serialize_Deserialize(b *testing.B, endianness FieldElementEndianness) {
 	var data []byte = make([]byte, 32*benchS)
 	var dataCopy []byte = make([]byte, 32*benchS)
 	rng := rand.New(rand.NewSource(10001))
@@ -165,6 +179,50 @@ func benchmarkUint256_serialize_DeserializeFromBuffer(b *testing.B, endianness F
 			buf = bytes.NewBuffer(dataCopy)
 		}
 		_, err := DumpUint256[nn].Deserialize(buf, endianness)
+		if err != nil {
+			b.Fatalf("unexpected error")
+		}
+	}
+}
+
+func benchmarkUint256_serialize_Deserialize_Buffer(b *testing.B, endianness FieldElementEndianness) {
+	var data []byte = make([]byte, 32*benchS)
+	var dataCopy []byte = make([]byte, 32*benchS)
+	rng := rand.New(rand.NewSource(10001))
+
+	_, errRng := rng.Read(data)
+	testutils.Assert(errRng == nil)
+	var buf *bytes.Buffer
+
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		nn := n % benchS
+		if nn == 0 {
+			copy(dataCopy, data)
+			buf = bytes.NewBuffer(dataCopy)
+		}
+		_, err := DumpUint256[nn].Deserialize_Buffer(buf, endianness)
+		if err != nil {
+			b.Fatalf("unexpected error")
+		}
+	}
+}
+
+func benchmarkUint256_serialize_Deserialize_Bytes(b *testing.B, endianness FieldElementEndianness) {
+	var data []byte = make([]byte, 32*benchS)
+	var dataCopy []byte = make([]byte, 32*benchS)
+	rng := rand.New(rand.NewSource(10001))
+
+	_, errRng := rng.Read(data)
+	testutils.Assert(errRng == nil)
+
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		nn := n % benchS
+		if nn == 0 {
+			copy(dataCopy, data)
+		}
+		_, err := DumpUint256[nn].Deserialize_Bytes(dataCopy[nn*32:nn*32+32], endianness)
 		if err != nil {
 			b.Fatalf("unexpected error")
 		}
@@ -188,6 +246,52 @@ func benchmarkUint256_serialize_DeserializeAndGetPrefix(b *testing.B, endianness
 			buf = bytes.NewBuffer(dataCopy)
 		}
 		_, prefix, err := DumpUint256[nn].DeserializeAndGetPrefix(buf, 2, endianness)
+		_ = prefix
+		if err != nil {
+			b.Fatalf("unexpected error")
+		}
+	}
+}
+
+func benchmarkUint256_serialize_DeserializeAndGetPrefix_Buffer(b *testing.B, endianness FieldElementEndianness) {
+	var data []byte = make([]byte, 32*benchS)
+	var dataCopy []byte = make([]byte, 32*benchS)
+	rng := rand.New(rand.NewSource(10001))
+
+	_, errRng := rng.Read(data)
+	testutils.Assert(errRng == nil)
+	var buf *bytes.Buffer
+
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		nn := n % benchS
+		if nn == 0 {
+			copy(dataCopy, data)
+			buf = bytes.NewBuffer(dataCopy)
+		}
+		_, prefix, err := DumpUint256[nn].DeserializeAndGetPrefix_Buffer(buf, 2, endianness)
+		_ = prefix
+		if err != nil {
+			b.Fatalf("unexpected error")
+		}
+	}
+}
+
+func benchmarkUint256_serialize_DeserializeAndGetPrefix_Bytes(b *testing.B, endianness FieldElementEndianness) {
+	var data []byte = make([]byte, 32*benchS)
+	var dataCopy []byte = make([]byte, 32*benchS)
+	rng := rand.New(rand.NewSource(10001))
+
+	_, errRng := rng.Read(data)
+	testutils.Assert(errRng == nil)
+
+	prepareBenchmarkFieldElements(b)
+	for n := 0; n < b.N; n++ {
+		nn := n % benchS
+		if nn == 0 {
+			copy(dataCopy, data) // not needed, but done for consistency in the comparison
+		}
+		_, prefix, err := DumpUint256[nn].DeserializeAndGetPrefix_Bytes(dataCopy[32*nn:32*nn+32], 2, endianness)
 		_ = prefix
 		if err != nil {
 			b.Fatalf("unexpected error")
