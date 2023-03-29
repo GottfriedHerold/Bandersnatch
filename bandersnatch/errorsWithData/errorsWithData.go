@@ -155,7 +155,8 @@
 // they can prove that the branch is taken, so missing variables in untaken branches are OK.
 //
 // This package does not check or report errors from invalid format verbs that are not supported by the data type at hand.
-// This is handled solely by the [fmt] package, which just returns an error report where the formatted output should go; while this is similar to what we do, our Validate-methods do not report this.
+// This is handled solely by the [fmt] package, which just returns an error report (or panic recovery) where the formatted output should go;
+// This behaviour is similar to what we do for the final output of Error(), but our Validate-methods do not report this.
 package errorsWithData
 
 import (
@@ -166,8 +167,14 @@ import (
 // ParamMap is an alias to map[string]any. It is used to store arbitrary collections of data associated to a given error.
 type ParamMap = map[string]any
 
-const ConditionNonEmptyMap = "m>0"
-const ConditionEmptyMap = "m=0"
+// ConditionNonEmptyMap is the special string (together with %! or $!) that triggers conditional evaluation in our interpolation string grammar, depending on whether
+// the parameter map is empty or not.
+//
+// For example, %!m>0{Foo has value %x{Foo}} will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty
+const (
+	ConditionNonEmptyMap = "m>0"
+	ConditionEmptyMap    = "m=0"
+)
 
 /////////////
 
@@ -215,25 +222,26 @@ const ConditionEmptyMap = "m=0"
 // as these work for arbitrary errors.
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
+	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
+	Error_interpolate(params map[string]any) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
-	Error_interpolate(params map[string]any) string // extended version of Error() string that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) formatting verbs work.
 	GetParameter(parameterName string) (value any, wasPresent bool)
 	// HasParameter returns whether parameterName is a key of the parameter map.
 	HasParameter(parameterName string) bool
 	// GetData_map returns a shallow copy of the parameter map. Note that this must never return a nil map.
 	GetData_map() map[string]any
-	// typically also has Unwrap() error -- all errors created by this package do.
-	ValidateSyntax() error      // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
-	ValidateError_Final() error // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
-	ValidateError_Base() error  // same as ValidateError_Final, but ignores missing variables for $-syntax.
+	// typically, any ErrorWithData_any also has Unwrap() error -- all errors created by this package do, but this is not part of the interface.
 
+	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
+	ValidateError_Final() error                        // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
+	ValidateError_Base() error                         // same as ValidateError_Final, but ignores missing variables for $-syntax.
+	ValidateError_Params(params_passed ParamMap) error // same as ValidateError_Final, but use param_passed for any appearing $. Using params_passed == nil will use the errors own stored parameters (as opposed to an empty map).
 }
-
-// Q: Make this internal?
 
 // ErrorInterpolater is an extension of the error interface that allows the error output to depend on additional data.
 //
-// This (mostly internal) interface is required to make the $fmtString{VariableName} - mechanism work.
+// In an error interpolation string, usage of $w works as intended if the wrapped error satisfies this interface.
+// It is a sub-interface of [ErrorWithData_any].
 type ErrorInterpolater interface {
 	error
 	Error_interpolate(ParamMap) string
@@ -242,8 +250,8 @@ type ErrorInterpolater interface {
 }
 
 // DummyValidator is an empty struct that dummy-implements ValidateError_Base, ValidateError_Final, ValidateSyntax and ValidateError_Params (with value receivers).
-// These method all return nil.
-// The usage scenario is struct-embedding them in an implementation of the ErrorWithData to satisfy the interface if no validation is supported.
+// These method all return nil (indicating that validation succeeded).
+// The usage scenario is struct-embedding in an implementation of the [ErrorWithData] interface to satisfy the validation-related parts of the interface if no validation is supported.
 type DummyValidator struct{}
 
 func (DummyValidator) ValidateError_Base() error           { return nil }
@@ -253,6 +261,7 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 
 // ErrorWithData[StructType] is a generic interface extending [ErrorWithData_any].
 // Any non-nil error returned in such an interface is guaranteed to contain some additional data sufficient to create an instance of StructType.
+// Using this type instead of [ErrorWithData_any] can help to get some compile-time type safety and avoid type assertions.
 //
 // Obtaining the additional data can be done via the more general free functions
 // [GetData_map], [GetData_struct], [GetParameter], [HasData], [HasParameter]
@@ -273,9 +282,11 @@ type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
 const ErrorPrefix = "bandersnatch / error handling: "
 
 // IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
-// (Meaning it starts with a capital letter, followed by letters digits and underscores -- note that letters and digits may be non-ASCII)
+// (Meaning it starts with a capital letter, followed by letters, digits and underscores -- note that both letters and digits may be non-ASCII)
 func IsExportedIdentifier(s string) bool {
-	return token.IsIdentifier(s) && token.IsExported(s) // use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise due to potential non-ASCII letters and digits.
+	// "token" here refers to the go/token standard library, not to tokens in the interpolation string grammar (possible unfortunate name collision in the package).
+	// We use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise, due to potential non-ASCII letters and digits.
+	return token.IsIdentifier(s) && token.IsExported(s)
 }
 
 // NOTE: Some complication in the specs of these functions is the option to DELETE parameters from the parameter map.
@@ -290,16 +301,17 @@ func IsExportedIdentifier(s string) bool {
 // GetData_map returns a map for all parameters stored in the error, where error wrapping defaults to keeping the parameters of the wrapped error.
 // For err==nil or if no error in err's error chain has any data, returns an empty map.
 //
-// Note that the returned map is a (shallow) copy, so the caller may modify it without affecting the error.
+// Note that the returned map is a (shallow) copy, so the caller may modify it without affecting err.
 // err itself does not need to have been created by this package and is of plain error type.
-// We simply follow err's error chain until we find some error that we can work with.
+//
+// The implementations simply follows err's error chain until we find some error that we can work with.
 func GetData_map(err error) map[string]any {
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.GetData_map()
 		}
 	}
-	return make(map[string]any)
+	return make(map[string]any) // return an empty (rather than a nil) map if no error in the chain supports ErrorWithData_any; this includes the err==nil case.
 }
 
 // HasParameter checks whether some error in err's error chain contains a parameter keyed by parameterName.
@@ -352,7 +364,8 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 // GetData_struct obtains the parameters contained in err in the form of a struct of type StructType.
 //
 // If err does not contain enough parameters to construct an instance of StructType, this function panics.
-// NOTE: If StructType is empty after flattening embedded fields, the function does not panic even if err == nil.
+//
+// NOTE: If StructType is empty after flattening embedded fields, this function does not panic even if err == nil.
 func GetData_struct[StructType any](err error) (ret StructType) {
 	allParams := GetData_map(err)
 	ret, wrongDataError := makeStructFromMap[StructType](allParams)
