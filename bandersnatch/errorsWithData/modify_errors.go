@@ -28,8 +28,8 @@ import (
 // For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
 // The function also panics if StructType is unsuited (e.g. contains unexported fields)
 func NewErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType) ErrorWithData[StructType] {
-	if baseErrorUnboxed, ok := baseError.(incomparabilityUndoer_any); ok {
-		return NewErrorWithData_struct[StructType](baseErrorUnboxed.AsComparable_any(), interpolationString, data)
+	if baseErrorUnboxed, ok := baseError.(incomparabilityUndoer); ok {
+		return NewErrorWithData_struct[StructType](baseErrorUnboxed.AsComparable(), interpolationString, data)
 	}
 	reflectedStructType := utils.TypeOfType[StructType]()
 	_ = getStructMapConversionLookup(reflectedStructType) // trigger early panic for invalid StructType
@@ -68,8 +68,8 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 //
 // The function also panics if StructType is unsuited (e.g. contains unexported fields), params is malformed or the set of all params does not allow construct an instance of StructType.
 func NewErrorWithData_params[StructType any](baseError error, interpolationString string, params ...any) ErrorWithData[StructType] {
-	if baseErrorUnboxed, ok := baseError.(incomparabilityUndoer_any); ok {
-		return NewErrorWithData_params[StructType](baseErrorUnboxed.AsComparable_any(), interpolationString, params...)
+	if baseErrorUnboxed, ok := baseError.(incomparabilityUndoer); ok {
+		return NewErrorWithData_params[StructType](baseErrorUnboxed.AsComparable(), interpolationString, params...)
 	}
 	// make some validity checks to give meaningful error messages.
 	// Impressive: go - staticcheck actually recognizes this pattern and has my IDE complain at the call site about violations (calling with odd number of args)!
@@ -111,8 +111,8 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 
 // NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than (string, any) - pairs.
 func NewErrorWithData_map[StructType any](baseError error, interpolationString string, params map[string]any) ErrorWithData[StructType] {
-	if baseErrorUnboxed, ok := baseError.(incomparabilityUndoer_any); ok {
-		return NewErrorWithData_map[StructType](baseErrorUnboxed.AsComparable_any(), interpolationString, params)
+	if baseErrorUnboxed, ok := baseError.(incomparabilityUndoer); ok {
+		return NewErrorWithData_map[StructType](baseErrorUnboxed.AsComparable(), interpolationString, params)
 	}
 
 	if baseError == nil && interpolationString == "" {
@@ -200,8 +200,8 @@ func DeleteParameterFromError(err error, parameterName string) unconstrainedErro
 	if err == nil {
 		return nil
 	}
-	if baseErrorUnboxed, ok := err.(incomparabilityUndoer_any); ok {
-		return DeleteParameterFromError(baseErrorUnboxed.AsComparable_any(), parameterName)
+	if baseErrorUnboxed, ok := err.(incomparabilityUndoer); ok {
+		return DeleteParameterFromError(baseErrorUnboxed.AsComparable(), parameterName)
 	}
 	var ret errorWithParameters_common
 	if errInterpolatable, baseSupportsParams := err.(ErrorInterpolater); baseSupportsParams {

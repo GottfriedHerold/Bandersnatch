@@ -11,9 +11,10 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 )
 
+
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
-// This file contains the code used to serialize Uint256s. Serialization of field elements x works via conversion to this.
+// This file contains the code used to serialize Uint256s. Serialization of field elements x works (usually) via conversion to this.
 // The reason is that we serialize field elements in "plain", non-Montgomery format and do not want the serialization format be dependent
 // on the field element type used.
 
@@ -23,7 +24,7 @@ import (
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
 //
 // There are special-case methods [Serialize_Buffer] and [Serialize_Bytes] for the same functionality for writing to a [bytes.Buffer] and []byte.
-// (These are orders of magnitude faster because of the way interfaces in Go work)
+// (These are orders of magnitude faster because of the way interfaces in Go work and how they interact with escape analysis)
 func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
 	var errPlain error
@@ -40,13 +41,15 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 // Serialize_Buffer performs the same functionality as Serialize, but with output of concrete type [*bytes.Buffer].
 //
 // Due to known issues with Go's function API, this is an order of magnitude more efficient than the general version.
-// On failure, this method panics (because [bytes.Buffer] does), so the return value is always (32, nil)
+// On failure, this method panics (because that's what [bytes.Buffer] does), so the return value is always (32, nil)
 func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
-	// var errPlain error
-
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
-	bytesWritten, _ = output.Write(buf[:]) // bytes.Buffer's Write method is guaranteed to never return an error. It panics instead (if out-of-memory, e.g.)
+
+	// bytes.Buffer's Write method is guaranteed to never return an error. It panics instead (if out-of-memory, e.g.)
+	// So we don't need to handle errors here.
+	// var errPlain error
+	bytesWritten, _ = output.Write(buf[:])
 	/*
 		if errPlain != nil {
 			err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
@@ -58,20 +61,28 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 // Serialize(output, byteOrder) serializes the receiver to output, which must hold enough space for at least 32 bytes.
 // byteOrder should be [BigEndian] or [LittleEndian] and refers to the ordering of bytes in the output.
 //
-// The return values are the actual number of bytes written (always 32) and a potential error (always nil).
+// The return values are the actual number of bytes written (alywas 32 or 0) and a potential error.
+// This method panics if output==nil. If output does not have sufficient length, returns an error wrapping io.EOF (0 length) or io.ErrUnexpectedEOF.
 func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
-	// var errPlain error
+	// handle error cases: PutUint256_ptr panics on insufficent slice length (for consistency reasons with binary.ByteOrder's interface)
+	// We want Serialize_Bytes to be consistent with the other Serialize methods, so we catch this.
+	if len(output) < 32 {
+		if output == nil {
+			panic(ErrorPrefix + "called Serialize_Bytes with nil value for output slice")
+		}
+		if len(output) == 0 {
+			err = noWriteEOF
 
-	// var buf [32]byte // = make([]byte, 32)
-	// byteOrder.PutUint256(buf[:], *z)
+		} else {
+			err = noWriteUnexpectedEOF
+
+		}
+		return
+	}
+
 	byteOrder.PutUint256_ptr(output, (*[4]uint64)(z))
 	bytesWritten = 32
-	err = nil
-	// bytesWritten, errPlain = output.Write(buf[:])
-	// if errPlain != nil {
-	//		err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
-	//}
 	return
 }
 
@@ -105,7 +116,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(z[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithData_struct(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+		err = errPrefixDoesNotFit
 		return
 	}
 
@@ -124,10 +135,12 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 // Due to the way interfaces in Go work, this method is an order of magnitude faster.
 func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
+	// almost literally the same code as the general version (except for using Serialize_Buffer)
+
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(z[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithData_struct(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+		err = errPrefixDoesNotFit
 		return
 	}
 
@@ -141,15 +154,16 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 
 // SerializeWithPrefix_Bytes is a specialization of [SerializeWithPrefix] for the case where the output is a []byte.
 //
-// The output slice must have at least a size of 32 bytes, otherwise we panic.
-// This method cannot return an io error, so the only potential error is ErrPrefixDoesNotFit.
+// The output slice must have at least a size of 32 bytes. We panic on output == nil. For insufficient output length,
+// we return an error wrapping either io.EOF or io.UnexpectedEOF, but do not write anything to output.
+//
 // Due to the way interfaces in Go work, this method is an order of magnitude faster than the general version.
 func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if bits.LeadingZeros64(z[3]) < int(prefix_length) {
-		err = errorsWithData.NewErrorWithData_struct(ErrPrefixDoesNotFit, "", &bandersnatchErrors.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+		err = errPrefixDoesNotFit
 		return
 	}
 

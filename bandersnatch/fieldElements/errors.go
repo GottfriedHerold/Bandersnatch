@@ -3,8 +3,10 @@ package fieldElements
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
 )
 
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
@@ -16,6 +18,17 @@ import (
 // ErrorPrefix is the prefix used by all error message strings originating from this package.
 const ErrorPrefix = "bandersnatch / field element: "
 
+var (
+	noWriteEOF              = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+	noWriteUnexpectedEOF    = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0})
+	emptySliceForByteSer    = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.NoWriteAttempt)
+	tooSmallSliceForByteSer = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.NoWriteAttempt)
+)
+
+func init() {
+	errorsWithData.EnsureTestsValid_Final(errPrefixDoesNotFit, noWriteEOF, noWriteUnexpectedEOF)
+}
+
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
 var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
 
@@ -23,7 +36,8 @@ var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
 // These are the errors that can occur during (de)serialization.
 var (
-	ErrPrefixDoesNotFit             error = errors.New(ErrorPrefix + "while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large")
+	errPrefixDoesNotFit                   = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large", &errorconsts.NoWriteAttempt)
+	ErrPrefixDoesNotFit                   = errorsWithData.MakeErrorIncomparable(errPrefixDoesNotFit)
 	ErrPrefixLengthInvalid          error = errors.New(ErrorPrefix + "in FieldElement deserializitation, an invalid prefix length > 8 was requested")
 	ErrPrefixMismatch               error = errors.New(ErrorPrefix + "during deserialization, the read prefix did not match the expected one")
 	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")

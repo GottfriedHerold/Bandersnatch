@@ -6,9 +6,18 @@ import (
 	"errors"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
+)
+
+type (
+	WriteErrorData       = errorconsts.WriteErrorData
+	ReadErrorData        = errorconsts.ReadErrorData
+	SerializationError   = errorconsts.SerializationError
+	DeserializationError = errorconsts.DeserializationError
 )
 
 // This file contains common definitions of errors and error data that are not restricted to a single package.
+/*
 
 // WriteErrorData is a struct holding additional information about Serialization errors. This additional data can be accessed via the errorsWithData package.
 type WriteErrorData struct {
@@ -53,6 +62,8 @@ func init() {
 
 type SerializationError = errorsWithData.ErrorWithData[WriteErrorData]
 type DeserializationError = errorsWithData.ErrorWithData[ReadErrorData]
+
+*/
 
 // TODO: Move these definitions around?
 
