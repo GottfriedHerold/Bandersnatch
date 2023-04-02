@@ -129,7 +129,7 @@ func TestUint256_AddAndReturnCarry(t *testing.T) {
 	}
 }
 
-// TestUint256_Sub checks Uint256.Sub against big.Int's subgraction.
+// TestUint256_Sub checks Uint256.Sub against big.Int's subtraction.
 func TestUint256_Sub(t *testing.T) {
 	prepareTestFieldElements(t)
 

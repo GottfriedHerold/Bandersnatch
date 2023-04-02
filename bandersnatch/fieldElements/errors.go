@@ -19,14 +19,16 @@ import (
 const ErrorPrefix = "bandersnatch / field element: "
 
 var (
-	noWriteEOF              = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0})
-	noWriteUnexpectedEOF    = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0})
-	emptySliceForByteSer    = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.NoWriteAttempt)
-	tooSmallSliceForByteSer = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.NoWriteAttempt)
+	errNoWriteEOF            = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
+	ErrEmptyByteSlice = errNoWriteEOF
+	errNoWriteUnexpectedEOF  = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
+	ErrTooSmallByteSlice     = errNoWriteUnexpectedEOF
+	emptySliceForByteSer     = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.NoWriteAttempt)
+	tooSmallSliceForByteSer  = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.NoWriteAttempt)
 )
 
 func init() {
-	errorsWithData.EnsureTestsValid_Final(errPrefixDoesNotFit, noWriteEOF, noWriteUnexpectedEOF)
+	errorsWithData.EnsureTestsValid_Final(errPrefixDoesNotFit, errNoWriteEOF, errNoWriteUnexpectedEOF)
 }
 
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
@@ -38,7 +40,8 @@ var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 var (
 	errPrefixDoesNotFit                   = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large", &errorconsts.NoWriteAttempt)
 	ErrPrefixDoesNotFit                   = errorsWithData.MakeErrorIncomparable(errPrefixDoesNotFit)
-	ErrPrefixLengthInvalid          error = errors.New(ErrorPrefix + "in FieldElement deserializitation, an invalid prefix length > 8 was requested")
+	errPrefixLengthInvalid                = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"in FieldElement deserializitation, an invalid prefix length > 8 was requested", &errorconsts.NoWriteAttempt)
+	ErrPrefixLengthInvalid                = errorsWithData.MakeErrorIncomparable(errPrefixLengthInvalid)
 	ErrPrefixMismatch               error = errors.New(ErrorPrefix + "during deserialization, the read prefix did not match the expected one")
 	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )

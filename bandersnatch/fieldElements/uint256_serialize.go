@@ -9,8 +9,8 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
+	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
 )
-
 
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
@@ -31,9 +31,9 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
-	bytesWritten, errPlain = output.Write(buf[:]) // Note: because output is an interface, this causes esacpe analysis to fail, so buf is heap-allocated.
+	bytesWritten, errPlain = output.Write(buf[:]) // Note: because output is an interface, this causes escape analysis to fail, so buf is heap-allocated.
 	if errPlain != nil {
-		err = errorsWithData.AddDataToError_struct(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
+		err = errorsWithData.AddDataToError_struct(errPlain, errorconsts.NewIntermediateWriteErrorData(bytesWritten, 32))
 	}
 	return
 }
@@ -62,7 +62,8 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 // byteOrder should be [BigEndian] or [LittleEndian] and refers to the ordering of bytes in the output.
 //
 // The return values are the actual number of bytes written (alywas 32 or 0) and a potential error.
-// This method panics if output==nil. If output does not have sufficient length, returns an error wrapping io.EOF (0 length) or io.ErrUnexpectedEOF.
+// This method panics if output==nil. If output does not have sufficient length, returns errors (possibly wrapping) [ErrEmptyByteSlice] or [ErrTooSmallByteSlice].
+// For consistency reasons with [Serialize], these errors wrap [io.EOF] respectively [io.UnexpectedEOF]
 func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
 	// handle error cases: PutUint256_ptr panics on insufficent slice length (for consistency reasons with binary.ByteOrder's interface)
@@ -72,10 +73,10 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 			panic(ErrorPrefix + "called Serialize_Bytes with nil value for output slice")
 		}
 		if len(output) == 0 {
-			err = noWriteEOF
+			err = errNoWriteEOF
 
 		} else {
-			err = noWriteUnexpectedEOF
+			err = errNoWriteUnexpectedEOF
 
 		}
 		return
