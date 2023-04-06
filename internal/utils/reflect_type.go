@@ -23,6 +23,12 @@ func NameOfType[T any]() string {
 }
 
 // IsNilable returns whether values of type t can be set to nil
+//
+// The behaviour when calling this on reflect.TypeOf(nil) or the zero value of reflect.Type is unspecified.
+//
+// NOTE: We currently panic, which is intended and reflect.TypeOf(nil) returns the zero value of reflect.Type.
+// The issue is that the behaviour of the standard library is kind-of suboptimal (that's why this function is even needed in the first place)
+// and there are serious considerations of changing it in future Go versions. Hence we give no promises that we panic.
 func IsNilable(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Interface,
