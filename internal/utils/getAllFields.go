@@ -4,11 +4,11 @@ import "reflect"
 
 // Embedded struct pointers can be used to create struct-embedding cycles,
 // thereby allowing field selectors such as A.A.A.A.A.A.A.A.A.A.x of arbitrary length;
-// a naive recursive algorithm might run into an endless loop.
+// a naive recursive algorithm might therefore run into an endless loop.
 // It is unclear what the answer should even be, since, semanically, the returned fields slice should have infinite length.
 //
-// We solve this by simply disregarding struct-pointers altogether, even if they don't lead to cycles.
-// For our application, this is fine.
+// We solve this by simply disregarding embedded struct-pointers altogether, even if they don't lead to cycles.
+// For our application (the errorsWithData package), this is fine.
 
 // AllFields returns all fields (including fields from embedded structs) in t.
 //
@@ -24,6 +24,7 @@ func AllFields(t reflect.Type) (fields []reflect.StructField, embeddedStructPoin
 	return
 }
 
+// allFields is the (recursive) implementation of [AllFields]
 func allFields(t reflect.Type, indexPrefix []int, result *[]reflect.StructField) (embeddedStructPointer bool) {
 
 	if t.Kind() != reflect.Struct {

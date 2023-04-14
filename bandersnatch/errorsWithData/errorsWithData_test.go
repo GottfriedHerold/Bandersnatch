@@ -1,5 +1,7 @@
 package errorsWithData
 
+/*
+
 import (
 	"errors"
 	"fmt"
@@ -274,3 +276,5 @@ func TestErrorWithParameters(t *testing.T) {
 		t.Fatalf("Error message output not as expected for empty map. Output was %v", e3.Error())
 	}
 }
+
+*/

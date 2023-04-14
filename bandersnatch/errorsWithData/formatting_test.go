@@ -59,6 +59,9 @@ func TestParser(t *testing.T) {
 	test_parse_case(`a%!C1{%!C2{a$w}}`, `AST(["a",%!C1{%!C2{["a",$w]}}])`)
 }
 
+// dummy_interpolatableError is a struct satisfying ErrorInterpolater.
+//
+// It simply embeds an error an a function/closure f. If f is non-nil, f is used for Error_interpolate. This is only used in testing.
 type dummy_interpolatableError struct {
 	DummyValidator
 	f func(ParamMap) string

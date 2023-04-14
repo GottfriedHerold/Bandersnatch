@@ -45,3 +45,52 @@ func AssertSliceEquals[T comparable](x []T, y ...T) {
 		}
 	}
 }
+
+// CompareMaps checks whether 2 maps are equal (up to permutation). Note nil != empty map for this function.
+func CompareMaps[Keys comparable, Values comparable](x, y map[Keys]Values) bool {
+	if x == nil {
+		return y == nil
+	}
+	if y == nil {
+		return false
+	}
+	if len(x) != len(y) {
+		return false
+	}
+	for key, value := range x {
+		value2, present := y[key]
+		if !present {
+			return false
+		}
+		if value != value2 {
+			return false
+		}
+	}
+	return true
+}
+
+// CompareParamMaps does the same as [CompareMaps], but works with Go1.19 if the Values type is an interface.
+//
+// Note: Starting from Go1.20, CompareMaps just works. See https://go.dev/blog/comparable
+// We use this function for the sole purpose of avoiding a version dependency.
+func CompareParamMaps[Keys comparable](x, y map[Keys]any) bool {
+	if x == nil {
+		return y == nil
+	}
+	if y == nil {
+		return false
+	}
+	if len(x) != len(y) {
+		return false
+	}
+	for key, value := range x {
+		value2, present := y[key]
+		if !present {
+			return false
+		}
+		if value != value2 {
+			return false
+		}
+	}
+	return true
+}

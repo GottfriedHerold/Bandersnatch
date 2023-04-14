@@ -121,7 +121,7 @@
 //   - The difference between $ and % is the following: % always refers to the parameters stored in the error itself to look up values or evaluate conditions. %w just calls a wrapped error's Error() method.
 //     By contrast, $ allows passing parameters through an error chain: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
 //     this does not call errBase's Error() string, but rather errBase.Error_interpolate(passed_params) where passed_params are errFinal's parameters (or those of another wrapping error calling via $w).
-//     Error_Interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for %.
+//     Error_interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for %.
 //     Of course, this requires extra support from errBase beyond the error interface (notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters).
 //
 // Note that the $-syntax allows to globally define errors such as
@@ -223,7 +223,7 @@ const (
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
-	Error_interpolate(params map[string]any) string
+	Error_interpolate(ParamMap) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
 	GetParameter(parameterName string) (value any, wasPresent bool)
 	// HasParameter returns whether parameterName is a key of the parameter map.
@@ -273,7 +273,7 @@ type ErrorWithData[StructType any] interface {
 }
 
 // unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
-// It's functionally equivalent to [ErrorWithData_any]
+// It's functionally equivalent to [ErrorWithData_any], but is NOT a sub-interface.
 type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
 
 // ErrorPrefix is a prefix added to internal error messages/panics that originate from this package.
@@ -338,7 +338,8 @@ func HasParameter(err error, parameterName string) bool {
 // Note: This function panics if StructType is malformed for this purpose (e.g containing non-exported fields).
 // If data is present, but of wrong type, returns false.
 func HasData[StructType any](err error) bool {
-	return canMakeStructFromParametersInError[StructType](err) == nil
+	params := GetData_map(err) // unneeded copy.
+	return canMakeStructFromParameters[StructType](params) == nil
 }
 
 // GetParameter returns the value stored under the key parameterName, possibly following err's error chain (error wrapping defaults to inheriting the wrapped error's parameters).

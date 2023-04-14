@@ -5,10 +5,12 @@ import (
 	"unicode/utf8"
 )
 
-// errorWithParameters_common is a simple implementation of the ErrorWithData_any interface
+// errorWithParameters_common is a simple implementation of the [ErrorWithData_any] interface
 // NOTE:
 // exported functions must ALWAYS return an error as an interface, never as a concrete type.
 // (since otherwise, nil errors are returned as typed nil pointers, which is a serious footgun)
+//
+// [MakeIncomparable] is kind-of an exception to this (it panics on nil, anyway).
 type errorWithParameters_common struct {
 	contained_error           error    // wrapped underlying error, can be nil
 	parsedInterpolationString ast_I    // (parsed) error message
@@ -18,6 +20,23 @@ type errorWithParameters_common struct {
 // extension of errorWithParameters_common that satisfies ErrorWithData[StructType]
 type errorWithParameters_T[StructType any] struct {
 	errorWithParameters_common
+}
+
+// forgetStructType "downcasts" ErrorWithData to ErrorWithData_any.
+//
+// Note: The same effect can be achieved by plain assignment (one is a sub-interface of the other, after all)
+// What this function does is actually changing the implementing struct type and removing the extra functionality.
+// This is only done for consistency:
+// The point is that the actual implementing struct type, or at least the exported extra methods, are in principle visible (e.g. by type-asserting).
+// In some cases, we create ErrorWithData_any variables from an errorWithParameters_T[struct{}] rather
+// than a errorWithParameters_common. We can use forgetStructType to *consistently* use errorWithParameters_common as the implementing type.
+func forgetStructType[StructType any](err ErrorWithData[StructType]) ErrorWithData_any {
+	errImpl, ok := err.(*errorWithParameters_T[StructType])
+	if !ok {
+		return err
+	} else {
+		return &errImpl.errorWithParameters_common
+	}
 }
 
 // Error_interpolate is provided to satisfy the ErrorWithData_any interface. This is an extension of Error() that
