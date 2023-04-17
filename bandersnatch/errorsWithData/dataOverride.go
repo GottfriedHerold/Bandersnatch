@@ -16,9 +16,12 @@ const (
 	treatPreviousData_PanicOnCollision
 )
 
+// Use an encapsulated enum type for type-safety.
+
 // PreviousDataTreatment is an encapsulated enum type passed to functions and methods that modify the data associated to errors.
 //
 // It controls how the library should treat setting values that are already present. We provide [PreferPreviousData], [ReplacePreviousData], [AssertDataIsNotReplaced] as potential values.
+// The zero value of this type is not a valid PreviousDataTreatment.
 type PreviousDataTreatment struct {
 	keep int
 }
@@ -36,7 +39,7 @@ var (
 func (s PreviousDataTreatment) String() string {
 	switch s.keep {
 	case treatPreviousData_Unknown:
-		return "Unset value"
+		return "Unset value" // should we panic? I guess not, since this is just for diagnostics.
 	case treatPreviousData_Override:
 		return "Override old value"
 	case treatPreviousData_PreferOld:
@@ -85,6 +88,7 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 }
 
 // NOTE: Adding entries to an existing map is more convenient for our use cases than returning a map.
+// This duplicates some code from mergeMaps, but the alternative would be even more copying.
 
 // fillMapFromStruct converts a struct of type StructType into a map[string]any.
 // This function adds an entry to the provided (existing) map m for each visible field of StructType (including from embedded structs).

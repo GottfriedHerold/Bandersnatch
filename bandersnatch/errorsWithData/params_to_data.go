@@ -3,6 +3,7 @@ package errorsWithData
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
@@ -32,7 +33,7 @@ var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[re
 // getStructMapConversionLookup obtains a lookup table for converting a struct data type (passed as reflect.Type)
 // to a map[string]any. Repeated calls with the same argument give identical results (slice with same backing array)
 //
-// This essentially is just utils.AllFields with some extra checks upfront, skipping embedded fields and handling shadowed fields.
+// This mostly is just utils.AllFields with some extra checks upfront, skipping embedded fields and handling shadowed fields.
 //
 // This functions panics if called with a structType that is deemed invalid for our purpose.
 func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapConversion) {
@@ -63,6 +64,24 @@ func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapC
 	if embeddedStructPointer {
 		panic(ErrorPrefix + "using getStructMapConversionLookup with a struct that contains an embedded struct pointer")
 	}
+
+	// We sort allFields such that we process shorter index sequences first.
+	// This is needed to correctly handle certain cases of shadowing promoted fields:
+	// We only accept shadowing promoted fields iff the "winner" has the property that each
+	// field that is shadowed by it is actually deeper in the promoted field hiearchy tree.
+	// and on a path from the winner.
+	//
+	// Now, there can be sitations where for a struct T and field name X, T.X shadows both T.S1.X and T.S2.S3.X
+	// In this case, T.X should be the winner.
+	// However, if T.X was not present and we would only have T.S1.X and T.S2.S3.X,
+	// our rules (different from Go, which only looks at depth) would give no clear winner.
+	// T would get the X field via incomparable paths. We would reject T as invalid.
+	// If we sort allFields, we know that whenever we encounter such a situation, there will be no
+	// saving T.X encountered later and we detect that T is invalid right away, simplifying things.
+	sort.Slice(allFields, func(i int, j int) bool {
+		return len(allFields[i].Index) < len(allFields[j].Index)
+	})
+
 	ret = make(lookupStructMapConversion, 0, len(allFields))
 
 	// ensure everything is exported and filter out embedded fields
@@ -78,10 +97,13 @@ outer_loop:
 			panic(ErrorPrefix + "using errorsWithData with struct type containing unexported fields")
 		}
 
-		for pos, existingField := range ret {
+		// check for shadowing of existing fields. This has quadratic running time, but we don't care.
+		for _, existingField := range ret {
 			// Shadowing:
 			if existingField.Name == newField.Name {
 				// shorter length of Index is the one that get precedence according to Go's shadowing rules.
+				// We are stricter
+
 				// In case of ambiguity, we panic:
 				if len(existingField.Index) == len(newField.Index) {
 					panic(ErrorPrefix + "using errorsWithData with struct type that has an ambiguous promoted field")
@@ -96,13 +118,18 @@ outer_loop:
 					}
 					continue outer_loop // don't add visible field, the existing one takes precedence
 				} else { // len(existingField.Index) > len(field.Index)
-					for i := 0; i < len(newField.Index)-1; i++ {
-						if existingField.Index[i] != newField.Index[i] {
-							panic(ErrorPrefix + "using errorsWithData with struct type that has a promoted field through different embedded fields")
+					// unreachable
+					panic(ErrorPrefix + "internal error: allFieldNames supposed to have been sorted")
+					/*
+						for i := 0; i < len(newField.Index)-1; i++ {
+							if existingField.Index[i] != newField.Index[i] {
+								panic(ErrorPrefix + "using errorsWithData with struct type that has a promoted field through different embedded fields")
+							}
 						}
-					}
-					ret[pos] = newField // overwrite previous entry
-					continue outer_loop // to skip the append below
+
+						ret[pos] = newField // overwrite previous entry
+						continue outer_loop // to skip the append below
+					*/
 				}
 			}
 		}

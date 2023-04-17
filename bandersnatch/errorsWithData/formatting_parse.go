@@ -380,7 +380,7 @@ func (a ast_condDollar) String() string {
 // As mentioned above, we do not use a "traditional shift/reduce parser", but rather construct the node for the parse tree as soon as we see the first symbol
 // involved in the related production rule.
 // The language is simple enough to allow this:
-// The only ambiguity is list length and optional presence of a fmtString, but these are NOT part of the AST tree structure, since we allow lists of arbittrary length.
+// The only ambiguity is list length and optional presence of a fmtString, but these are NOT part of the AST tree structure, since we allow lists of arbitrary length.
 // The stack is only needed for nested sub-interpolation strings of type %!COND{...} or $!COND{...}.
 // Rather than reducing, we then modify the just-constructed node when reading the next symbols.
 // Note that these modification go through an type assertion to an interface such as childSetter that is satisfied by several nodes types.
@@ -404,13 +404,16 @@ func embeddedParseError(s string, args ...any) string {
 	return fmt.Sprintf(`<!META-ERROR: `+s+`>`, args...)
 }
 
-// (as in: this allows us to skip treating those case, which means that violations results in possibly non-informative panics rather than non-nil error output. )
-
 // make_ast creates a syntax tree out of the list of tokens.
 //
-// On failure, reports the first error. Note that we do NOT stop on errors; we rather process the input to the end
-// and build a valid syntax tree, replacing offending tokens by what we heuristally believe to be useful error messages.
-// The returned error is then also stored in the (root node of the) returned tree.
+// On failure, reports the first error. Note that we do NOT stop on errors;
+// we rather process the input to the end and build a valid syntax tree.
+// When we encounter the first parse error, we insert some diagnostic message (as a valid node of string type) and close any open %, $ or {'s.
+// Then, any "active" tokens read after the first error are turned into inactive string tokens.
+// From this point on, every processed token will then just be appended to the top list node, which cannot produce more errors.
+//
+// If there is a parse error, the returned err is also stored in the (root node of the) returned ast.
+// This is needed for diagnostics.
 //
 // To simplify the parser, we make the following assumption about the input list of tokens:
 //   - tokens[0] == tokenStart
@@ -425,21 +428,9 @@ func embeddedParseError(s string, args ...any) string {
 // Also note that make_ast only constructs the tree. It does not care whether the tokens "make sense".
 // In particular, formatStrings can contain %, Variable names could be unexported and not even valid Go identifiers, conditions not recognized etc.
 // These (optional) checks come later.
-//
-// The precise error behaviour is the following (subject to change):
-//
-// When expecting a sequence of strings or special instructions:
-//   - unexpected } and EOF get turned into string ast's telling the error.
-//   - unexpected { get turned into a fake condition (to enforce a matching }) outputting an error
-//
-// % or $ followed by EOF or by a non-string, non-"{" - token causes the % or $ to be replaced by an error string. (The token following % or $ has its meaning as if %/$ was not there)
-// %! or $! followed by EOF or by a non-string-token causes the %! or $! to be acts similarly
-// %fmtString/$fmtString not followed by { marks the ast_fmt - node as invalid (fmtString set, VariableName unset), adds error string
-// %!COND/$!COND acts similarly
-// %fmtString{ followed by Non-string: invalidate ast_fmt - node. Add fake condition to inject an error and enforce closing }
 func make_ast(tokens tokenList) (ret ast_I, err error) {
 
-	ret = new_ast_root() // Make root node. This is directly stored in ret, because we abort on first error and this allows looking at the partially constructed tree at the call site for debugging.
+	ret = new_ast_root() // Make root node. This is directly stored in ret for simplicity.
 
 	// the top of our tree (apart from the root node) is a list, starting empty.
 	initial_list := new_ast_list()
@@ -464,16 +455,23 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 
 	var mode parseMode = parseMode_Sequence // we expect a list of stringTokens, %w, $w etc.
 
-	// set_error is a closure that is called when a parse error is found.
+	// set_error is a closure that is called when a parse error is encountered.
 	// s is a format string and args are its arguments, used to create the returned error
 	//
-	// This closure assumes the stack is a good state as in parseMode_Sequence
-	// We set the returned error (both in the ast_root and err), terminate all open ast_cond's
-	// (so the resulting stack is ast_root - ast_list) and flag them as invalid.
+	// Before or after calling this closure, the parser should embed a diagnostic message as a ast_string into the returned ast.
+	// Usually, this diagnostic message resembles s.
+	//
+	// This closure assumes the stack is in a good state as in parseMode_Sequence.
+	// Notably, it contains (starting from bottom): ROOT - LIST, followed by any number of pairs COND - LIST.
+	// The conditions in any COND-node on the stack are non-empty strings.
+	//
+	// We set the error returned by make_ast (both in the ast_root and err), terminate all open ast_cond's
+	// (so the resulting stack after the call to set_error is ROOT - LIST) and flag them as invalid.
 	// We then set mode to parseMode_Error.
 	//
-	// Note that the parser below will then remain in parseMode_Error, where every input token just gets turned into a string (which can produce no more errors)
-	// flagging the ast_cond - path as invalid will make Interpolate ignore the condition. This causes the offending part that caused the parse error to be unconditionally displayed.
+	// The parser will then remain in parseMode_Error, where every input token just gets turned into a string (which can produce no more errors)
+	// flagging the ast_cond - path as invalid will make Interpolate ignore the condition.
+	// This causes the offending part that caused the parse error to be unconditionally displayed.
 	set_error := func(s string, args ...any) {
 		// record first found error both in value returned from function and in the returned root node.
 		// The latter is done to make sure Validation function can reproduce the error.
@@ -481,12 +479,14 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			err = fmt.Errorf(ErrorPrefix+s, args...)
 			ret.(ast_root).parseError = err
 		} else {
+			// err is only set by set_error.
 			// we enter parseMode_Error at the end of set_error. In this parseMode, we can never encounter another error, because
 			// we just turn every token that we read from this point on into a string.
 			panic("Cannot happen")
 		}
 
-		// Not needed for set_error to be meaningful, but it is the case in our usage unless we screwed up:
+		// Assert preconditions on stack shape. (the types of the node are checked via type assertions below)
+		// We could work with other preconditions, I guess.
 		if stack.Len()%2 != 0 {
 			panic("Cannot happen")
 		}
@@ -494,10 +494,11 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			panic("Cannot happen")
 		}
 
-		// we proceed through the stack and mark any node.
-		// node.make_invalid(alwaysPrintChildren) only really affects
+		// we proceed through the stack and mark any node as invalid if needed.
+		// node.make_invalid() only really affects
 		// nodes of types ast_condPercent and ast_condDollar and causes
 		// the condition to be ignored, so the conditional interpolation is always evaluated.
+		// This is mostly to ensure that diagnostic is not hidden.
 		for i := 0; i < (stack.Len()/2)-1; i++ {
 			_ = stack.Pop().(ast_list)
 			condNode := stack.Pop()
@@ -512,7 +513,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 	}
 
 	for _, token := range tokens {
-	redo:
+	redo: // goto redo can be used to "re-scan" the last token.
 		var top ast_I = *stack.Top() // Peek at top of stack. NOTE: stack cannot be empty
 		switch mode {
 		case parseMode_Sequence: // expect to get a sequence of strings or tokens.
@@ -564,11 +565,12 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 						newNode := new_ast_string(stringToken(embeddedErrorMessage))
 						currentNode.append_ast(newNode)
 						set_error("Unexpected '}' in format string")
-						continue // with mode == parseMode_Invalid, set by set_error
+						continue // with mode == parseMode_Error, set by set_error
 					} // tokenEnd must only appear at the top level.
 					// If we read a tokenEnd while the stack size is != 2, we have an unterminated %!COND{... somewhere
 					if (token == tokenEnd) && (stack.Len() != 2) {
 						set_error(`Missing '}' in format string`)
+						// stack length is 2 after calling set_error
 						top = *stack.Top()
 						currentNode = top.(ast_list)
 						embeddedErrorMessage := embeddedParseError(`Missing '}' in format string`)
@@ -602,7 +604,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 		case parseMode_FmtString: // expect to read (optional) format string (which must be a string literal)
 			if token == tokenOpenBracket { // %{ or ${ is interpreted as %v{ or $v{
 				// Interpolate treats an empty format string as 'v'.
-				// Note: We don't want to just set formatString to 'v' at this, because this would interact with
+				// Note: We don't want to just set formatString to 'v' at this point, because this would interact with
 				// handling of parse errors: if there is a parse errors (such as missing } ) in further processing the %{...} - clause
 				// we "undo" the parse and just literally output parts of the %{...} - clause that were read so far (together with an error message)
 				// If we set the formatString to 'v' here, parsing "%{foo" would result in a confusing "%v{foo" appearing in the error message.
@@ -619,6 +621,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					percentOrDollar := undo.(initialTokenGetter).token() // "%"  or "$"
 					currentNode.append_ast(new_ast_string(stringToken(percentOrDollar)))
 
+					// The case distinctions is just for better error messages.
 					if token == tokenEnd {
 						embeddedErrorMessage := embeddedParseError(`Interpolation string ends in '%s'`, percentOrDollar)
 						newNode := new_ast_string(stringToken(embeddedErrorMessage))
@@ -629,8 +632,8 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 						embeddedErrorMessage := embeddedParseError(`Invalid token %s after %s`, token.String(), percentOrDollar)
 						newNode := new_ast_string(stringToken(embeddedErrorMessage))
 						currentNode.append_ast(newNode)
-						set_error(`Invalid token %s after %s`, token.String(), percentOrDollar) // sets mode to invalid
-						goto redo                                                               // re-read and re-interpret the token following % or $
+						set_error(`Invalid token %s after %s`, token.String(), percentOrDollar) // sets mode to parseMode_Error
+						goto redo                                                               // re-read the token following % or $. It will be interpreted as a string.
 					}
 
 				} // ok == true, token_string is an actual string
@@ -649,6 +652,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				percentOrDollarExlamMark := undo.(initialTokenGetter).token() // "%!"  or "$!"
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollarExlamMark)))
 
+				// The case distinctions is just for better error messages.
 				if token == tokenEnd {
 					embeddedErrorMessage := embeddedParseError(`Interpolation string ends in "%s"`, percentOrDollarExlamMark)
 					newNode := new_ast_string(stringToken(embeddedErrorMessage))
@@ -659,8 +663,8 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					embeddedErrorMessage := embeddedParseError(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark)
 					newNode := new_ast_string(stringToken(embeddedErrorMessage))
 					currentNode.append_ast(newNode)
-					set_error(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark) // sets mode to invalid
-					goto redo                                                                            // re-read and re-interpret the token following % or $
+					set_error(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark) // sets mode to parseMode_Error
+					goto redo                                                                            // re-read token in parseMode_Error
 				}
 
 			}
@@ -681,6 +685,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				percentOrDollar := undo.(initialTokenGetter).token()   // "%" or "$"
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + fmtString)))
 
+				// add a diagnostic node and call set_error. The case distinction is just to provide better error messages.
 				if token == tokenEnd {
 					embeddedErrorMessage := embeddedParseError(`Interpolation string ends where variable name was expected`)
 					newNode := new_ast_string(stringToken(embeddedErrorMessage))
@@ -692,7 +697,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 					newNode := new_ast_string(stringToken(embeddedErrorMessage))
 					currentNode.append_ast(newNode)
 					set_error(`Got "%v" where variable name was expected`, token.String())
-					goto redo // re-read current token
+					goto redo
 				}
 
 			} // good case:
@@ -759,18 +764,20 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 
 		case parseMode_CloseVariable: // expect to read a } after a variable name
 
-			// pretend we just read a }, no matter what.
-			undo := stack.Pop()
+			// We can close the currently open ast for the % or $ - expression, no matter what we actually read.
+			undo := stack.Pop() // named undo, because we need the return value to possibly undo things on failure.
 			mode = parseMode_Sequence
-			formatString := undo.(fmtStringGetter).get_formatString() // formatString
 
-			// If what we read actually was not }, insert an error string and a literal interpretation of %FmtString{VariableName and re-read token
+			// formatString of the % or $ expression. We need to handle the case where it's empty and replace it by "v".
+			// However, this needs to be done after error handling.
+			formatString := undo.(fmtStringGetter).get_formatString()
 
-			// We previously read a string, so token is a specialToken (no consecutive string tokens above).
+			// We now handle the case if what we read actually was not a }
+
+			// We previously read a string, so token is guaranteed to be a specialToken (no consecutive string tokens above).
 			token := token.(specialToken)
-			// token must be tokenCloseBracket. The case distinction is just for the error message.
-
 			if token != tokenCloseBracket {
+				// We need to insert an error string and a literal interpretation of %FmtString{VariableName
 				top = *stack.Top() // ast_list
 				currentNode := top.(ast_list)
 				currentNode.remove_last()
@@ -780,26 +787,28 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 
 				currentNode.remove_last()
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + formatString + "{" + VariableName))) // replay what was read so far.
+				// case distinction to improve error messages.
 				if token == tokenEnd {
 					embeddedErrorMessage := embeddedParseError(`unexpected end of format string after reading a variable name without closing '}'`)
 					currentNode.append_ast(new_ast_string(stringToken(embeddedErrorMessage)))
 					set_error(`Variable name not terminated by '}'`)
-					goto redo
+					goto redo // to actually handle the tokenEnd token as ending the parse.
 
 				} else {
 					embeddedErrorMessage := embeddedParseError(`Variable name not terminated by '}'`)
 					currentNode.append_ast(new_ast_string(stringToken(embeddedErrorMessage)))
 					set_error(`Variable name not terminated by '}'`)
-					goto redo
+					goto redo // to actually display the current token.
 				}
 			}
 			// good case, token == tokenCloseBracket.
 			if formatString == "" {
-				undo.(fmtStringSetter).set_formatString(stringToken("v")) // no longer on stack, but still works.
+				// Note: undo is no longer on the stack, but still part of the tree. Modifying it works.
+				undo.(fmtStringSetter).set_formatString(stringToken("v"))
 			}
 		case parseMode_Error:
-			// Invariant: The stack looks exactly as follows (from the bottom:) ROOT, LIST followed by any number >=0 of COND,LIST pairs.
-			currentNode := top.(ast_list) // top is a ast_list if we are in parseMode_Sequence
+			// Invariant: The stack looks exactly as follows (from the bottom:) ROOT, LIST.
+			currentNode := top.(ast_list) // top is an ast_list noe if we are in parseMode_Error
 			if stack.Len() != 2 {
 				panic("Cannot happen")
 			}
@@ -807,6 +816,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 			case stringToken:
 				currentNode.append_ast(new_ast_string(token))
 			case specialToken:
+				// do not interpret tokens (except for tokenEnd) but rather output a string representation of it as a plain ast_string.
 				if token != tokenEnd {
 					currentNode.append_ast(new_ast_string(stringToken(token.String())))
 				} else {
@@ -821,16 +831,22 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 		}
 	}
 
+	// The only way to exit the above is reading tokenEnd in parseMode_Sequence or parseMode_Error.
+	// (Reading a tokenEnd in other modes causes a switch to parseMode_Error and re-reading it)
 	if (mode != parseMode_Sequence) && (mode != parseMode_Error) {
 		panic(ErrorPrefix + "Cannot happen")
 	}
-	if stack.Len() != 0 {
 
+	if stack.Len() != 0 {
 		panic(ErrorPrefix + "Cannot happen")
 	}
+
+	// Parse modes are reported both inside the returned ast as well as via the returned err.
 	if err != ret.(ast_root).parseError {
 		panic(ErrorPrefix + "Cannot happen")
 	}
+
+	// err is set iff we end up in parseMode_Error mode.
 	if (mode == parseMode_Error) != (err != nil) {
 		panic(ErrorPrefix + "Cannot happen")
 	}

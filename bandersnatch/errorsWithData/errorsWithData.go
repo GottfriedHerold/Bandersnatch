@@ -70,18 +70,37 @@
 // In general, the parameters passed to create errors with data should be created only in the failing branch;
 // doing otherwise may carry a large performance penalty (since Go's interfaces essentially break Go's escape analysis) due to allocation and garbage collection.
 //
-// Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions on allowed structs:
+// Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions/peculiarities on allowed structs:
 //   - All non-embedded field names must be exported.
-//   - Fields of interface type are allowed.
-//   - Embedded structs are also allowed.
+//   - Embedded types must not be pointer-to-struct. Embedded struct or pointer-to-non-struct is allowed.
+//   - Embedded structs lead to a promoted field hierarchy, which has a tree structure.
+//     We are more strict than the usual Go rules and allow shadowing of fields
+//     only iff every shadowed field is actually in a subtree of the struct that defines the shadowing field.
 //
-// Anything else causes a panic.
+// Using an invalid StructType causes a panic.
 //
-// The map API does not have such a restriction and works with arbitrary keys, but some functionality is limited, particularly interpolation strings.
+// An example of the last item above is the following: Consider types
+//
+//	type T struct{X int}
+//	type WrappedT struct{T}
+//	type S struct{T;WrappedT}
+//
+// we disallow S for the struct API, because S has a promoted field X via both S.T.X and S.WrappedT.T.X.
+// While Go itself would allow S.X as a promoted form of S.T.X (S.T.X wins over S.WrappedT.T.X due to lower depth),
+// we reject this construction, because the candidates get promoted via different pathways (WrappedT vs. T):
+// S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
+// If, in this example, S additionally defined its own field X, we could use S for the struct API.
+// We do not expect such corner-cases to come up, really.
+//
+// The map API has less restrictions and works with arbitrary keys, but some functionality may be limited, particularly interpolation strings.
 // For that reason it is recommended to only use keys that satisfy [IsExportedIdentifier].
 //
+// Writing data and retrieving it again via the map API has perfect roundtrip.
+// When using the struct API or mixing the map and struct API, there are 2 cases where roundtrip fails,
+// notably shadowed embedded fields and nil interfaces.
+//
 // Shadowed fields:
-// When converting to a map, the promoted-field hierarchy get flattened. I.e. embededded fields act in the following way:
+// When converting to a map, the promoted-field hierarchy get flattened. I.e. value-embededded structs act in the following way:
 // For structs
 //
 //	type Struct1 struct{Data1 bool; Data2 int}
@@ -91,10 +110,14 @@
 // after adding data from an instance of type Struct2, we can retrieve parameters (using the map interface) under the keys
 // "Data1" (yielding a bool) and "Data2" (yielding a string). There are no keys "Struct1" or "Struct1.Data1", "Struct1.Data2".
 // In particular, the shadowed int from Struct1.Data2 is completely ignored when adding data.
-// When retrieving data as an instance s of Struct2, s.Struct1.Data2 may or may not be zero-inintialized.
+// When retrieving data as an instance s of Struct2, s.Struct1.Data2 may or may not be zero-initialized.
 // In particular, roundtrip fails for shadowed fields:
 // Creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are shadowed embedded fields.
-// For the map[string]any API, note that we allow (and special-case) nil interface entries (i.e. m["Foo"]=nil ); when using the struct API, with struct{Foo *int}, this gets converted into a nil of appropriate type *int.
+//
+// Another roundtrip failure issue is nil interfaces. When retrieving via struct API, these get converted to appropriate type as needed.
+// (similar to what assigning untyped nil to a variable of non-interface type does)
+// For example, let some error contain a nil interface as data, say the parameter map is ParamMap{"Foo": nil}.
+// Then using the struct API, with struct{Foo *int}, this gets converted into a nil of appropriate type *int.
 //
 // To create errors, we provide functions [NewErrorWithData_params], [NewErrorWithData_map], [NewErrorWithData_struct], [NewErrorWithData_any_params], [NewErrorWithData_any_map].
 // These functions only differ in whether they return an [ErrorWithData] or [ErrorWithData_any] and how the data is passed.
@@ -122,7 +145,7 @@
 //     By contrast, $ allows passing parameters through an error chain: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
 //     this does not call errBase's Error() string, but rather errBase.Error_interpolate(passed_params) where passed_params are errFinal's parameters (or those of another wrapping error calling via $w).
 //     Error_interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for %.
-//     Of course, this requires extra support from errBase beyond the error interface (notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters).
+//     Of course, this requires extra support from errBase beyond the error interface. Notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters.
 //
 // Note that the $-syntax allows to globally define errors such as
 //
@@ -302,7 +325,7 @@ func IsExportedIdentifier(s string) bool {
 // For err==nil or if no error in err's error chain has any data, returns an empty map.
 //
 // Note that the returned map is a (shallow) copy, so the caller may modify it without affecting err.
-// err itself does not need to have been created by this package and is of plain error type.
+// err itself does not need to have been created by this package and may be of plain error type.
 //
 // The implementations simply follows err's error chain until we find some error that we can work with.
 func GetData_map(err error) map[string]any {
