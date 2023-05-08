@@ -73,7 +73,7 @@ func (e *errorWithParameters_common) Unwrap() error {
 //
 // It constructs a value of type StructType from the provided parameters.
 func (e *errorWithParameters_T[StructType]) GetData_struct() (ret StructType) {
-	ret, err := makeStructFromMap[StructType](e.params)
+	ret, err := makeStructFromMap[StructType](e.params, EnsureDataIsPresent)
 	if err != nil {
 		panic(err)
 	}
@@ -121,6 +121,19 @@ func makeErrorWithParametersCommon(baseError error, interpolationString string) 
 	// We ignore potential returned errors: If there is a parsing error, this is additionally recorded in ret.parsedInterpolationString itself.
 	ret.parsedInterpolationString, _ = make_ast(tokens)
 	ret.params = GetData_map(baseError)
+	return
+}
+
+// newErrorWithData_struct is the actual implementation of [NewErrorWithData_struct].
+//
+// It is tied to our particular implementation of ErrorWithData and does not return an interface.
+// There are no checks on the inputs. In particular, interpolation string is assumed to have been replaced by "%w" or "$w" by the caller.
+//
+// The function may panic if called with invalid StructType, so StructType should be checked by the caller beforehand.
+func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, mode PreviousDataTreatment) (ret *errorWithParameters_T[StructType]) {
+	ret = new(errorWithParameters_T[StructType])
+	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
+	fillMapFromStruct(data, &ret.errorWithParameters_common.params, mode)
 	return
 }
 

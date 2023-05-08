@@ -20,13 +20,46 @@ import (
 // nil interface entries in the maps get converted to a typed nil of the appropriate type in the struct (the conversion vice-versa is to a typed nil)
 
 // lookupStructMapConversion is a lookup table (only depending of T) that contains the
-// relevant data for converting an instance of a struct T to a map[string]any.
+// relevant data for converting an instance of a struct of type T to a map[string]any.
 type lookupStructMapConversion = []reflect.StructField
 
 var enforcedDataTypeMapMutex sync.RWMutex
 var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[reflect.Type]lookupStructMapConversion)
 
-// Note: This used to call reflect.VisibleFields  rather than utils.AllFields.
+const (
+	handleMissingData_Unknown = iota
+	handleMissingData_AddZeros
+	// handleMissingData_TreatAsZero
+	// handleMissingData_Ignore
+	handleMissingData_AssertPresent
+)
+
+// MissingDataTreatment is a type used to pass to exported functions how the library should treat missing parameters
+// when using the struct-based API.
+//
+// We provide [MissingDataAsZero] and [EnsureDataIsPresent] as possible values. The zero value of this type is invalid.
+//
+// Selecting [EnsureDataIsPresent] causes the package to panic if parameters are missing.
+// [MissingDataAsZero] causes the package to zero-initialize values if parameters are missing.
+type MissingDataTreatment struct {
+	handleMissingData int
+}
+
+var (
+	// MissingDataAsZero is passed to NewErrorWithData_params to indicate that missing data should be zero initialized
+	MissingDataAsZero = MissingDataTreatment{handleMissingData: handleMissingData_AddZeros}
+	// EnsureDataIsPresent is passed to NewErrorWithData_params to indicate that the function should panic if data is missing
+	EnsureDataIsPresent = MissingDataTreatment{handleMissingData: handleMissingData_AssertPresent}
+)
+
+// TODO: Move relevant global package doc to here.
+
+func StructSuitableForErrorsWithData[StructType any]() (err error) {
+	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())
+	return
+}
+
+// Note: This used to call reflect.VisibleFields rather than utils.AllFields.
 // Unfortunately, reflect.VisibleFields does not handle embedded fields of non-struct type the way we like.
 // (e.g. one issue is embedded struct pointers)
 
@@ -35,8 +68,8 @@ var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[re
 //
 // This mostly is just utils.AllFields with some extra checks upfront, skipping embedded fields and handling shadowed fields.
 //
-// This functions panics if called with a structType that is deemed invalid for our purpose.
-func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapConversion) {
+// This functions returns an error if called with a structType that is deemed invalid for our purpose.
+func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapConversion, err error) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.
 	// (Not sure whether this is needed and this is actually true anyway due to the way AllFields works)
@@ -53,16 +86,23 @@ func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapC
 
 	// Make some sanity checks: This function only makes sense for struct types.
 	if structType == nil {
-		panic(ErrorPrefix + "called getStructMapConversionLookup with nil argment")
+		// The exported API always passes structType as a generic parameter.
+		// We get a reflect.Type via utils.TypeOfType[StructType](), which never returns nil.
+		// As a consequence, this is not triggerable from the exported API unless we screwed up internally.
+		// This is why we panic on error.
+		err = fmt.Errorf(ErrorPrefix + "internal error: called getStructMapConversionLookup with nil argment")
+		panic(err)
 	}
 	if structType.Kind() != reflect.Struct {
-		panic(ErrorPrefix + "using getStructMapConversionLookup with non-struct type")
+		err = fmt.Errorf(ErrorPrefix+"%v is not a struct type", utils.GetReflectName(structType))
+		return
 	}
 
 	// The intended result will be a subset of all fields
 	allFields, embeddedStructPointer := utils.AllFields(structType)
 	if embeddedStructPointer {
-		panic(ErrorPrefix + "using getStructMapConversionLookup with a struct that contains an embedded struct pointer")
+		err = fmt.Errorf(ErrorPrefix+"the struct type %v contains an embedded struct pointer. This is not supported", utils.GetReflectName(structType))
+		return
 	}
 
 	// We sort allFields such that we process shorter index sequences first.
@@ -94,7 +134,8 @@ outer_loop:
 			continue
 		}
 		if !newField.IsExported() {
-			panic(ErrorPrefix + "using errorsWithData with struct type containing unexported fields")
+			err = fmt.Errorf(ErrorPrefix+"struct type %v contains unexported fields. This is not supported", utils.GetReflectName(structType))
+			return
 		}
 
 		// check for shadowing of existing fields. This has quadratic running time, but we don't care.
@@ -106,14 +147,16 @@ outer_loop:
 
 				// In case of ambiguity, we panic:
 				if len(existingField.Index) == len(newField.Index) {
-					panic(ErrorPrefix + "using errorsWithData with struct type that has an ambiguous promoted field")
+					err = fmt.Errorf(ErrorPrefix+"struct type %v has an ambiguous promoted field named %v", utils.GetReflectName(structType), existingField.Name)
+					return
 				}
 				// ensure that for existingField.Index and field.Index, one is a prefix of the other (except for the last entry).
 				// Note that this is stronger that the usual rules, which just compare len of Index.
 				if len(existingField.Index) < len(newField.Index) {
 					for i := 0; i < len(existingField.Index)-1; i++ {
 						if existingField.Index[i] != newField.Index[i] {
-							panic(ErrorPrefix + "using errorsWithData with struct type that has a promoted field through different embedded fields")
+							err = fmt.Errorf(ErrorPrefix+"struct type %v has promoted fields names %v through different embedded fields. This is not supported", utils.GetReflectName(structType), existingField.Name)
+							return
 						}
 					}
 					continue outer_loop // don't add visible field, the existing one takes precedence
@@ -150,85 +193,40 @@ outer_loop:
 	return
 }
 
-// CheckParametersForStruct_all[StructType](fieldNames) checks whether the name of the fields coincides with
-// the slice of fieldNames. Note that we require equality, i.e. the list of fieldNames is exhaustive;
-//
-// All fields of StructType must be exported and shadowed names must only appear once.
-// This is intented to be used in init-routines or tests accompanying places in the code
-// where we assume that a certain struct has exactly a given set of field names.
-// The purpose is to create guards in the code. It panics on failure.
-func CheckParametersForStruct_all[StructType any](fieldNames []string) {
-
-	// quadratic, but I don't care.
-	for i := 0; i < len(fieldNames); i++ {
-		for j := i + 1; j < len(fieldNames); j++ {
-			if fieldNames[i] == fieldNames[j] {
-				panic(fmt.Errorf(ErrorPrefix+"In call to CheckParametersForStruct, the given list of field names contains a duplicate: %v", fieldNames[i]))
-			}
-		}
-	}
-	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
-	for _, expectedField := range allExpectedFields {
-		expectedFieldName := expectedField.Name
-		found := false
-		for _, givenFieldName := range fieldNames {
-			if expectedFieldName == givenFieldName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			panic(fmt.Errorf(ErrorPrefix+"Field named %v required is not contained among the given list", expectedFieldName))
-		}
-	}
-	// We intentionally make that check *after* the above checks.
-	if len(allExpectedFields) != len(fieldNames) {
-		panic(fmt.Errorf(ErrorPrefix + "list of given field names contains more field names than required"))
-	}
-}
-
-// CheckParameterForStruct[StructType](fieldNames) checks whether the name of the (exported) fields contains the given
-// fieldName. This is intented to be used in init-routines or tests accompanying places in the code
-// where we assume that a certain struct contains a field of a given name.
-// The purpose is to create guards in the code. It panics on failure.
-func CheckParameterForStruct[StructType any](fieldName string) {
-	// No need to check that fieldName is a valid exported name. The function will fail anyway if this is not satisfied.
-	allExpectedFields := getStructMapConversionLookup(utils.TypeOfType[StructType]())
-	for _, expectedField := range allExpectedFields {
-		if expectedField.Name == fieldName {
-			return
-		}
-	}
-	panic(fmt.Errorf(ErrorPrefix+"The given struct does not contain an exported field named %v", fieldName))
-}
-
-// CheckIsSubtype checks that both StructType1 and StructType2 are valid for errorsWithData and the exported fields of StructType1 are a subset of those of StructType2.
-// Note that Struct embedding StructType1 in the definition of StructType2 may be preferred to this approach.
-//
-// CheckIsSubtype only cares about the names of the fields. It completely ignores the types.
-// The purpose is to create guards in the code. It panics on failure.
-func CheckIsSubtype[StructType1 any, StructType2 any]() {
-	allExpectedFields1 := getStructMapConversionLookup(utils.TypeOfType[StructType1]())
-	for _, expectedField1 := range allExpectedFields1 {
-		CheckParameterForStruct[StructType2](expectedField1.Name)
-	}
-}
-
-// canMakeStructFromParameters checks whether m actually contains data for all fields of a struct of type StructType.
+// ensureCanMakeStructFromParameters checks whether m actually contains suitable data for all fields of a struct of type StructType.
 // It returns nil on success, otherwise an error describing the reason of failure.
 //
+// On type mismatch, we always return an error.
+// If data is merely missing, the behaviour depends on missingDataTreatment:
+//   - For missingDataTreatment == [EnsureDataIsPresent], this function returns an error
+//   - For missingDataTreatment == [MissingDataAsZero], this function adds entries to *m (thereby modifying *m)
+//
 // This is called after creating an error with T==StructType.
-// m == nil is not used. We prefer an empty map.
-func canMakeStructFromParameters[StructType any](m ParamMap) (err error) {
+// *m == nil never not used. We prefer an empty map.
+//
+// This function panics if called with an invalid StructType (may be changed)
+func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, missingDataTreatment MissingDataTreatment) (err error) {
 	structType := utils.TypeOfType[StructType]()
 	typeName := utils.GetReflectName(structType)
-	allExpectedFields := getStructMapConversionLookup(structType)
+	allExpectedFields, err := getStructMapConversionLookup(structType)
+	if err != nil {
+		panic(err) // -> return to change to non-panicking behaviour if desired
+	}
 	for _, expectedField := range allExpectedFields {
 
-		mapEntry, exists := m[expectedField.Name]
+		mapEntry, exists := (*m)[expectedField.Name]
 		if !exists {
-			err = fmt.Errorf(ErrorPrefix+"lacking a parameter named %v, neccessary to export data a a struct of type %v", expectedField.Name, typeName)
-			return
+			switch missingDataTreatment.handleMissingData {
+			case handleMissingData_AssertPresent:
+				err = fmt.Errorf(ErrorPrefix+"lacking a parameter named %v, neccessary to export data a a struct of type %v", expectedField.Name, typeName)
+				return
+			case handleMissingData_AddZeros:
+				(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
+				continue
+			default:
+				panic(ErrorPrefix + "invalid value for missingDataTreatment")
+			}
+
 		}
 		// requires special casing due to what I consider a design error in reflection.
 		// See https://github.com/golang/go/issues/51649 for an actual discussion to change it for Go1.19 or later.
@@ -264,28 +262,43 @@ func canMakeStructFromParameters[StructType any](m ParamMap) (err error) {
 // can panic, including some standard library functions. Catching all error cases here is very difficult.
 // So be aware that this may possibly panic (even though returning an error seems to indicate otherwise)
 
-// makeStructFromMap constructs a struct of type T from a map m of type map[string]any by
-// setting all visible fields (possibly from embedded anonymous structs) in T according to m.
-// The map must contain an entry for every such field of T and T must not contain non-exported fields.
-// m is allowed to contain additional entries that are not required/used for T.
+// makeStructFromMap constructs a struct of type StructType from a map m of type map[string]any by
+// setting all visible fields (possibly from embedded anonymous structs) in StructType according to m.
 //
-// Returns an error if m does not contain data for some struct fields or data of invalid type;
+// m is allowed to contain additional entries that are not required/used for StructType.
+//
+// If there is no entry in m for some field of StructType, the behaviour depends on missingDataTreatment.
+// if missingDataTreatment is [EnsureDataIsPresent], we return an error
+// if missingDataTreatment is [AddZeroForMissingData], the field in StructType is zero-initialized.
+//
 // On error, the value for the returned struct ret is the zero value of the struct.
-// We ask that data has exactly matching type except for interface types in the struct or nil interface values in the map.
-// m == nil is treated like an empty map. Using an invalid T causes panic (This might change in the future and give an error instead).
-func makeStructFromMap[StructType any](m map[string]any) (ret StructType, err error) {
+// We ask that data (if present) has exactly matching type except for interface types in the struct or nil interface values in the map.
+// m == nil is treated like an empty map. An invalid StructType causes an error.
+func makeStructFromMap[StructType any](m map[string]any, missingDataTreatment MissingDataTreatment) (ret StructType, err error) {
+	// ret starts of zero-initialized and gets modified (via reflection) within this function.
 	reflectedStructType := utils.TypeOfType[StructType]() // could do reflect.TypeOf(ret), but this gives better errors in case someone wrongly sets StructType to an interface type.
-	allStructFields := getStructMapConversionLookup(reflectedStructType)
+	allStructFields, err := getStructMapConversionLookup(reflectedStructType)
+	if err != nil {
+		return
+	}
 	retValue := reflect.ValueOf(&ret).Elem() // need to pass pointer for settability
 	for _, structField := range allStructFields {
 		fieldInRetValue := retValue.FieldByIndex(structField.Index)
 		valueFromMap, ok := m[structField.Name]
 		if !ok {
-			err = fmt.Errorf(ErrorPrefix+"trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
-				reflectedStructType, structField.Name)
-			var zero StructType
-			ret = zero
-			return
+			switch missingDataTreatment.handleMissingData {
+			case handleMissingData_AssertPresent:
+				err = fmt.Errorf(ErrorPrefix+"trying to construct value of type %v containing field named %v from parameters, but there is no entry for this",
+					reflectedStructType, structField.Name)
+				var zero StructType
+				ret = zero
+				return
+			case MissingDataAsZero.handleMissingData:
+				// leave the field zero-initialized
+				continue
+			default:
+				panic(fmt.Errorf(ErrorPrefix+"Invalid value for missingDataTreament: %v", missingDataTreatment))
+			}
 		}
 		// This is annoying, but Go1.18 requires special-casing here.
 		// There is even a discussion to change the behaviour of reflect.ValueOf(nil)

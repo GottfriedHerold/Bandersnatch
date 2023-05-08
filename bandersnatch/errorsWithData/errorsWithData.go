@@ -292,7 +292,7 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 // we are guaranteed that the error actually contains appropriate parameters to create an instance of StructType.
 type ErrorWithData[StructType any] interface {
 	ErrorWithData_any
-	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetDataFromError[StructType](e)
+	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetDataFromError[StructType](e, EnsureDataIsPresent)
 }
 
 // unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
@@ -362,7 +362,7 @@ func HasParameter(err error, parameterName string) bool {
 // If data is present, but of wrong type, returns false.
 func HasData[StructType any](err error) bool {
 	params := GetData_map(err) // unneeded copy.
-	return canMakeStructFromParameters[StructType](params) == nil
+	return ensureCanMakeStructFromParameters[StructType](params) == nil
 }
 
 // GetParameter returns the value stored under the key parameterName, possibly following err's error chain (error wrapping defaults to inheriting the wrapped error's parameters).
@@ -387,12 +387,12 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 
 // GetData_struct obtains the parameters contained in err in the form of a struct of type StructType.
 //
-// If err does not contain enough parameters to construct an instance of StructType, this function panics.
-//
-// NOTE: If StructType is empty after flattening embedded fields, this function does not panic even if err == nil.
-func GetData_struct[StructType any](err error) (ret StructType) {
+// If err does not contain enough parameters to construct an instance of StructType, the behaviour depends on mode:
+//   - if mode == [MissingDataAsZero], the corresponding fields are zero-initialized
+//   - if mode == [EnsureDataIsPresent], the function panics if parameters are missing.
+func GetData_struct[StructType any](err error, mode MissingDataTreatment) (ret StructType) {
 	allParams := GetData_map(err)
-	ret, wrongDataError := makeStructFromMap[StructType](allParams)
+	ret, wrongDataError := makeStructFromMap[StructType](allParams, mode)
 	if wrongDataError != nil {
 		panic(wrongDataError)
 	}

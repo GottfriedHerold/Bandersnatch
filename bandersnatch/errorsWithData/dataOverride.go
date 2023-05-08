@@ -26,6 +26,7 @@ type PreviousDataTreatment struct {
 	keep int
 }
 
+
 var (
 	// PreferPreviousData means that when replacing associated data in errors, we keep the old value if some value is already present for a given key.
 	PreferPreviousData = PreviousDataTreatment{keep: treatPreviousData_PreferOld}
@@ -94,7 +95,9 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 // This function adds an entry to the provided (existing) map m for each visible field of StructType (including from embedded structs).
 // This modifies m, converting a nil map to an empty map.
 //
-// StructType must contain only exported fields. If *m is a field inside s (or similar shenanigans), the behaviour is undefined.
+// StructType must be valid for use in this library (in particular contain only exported fields).
+// This functions panics on invalid StructType.
+// If *m is a field inside s (or similar shenanigans), the behaviour is undefined.
 // Preexisting entries of m that do not correspond to a field of the struct are left unchanged.
 //
 // Treatment of preexisting keys in m that correspond to a field of the struct depends on mode:
@@ -106,7 +109,10 @@ func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, mode Pr
 		*m = make(map[string]any)
 	}
 	reflectedStructType := utils.TypeOfType[StructType]()
-	allStructFields := getStructMapConversionLookup(reflectedStructType)
+	allStructFields, err := getStructMapConversionLookup(reflectedStructType)
+	if err != nil {
+		panic(err)
+	}
 	structValue := reflect.ValueOf(s).Elem()
 	switch mode.keep {
 	case treatPreviousData_Override:

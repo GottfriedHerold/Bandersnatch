@@ -38,14 +38,19 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 		realMode = mode[0]
 	}
 
-	// unbox base error if possible.
-	baseError = UnboxError(baseError)
-
-	reflectedStructType := utils.TypeOfType[StructType]()
-	_ = getStructMapConversionLookup(reflectedStructType) // trigger early panic for invalid StructType
 	if baseError == nil && interpolationString == "" {
 		panic(ErrorPrefix + "called NewErrorWithData_struct with nil base error and empty interpolation string")
 	}
+
+	// unbox base error if possible.
+	baseError = UnboxError(baseError)
+
+	err := StructSuitableForErrorsWithData[StructType]() // trigger early panic for invalid StructType
+	if err != nil {
+		// TODO: Other handling? Print interpolation string and data?
+		panic(err)
+	}
+
 	if interpolationString == "" {
 		// Note: baseError != nil
 		if _, baseSupportParams := baseError.(ErrorInterpolater); baseSupportParams {
@@ -56,33 +61,41 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 	}
 	// Note: baseError may be nil. This is actually fine.
 
-	createdError := makeErrorWithParametersCommon(baseError, interpolationString)
-
 	// TODO: Validation?
-
-	fillMapFromStruct(data, &createdError.params, realMode)
-	return &errorWithParameters_T[StructType]{errorWithParameters_common: createdError}
+	return newErrorWithData_struct(baseError, interpolationString, data, realMode)
 }
 
-// Note: We could pass mode as optional argument as part of params.
+// Note: We could pass mode and/or missingData as optional arguments as part of params.
 // The issue is that at least my code analysis tool recognizes
-// the check to ensure than len(params) is even, giving meaningful errors on violation.
-// This property is more user-friendly than not having to write mode explicitly.
+// the check to ensure than len(params) is even and giving meaningful errors on violation at the call site.
+// This property is much more more user-friendly than not having to write mode explicitly.
 
 // NewErrorWithData_params creates a new [ErrorWithData] wrapping the given baseError if non-nil.
 // interpolationString is used to create the new error message, where an empty string is
 // interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil
 // Parameters are supposed to be passed as string - value pairs, e.g:
 //
-//	NewErrorWIthData_params[StrucType](nil, "Some error with $v{Param1} and $s{Param2}", "Param1", 5, "Param2", `some_string`)
+//	NewErrorWIthData_params[StrucType](nil, "Some error with $v{Param1} and $s{Param2}", mode, missingData, "Param1", 5, "Param2", `some_string`)
 //
 // We only default to %w or $w (which refers to the base's error message) if there is a baseError to start with.
 //
 //   - For baseError == nil, interpolationString == "", this function panics.
 //   - For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
 //
-// The function also panics if StructType is unsuited (e.g. contains unexported fields), params is malformed (i.e. does not conist of string-any-pairs) or the set of all params does not allow to construct an instance of StructType.
-func NewErrorWithData_params[StructType any](baseError error, interpolationString string, mode PreviousDataTreatment, params ...any) ErrorWithData[StructType] {
+// The function also panics if StructType is unsuited (e.g. contains unexported fields) or params is malformed (i.e. does not conist of string-any-pairs)
+//
+// mode controls how the function treats parameters present in both baseError and being given.
+//
+// If the final set of all params does not allow to construct an instance of StructType, the behaviour depends on missingData:
+//   - If there is a type mismatch between what is required for the struct field and the given parameter, the function panics, except
+//     that the nil interface is allowed if the struct field can be nil (of some concrete type)
+//   - For missingData == [EnsureDataIsPresent], the function panics if there are missing parameters.
+//   - For missingData == [MissingDataAsZero], we add a zero-initialized parameter for each field of StructType that is missing.
+//     Note that those zero-valued parameter are actually explicitly added when creating the error, not when retrieving the data.
+//     It is not possible to distinguish automatically zero-initialized parameters from parameters explicitly set to zero.
+//     In particular, [HasParameter] returns true for those parameters and when using an error with such zero-initialized parameters as a base for error wrapping, the wrapping
+//     error will see those zero-initialized parameters.
+func NewErrorWithData_params[StructType any](baseError error, interpolationString string, mode PreviousDataTreatment, missingData MissingDataTreatment, params ...any) (ret ErrorWithData[StructType]) {
 	baseError = UnboxError(baseError)
 
 	// make some validity checks to give meaningful error messages.
@@ -101,11 +114,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 			interpolationString = "%w"
 		}
 	}
-
-	// create new error, copying all parameters from baseError
-	ret := makeErrorWithParametersCommon(baseError, interpolationString)
-
-	// unneccessary copy, but this simplifies the code
+	// unneccessary copy, but this simplifies the code by unifying it with the _map variant.
 	// TODO (?): Make more efficient at the expense of complicating things.
 
 	params_map := make(ParamMap)
@@ -119,15 +128,20 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 		params_map[s] = params[2*i+1]
 	}
 
-	mergeMaps(&ret.params, params_map, mode)
-
-	// Check whether the promise of being able to construct an instance of StructType is satisfied.
-	cannotMakeStructError := canMakeStructFromParameters[StructType](ret.params)
-	if cannotMakeStructError != nil {
-		panic(cannotMakeStructError)
+	var err error
+	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, mode, missingData, params_map)
+	if err != nil {
+		panic(err)
 	}
+	return
+}
 
-	return &errorWithParameters_T[StructType]{errorWithParameters_common: ret}
+func newErrorWithData_map[StructType any](baseError error, interpolationString string, mode PreviousDataTreatment, missingDataTreatment MissingDataTreatment, params ParamMap) (ret *errorWithParameters_T[StructType], err error) {
+	ret = new(errorWithParameters_T[StructType])
+	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
+	mergeMaps(&ret.errorWithParameters_common.params, params, mode)
+	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, missingDataTreatment)
+	return
 }
 
 // NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than (string, any) - pairs.
@@ -156,7 +170,7 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 	ret := makeErrorWithParametersCommon(baseError, interpolationString)
 
 	mergeMaps(&ret.params, newParams, realMode)
-	cannotMakeStructError := canMakeStructFromParameters[StructType](ret.params)
+	cannotMakeStructError := ensureCanMakeStructFromParameters[StructType](ret.params)
 	if cannotMakeStructError != nil {
 		panic(cannotMakeStructError)
 	}
@@ -264,7 +278,7 @@ func AsErrorWithData[StructType any](inputError error) (convertedError ErrorWith
 	}
 
 	params := GetData_map(inputError)
-	structCreationErr := canMakeStructFromParameters[StructType](params)
+	structCreationErr := ensureCanMakeStructFromParameters[StructType](params)
 	if structCreationErr != nil {
 		var zero StructType
 		// we prefer to return an actual error as the returned converted error,

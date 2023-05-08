@@ -51,7 +51,10 @@ func TestGetStructMapConversionLookup(t *testing.T) {
 	checkType := func(typ reflect.Type, expected []reflect.StructField) {
 
 		typeName := utils.GetReflectName(typ)
-		lookup := getStructMapConversionLookup(typ)
+		lookup, lookupError := getStructMapConversionLookup(typ)
+		if lookupError != nil {
+			t.Fatalf("Unexpected error reported by getStructMapConversionLookup for %v: %v", typeName, lookupError)
+		}
 		if len(lookup) != len(expected) {
 			t.Fatalf("Wrong number of returned arguments for %v: got %v, expected %v", typeName, len(lookup), len(expected))
 		}
@@ -124,8 +127,11 @@ func TestGetStructMapConversionLookup(t *testing.T) {
 		WrappedT1
 	}
 
-	R1 := getStructMapConversionLookup(utils.TypeOfType[T1]())
-	R1again := getStructMapConversionLookup(utils.TypeOfType[T1]())
+	R1, e1 := getStructMapConversionLookup(utils.TypeOfType[T1]())
+	R1again, e2 := getStructMapConversionLookup(utils.TypeOfType[T1]())
+
+	testutils.FatalUnless(t, e1 == nil, "Unexpected error %v", e1)
+	testutils.FatalUnless(t, e2 == nil, "Unexpected error %v", e2)
 
 	if !testutils.CheckSliceAlias(R1, R1again) {
 		t.Fatalf("getStructMapConversionLookup does not return identical data when called twice with same argument")
@@ -156,27 +162,26 @@ func TestGetStructMapConversionLookup(t *testing.T) {
 		{Name: "Intbased", Type: reflect.PointerTo(IntbasedType), Index: []int{0}, Anonymous: true},
 	})
 
-	if !testutils.CheckPanic(getStructMapConversionLookup, utils.TypeOfType[structWithUnexported]()) {
-		t.Fatalf("No panic, but we expected to")
-	}
-	if !testutils.CheckPanic(getStructMapConversionLookup, utils.TypeOfType[nestedUnexported]()) {
-		t.Fatalf("No panic, but we expected to")
-	}
-	if !testutils.CheckPanic(getStructMapConversionLookup, utils.TypeOfType[error]()) {
-		t.Fatalf("No panic, but we expected to")
-	}
-	if !testutils.CheckPanic(getStructMapConversionLookup, utils.TypeOfType[int]()) {
-		t.Fatalf("No panic, but we expected to")
-	}
-	if !testutils.CheckPanic(getStructMapConversionLookup, utils.TypeOfType[Intbased]()) {
-		t.Fatalf("No panic, but we expected to")
-	}
+	_, err := getStructMapConversionLookup(utils.TypeOfType[structWithUnexported]())
+	testutils.FatalUnless(t, err != nil, "No error, but we expected an error")
+
+	_, err = getStructMapConversionLookup(utils.TypeOfType[nestedUnexported]())
+	testutils.FatalUnless(t, err != nil, "No error, but we expected an error")
+
+	_, err = getStructMapConversionLookup(utils.TypeOfType[error]())
+	testutils.FatalUnless(t, err != nil, "No error, but we expected an error")
+
+	_, err = getStructMapConversionLookup(utils.TypeOfType[int]())
+	testutils.FatalUnless(t, err != nil, "No error, but we expected an error")
+
+	_, err = getStructMapConversionLookup(utils.TypeOfType[Intbased]())
+	testutils.FatalUnless(t, err != nil, "No error, but we expected an error")
+
+	_, err = getStructMapConversionLookup(utils.TypeOfType[Dups]())
+	testutils.FatalUnless(t, err != nil, "No error, but we expected an error")
+
 	if !testutils.CheckPanic(getStructMapConversionLookup, nil) {
 		t.Fatalf("No panic, but we expected to")
-	}
-
-	if !testutils.CheckPanic(getStructMapConversionLookup, utils.TypeOfType[Dups]()) {
-		t.Fatalf("No panic, but we expected to (for case where promoted fields come through different paths)")
 	}
 
 }
@@ -333,17 +338,17 @@ func TestCanMakeStructFromParams(t *testing.T) {
 		mNilInterface ParamMap = ParamMap{"Arg": nil}
 	)
 	type EmbeddedInt = int
-	var issue error = canMakeStructFromParameters[struct{}](mEmpty)
+	var issue error = ensureCanMakeStructFromParameters[struct{}](mEmpty)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = canMakeStructFromParameters[struct{}](mSomeArgs)
+	issue = ensureCanMakeStructFromParameters[struct{}](mSomeArgs)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = canMakeStructFromParameters[struct{ Arg *int }](mNilInterface)
+	issue = ensureCanMakeStructFromParameters[struct{ Arg *int }](mNilInterface)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = canMakeStructFromParameters[struct{ EmbeddedInt }](ParamMap{"EmbeddedInt": 5})
+	issue = ensureCanMakeStructFromParameters[struct{ EmbeddedInt }](ParamMap{"EmbeddedInt": 5})
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = canMakeStructFromParameters[struct{ EmbeddedInt }](ParamMap{"EmbeddedInt": uint(5)})
+	issue = ensureCanMakeStructFromParameters[struct{ EmbeddedInt }](ParamMap{"EmbeddedInt": uint(5)})
 	testutils.FatalUnless(t, issue != nil, "") // Wrong type
-	issue = canMakeStructFromParameters[struct{ *EmbeddedInt }](ParamMap{"EmbeddedInt": new(int)})
+	issue = ensureCanMakeStructFromParameters[struct{ *EmbeddedInt }](ParamMap{"EmbeddedInt": new(int)})
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
 
 	type T1 struct {
@@ -355,18 +360,18 @@ func TestCanMakeStructFromParams(t *testing.T) {
 		X uint
 	}
 
-	issue = canMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Y": io.EOF})
+	issue = ensureCanMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Y": io.EOF})
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = canMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Y": nil, "Z": "foo"})
+	issue = ensureCanMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Y": nil, "Z": "foo"})
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = canMakeStructFromParameters[T2](ParamMap{"X": int(0), "Y": io.EOF})
+	issue = ensureCanMakeStructFromParameters[T2](ParamMap{"X": int(0), "Y": io.EOF})
 	testutils.FatalUnless(t, issue != nil, "") // wrong type
-	issue = canMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Z": io.EOF})
+	issue = ensureCanMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Z": io.EOF})
 	testutils.FatalUnless(t, issue != nil, "") // missing Y
-	issue = canMakeStructFromParameters[T2](ParamMap{"Y": io.EOF, "Z": 0})
+	issue = ensureCanMakeStructFromParameters[T2](ParamMap{"Y": io.EOF, "Z": 0})
 	testutils.FatalUnless(t, issue != nil, "") // missing X
-	issue = canMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Y": "foo", "Z": 0})
+	issue = ensureCanMakeStructFromParameters[T2](ParamMap{"X": uint(0), "Y": "foo", "Z": 0})
 	testutils.FatalUnless(t, issue != nil, "") // Y is no error
 
-	testutils.FatalUnless(t, canMakeStructFromParameters[struct{ Arg int }](mNilInterface) != nil, "")
+	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](mNilInterface) != nil, "")
 }

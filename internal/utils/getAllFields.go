@@ -18,6 +18,8 @@ import "reflect"
 //   - For embedded non-structs, non-pointer, fields contains the embedded type.
 //
 // If an embedded struct pointer was encountered, embeddedStructPointer is set to true.
+//
+// This function panics if t.Kind() is not reflect.Struct
 func AllFields(t reflect.Type) (fields []reflect.StructField, embeddedStructPointer bool) {
 	fields = make([]reflect.StructField, 0)
 	embeddedStructPointer = allFields(t, []int{}, &fields)
