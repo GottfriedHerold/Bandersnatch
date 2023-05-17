@@ -7,39 +7,40 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// internal int-based enum for [PreviousDataTreatment]. We use a struct wrapping this in our exported API.
-// This is because we want stronger typing for methods that already take "any" or generic-parameter dependent values.
-const (
-	treatPreviousData_Unknown = iota
-	treatPreviousData_Override
-	treatPreviousData_PreferOld
-	treatPreviousData_PanicOnCollision
-)
-
 // Use an encapsulated enum type for type-safety.
 
 // PreviousDataTreatment is an encapsulated enum type passed to functions and methods that modify the data associated to errors.
 //
 // It controls how the library should treat setting values that are already present. We provide [PreferPreviousData], [ReplacePreviousData], [AssertDataIsNotReplaced] as potential values.
-// The zero value of this type is not a valid PreviousDataTreatment.
+// The zero value of this type is not a valid PreviousDataTreatment. Using a zero value will cause panics.
 type PreviousDataTreatment struct {
 	keep int
 }
 
+// internal int-based enum for [PreviousDataTreatment]. We use a struct wrapping an int in our exported API.
+// This is because we want stronger typing for methods that already take "any" or generic-parameter dependent values.
+const (
+	treatPreviousData_Unset = iota // zero value
+	treatPreviousData_Override
+	treatPreviousData_PreferOld
+	treatPreviousData_PanicOnCollision
+)
 
 var (
 	// PreferPreviousData means that when replacing associated data in errors, we keep the old value if some value is already present for a given key.
 	PreferPreviousData = PreviousDataTreatment{keep: treatPreviousData_PreferOld}
-	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values.
+	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values for a given key.
 	ReplacePreviousData = PreviousDataTreatment{keep: treatPreviousData_Override}
 	// AssertDataIsNotReplaced means that when replacing associated data in errors, we panic if a different value was already present for a given key.
 	AssertDataIsNotReplaced = PreviousDataTreatment{keep: treatPreviousData_PanicOnCollision}
 )
 
-// String is provided to satisfy fmt.Stringer. It returns a string representing the meaning of the value.
+// Helps with diagnostics
+
+// String is provided to make PreviousDataTreatment satisfy fmt.Stringer. It returns a string representing the meaning of the value.
 func (s PreviousDataTreatment) String() string {
 	switch s.keep {
-	case treatPreviousData_Unknown:
+	case treatPreviousData_Unset:
 		return "Unset value" // should we panic? I guess not, since this is just for diagnostics.
 	case treatPreviousData_Override:
 		return "Override old value"
@@ -52,8 +53,10 @@ func (s PreviousDataTreatment) String() string {
 	}
 }
 
-// mergeMaps modifies target, setting it to the union of *target and source.
-// source == nil is treated as an empty map. The behaviour when *target == nil is unspecified.
+// mergeMaps modifies *target, setting it to the union of *target and source.
+// source == nil is treated as an empty map.
+//
+// The behaviour when *target == nil is unspecified. Use an empty map for *target.
 //
 // The handling of duplicate map keys that appear in both maps depends on mode:
 //   - mode == PreferPreviousData: values already in target take precendence
@@ -92,8 +95,8 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 // This duplicates some code from mergeMaps, but the alternative would be even more copying.
 
 // fillMapFromStruct converts a struct of type StructType into a map[string]any.
-// This function adds an entry to the provided (existing) map m for each visible field of StructType (including from embedded structs).
-// This modifies m, converting a nil map to an empty map.
+// This function adds an entry to the provided (existing) map *m for each visible field of StructType (including from embedded structs).
+// This modifies *m, converting a nil map to an empty map.
 //
 // StructType must be valid for use in this library (in particular contain only exported fields).
 // This functions panics on invalid StructType.

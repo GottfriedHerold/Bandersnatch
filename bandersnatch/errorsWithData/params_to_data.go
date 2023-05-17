@@ -27,7 +27,7 @@ var enforcedDataTypeMapMutex sync.RWMutex
 var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[reflect.Type]lookupStructMapConversion)
 
 const (
-	handleMissingData_Unknown = iota
+	handleMissingData_Unset = iota
 	handleMissingData_AddZeros
 	// handleMissingData_TreatAsZero
 	// handleMissingData_Ignore
@@ -46,14 +46,28 @@ type MissingDataTreatment struct {
 }
 
 var (
-	// MissingDataAsZero is passed to NewErrorWithData_params to indicate that missing data should be zero initialized
+	// MissingDataAsZero is passed to functions to indicate that missing data should be zero initialized
 	MissingDataAsZero = MissingDataTreatment{handleMissingData: handleMissingData_AddZeros}
-	// EnsureDataIsPresent is passed to NewErrorWithData_params to indicate that the function should panic if data is missing
+	// EnsureDataIsPresent is passed to functions to indicate that the function should panic if data is missing
 	EnsureDataIsPresent = MissingDataTreatment{handleMissingData: handleMissingData_AssertPresent}
 )
 
-// TODO: Move relevant global package doc to here.
+// String is provided to make MissingDataTreatment satisfy fmt.Stringer.
+func (m MissingDataTreatment) String() string {
+	switch m.handleMissingData {
+	case handleMissingData_Unset:
+		return "Unset value for missing data treatment"
+	case handleMissingData_AddZeros:
+		return "Fill missing data with zeros"
+	case handleMissingData_AssertPresent:
+		return "Panic if data is missing"
+	default:
+		// cannot happen without using unsafe methods.
+		return fmt.Sprintf("Unexpected internal value %v for MissingDataTreatment", m.handleMissingData)
+	}
+}
 
+// TODO: Move relevant global package doc to here.
 func StructSuitableForErrorsWithData[StructType any]() (err error) {
 	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	return
@@ -72,7 +86,7 @@ func StructSuitableForErrorsWithData[StructType any]() (err error) {
 func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapConversion, err error) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.
-	// (Not sure whether this is needed and this is actually true anyway due to the way AllFields works)
+	// (Not sure whether this is needed and this is actually true anyway due to the way utils.AllFields works)
 	// Also, it means we don't have to care about efficiency.
 
 	// Check if we alread have the table in the cache.
@@ -273,10 +287,10 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, missingDataT
 //
 // On error, the value for the returned struct ret is the zero value of the struct.
 // We ask that data (if present) has exactly matching type except for interface types in the struct or nil interface values in the map.
-// m == nil is treated like an empty map. An invalid StructType causes an error.
+// m == nil is treated like an empty map. An invalid StructType causes an error to be returned (not a panic).
 func makeStructFromMap[StructType any](m map[string]any, missingDataTreatment MissingDataTreatment) (ret StructType, err error) {
 	// ret starts of zero-initialized and gets modified (via reflection) within this function.
-	reflectedStructType := utils.TypeOfType[StructType]() // could do reflect.TypeOf(ret), but this gives better errors in case someone wrongly sets StructType to an interface type.
+	reflectedStructType := utils.TypeOfType[StructType]() // reflect.TypeOf(ret) would not work in case someone wrongly sets StructType to an interface type.
 	allStructFields, err := getStructMapConversionLookup(reflectedStructType)
 	if err != nil {
 		return

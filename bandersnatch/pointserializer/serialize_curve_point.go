@@ -741,7 +741,7 @@ func (md *multiDeserializer[_, _, _, _]) SliceOutputLength(numPoints int32) (int
 		OverheadSizeExists := errorsWithData.HasParameter(errOverhead, "Size") // Check whether the error has an embedded "Size" datum (which is an int64 containing the true non-overflown value)
 		if OverheadSizeExists {
 			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
-			err = errorsWithData.DeleteParameterFromError(err, "Size") // Delete parameter, because it only relates to the header size.
+			err = errorsWithData.DeleteParameterFromError_any(err, "Size") // Delete parameter, because it only relates to the header size.
 			// TODO: Update with "Size" + pointCost64?
 		} else {
 			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)
@@ -775,7 +775,7 @@ func (md *multiSerializer[_, _, _, _]) SliceOutputLength(numPoints int32) (int32
 		OverheadSizeExists := errorsWithData.HasParameter(errOverhead, "Size") // Check whether the error has an embedded "Size" datum (which is an int64 containing the true non-overflown value)
 		if OverheadSizeExists {
 			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Overhead size is %v{Data}, actual points would use another %v{PointSize}", "PointSize", pointCost64)
-			err = errorsWithData.DeleteParameterFromError(err, "Size") // Delete parameter, because it only relates to the header size.
+			err = errorsWithData.DeleteParameterFromError_any(err, "Size") // Delete parameter, because it only relates to the header size.
 			// TODO: Update with "Size" + pointCost64?
 		} else {
 			err = errorsWithData.NewErrorWithData_any_params(errOverhead, ErrorPrefix+"requested SliceOutputLength exceeds MaxInt32 by overhead alone. Actual points would use another %v{PointSize}", "PointSize", pointCost64)

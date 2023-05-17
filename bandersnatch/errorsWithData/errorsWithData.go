@@ -362,7 +362,7 @@ func HasParameter(err error, parameterName string) bool {
 // If data is present, but of wrong type, returns false.
 func HasData[StructType any](err error) bool {
 	params := GetData_map(err) // unneeded copy.
-	return ensureCanMakeStructFromParameters[StructType](params) == nil
+	return ensureCanMakeStructFromParameters[StructType](&params, EnsureDataIsPresent) == nil
 }
 
 // GetParameter returns the value stored under the key parameterName, possibly following err's error chain (error wrapping defaults to inheriting the wrapped error's parameters).
@@ -390,6 +390,9 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 // If err does not contain enough parameters to construct an instance of StructType, the behaviour depends on mode:
 //   - if mode == [MissingDataAsZero], the corresponding fields are zero-initialized
 //   - if mode == [EnsureDataIsPresent], the function panics if parameters are missing.
+//
+// Calling with function with error data that is present but of wrong type will cause a panic.
+// Calling this function with an invalid StructType will cause a panic.
 func GetData_struct[StructType any](err error, mode MissingDataTreatment) (ret StructType) {
 	allParams := GetData_map(err)
 	ret, wrongDataError := makeStructFromMap[StructType](allParams, mode)

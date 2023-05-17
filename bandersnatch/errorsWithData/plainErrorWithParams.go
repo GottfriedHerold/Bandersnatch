@@ -124,6 +124,38 @@ func makeErrorWithParametersCommon(baseError error, interpolationString string) 
 	return
 }
 
+// deleteParameterFromError_any is the implementation for DeleteParameterFromError that is tied to our specific implementation of the
+// [ErrorWithData_any] interface.
+//
+// It creates a new errorWithParameters_common based on baseError and interpolationString, with the parameter given by parameterName removed.
+// If parameterName is not present in
+//
+// This function does not perform any input validation or replacement of empty interpolation string by "%w" resp. "$w". These are the caller's job.
+func deleteParameterFromError_any(baseError error, interpolationString string, parameterName string) (ret *errorWithParameters_common) {
+	ret = new(errorWithParameters_common)
+	*ret = makeErrorWithParametersCommon(baseError, interpolationString)
+	delete(ret.params, parameterName)
+	return
+}
+
+// deleteParameterFromError_any is the implementation for DeleteParameterFromError that is tied to our specific implementation of the
+// [ErrorWithData_any] interface.
+//
+// It creates a new errorWithParameters_common based on baseError and interpolationString, with the parameter given by parameterName removed.
+//
+// This function does not perform any input validation or replacement of empty interpolation string by "%w" resp. "$w". These are the caller's job.
+func deleteParameterFromError[StructType any](baseError error, interpolationString string, parameterName string, missingDataTreatment MissingDataTreatment) (ret *errorWithParameters_T[StructType], err error) {
+	ret = new(errorWithParameters_T[StructType])
+	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
+	delete(ret.params, parameterName)
+	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, missingDataTreatment)
+	return
+}
+
+// NOTE: For newErrorWithData_struct and newErrorWithData_map, we expect the caller to have checked the validity of the input beforehand.
+// (i.e. StructType is valid, interpolating string non-empty). As such, those function should not panic.
+// The only exception right now is calling with interpolatingString that is not valid UTF-8.
+
 // newErrorWithData_struct is the actual implementation of [NewErrorWithData_struct].
 //
 // It is tied to our particular implementation of ErrorWithData and does not return an interface.
@@ -134,6 +166,27 @@ func newErrorWithData_struct[StructType any](baseError error, interpolationStrin
 	ret = new(errorWithParameters_T[StructType])
 	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
 	fillMapFromStruct(data, &ret.errorWithParameters_common.params, mode)
+	return
+}
+
+// newErrorWithData_map serves a similar purpose as newErrorWithData_struct, but takes the new data via a ParamMap.
+//
+// Notably, it creates a new ErrorWithData based on baseError with the given interpolation string.
+// mode controls how pre-existing data should be handled.
+// missingDataTreatment controls how data that is missing (for constructing an instance of StructType) should be handled.
+//
+// There are no checks on inputs; in particular, interpolating string is assumed to have been replaced by "%w" or "$w" by the caller
+// and we assume that mode and missingDataTreatment are valid.
+// This function may panic if called with an invalid Struct type.
+//
+// If the given params (together with any params from baseError) are unsuited to construct an instance of StructType
+// (such as params with wrong type or missing params with missingDataTreatment set to [EnsureDataIsPresent]),
+// we return an error in err. If err!=nil, ret should not be used by the caller.
+func newErrorWithData_map[StructType any](baseError error, interpolationString string, mode PreviousDataTreatment, missingDataTreatment MissingDataTreatment, params ParamMap) (ret *errorWithParameters_T[StructType], err error) {
+	ret = new(errorWithParameters_T[StructType])
+	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
+	mergeMaps(&ret.errorWithParameters_common.params, params, mode)
+	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, missingDataTreatment)
 	return
 }
 
