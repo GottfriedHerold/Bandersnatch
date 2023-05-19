@@ -19,16 +19,16 @@ import (
 const ErrorPrefix = "bandersnatch / field element: "
 
 var (
-	errNoWriteEOF            = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
-	ErrEmptyByteSlice = errNoWriteEOF
-	errNoWriteUnexpectedEOF  = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
-	ErrTooSmallByteSlice     = errNoWriteUnexpectedEOF
-	emptySliceForByteSer     = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.NoWriteAttempt)
-	tooSmallSliceForByteSer  = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.NoWriteAttempt)
+	errNoWriteEOF           = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
+	ErrEmptyByteSlice       = errNoWriteEOF
+	errNoWriteUnexpectedEOF = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
+	ErrTooSmallByteSlice    = errNoWriteUnexpectedEOF
+	emptySliceForByteSer    = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.NoWriteAttempt)
+	tooSmallSliceForByteSer = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.NoWriteAttempt)
 )
 
 func init() {
-	errorsWithData.EnsureTestsValid_Final(errPrefixDoesNotFit, errNoWriteEOF, errNoWriteUnexpectedEOF)
+	errorsWithData.EnsureErrorsValid_Final(errPrefixDoesNotFit, errNoWriteEOF, errNoWriteUnexpectedEOF)
 }
 
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.

@@ -70,27 +70,9 @@
 // In general, the parameters passed to create errors with data should be created only in the failing branch;
 // doing otherwise may carry a large performance penalty (since Go's interfaces essentially break Go's escape analysis) due to allocation and garbage collection.
 //
-// Restrictions on StructTypes: Adding/retrieving data as structs has the following restrictions/peculiarities on allowed structs:
-//   - All non-embedded field names must be exported.
-//   - Embedded types must not be pointer-to-struct. Embedded struct or pointer-to-non-struct is allowed.
-//   - Embedded structs lead to a promoted field hierarchy, which has a tree structure.
-//     We are more strict than the usual Go rules and allow shadowing of fields
-//     only iff every shadowed field is actually in a subtree of the struct that defines the shadowing field.
-//
-// Using an invalid StructType causes a panic.
-//
-// An example of the last item above is the following: Consider types
-//
-//	type T struct{X int}
-//	type WrappedT struct{T}
-//	type S struct{T;WrappedT}
-//
-// we disallow S for the struct API, because S has a promoted field X via both S.T.X and S.WrappedT.T.X.
-// While Go itself would allow S.X as a promoted form of S.T.X (S.T.X wins over S.WrappedT.T.X due to lower depth),
-// we reject this construction, because the candidates get promoted via different pathways (WrappedT vs. T):
-// S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
-// If, in this example, S additionally defined its own field X, we could use S for the struct API.
-// We do not expect such corner-cases to come up, really.
+// There are restrictions on StructType that can be checked with the generic [StructSuitableForErrorsWithData] function. See its documentation for details.
+// Most importantly, non-embedded field names must be exported.
+// Using any function of this package other than [StructSuitableForErrorsWithData] with an unsuitable StructType will generally cause a panic.
 //
 // The map API has less restrictions and works with arbitrary keys, but some functionality may be limited, particularly interpolation strings.
 // For that reason it is recommended to only use keys that satisfy [IsExportedIdentifier].
@@ -134,27 +116,29 @@
 // will print "Something bad happened, the value of Foo is 5." (without the quotation marks)
 //
 // The language for interpolation strings is as follows:
-//   - literal `%`, `$`, `{`, `}` and `\` have to be escaped as \%, \$, \{, \} and \\. Alternatively, %% also works for `%`. The backslash itself has no meaning beyond escaping and we recommend using `raw string`-syntax to avoid having to double-escape.
+//   - literal `%`, `$`, `{`, `}` and `\` have to be escaped as \%, \$, \{, \} and \\. Alternatively, %% also works for `%`.
+//     The backslash itself has no meaning beyond escaping and we recommend using `raw string`-syntax to avoid having to double-escape.
 //   - %w and $w insert the error message of the wrapped error (with special behaviour for $w).
 //   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
 //     An empty FormatVerb defaults to v. FormatVerb must not start with w or !.
 //   - VariableName must either be an exported identifier or one of the special strings 'm', 'map', 'parameters', 'params'. For these we print all parameters as a map[string]any.
 //   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar. We currently support the conditions
 //     "m=0" and "m>0" (without the quotation marks). These conditions mean that the parameter map is empty or non-empty, respectively.
+//     The set of supported condition strings may be expanded in the future.
 //   - The difference between $ and % is the following: % always refers to the parameters stored in the error itself to look up values or evaluate conditions. %w just calls a wrapped error's Error() method.
 //     By contrast, $ allows passing parameters through an error chain: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
 //     this does not call errBase's Error() string, but rather errBase.Error_interpolate(passed_params) where passed_params are errFinal's parameters (or those of another wrapping error calling via $w).
-//     Error_interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for %.
+//     Error_interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for any %-expressions.
 //     Of course, this requires extra support from errBase beyond the error interface. Notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters.
 //
-// Note that the $-syntax allows to globally define errors such as
+// The $-syntax allows to globally define errors such as
 //
 //	errBase := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
 //
 // without actually setting the value of "Foo". Calling errBase.Error() will complain about a missing value for Foo.
 // However, one can "derive" errors from errBase such as
 //
-//	errFinal := NewErrorWithData_any_params(errBase, "", "Foo", 5)
+//	errFinal := NewErrorWithData_any_params(errBase, "", ReplacePreviousData, "Foo", 5)
 //
 // (the empty interpolation string defaults to "$w" or "%w" depending on what the wrapped error supports). Then errFinal.Error() will output
 // "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is common.
@@ -179,7 +163,7 @@
 //
 // This package does not check or report errors from invalid format verbs that are not supported by the data type at hand.
 // This is handled solely by the [fmt] package, which just returns an error report (or panic recovery) where the formatted output should go;
-// This behaviour is similar to what we do for the final output of Error(), but our Validate-methods do not report this.
+// This behaviour is quite similar to what we do for syntax errors in interpolation strings when calling Error() on the final output. However, our Validate-methods do not catch this.
 package errorsWithData
 
 import (
@@ -358,7 +342,8 @@ func HasParameter(err error, parameterName string) bool {
 
 // HasData checks whether the error contains enough parameters of correct types to create an instance of StructType.
 //
-// Note: This function panics if StructType is malformed for this purpose (e.g containing non-exported fields).
+// Note: This function panics if StructType is malformed for this purpose (e.g containing non-exported fields). Use [StructSuitableForErrorsWithData] to check StructType beforehand if needed.
+//
 // If data is present, but of wrong type, returns false.
 func HasData[StructType any](err error) bool {
 	params := GetData_map(err) // unneeded copy.

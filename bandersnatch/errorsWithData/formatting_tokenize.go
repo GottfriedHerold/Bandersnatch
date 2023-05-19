@@ -55,7 +55,10 @@ func (stringToken) IsToken() {}
 // NOTE regarding escaping: If the original interpolation string was `%%`, tokenizing results in stringToken(`%`) and stringToken.String outputs `%`).
 func (s stringToken) String() string { return string(s) }
 
-type tokenList []token_I // each entry is either a stringToken or a specialToken. The first and last are the (only) tokens with values tokenStart and tokenEnd
+// tokenList is a list of tokens, where each entry is either a stringToken or a specialToken.
+// The first and last are the (only) tokens with values tokenStart and tokenEnd
+// All string tokens are non-empty and no two consecutive string tokens appear.
+type tokenList []token_I
 
 const (
 	tokenInvalid       specialToken = iota // zero value intentionally invalid
@@ -76,6 +79,15 @@ var (
 	allSpecialTokensInString = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
 )
 
+// tokenizeInterpolationString takes a string and tokenizes it.
+//
+// The resulting tokenList is a list of tokens with the properties that
+//   - tokens are either stringTokens or special tokens
+//   - no two consecutive tokens are string tokens
+//   - The first and last tokens are tokenStart and tokenEnd and those only appear at the start and the end
+//   - string tokens are non-empty
+//
+// Calling this function with invalid utf8 causes a panic. Other than that, tokenizing cannot fail.
 func tokenizeInterpolationString(s string) (ret tokenList) {
 	if !utf8.ValidString(s) {
 		panic(ErrorPrefix + "formatString not a valid UTF-8 string")
@@ -83,7 +95,7 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 	decomposition := re_tokenize.FindAllString(s, -1)
 	ret = make(tokenList, len(decomposition)+2) // +2 comes from tokenStart and tokenEnd.
 	ret[0] = tokenStart
-	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies this), we don't use i, entry := range decomposition
+	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies i), we don't use i, entry := range decomposition
 	for _, entry := range decomposition {
 		switch entry {
 		case `\%`, `%%`:
@@ -118,8 +130,8 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 
 		// merge consecutive entries of type stringToken.
 		// This is required for escaped %,$,{ or } that appear in identifiers such as format string verbs.
-		// It also makes writing the parser easier if we know that no consecutive stringTokens appear.
-		if i > 0 {
+		// It also makes writing the parser significantly(!) easier if we know that no consecutive stringTokens appear.
+		if i > 0 { // always true, actually.
 			newlyadded, ok1 := ret[i].(stringToken)
 			addedbefore, ok2 := ret[i-1].(stringToken)
 			if ok1 && ok2 {
@@ -132,12 +144,13 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 		i++
 	}
 	ret[i] = tokenEnd
-	ret = ret[0 : i+1 : i+1]
+	ret = ret[0 : i+1 : i+1] // to account for merging of consecutive stringTokens
 	return
 }
 
 // String will output a string representation of the special token. It mostly matches the string that gets parsed into it.
-// Note that this is only used for debugging.
+//
+// Note that this is mostly used for debugging and reporting of parse errors.
 func (token specialToken) String() string {
 	switch token {
 	case tokenInvalid:
@@ -163,15 +176,17 @@ func (token specialToken) String() string {
 	case tokenStart:
 		return `[`
 	default:
-		panic(ErrorPrefix + " Unknown token encountered")
+		panic(ErrorPrefix + "internal error: Unknown token encountered") // cannot happen
 	}
 }
 
 // String will output a string representation of the token list.
 // For valid tokenList, this should have the form `[ TOKEN1 TOKEN2 TOKEN3 ]`
-// where for each special token we output a string that would be parsed into the corresponding token and
+// where for each special token we output a string that corresponds to the corresponding token and
 // each string token get output with ""s added.
 // (tokenStart and tokenEnd correspond to the [ ])
+//
+// Note that this function is only used internally, for testing the package itself. This output format is not part of the API.
 func (tokens tokenList) String() string {
 	var ret strings.Builder
 	for i, t := range tokens {
@@ -186,7 +201,7 @@ func (tokens tokenList) String() string {
 		case specialToken:
 			ret.WriteString(t.String())
 		default:
-			panic(ErrorPrefix + "Invalid type in token_list")
+			panic(ErrorPrefix + "internal error: Invalid type in token_list") // cannot happen
 		}
 	}
 	return ret.String()

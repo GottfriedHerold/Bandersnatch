@@ -23,6 +23,9 @@ func TestMergeMaps(t *testing.T) {
 	testutils.FatalUnless(t, utils.CompareParamMaps(m1, ParamMap{"Bar": 6}), "")
 
 	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{"Bar": nil}, AssertDataIsNotReplaced), "")
+
+	var invalid PreviousDataTreatment
+	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{}, invalid), "No panic for invalid PreviousDataTreatment")
 }
 
 func TestFillMapFromStruct2(t *testing.T) {
@@ -46,6 +49,9 @@ func TestFillMapFromStruct2(t *testing.T) {
 	testutils.FatalUnless(t, utils.CompareParamMaps(m1, ParamMap{"Bar": uint(6)}), "%v", m1)
 
 	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[T2], &T2{Bar: 8}, &m1, AssertDataIsNotReplaced), "")
+
+	var invalid PreviousDataTreatment
+	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[T2], &T2{}, &m1, invalid), "No panic for invalid PreviousDataTreatment")
 }
 
 /*
@@ -113,11 +119,17 @@ func TestPrintPreviousDataTreatment(t *testing.T) {
 	s1 := AssertDataIsNotReplaced.String()
 	s2 := PreferPreviousData.String()
 	s3 := ReplacePreviousData.String()
+	s0 := PreviousDataTreatment{}.String()
 	testutils.FatalUnless(t, s1 != "", "")
 	testutils.FatalUnless(t, s2 != "", "")
 	testutils.FatalUnless(t, s3 != "", "")
+	testutils.FatalUnless(t, s0 != "", "")
 
 	testutils.FatalUnless(t, s1 != s2, "")
 	testutils.FatalUnless(t, s1 != s3, "")
 	testutils.FatalUnless(t, s2 != s3, "")
+
+	testutils.FatalUnless(t, s0 != s1, "")
+	testutils.FatalUnless(t, s0 != s2, "")
+	testutils.FatalUnless(t, s0 != s3, "")
 }

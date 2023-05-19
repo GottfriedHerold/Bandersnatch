@@ -186,9 +186,7 @@ func (abase *base_ast_fmt) VerifySyntax() error {
 	if strings.ContainsRune(abase.formatString, '%') {
 		return fmt.Errorf(ErrorPrefix+`Interpolation string contains a format string verb %s, which contains  '%%'. This will not work with the fmt package`, abase.formatString)
 	}
-	if abase.invalidParse { // should be detected at root
-		panic(ErrorPrefix + "Invalidly parsed interpolation string not detected at root")
-	}
+
 	if abase.variableName == "" {
 		panic(ErrorPrefix + "Uninitialized variable name") // ought to have been caught by the parser.
 	}

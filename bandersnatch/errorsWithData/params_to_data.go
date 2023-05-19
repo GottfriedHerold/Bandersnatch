@@ -19,19 +19,14 @@ import (
 // shadowed fields are allowed (the map has only one field per name)
 // nil interface entries in the maps get converted to a typed nil of the appropriate type in the struct (the conversion vice-versa is to a typed nil)
 
-// lookupStructMapConversion is a lookup table (only depending of T) that contains the
+// structTypeToFieldsLookupEntry is an entry in a lookup table (depending on the type T) that contains the
 // relevant data for converting an instance of a struct of type T to a map[string]any.
-type lookupStructMapConversion = []reflect.StructField
+type structTypeToFieldsLookupEntry = []reflect.StructField
 
-var enforcedDataTypeMapMutex sync.RWMutex
-var enforcedDataTypeMap map[reflect.Type]lookupStructMapConversion = make(map[reflect.Type]lookupStructMapConversion)
-
-const (
-	handleMissingData_Unset = iota
-	handleMissingData_AddZeros
-	// handleMissingData_TreatAsZero
-	// handleMissingData_Ignore
-	handleMissingData_AssertPresent
+// structTypeToFieldsMap is a global mutex-protected lookup table StructType T -> relevant data for converting instances of T to map[string]any
+var (
+	structTypeToFieldsMap      map[reflect.Type]structTypeToFieldsLookupEntry = make(map[reflect.Type]structTypeToFieldsLookupEntry)
+	structTypeToFieldsMapMutex sync.RWMutex
 )
 
 // MissingDataTreatment is a type used to pass to exported functions how the library should treat missing parameters
@@ -45,6 +40,18 @@ type MissingDataTreatment struct {
 	handleMissingData int
 }
 
+// potential values of MissingDataTreatment.handleMissingData
+
+const (
+	handleMissingData_Unset         = iota // The zero value of [MissingDataTreatment] corresponds to an unset value. Using this causes a panic rather than some default behaviour.
+	handleMissingData_AddZeros             // zero-initialize missing values
+	handleMissingData_AssertPresent        // panic if values are missing
+
+	// handleMissingData_TreatAsZero
+	// handleMissingData_Ignore
+
+)
+
 var (
 	// MissingDataAsZero is passed to functions to indicate that missing data should be zero initialized
 	MissingDataAsZero = MissingDataTreatment{handleMissingData: handleMissingData_AddZeros}
@@ -52,8 +59,8 @@ var (
 	EnsureDataIsPresent = MissingDataTreatment{handleMissingData: handleMissingData_AssertPresent}
 )
 
-// String is provided to make MissingDataTreatment satisfy fmt.Stringer.
-func (m MissingDataTreatment) String() string {
+// String is provided to make MissingDataTreatment satisfy fmt.Stringer. This is used for debugging only.
+func (m MissingDataTreatment) String() string { // Note: value receiver
 	switch m.handleMissingData {
 	case handleMissingData_Unset:
 		return "Unset value for missing data treatment"
@@ -67,32 +74,58 @@ func (m MissingDataTreatment) String() string {
 	}
 }
 
-// TODO: Move relevant global package doc to here.
+// StructSuitableForErrorsWithData is used to check whether a given StructType can be used as a generic parameter for various functions/methods/types in this package.
+// If StructType is suitable, this function returns nil; if unsuitable, returns an error describing a reason why StructType is unsuitable.
+//
+// Using an StructType that does not pass this generic function with any function/method/type of this package other than StructSuitableForErrorsWithData may generate a panic.
+//
+// The precise restrictions we place on StructType and check with this function are as follows:
+//
+//   - StructType must be a struct
+//   - All non-embedded field names must be exported.
+//   - Embedded types must not be pointer-to-struct. Embedded struct or pointer-to-non-struct is allowed.
+//   - Embedded structs lead to a promoted field hierarchy, which has a tree structure.
+//     We are more strict than the usual Go rules and allow shadowing of fields
+//     only iff every shadowed field is actually in a subtree of the struct that defines the shadowing field.
+//
+// An example of the last item above is the following: Consider types
+//
+//	type T struct{X int}
+//	type WrappedT struct{T}
+//	type S struct{T;WrappedT}
+//
+// we disallow S because S has a promoted field X via both S.T.X and S.WrappedT.T.X.
+// While Go itself would allow S.X as a promoted form of S.T.X (S.T.X wins over S.WrappedT.T.X due to lower depth),
+// we reject this construction, because the candidates get promoted via different pathways (WrappedT vs. T):
+// S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
+// If, in this example, S itself additionally defined its own field X, we S would satisfy our restrictions.
+// We do not expect such corner-cases to come up, really.
 func StructSuitableForErrorsWithData[StructType any]() (err error) {
 	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	return
 }
 
-// Note: This used to call reflect.VisibleFields rather than utils.AllFields.
+// Note: getStructMapConversionLookup used to call reflect.VisibleFields rather than utils.AllFields.
 // Unfortunately, reflect.VisibleFields does not handle embedded fields of non-struct type the way we like.
 // (e.g. one issue is embedded struct pointers)
 
-// getStructMapConversionLookup obtains a lookup table for converting a struct data type (passed as reflect.Type)
+// getStructMapConversionLookup obtains a data structure for converting a struct data type (passed as reflect.Type)
 // to a map[string]any. Repeated calls with the same argument give identical results (slice with same backing array)
+// since we use a global lookup-table to cache results.
 //
 // This mostly is just utils.AllFields with some extra checks upfront, skipping embedded fields and handling shadowed fields.
 //
 // This functions returns an error if called with a structType that is deemed invalid for our purpose.
-func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapConversion, err error) {
+func getStructMapConversionLookup(structType reflect.Type) (ret structTypeToFieldsLookupEntry, err error) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.
 	// (Not sure whether this is needed and this is actually true anyway due to the way utils.AllFields works)
 	// Also, it means we don't have to care about efficiency.
 
 	// Check if we alread have the table in the cache.
-	enforcedDataTypeMapMutex.RLock()
-	ret, ok := enforcedDataTypeMap[structType]
-	enforcedDataTypeMapMutex.RUnlock()
+	structTypeToFieldsMapMutex.RLock()
+	ret, ok := structTypeToFieldsMap[structType]
+	structTypeToFieldsMapMutex.RUnlock()
 	if ok {
 		return
 	}
@@ -136,7 +169,7 @@ func getStructMapConversionLookup(structType reflect.Type) (ret lookupStructMapC
 		return len(allFields[i].Index) < len(allFields[j].Index)
 	})
 
-	ret = make(lookupStructMapConversion, 0, len(allFields))
+	ret = make(structTypeToFieldsLookupEntry, 0, len(allFields))
 
 	// ensure everything is exported and filter out embedded fields
 outer_loop:
@@ -195,14 +228,14 @@ outer_loop:
 	}
 
 	// Write ret into the cache. We RW-lock the cache for this.
-	enforcedDataTypeMapMutex.Lock()
-	defer enforcedDataTypeMapMutex.Unlock()
+	structTypeToFieldsMapMutex.Lock()
+	defer structTypeToFieldsMapMutex.Unlock()
 	// We need to check if some other goroutine already filled the cache in the meantime.
-	_, ok = enforcedDataTypeMap[structType]
+	_, ok = structTypeToFieldsMap[structType]
 	if ok {
-		ret = enforcedDataTypeMap[structType]
+		ret = structTypeToFieldsMap[structType]
 	} else {
-		enforcedDataTypeMap[structType] = ret
+		structTypeToFieldsMap[structType] = ret
 	}
 	return
 }

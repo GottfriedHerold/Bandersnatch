@@ -9,13 +9,45 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// validateTokenList checks for the validity conditions on [tokenList] (as described in its doc) and bails out with t.Fatal on error.
+func validateTokenList(t *testing.T, tokenized tokenList) {
+	var previousTokenWasString bool
+	for i, token := range tokenized {
+		if i == 0 {
+			special, ok := token.(specialToken)
+			testutils.FatalUnless(t, ok && special == tokenStart, "tokenized string did not start with tokenStart")
+			continue
+		}
+		if i == len(tokenized)-1 {
+			special, ok := token.(specialToken)
+			testutils.FatalUnless(t, ok && special == tokenEnd, "tokenized string did not end with tokenEnd")
+			continue
+		}
+		s, tokenIsString := token.(stringToken)
+		if tokenIsString {
+			testutils.FatalUnless(t, !previousTokenWasString, "tokenized string contain consecutive string tokens")
+			testutils.FatalUnless(t, len(s) > 0, "tokenized string contains empty string")
+		} else {
+			special, ok := token.(specialToken)
+			testutils.FatalUnless(t, ok, "tokenized string was neither a special token or a string token")
+			testutils.FatalUnless(t, special != tokenStart, "tokenized string contained tokenStart at non-starting position %v", i)
+			testutils.FatalUnless(t, special != tokenEnd, "tokenized string contained tokenEnd at non-ending position %v", i)
+		}
+		previousTokenWasString = tokenIsString
+	}
+
+}
+
 func TestTokenizer(t *testing.T) {
 
 	test_token_case := func(s string, expected string) {
 		tokenized := tokenizeInterpolationString(s)
+		validateTokenList(t, tokenized)
 		tokenized_as_string := tokenized.String()
 		testutils.FatalUnless(t, tokenized_as_string == expected, "tokenizer did not get expected result for input string \"%s\".\nGot: %s. Expected:%s\n", s, tokenized_as_string, expected)
+
 	}
+
 	test_token_case("", "[ ]")
 	test_token_case("abc\ndef", "[ \"abc\ndef\" ]")
 	test_token_case(`\\\\\`, `[ "\\\" ]`)

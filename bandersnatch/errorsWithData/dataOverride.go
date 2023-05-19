@@ -38,7 +38,7 @@ var (
 // Helps with diagnostics
 
 // String is provided to make PreviousDataTreatment satisfy fmt.Stringer. It returns a string representing the meaning of the value.
-func (s PreviousDataTreatment) String() string {
+func (s PreviousDataTreatment) String() string { // Note: Value receiver
 	switch s.keep {
 	case treatPreviousData_Unset:
 		return "Unset value" // should we panic? I guess not, since this is just for diagnostics.
@@ -49,7 +49,8 @@ func (s PreviousDataTreatment) String() string {
 	case treatPreviousData_PanicOnCollision:
 		return "Panic on ambiguity"
 	default:
-		panic(fmt.Errorf(ErrorPrefix+"invalid value of PreviousDataTreatment : %v", s.keep)) // cannot really happen unless users use unsafe, because we don't export the type.
+		// cannot really happen unless users use unsafe, because we don't export the type.
+		panic(fmt.Errorf(ErrorPrefix+"invalid value of PreviousDataTreatment : %v", s.keep))
 	}
 }
 
@@ -100,13 +101,13 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 //
 // StructType must be valid for use in this library (in particular contain only exported fields).
 // This functions panics on invalid StructType.
-// If *m is a field inside s (or similar shenanigans), the behaviour is undefined.
-// Preexisting entries of m that do not correspond to a field of the struct are left unchanged.
+// If *m is a field inside *s (or similar shenanigans), the behaviour is undefined.
+// Preexisting entries of *m that do not correspond to a field of the struct are left unchanged.
 //
-// Treatment of preexisting keys in m that correspond to a field of the struct depends on mode:
+// Treatment of preexisting keys in *m that correspond to a field of the struct depends on mode:
 //   - mode == PreferPreviousData: preexisting values take precendence
-//   - mode == ReplacePreviousData: values from s take precedence
-//   - mode == AssertDataIsNotReplaced: panic if a key in m corresponds to a field in struct, unless the values are (comparable and) equal.
+//   - mode == ReplacePreviousData: values from *s take precedence
+//   - mode == AssertDataIsNotReplaced: panic if a key in *m corresponds to a field in struct, unless the values are (comparable and) equal.
 func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, mode PreviousDataTreatment) {
 	if *m == nil {
 		*m = make(map[string]any)
