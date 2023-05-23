@@ -120,6 +120,16 @@ func TestMisparses(t *testing.T) {
 	test_misparse_case("%v{a%!}", false || showall)  // stray %! in variable name
 	test_misparse_case("%v{a%!}", false || showall)  // stray $! in variable name
 	test_misparse_case("%v{a", false || showall)     // unterminated variable name
+	test_misparse_case("%$", false || showall)
+	test_misparse_case("%{", false || showall)
+	test_misparse_case("%{{", false || showall)
+	test_misparse_case("%x%", false || showall)
+	test_misparse_case("%x$", false || showall)
+	test_misparse_case("%x%!", false || showall)
+	test_misparse_case("%x$!", false || showall)
+	test_misparse_case("%x}", false || showall)
+	test_misparse_case("%x%w", false || showall)
+	test_misparse_case("%x$w", false || showall)
 
 	test_misparse_case("a$x{%w}b", false || showall)
 	test_misparse_case("a$x{$w}b", false || showall)
@@ -131,6 +141,7 @@ func TestMisparses(t *testing.T) {
 
 	test_misparse_case("a %w %!cond{%}", false || showall)
 	test_misparse_case("a %w $!cond{{}", false || showall)
+	test_misparse_case("a %w %!cond{", false || showall)
 
 	test_misparse_case("a%!", false || showall)
 	test_misparse_case("a$!", false || showall)
@@ -138,6 +149,15 @@ func TestMisparses(t *testing.T) {
 	test_misparse_case("a$!}", false || showall)
 	test_misparse_case("a%!{}", false || showall) // empty condition
 	test_misparse_case("a$!{}", false || showall)
+	test_misparse_case("%!cond", false || showall)
+	test_misparse_case("%!cond{", false || showall)
+	test_misparse_case("%!cond%", false || showall)
+	test_misparse_case("%!cond$", false || showall)
+	test_misparse_case("%!cond%!", false || showall)
+	test_misparse_case("%!cond$!", false || showall)
+	test_misparse_case("%!cond%w", false || showall)
+	test_misparse_case("%!cond$w", false || showall)
+	test_misparse_case("%!cond}", false || showall)
 
 }
 
