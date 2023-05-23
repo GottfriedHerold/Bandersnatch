@@ -91,6 +91,56 @@ func TestParser(t *testing.T) {
 	test_parse_case(`a%!C1{%!C2{a$w}}`, `AST(["a",%!C1{%!C2{["a",$w]}}])`)
 }
 
+func TestMisparses(t *testing.T) {
+	test_misparse_case := func(s string, printResult bool) {
+		if printResult {
+			fmt.Printf("Output requested for input %v.\n", s)
+		}
+		tokenized := tokenizeInterpolationString(s)
+		parse_result, err := make_ast(tokenized)
+		parse_ast_root := parse_result.(ast_root)
+		ast_as_string := parse_result.String()
+		if printResult {
+			fmt.Printf("n-band error given as %v\n", parse_ast_root.parseError)
+		}
+		testutils.FatalUnless(t, err != nil, "Got nil error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
+		testutils.FatalUnless(t, parse_ast_root.parseError != nil, "Got no in-band error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
+	}
+	const showall = true
+	test_misparse_case("%", false || showall)        // missing { after %
+	test_misparse_case("$", false || showall)        // missing { after $
+	test_misparse_case("x%v{f}y}", false || showall) // trailing stray }
+	test_misparse_case("%{}", false || showall)      // empty variable name after %
+	test_misparse_case("${}", false || showall)      // empty variable name after $
+	test_misparse_case("%x{%w}", false || showall)   // %w - expressing in variable name
+	test_misparse_case("a%x{$w}", false || showall)  // $w- expression in variable name
+	test_misparse_case("%v{a{}", false || showall)   // stray { in variable name
+	test_misparse_case("%v{a%}", false || showall)   // stray % in variable name
+	test_misparse_case("%v{a$}", false || showall)   // stray $ in variable name
+	test_misparse_case("%v{a%!}", false || showall)  // stray %! in variable name
+	test_misparse_case("%v{a%!}", false || showall)  // stray $! in variable name
+	test_misparse_case("%v{a", false || showall)     // unterminated variable name
+
+	test_misparse_case("a$x{%w}b", false || showall)
+	test_misparse_case("a$x{$w}b", false || showall)
+
+	test_misparse_case("%}", false || showall)
+	test_misparse_case("$}", false || showall)
+	test_misparse_case("a{}", false || showall)
+	test_misparse_case("{", false || showall)
+
+	test_misparse_case("a %w %!cond{%}", false || showall)
+	test_misparse_case("a %w $!cond{{}", false || showall)
+
+	test_misparse_case("a%!", false || showall)
+	test_misparse_case("a$!", false || showall)
+	test_misparse_case("a%!}", false || showall)
+	test_misparse_case("a$!}", false || showall)
+	test_misparse_case("a%!{}", false || showall) // empty condition
+	test_misparse_case("a$!{}", false || showall)
+
+}
+
 // dummy_interpolatableError is a struct satisfying ErrorInterpolater.
 //
 // It simply embeds an error an a function/closure f. If f is non-nil, f is used for Error_interpolate. This is only used in testing.

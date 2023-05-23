@@ -873,13 +873,14 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 
 			// We can close the currently open ast for the % or $ - expression, no matter what we actually read.
 			undo := stack.Pop() // named undo, because we need the return value to possibly undo things on failure.
+			// Note: undo is of type ast_fmtPercent or ast_fmtDollar
 			mode = parseMode_Sequence
 
 			// formatString of the % or $ expression. We need to handle the case where it's empty and replace it by "v".
 			// However, this needs to be done after error handling.
 			formatString := undo.(fmtStringGetter).get_formatString()
 
-			// We now handle the case if what we read actually was not a }
+			// We now handle the error case if what we read actually was not a }
 
 			// We previously read a string, so token is guaranteed to be a specialToken (no consecutive string tokens above).
 			token := token.(specialToken)
@@ -887,13 +888,12 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 				// We need to insert an error string and a literal interpretation of %FmtString{VariableName
 				top = *stack.Top() // ast_list
 				currentNode := top.(ast_list)
-				currentNode.remove_last()
 
 				percentOrDollar := undo.(initialTokenGetter).token()         // "%" or "$"
 				VariableName := undo.(variableNameGetter).get_variableName() // variableName
 
-				currentNode.remove_last()
-				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + formatString + "{" + VariableName))) // replay what was read so far.
+				currentNode.remove_last()                                                                                // remove the ast_fmtPercent or ast_fmtDollar
+				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + formatString + "{" + VariableName))) // replay what was read so far as a plain string
 				// case distinction to improve error messages.
 				if token == tokenEnd {
 					embeddedErrorMessage := embeddedParseError(`unexpected end of format string after reading a variable name without closing '}'`)
