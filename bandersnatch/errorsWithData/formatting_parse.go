@@ -962,8 +962,17 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 	return
 }
 
-/*
-func must_make_ast(s string) ast_root {
+// We might actually move this to testing. However, it fits better here.
 
+// make_ast_successfully is a variant of [make_ast] that panics on failure
+//
+// This is only used for creting test instances during testing of concrete implementation of [ErrorsWithData].
+// exported panic-upon-failure functions should not use this.
+func make_ast_successfully(s string) (ret ast_root) {
+	t := tokenizeInterpolationString(s)
+	ret, err := make_ast(t)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
-*/

@@ -13,7 +13,7 @@ import (
 // [MakeIncomparable] is kind-of an exception to this (it panics on nil, anyway).
 type errorWithParameters_common struct {
 	contained_error           error    // wrapped underlying error, can be nil
-	parsedInterpolationString ast_I    // (parsed) error message
+	parsedInterpolationString ast_root // (parsed) error message
 	params                    ParamMap // map strings -> data.
 }
 
