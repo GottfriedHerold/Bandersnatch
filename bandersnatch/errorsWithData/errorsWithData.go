@@ -222,6 +222,21 @@ const (
 // (This is done so we get a least some compile-time(!) checks on the side creating the error for this, as
 // error handling is prone to bad testing coverage)
 
+// NOTE: ErrorsWithData is an interface that describes what functionality the errors created by this package provides to
+// users. As such, it is purely an *external* API.
+//
+// The library currently provides only a single implementation of the interface. The only real reason why we use an interface at
+// all is to properly handle nils. (The "correct thing" to do would be some-kind of Optional/Variant types for errors reporting
+// and not use various shades of nil to indicate "no value". This is really a problem with the Go language.)
+//
+// In principle, the library is at least supposed to work with user-defined implementations U of this interface.
+// However, this only really pertains to the possibility that an error that is used as a base to create new errors has type U.
+// The newly created errors still has our own implementation.
+//
+// The exported functions to create new errors are tied to our particular implementation.
+// This makes use of functions outside ErrorsWithData API. As such, the internal API is
+// broader that the external one, a point that is a bit annoying for testing (it makes it difficult to write all test against the API).
+
 // ErrorWithData_any is an interface extending error to also contain arbitrary parameters
 // in the form of a map[string]any
 // Obtaining the additional data can and should be done via the more general free functions

@@ -98,15 +98,14 @@ func TestMisparses(t *testing.T) {
 		}
 		tokenized := tokenizeInterpolationString(s)
 		parse_result, err := make_ast(tokenized)
-		parse_ast_root := parse_result.(ast_root)
 		ast_as_string := parse_result.String()
 		if printResult {
-			fmt.Printf("n-band error given as %v\n", parse_ast_root.parseError)
+			fmt.Printf("n-band error given as %v\n", parse_result.parseError)
 		}
 		testutils.FatalUnless(t, err != nil, "Got nil error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
-		testutils.FatalUnless(t, parse_ast_root.parseError != nil, "Got no in-band error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
+		testutils.FatalUnless(t, parse_result.parseError != nil, "Got no in-band error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
 	}
-	const showall = true
+	const showall = false
 	test_misparse_case("%", false || showall)        // missing { after %
 	test_misparse_case("$", false || showall)        // missing { after $
 	test_misparse_case("x%v{f}y}", false || showall) // trailing stray }

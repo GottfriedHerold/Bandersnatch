@@ -129,7 +129,7 @@ func (a ast_root) simplify() {
 // new_ast_root creates a new node of type root. Its child node is nil, so you must call [set_child] afterwards.
 //
 // An ast_root with nil child is considered invalid. Add an empty list as child if needed.
-func new_ast_root() ast_I {
+func new_ast_root() ast_root {
 	return &v_ast_root{}
 }
 
@@ -147,7 +147,7 @@ type (
 )
 
 // new_ast_list creates a new node of list type. The newly created node is a valid (empty) list
-func new_ast_list() ast_I {
+func new_ast_list() ast_list {
 	v := make(v_ast_list, 0)
 	return &v
 }
@@ -179,7 +179,7 @@ func (al ast_list) squash_list() ast_I {
 type ast_string string
 
 // new_ast_string creates a leaf node with the given string literal.
-func new_ast_string(s stringToken) ast_I {
+func new_ast_string(s stringToken) ast_string {
 	return ast_string(s)
 }
 
@@ -223,12 +223,12 @@ func (a *base_ast_fmt) get_formatString() string {
 }
 
 // new_ast_fmtPercent creates a new node of type [ast_fmtPercent]. Its formatString and variableName have yet to be set.
-func new_ast_fmtPercent() ast_I {
+func new_ast_fmtPercent() ast_fmtPercent {
 	return &v_ast_fmtPercent{}
 }
 
 // new_ast_fmtPercent creates a new node of type [ast_fmtDollar]. Its formatString and variableName have yet to be set.
-func new_ast_fmtDollar() ast_I {
+func new_ast_fmtDollar() ast_fmtDollar {
 	return &v_ast_fmtDollar{}
 }
 
@@ -255,13 +255,13 @@ type (
 
 // new_ast_parentPercent creates a new node of type [ast_parentPercent]. This is ready to use.
 // Note that the parsing step does not know about the actual parent error, so there is no validity check (is there a non-nil parent error?) here.
-func new_ast_parentPercent() ast_I {
+func new_ast_parentPercent() ast_parentPercent {
 	return ast_parentPercent{}
 }
 
 // new_ast_parentDollar creates a new node of type [ast_parentDollar]. This is ready to use.
 // Note that the parsing step does not know about the actual parent error, so there is no validity check (is there a non-nil parent error that supports this?) here.
-func new_ast_parentDollar() ast_I {
+func new_ast_parentDollar() ast_parentDollar {
 	return ast_parentDollar{}
 }
 
@@ -535,13 +535,13 @@ func embeddedParseError(s string, args ...any) string {
 // Also note that make_ast only constructs the tree. It does not care whether the tokens "make sense".
 // In particular, formatStrings can contain %, Variable names could be unexported and not even valid Go identifiers, conditions not recognized etc.
 // These (optional) checks come later.
-func make_ast(tokens tokenList) (ret ast_I, err error) {
+func make_ast(tokens tokenList) (ret ast_root, err error) {
 
 	ret = new_ast_root() // Make root node. This is directly stored in ret for simplicity.
 
 	// the top of our tree (apart from the root node) is a list, starting empty.
 	initial_list := new_ast_list()
-	ret.(childSetter).set_child(initial_list)
+	ret.set_child(initial_list)
 
 	// since %!Foo{Bar} and $!Foo{Bar} can be nested, we can actually get a tree of arbitrary depth
 	// We maintain a stack that contains pointers to the ast_nodes on the current path to the leaf we are working with.
@@ -584,7 +584,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 		// The latter is done to make sure Validation function can reproduce the error.
 		if err == nil {
 			err = fmt.Errorf(ErrorPrefix+s, args...)
-			ret.(ast_root).parseError = err
+			ret.parseError = err
 		} else {
 			// err is only set by set_error.
 			// we enter parseMode_Error at the end of set_error. In this parseMode, we can never encounter another error, because
@@ -950,7 +950,7 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 	}
 
 	// Parse modes are reported both inside the returned ast as well as via the returned err.
-	if err != ret.(ast_root).parseError {
+	if err != ret.parseError {
 		panic(ErrorPrefix + "Cannot happen")
 	}
 
@@ -961,3 +961,9 @@ func make_ast(tokens tokenList) (ret ast_I, err error) {
 
 	return
 }
+
+/*
+func must_make_ast(s string) ast_root {
+
+}
+*/

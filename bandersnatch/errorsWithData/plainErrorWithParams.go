@@ -30,6 +30,8 @@ type errorWithParameters_T[StructType any] struct {
 // The point is that the actual implementing struct type, or at least the exported extra methods, are in principle visible (e.g. by type-asserting).
 // In some cases, we create ErrorWithData_any variables from an errorWithParameters_T[struct{}] rather
 // than a errorWithParameters_common. We can use forgetStructType to *consistently* use errorWithParameters_common as the implementing type.
+//
+// This method is purely an implementation detail and may be removed in the future.
 func forgetStructType[StructType any](err ErrorWithData[StructType]) ErrorWithData_any {
 	errImpl, ok := err.(*errorWithParameters_T[StructType])
 	if !ok {
