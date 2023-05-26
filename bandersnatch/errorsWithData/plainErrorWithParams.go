@@ -12,9 +12,9 @@ import (
 //
 // [MakeIncomparable] is kind-of an exception to this (it panics on nil, anyway).
 type errorWithParameters_common struct {
-	contained_error           error    // wrapped underlying error, can be nil
-	parsedInterpolationString ast_root // (parsed) error message
-	params                    ParamMap // map strings -> data.
+	wrapped_error             error    // wrapped underlying error, can be nil
+	parsedInterpolationString ast_root // (parsed) error message. Must be non-nil
+	params                    ParamMap // map strings -> data. Must be non-nil (use empty map for "no data" rather than nil)
 }
 
 // extension of errorWithParameters_common that satisfies ErrorWithData[StructType]
@@ -50,7 +50,7 @@ func (e *errorWithParameters_common) Error_interpolate(params_passed map[string]
 		panic(ErrorPrefix + "called Error_interpolate() on nil error of concrete type errorWithParameters_common. This is a bug, since nil errors of this type should never exist.")
 	}
 	var s strings.Builder
-	e.parsedInterpolationString.Interpolate(e.params, params_passed, e.contained_error, &s)
+	e.parsedInterpolationString.Interpolate(e.params, params_passed, e.wrapped_error, &s)
 	return s.String()
 }
 
@@ -68,7 +68,7 @@ func (e *errorWithParameters_common) Unwrap() error {
 	// While returnining untyped nil would give "meaningful" behaviour
 	// (including for the recursive calls in HasParameter etc.),
 	// we consider any nil pointer of concrete error type a bug.
-	return e.contained_error
+	return e.wrapped_error
 }
 
 // GetData is provided to satisfy ErrorWithParameters[StructType].
@@ -116,7 +116,7 @@ func makeErrorWithParametersCommon(baseError error, interpolationString string) 
 		panic(ErrorPrefix + "message for error creation was not a valid UTF-8 string")
 	}
 
-	ret.contained_error = baseError
+	ret.wrapped_error = baseError
 	tokens := tokenizeInterpolationString(interpolationString)
 
 	// Parse the intepolation string.
@@ -199,16 +199,16 @@ func (e *errorWithParameters_common) ValidateSyntax() error {
 
 // ValidateError_Final checks whether the created error contains certain errors that would trigger on .Error()
 func (e *errorWithParameters_common) ValidateError_Final() error {
-	return e.parsedInterpolationString.VerifyParameters_passed(e.params, e.params, e.contained_error)
+	return e.parsedInterpolationString.VerifyParameters_passed(e.params, e.params, e.wrapped_error)
 }
 
 // ValidateError_Base checks whether the created errors contains certain errors, up to the fact that any $-statements are only syntax-checked
 func (e *errorWithParameters_common) ValidateError_Base() error {
-	return e.parsedInterpolationString.VerifyParameters_direct(e.params, e.contained_error)
+	return e.parsedInterpolationString.VerifyParameters_direct(e.params, e.wrapped_error)
 }
 
 // ValidateError_Params checks whether the created error contains errors (in particular, ${VarName}-statements are valid), given the passed parameter map.
 // params_passed == nil is taken as using e's own parameters (this is distinct from passing an empty map)
 func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap) error {
-	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.contained_error)
+	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
 }

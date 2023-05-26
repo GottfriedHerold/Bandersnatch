@@ -64,12 +64,16 @@ type ast_I interface {
 	IsNode()        // Only to "mark" relevant types
 	String() string // Only used for debugging
 
-	// VerifySyntax reports whether a syntax error had occurred during parsing of the subtree below this node
-	// note that we may cut corners here and only require this to be accurate for the root
+	// VerifySyntax reports whether a syntax error is contained in the subtree below this node.
+	//
+	// Note that parsing errors are reported by ast_root only; for other types of nodes,
+	// this method assumes that the tree is part of a tree that resulted from error-free parsing.
+	// For such other nodes, the purpose is to check errors 
+	// 
 	VerifySyntax() (err error)
 
-	// VerifyParameters_direct report syntax or interpolation errors from the subtree below that node
-	// note that we may cut corners here and only require this to be accurate for the root
+	// VerifyParameters_direct report syntax or interpolation errors from the subtree below that node.
+	// Note that we may cut corners here and only require this to be accurate for the root
 	// parameters_direct and baseError are used for the interpolation. We assume parameters_direct to be non-nil.
 	VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error)
 

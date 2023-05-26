@@ -12,7 +12,8 @@ import (
 //
 //   - Tokenize the interpolation string
 //   - Parse the tokenized string into a syntax tree
-//   - [Optional] Perform some validity checks. (3 subchecks, actually. Those would be checked when actually producing output anyway, but sometime we want those checks early)
+//   - [Optional] Perform some validity checks. (3 subchecks, actually.
+//     Those would be checked when actually producing output anyway, but sometime we want those checks early)
 //   - Actually produce the interpolated error string.
 
 // This file contains the code for the last 2 steps.
