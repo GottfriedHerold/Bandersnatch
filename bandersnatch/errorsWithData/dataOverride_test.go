@@ -19,8 +19,8 @@ func TestMergeMaps(t *testing.T) {
 	testutils.FatalUnless(t, utils.CompareParamMaps(m2, ParamMap{"Foo": 5}), "")
 	mergeMaps(&m1, ParamMap{"Bar": 5}, AssertDataIsNotReplaced)
 	mergeMaps(&m1, ParamMap{"Bar": 6}, ReplacePreviousData)
-	mergeMaps(&m1, ParamMap{"Bar": uint(7)}, PreferPreviousData)
-	testutils.FatalUnless(t, utils.CompareParamMaps(m1, ParamMap{"Bar": 6}), "")
+	mergeMaps(&m1, ParamMap{"Bar": uint(7), "Bar2": "Bar2"}, PreferPreviousData)
+	testutils.FatalUnless(t, utils.CompareParamMaps(m1, ParamMap{"Bar": 6, "Bar2": "Bar2"}), "")
 
 	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{"Bar": nil}, AssertDataIsNotReplaced), "")
 
@@ -52,6 +52,17 @@ func TestFillMapFromStruct2(t *testing.T) {
 
 	var invalid PreviousDataTreatment
 	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[T2], &T2{}, &m1, invalid), "No panic for invalid PreviousDataTreatment")
+
+	var mNil ParamMap = nil
+	fillMapFromStruct(&struct{}{}, &mNil, PreferPreviousData)
+	testutils.FatalUnless(t, mNil != nil, "fillMapFromStruct does not work on nil maps")
+	testutils.FatalUnless(t, len(mNil) == 0, "")
+	mNil = nil
+	fillMapFromStruct(&T1{Foo: 10}, &mNil, PreferPreviousData)
+	testutils.FatalUnless(t, utils.CompareParamMaps(mNil, ParamMap{"Foo": 10}), "")
+
+	type invalidType = struct{ *int }
+	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[invalidType], &invalidType{}, &ParamMap{}, AssertDataIsNotReplaced), "No panic on invalid type")
 }
 
 /*

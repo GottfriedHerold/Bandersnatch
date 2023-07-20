@@ -83,7 +83,7 @@ func (m MissingDataTreatment) String() string { // Note: value receiver
 //
 //   - StructType must be a struct
 //   - All non-embedded field names must be exported.
-//   - Embedded types must not be pointer-to-struct. Embedded struct or pointer-to-non-struct is allowed.
+//   - Embedded types must not be pointer-to-struct. Embedded structs or embedded pointer-to-non-structs are allowed.
 //   - Embedded structs lead to a promoted field hierarchy, which has a tree structure.
 //     We are more strict than the usual Go rules and allow shadowing of fields
 //     only iff every shadowed field is actually in a subtree of the struct that defines the shadowing field.
@@ -98,7 +98,7 @@ func (m MissingDataTreatment) String() string { // Note: value receiver
 // While Go itself would allow S.X as a promoted form of S.T.X (S.T.X wins over S.WrappedT.T.X due to lower depth),
 // we reject this construction, because the candidates get promoted via different pathways (WrappedT vs. T):
 // S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
-// If, in this example, S itself additionally defined its own field X, we S would satisfy our restrictions.
+// If, in this example, S itself additionally defined its own field X, then S would satisfy our restrictions.
 // We do not expect such corner-cases to come up, really.
 func StructSuitableForErrorsWithData[StructType any]() (err error) {
 	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())

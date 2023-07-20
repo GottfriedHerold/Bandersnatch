@@ -50,7 +50,7 @@ import (
 // If the type changes, the memory for STH is reused.  Acquiring a pointer to a value-stored STH, then changing the values of x to something of a different type would result in a pointer of
 // of type *T pointing to something of type quite different from T, leading to disaster (even if not dereferenced, the garbage collector might misbehave badly if some stray pointers are kept around in non-garbage collected memory / STH contains pointers).
 // Of course, things work fine if STH is itself a pointer -- which is kind-of enforced by making *T satisfy the interface: Then the interface directly stores a value of type *T.
-// [2]: With usual production rules in BNF, a standard approach would not lead to ast_list storing n elements, but to a (binary) right/left-leaning tree.
+// [2]: With usual production rules in (non-extended) BNF, a standard approach would not lead to ast_list storing n elements, but to a (binary) right/left-leaning tree.
 // We take "production rule" to allow List -> SequenceElement* rules.
 // This is in fact the only reason (apart from defaulting to 'v' for fmtString, which could be inserted by the tokenizer) why the language is not LL(0);
 
@@ -67,9 +67,8 @@ type ast_I interface {
 	// VerifySyntax reports whether a syntax error is contained in the subtree below this node.
 	//
 	// Note that parsing errors are reported by ast_root only; for other types of nodes,
-	// this method assumes that the tree is part of a tree that resulted from error-free parsing.
-	// For such other nodes, the purpose is to check errors 
-	// 
+	// this method assumes that the node is part of a tree that resulted from error-free parsing.
+	// For such other nodes, the purpose is to check other syntax errors
 	VerifySyntax() (err error)
 
 	// VerifyParameters_direct report syntax or interpolation errors from the subtree below that node.
@@ -78,7 +77,7 @@ type ast_I interface {
 	VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error)
 
 	// VerifyParameters_passed report syntax or interpolation errors from the subtree below that node
-	// note that we may cut corners here and only require this to be accurate for the root
+	// note that we may cut corners here and only require this to be accurate for the root.
 	// parameters_direct, parameters_passed and baseError are used for the interpolation. We assume parameters_direct to be non-nil.
 	// parameters_passed == nil has the special meaning of not using this feature (and behaves like parameters_passed == parameters_direct)
 	// This is very different from parameters_passed being an empty map.
@@ -88,13 +87,15 @@ type ast_I interface {
 	// parameters_direct, parameters_passed and baseError are used to evaluate special tokens.
 	// parameters_passed == nil has the special meaning of not using this feature and behaves mostly like parameters_passed == parameters_direct.
 	// This is very different from parameters_passed being an empty map. parameters_direct should not not be nil (use an empty map instead)
+	//
+	// Note that appending to *s rather than returning a string is purely for efficiency reasons.
 	Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder)
 }
 
 // We add interfaces for extra functionality that is shared by multiple node types:
 // This allows to cut down the state space that we need to (explicitly) track in our DFA.
 type (
-	childSetter        interface{ set_child(ast_I) }              // ast_root, ast_condPercent, ast_condDollar -- set child ast
+	childSetter        interface{ set_child(ast_list) }           // ast_root, ast_condPercent, ast_condDollar -- set child ast (only list)
 	variableNameSetter interface{ set_variableName(stringToken) } // ast_fmtPercent, ast_fmtDollar -- set variable name
 	fmtStringSetter    interface{ set_formatString(stringToken) } // ast_fmtPercent, ast_fmtDollar -- set format string
 	conditionSetter    interface{ set_condition(stringToken) }    // ast_condPercent, ast_condDollar -- set condition string
@@ -107,8 +108,12 @@ type (
 )
 
 // *****
-// DEFINITIONS OF THE INVIDUAL IMPLEMENTATIONS OF NODE TYPES:
+// DEFINITIONS OF THE INDIVIDUAL IMPLEMENTATIONS OF NODE TYPES:
 // *****
+
+/*
+ * ast_root
+ */
 
 // ast_root is the type for the root of our abstract syntax trees.
 type (
@@ -116,7 +121,7 @@ type (
 		// actual "child" ast.
 		ast ast_I
 		// parseError is non - nil if there was an error when this tree was constructed.
-		// This is needed to make any Verify - function fail
+		// This is needed to make any Verify - function fail early.
 		parseError error
 	}
 	ast_root = *v_ast_root
@@ -140,9 +145,13 @@ func new_ast_root() ast_root {
 // set_child modifies a, setting the child ast to the provided child.
 //
 // set_child is accessible via the [childSetter] interface
-func (a ast_root) set_child(child ast_I) {
+func (a ast_root) set_child(child ast_list) {
 	(*a).ast = child
 }
+
+/*
+ * ast_list
+ */
 
 // ast_list is the node type for lists of ast's. Can only occur as child of [ast_root], [ast_condPercent] or [ast_condDollar].
 type (
@@ -156,14 +165,14 @@ func new_ast_list() ast_list {
 	return &v
 }
 
-// append_ast appends a new child node to the list. This is needed for error handling.
+// append_ast appends a new node to the list of children. This is needed for error handling.
 func (al ast_list) append_ast(a ast_I) {
 	*al = append(*al, a)
 }
 
 // remove_last removes that last added child node from the list.
 //
-// This method asserts that the list has lenght >0.
+// This method asserts that the list has lenght >0. It is only used during rollback on certain parse errors.
 func (al ast_list) remove_last() {
 	*al = (*al)[0 : len(*al)-1]
 }
@@ -178,6 +187,10 @@ func (al ast_list) squash_list() ast_I {
 	}
 }
 
+/*
+ * ast_string
+ */
+
 // ast_string is the node type for string literals. Note that string literals means string literals to be output as such.
 // Names of Variables / formatStrings etc. are NOT stored with this node type. Those are stored directly as entries of their ast_fmt nodes and not as tree nodes at all.
 type ast_string string
@@ -186,6 +199,11 @@ type ast_string string
 func new_ast_string(s stringToken) ast_string {
 	return ast_string(s)
 }
+
+/*
+ * ast_fmtPercent
+ * ast_fmtDollar
+ */
 
 // base_ast_fmt is a helper type for joint functionality of [ast_fmtPercent] and [ast_fmtDollar]
 // These types both struct-embedd base_ast_fmt.
@@ -250,6 +268,11 @@ func (a ast_fmtDollar) token() string {
 	return `$`
 }
 
+/*
+ * ast_parentPercent
+ * ast_parentDollar
+ */
+
 // ast_parentPercent and ast_parentDollar are the (stateless) leaf nodes for %w and $w in interpolationg strings.
 // These model references to the wrapped error.
 type (
@@ -269,11 +292,16 @@ func new_ast_parentDollar() ast_parentDollar {
 	return ast_parentDollar{}
 }
 
+/*
+ * ast_condPercent
+ * ast_condDollar
+ */
+
 // base_ast_condition is a helper type for joint functionality of [ast_condPercent] and [ast_condDollar] (via struct embedding)
 type base_ast_condition struct {
 	condition string // condition string that controls under what condition child is interpolated.
 	child     ast_I  // child node. During construction of the tree, we always initialize this with a [ast_list]-node that may later be replaced by a non-list node.
-	// invalidParse is set to true if there was a parse error when creating this node and the error happened after formatString was read.
+	// invalidParse is set to true if there was a parse error when creating this node and the error happened after condition was read.
 	// Additionally, this flag is set if there was a parse error in the child subtree.
 	// This flag then signals that we should output the condition string literally and child unconditionally.
 	// The purpose of this behaviour is to give better output diagnostics in case of parse errors; in particular,
@@ -311,7 +339,7 @@ func (a *base_ast_condition) make_invalid() {
 //
 // This is provided to satisfy the [childSetter] interface.
 // During our algorithm to construct the tree, the child is always an [ast_list] at first. We may later call simplify() to replace it by a non-list node.
-func (a *base_ast_condition) set_child(child ast_I) {
+func (a *base_ast_condition) set_child(child ast_list) {
 	a.child = child
 }
 
@@ -334,14 +362,14 @@ type (
 // new_ast_condPercent creates a new node of type [ast_condPercent].
 //
 // Its condition is the empty string and the (parsed) SubInterpolationString has yet to be set by set_child.
-func new_ast_condPercent() ast_I {
+func new_ast_condPercent() ast_condPercent {
 	return &v_ast_condPercent{}
 }
 
 // new_ast_condPercent creates a new node of type [ast_condPercent].
 //
 // Its condition is the empty string and the (parsed) SubInterpolationString has yet to be set by set_child
-func new_ast_condDollar() ast_I {
+func new_ast_condDollar() ast_condDollar {
 	return &v_ast_condDollar{}
 }
 

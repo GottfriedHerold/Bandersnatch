@@ -2,6 +2,8 @@ package errorsWithData
 
 import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 
+// TODO: Needs some cleanup (mostly removing parts of the API)
+
 // This file defines features needed to make errors into incomparable types.
 //
 // Notably, our errorWithData package can be used to create errors that are only
@@ -37,7 +39,7 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 //  - Base returnedError on ErrFoo and have errors.Is not distinguish between BoxedErrFoo and ErrFoo
 //
 // We actually choose the second option; this is done to avoid having incomparable errors in error chains,
-// as user code that follows the chain (e.g. a looger creating a map keyed by the errors it encountered) may wrongly assume errors are comparable and panic on it.
+// as user code that follows the chain (e.g. a logger creating a map keyed by the errors it encountered) may wrongly assume errors are comparable and panic on it.
 // (The implementations of errors.Is correctly specially-cases this)
 // To implement the second option, we use the hook that errors.Is provides:
 // Notably, errors.Is(err, target) checks whether err's dynamic type defines an
@@ -46,18 +48,20 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 //
 // Unfortunately, this Is method needs to be defined on err, not on target, which is the wrong way round for our needs.
 // So it's actually the unboxed error that needs to opt-into this mechanism
-// (This imposed some annoying limitations, complicates the implementation and, worst of all, couples it (somewhat) to the ErrorsWithData type)
+// (This imposes some annoying limitations, complicates the implementation and, worst of all, couples it (somewhat) to the ErrorsWithData type)
 // The alternative to box all returned errors would require returning errors as non-interface types.
 // This is just a very bad idea due to potential confusion of nil interfaces with typed nils;
-// also, making returned errors incomparable might trip up code that does not expect it (e.g. a logger creating a map keyed by errors will panic on this).
+// also, making actually returned errors incomparable might trip up code that does not expect it (e.g. a logger creating a map keyed by errors will panic on this).
 //
 // To simplify some handling, we do the following:
 //   - We only allow one level of boxing. All functions first unbox its inputs.
-//   - As all functions first unbox its inputs, using a boxed error as a base error for wrapping will in reality use the unboxed version.
+//   - As all our functions first unbox its inputs, using a boxed error as a base error for wrapping will in reality use the unboxed version.
 //   - The boxed versions also satisfy the same relevant interface as its unboxed counterparts.
 //
 // Note that the last point actually requires having multiple MakeErrorIncomparable - variants and boxing types, depending on the preserved interface.
 // (Making everything dependent on the preserved interface would require C++ - style *templates* and cannot be done with Go's *generics*)
+
+// TODO: Unexport and rename.
 
 // ComparableMaker is an internal interface satisfied by the incomparable errors.
 //
@@ -204,7 +208,7 @@ func (e incomparableError[StructType]) AsComparable_typed() ErrorWithData[Struct
 // The issue at hand is the return type and that this would need to be part of ErrorsWithData.
 //
 // Since we only expose errors that support this feature via the ErrorWithData or ErrorWithData_any interface,
-// any such MakeErrorIncomparable methods need to become a part of the interface (unless we want to force users to splinkle type-assert all over the place)
+// any such MakeErrorIncomparable methods need to become a part of the interface (unless we want to force users to sprinkle type-assert all over the place)
 //
 // Now, MakeErrorIncomparable needs to return a non-interface type to do its job.
 // However, we want to have versions that preserve any kind of extended interface.
@@ -225,12 +229,16 @@ func (e incomparableError[StructType]) AsComparable_typed() ErrorWithData[Struct
 // this can be potentially confusing. We do not specify the behaviour in order to be able to change it later.
 // (The alternative of returning a boxed nil may be useful in certain circumstances)
 
+// NOTE: The input types to MakeErrorIncomparable_any and MakeErrorIncomparable_struct are anonoymous interfaces,
+// even though we have (unexported) definitions matching those. This is intentional.
+
 // MakeErrorIncomparable_returns a boxed version of the given error which is not comparable.
+// Note that this function does not return an interface, but a struct containing an interface.
 //
 // This means that == will fail at compile-time (unless the returned value is stored in an interface -- then this causes a run-time panic or may give the wrong result)
 //
 // Comparison with errors.Is() will still work as intended. If e is already boxed, we unbox beforehand to only get one layer.
-// The behaviour when calling this function on nil is unspecified and the function may panic.
+// The behaviour when calling this function on nil is unspecified and the function may panic. The precise behaviour may be subject to change.
 func MakeErrorIncomparable(e IncomparableMaker) incomparableError_plain {
 	if e == nil {
 		panic(ErrorPrefix + "Called MakeErrorIncomparable_plain on nil error")
@@ -241,10 +249,12 @@ func MakeErrorIncomparable(e IncomparableMaker) incomparableError_plain {
 }
 
 // MakeErrorIncomparable_any returns a boxed version of the given error which is not comparable.
+// Note that this function does not return an interface, but a struct containing an interface.
 // This means that == will fail at compile-time (unless the returned value is stored in an interface -- then this causes a run-time panic or may give the wrong result)
+// Use this _any version to preserve the ErrorsWithData_any interface.
 //
 // Comparison with errors.Is() will still work as intended. If e is already boxed, we unbox beforehand to only get one layer.
-// The behaviour when calling this function on nil is unspecified and the function may panic.
+// The behaviour when calling this function on nil is unspecified and the function may panic. The precise behaviour may be subject to change.
 func MakeErrorIncomparable_any(e interface {
 	ErrorWithData_any
 	IncomparableMaker
@@ -252,21 +262,23 @@ func MakeErrorIncomparable_any(e interface {
 	if e == nil {
 		panic(ErrorPrefix + "Called MakeErrorIncomparable_any on nil error")
 	}
-	e = UnboxError(e).(ewd_MakeIncomparable_any)
+	e = UnboxError(e).(ewd_MakeIncomparable_any) // UnboxError_any???
 	return incomparableError_any{ewd_MakeIncomparable_any: e}
 }
 
-// MakeErrorIncomparable_returns a boxed version of the given error which is not comparable.
+// MakeErrorIncomparable_struct returns a boxed version of the given error which is not comparable.
+// Note that this function does not return an interface, but a struct containing an interface.
 // This means that == will fail at compile-time (unless the returned value is stored in an interface -- then this causes a run-time panic or may give the wrong result)
+// Use the _struct version to preserve the ErrorsWithData[StructType] interface.
 //
 // Comparison with errors.Is() will still work as intended. If e is already boxed, we unbox beforehand to only get one layer.
-// The behaviour when calling this function on nil is unspecified and the function may panic.
+// The behaviour when calling this function on nil is unspecified and the function may panic. The precise behaviour may be subject to change.
 func MakeErrorIncomparable_struct[StructType any](e interface {
 	ErrorWithData[StructType]
 	IncomparableMaker
 }) incomparableError[StructType] {
 	if e == nil {
-		panic(ErrorPrefix + "Called MakeErrorIncomparable on nil error")
+		panic(ErrorPrefix + "Called MakeErrorIncomparable_struct on nil error")
 	}
 	e = UnboxError_struct[StructType](e).(ewd_MakeIncomparable_struct[StructType])
 	return incomparableError[StructType]{ewd_MakeIncomparable_struct: e}

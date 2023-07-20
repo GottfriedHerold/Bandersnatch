@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
@@ -13,6 +14,7 @@ import (
 func validateTokenList(t *testing.T, tokenized tokenList) {
 	var previousTokenWasString bool
 	for i, token := range tokenized {
+		testutils.FatalUnless(t, token != tokenInvalid, "tokenized string contains invalid special token")
 		if i == 0 {
 			special, ok := token.(specialToken)
 			testutils.FatalUnless(t, ok && special == tokenStart, "tokenized string did not start with tokenStart")
@@ -27,6 +29,7 @@ func validateTokenList(t *testing.T, tokenized tokenList) {
 		if tokenIsString {
 			testutils.FatalUnless(t, !previousTokenWasString, "tokenized string contain consecutive string tokens")
 			testutils.FatalUnless(t, len(s) > 0, "tokenized string contains empty string")
+			testutils.FatalUnless(t, utf8.ValidString(string(s)), "Invalid UTF-8 in token string")
 		} else {
 			special, ok := token.(specialToken)
 			testutils.FatalUnless(t, ok, "tokenized string was neither a special token or a string token")
@@ -67,8 +70,70 @@ func TestTokenizer(t *testing.T) {
 	test_token_case(`%{Foo\%}`, `[ % { "Foo%" } ]`)
 	test_token_case(`${Foo\%}`, `[ $ { "Foo%" } ]`)
 	test_token_case(`%%%`, `[ "%" % ]`)
+	test_token_case("a\xc0\xffb", "[ \"a\uFFFDb\" ]") // unicode replacement character
 	// test_token_case("$%%x{%{")
+
 }
+
+func TestSpecialTokenToString(t *testing.T) {
+	for _, token := range allSpecialTokens {
+		_ = token.String()
+	}
+	for _, token := range allStringExpressibleSpecialTokens {
+		s := token.String()
+		tokenized := tokenizeInterpolationString(s)
+		validateTokenList(t, tokenized)
+		testutils.FatalUnless(t, len(tokenized) == 3, "")
+		testutils.FatalUnless(t, tokenized[1] == token, "")
+		// tokenized[0] == tokenStart and tokenized[2] == tokenEnd are checked by validateTokenList
+	}
+}
+
+var (
+	_ ast_I = new_ast_root()
+	_ ast_I = new_ast_list()
+	_ ast_I = new_ast_string(stringToken("foo"))
+	_ ast_I = new_ast_fmtPercent()
+	_ ast_I = new_ast_fmtDollar()
+	_ ast_I = new_ast_parentDollar()
+	_ ast_I = new_ast_parentPercent()
+	_ ast_I = new_ast_condDollar()
+	_ ast_I = new_ast_condPercent()
+
+	_ childSetter = new_ast_root()
+	_ childSetter = new_ast_condPercent()
+	_ childSetter = new_ast_condDollar()
+
+	_ simplifier = new_ast_root()
+	_ simplifier = new_ast_condPercent()
+	_ simplifier = new_ast_condDollar()
+
+	_ variableNameSetter = new_ast_fmtDollar()
+	_ variableNameSetter = new_ast_fmtPercent()
+
+	_ variableNameGetter = new_ast_fmtDollar()
+	_ variableNameGetter = new_ast_fmtPercent()
+
+	_ fmtStringSetter = new_ast_fmtDollar()
+	_ fmtStringSetter = new_ast_fmtPercent()
+
+	_ fmtStringGetter = new_ast_fmtDollar()
+	_ fmtStringGetter = new_ast_fmtDollar()
+
+	_ conditionSetter = new_ast_condPercent()
+	_ conditionSetter = new_ast_condDollar()
+
+	_ conditionGetter = new_ast_condPercent()
+	_ conditionGetter = new_ast_condDollar()
+
+	_ invalidatable = new_ast_condDollar()
+	_ invalidatable = new_ast_condPercent()
+
+	_ initialTokenGetter = new_ast_condPercent()
+	_ initialTokenGetter = new_ast_condDollar()
+	_ initialTokenGetter = new_ast_fmtDollar()
+	_ initialTokenGetter = new_ast_fmtPercent()
+)
 
 func TestParser(t *testing.T) {
 	test_parse_case := func(s string, expected string) {

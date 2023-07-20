@@ -22,21 +22,33 @@ import (
 // We add a start and end token at the beginning / end. This simplifies the parsing code.
 // Consecutive string tokens get concatenated into a single string token. This includes string tokens that result from escape sequences for %,$,{,}
 
+// Literal `$`, `\`, `{` and `}` in a regexp string must be escaped as `\$`, `\\`, `\{` and `\}`.
+// This strings.Replaces performs these escapes.
+// This is just used to simplify readability of [re_tokenize].
+//
+// Note that re_escaper escapes all occurances, thereby precluding to use e.g. $ as its regexp-specific meaning (end of text/line)
+// We use “-string syntax rather than "", because with the latter we would have to additionally escape all \'s in another layer...
+var re_escaper = strings.NewReplacer(`\`, `\\`, `$`, `\$`, `{`, `\{`, `}`, `\}`)
+
 // Regular expression to greedily subdivide the input string into non-overlapping instances of
 //   - all escape sequences \%, \$, \{, \}, \\, %%
 //   - all token sequences %!, $!, %, $, {, }, %w, $w
 //   - strings without $, %, {, }, \
 //   - plain unescaped \ (not followed by %, $, {, } or another \) -- taken as literal \
 //
-// NOTE: (?s) turns off special handling newlines within the string to be tokenized. Literal $ and { and } in the regexp string must be escaped as \$ \{ \}
+// NOTE: (?s) turns off special handling of newlines within the string to be tokenized.
 // NOTE2: %%, %w, %!, must come before % etc, because | is greedy.
-// NOTE3: We don't have a $$ - escape for $, because this makes $$$ ambigous. For %%%, we parse as literal %, followed by token %, because the other
+// NOTE3: We don't have a $$ - escape for $, because this makes $$$ ambiguous. For %%%, we parse as literal %, followed by token %, because the other
 // order is always invalid (format verbs cannot start with %). For $$$, both orders are potentially valid ($ is a legit format string verb)
-var re_tokenize = regexp.MustCompile(`(?s)(\\%|\\\$|\\\{|\\\}|\\\\|%%|%!|\$!|%w|\$w|%|\$|\{|\}|[^\$\{\}%\\]+)|\\`)
+var re_tokenize = regexp.MustCompile(re_escaper.Replace(`(?s)(\%|\$|\{|\}|\\|%%|%!|$!|%w|$w|%|$|{|}|[^${}%\]+|\)`))
 
+// token_I is the interface type holding a single token produced by the tokenizer.
+// We provide two implementations:
+//   - [stringToken] for string tokens
+//   - [specialToken] for active tokens. This is an enum type; we don't need different types for different active tokens
 type token_I interface {
 	IsToken()       // only used to mark the types as valid for token_I
-	String() string // only used for debugging
+	String() string // returns a string representation of the token. For [specialToken], this gives the defining sequence. For [stringToken], gives the (unescaped) string.
 }
 
 // specialToken is an enum type for special tokens that appear in interpolation strings such as %, $ etc.
@@ -60,8 +72,9 @@ func (s stringToken) String() string { return string(s) }
 // All string tokens are non-empty and no two consecutive string tokens appear.
 type tokenList []token_I
 
+// enum for all potential tokens of type [specialToken]
 const (
-	tokenInvalid       specialToken = iota // zero value intentionally invalid
+	tokenInvalid       specialToken = iota // zero value intentionally invalid (to aid debugging -- this indicates that a variable has not been set), must never appear
 	tokenPercent                           // % - token (not followed by ! or w)
 	tokenDollar                            // $ - token (not followed by ! or w)
 	tokenPercentCond                       // %!
@@ -74,9 +87,10 @@ const (
 	tokenEnd                               // added to the end of the tokenized string; this simplifies things a bit
 )
 
+// list of all tokens resp. all tokens that can be produced from strings. This is only used in testing.
 var (
-	allSpecialTokens         = []specialToken{tokenInvalid, tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd}
-	allSpecialTokensInString = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
+	allSpecialTokens                  = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd, tokenInvalid}
+	allStringExpressibleSpecialTokens = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
 )
 
 // tokenizeInterpolationString takes a string and tokenizes it.
@@ -87,13 +101,17 @@ var (
 //   - The first and last tokens are tokenStart and tokenEnd and those only appear at the start and the end
 //   - string tokens are non-empty
 //
-// Calling this function with invalid utf8 causes a panic. Other than that, tokenizing cannot fail.
+// Tokenizing cannot fail. Invalid utf-8 strings are handled by using the UTF-8 replacement character.
 func tokenizeInterpolationString(s string) (ret tokenList) {
 	if !utf8.ValidString(s) {
-		panic(ErrorPrefix + "formatString not a valid UTF-8 string")
+		s = strings.ToValidUTF8(s, string(utf8.RuneError)) // replace all invalid UTF-8 code points by replacement character
+		// panic(ErrorPrefix + "formatString not a valid UTF-8 string")
 	}
 	decomposition := re_tokenize.FindAllString(s, -1)
+	// We pre-allocate ret under the assumption that all elements of decomposition end up in its own token and set len(ret) accordingly.
+	// Due to merging consecutive string tokens, the final result might be a shorter list. We fix this at the end.
 	ret = make(tokenList, len(decomposition)+2) // +2 comes from tokenStart and tokenEnd.
+
 	ret[0] = tokenStart
 	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies i), we don't use i, entry := range decomposition
 	for _, entry := range decomposition {
@@ -148,13 +166,14 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 	return
 }
 
-// String will output a string representation of the special token. It mostly matches the string that gets parsed into it.
+// String will output a string representation of the special token. It matches the string that gets parsed into it.
 //
-// Note that this is mostly used for debugging and reporting of parse errors.
+// For tokenStart resp. tokenEnd, we return a "[" resp. "]"
+// (this is not really important, but convenient for tokenList.String() and our tests rely on this)
 func (token specialToken) String() string {
 	switch token {
 	case tokenInvalid:
-		return `INVALID TOKEN`
+		return `INVALID TOKEN` // must never happen. We don't panic, because this may be called during recover() for diagnostics.
 	case tokenPercent:
 		return `%`
 	case tokenDollar:

@@ -1,33 +1,34 @@
 // errorsWithData is a package to add arbitrary parameters to errors in a way that is compatible with error wrapping.
 //
-// Parameters can be added and retrieved to errors in two flavours:
-//   - as a paramMap (a type alias to map[string]any)
+// Parameters can be added to and retrieved from errors in two flavours:
+//   - as a [ParamMap] (a type alias to map[string]any)
 //   - as structs.
 //
 // We allow both interchangably, identifying a struct{A: x, B: y} with a map[string]any{"A":x, "B":y}.
 // The map keys are the field names, which gives some minor restrictions on what struct types are allowed.
-// The map/struct interfaces can be mixed-and-matched (i.e. parameters can be added via the map API and retrieved via the struct API and vice-versa).
+// The map/struct interfaces can be mixed-and-matched (i.e. parameters can be added via the map API and then retrieved via the struct API and vice-versa).
 // When retrieving as a struct, the queried fields may be a strict subset of the parameters present.
 //
-// The free functions that are part of the public API operate on errors of plain type error and are compatible with error wrapping.
-// We (need to) treat errors as (shallowly) immutable objects.
+// The free functions that are part of the public API operate on errors of plain type [error] and are compatible with error wrapping.
+//
+// This library treat errors as (shallowly) immutable objects.
 // This means that to (shallowly) modify the parameters of an error, you need create a new one,
 // typically wrapping the old one.
 //
 // Errors are returned either as an interface of type [ErrorWithData_any] or through a generic interface [ErrorWithData][StructType].
 // The first option corresponds roughly to StructType = struct{}, but is special-cased.
 //
-// StructType is used to communicate via the type system that certain parameters are present with certain types.
-// Notably, all these interfaces extend the builtin error interface and for a StructType = struct{A type1; B type2}, non-nil errors of type [ErrorWithData][StructType]
+// StructType is used to communicate via the type system that certain parameters are neccessarily present.
+// Notably, [ErrorWithData_any] and [ErrorWithData] extend the builtin error interface and for a StructType = struct{A type1; B type2}, non-nil errors of type [ErrorWithData][StructType]
 // are guaranteed to contain (at least) parameters under keys "A" and "B" of appropriate type.
 // For [ErrorWithData_any], we make no such guarantee about what parameters are present.
 // Generally speaking, this (and retrievability as structs in general) exists purely as a way to get some partial type-safety.
 //
-// We recommend adding / retrieving via the struct rather than the map API to obtain better some compile-time type-safety guarantees.
+// We recommend adding / retrieving via the struct rather than the map API to obtain better compile-time type-safety guarantees.
 // When using the map API, we recommend defining string constants for the map keys.
 //
 // We assert that any errors that are contained in error chains are either nil *interfaces* or non-nil.
-// In particular, no nil error of concrete type (pointer-to-struct, usually) shall ever appear.
+// This library will not produce a nil error of concrete type (pointer-to-struct, usually) unless given as input (which is either a serious footgun or a bug to start with, client-side, anyway).
 //
 // We further assume that all errors involved are immutable (and in particular, their associated data is).
 // This is enforced by our own implementation at least for shallow modification.
@@ -40,9 +41,10 @@
 // (This default behaviour for errors outside our package means that for errors not satisfying [ErrorWithData_any], we follow the error chain until we hit nil or find an error that satisfied [ErrorWithData_any])
 //
 // We generally ask that for any error e in the involved error chains, the output of e.Error() does not change over time.
-// The reason is that for the base error, we make no guarantee at what point(s) in time the base error's Error() method are called or the map is retrieved.
-// Similarly, the actual associated data that is contained in the error should not be modified. While we provide no way to modify the data (we only return copies), this also means that care should be taken
-// when using slices or pointers as associated data (as the contents of the backing array or the value pointed-to may change, potentially affecting the output of Error() ).
+// The reason is that for the base error, we make no guarantee at what point(s) in time the base error's Error() method are called or the parameters are retrieved.
+// Similarly, the actual associated data that is contained in the error should not be modified.
+// While we provide no way to modify the data (we only return copies), this also means that care should be taken
+// when using slices or pointers as associated data (because the contents of the backing array or the value pointed-to may change, potentially affecting the output of Error() ).
 // We recommend deep-copying slices.
 //
 // A second reason for the recommendation to deep-copy slices is that the pattern
@@ -65,16 +67,16 @@
 //
 // The reason is that in the latter case, escape analyis will likely fail and s will become heap-allocated, causing significant overhead.
 // This cost needs to be paid even if the something_bad_has_happened branch is not taken.
-// In the former case, we additionally make an extra copy and still allocate on the heap, but only if the relevant branch is taken.
+// In the former case, we additionally make an extra copy and allocate some_slice on the heap, but this only happens if the relevant branch is taken.
 // In the likely case that the bad branch is only rarely taken, this is much better.
 // In general, the parameters passed to create errors with data should be created only in the failing branch;
 // doing otherwise may carry a large performance penalty (since Go's interfaces essentially break Go's escape analysis) due to allocation and garbage collection.
 //
 // There are restrictions on StructType that can be checked with the generic [StructSuitableForErrorsWithData] function. See its documentation for details.
-// Most importantly, non-embedded field names must be exported.
+// Most importantly, all non-embedded field names must be exported.
 // Using any function of this package other than [StructSuitableForErrorsWithData] with an unsuitable StructType will generally cause a panic.
 //
-// The map API has less restrictions and works with arbitrary keys, but some functionality may be limited, particularly interpolation strings.
+// The map API has less restrictions and works with arbitrary strings as keys, but some functionality may be limited, particularly interpolation strings.
 // For that reason it is recommended to only use keys that satisfy [IsExportedIdentifier].
 //
 // Writing data and retrieving it again via the map API has perfect roundtrip.
@@ -96,10 +98,10 @@
 // In particular, roundtrip fails for shadowed fields:
 // Creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are shadowed embedded fields.
 //
-// Another roundtrip failure issue is nil interfaces. When retrieving via struct API, these get converted to appropriate type as needed.
-// (similar to what assigning untyped nil to a variable of non-interface type does)
-// For example, let some error contain a nil interface as data, say the parameter map is ParamMap{"Foo": nil}.
-// Then using the struct API, with struct{Foo *int}, this gets converted into a nil of appropriate type *int.
+// Another roundtrip failure issue is nil interfaces. When retrieving via struct API, these get converted to appropriate type (as specified by the types of the struct field) as needed.
+// This is similar to what assigning untyped nil to a variable of non-interface type does.
+// For example, let some error contain a nil interface as data: say the parameter map is ParamMap{"Foo": nil}.
+// Then using the struct API, with struct{Foo *int}, this gets retrieved as a struct, whose value of Foo is of appropriate type *int.
 //
 // To create errors, we provide functions [NewErrorWithData_params], [NewErrorWithData_map], [NewErrorWithData_struct], [NewErrorWithData_any_params], [NewErrorWithData_any_map].
 // These functions only differ in whether they return an [ErrorWithData] or [ErrorWithData_any] and how the data is passed.
@@ -110,7 +112,7 @@
 //
 // The main power of this package is in the ability to refer to the parameters' values in the error message, e.g.
 //
-//	err := NewErrorWithData_params(nil, "Something bad happended, the value of Foo is ${Foo}.", "Foo", 5)
+//	err := NewErrorWithData_any_params(nil, "Something bad happended, the value of Foo is ${Foo}.", ReplacePreviousData, "Foo", 5)
 //	fmt.Println(err)
 //
 // will print "Something bad happened, the value of Foo is 5." (without the quotation marks)
@@ -179,8 +181,8 @@ type ParamMap = map[string]any
 //
 // For example, %!m>0{Foo has value %x{Foo}} will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty
 const (
-	ConditionNonEmptyMap = "m>0"
-	ConditionEmptyMap    = "m=0"
+	ConditionNonEmptyMap = "m>0" // using %!m>0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non empty
+	ConditionEmptyMap    = "m=0" // using %!m=0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is empty
 )
 
 /////////////
@@ -242,8 +244,12 @@ const (
 // Obtaining the additional data can and should be done via the more general free functions
 // [GetData_map], [GetData_struct], [GetParameter], [HasData], [HasParameter]
 // as these work for arbitrary errors.
+//
+// Note: When creating any ErrorWithData_any, we (by default) inherit data from wrapped errors.
+// This is part of the job of the methods GetParameter, HasParameter and GetData_map, which are required to include inherited data.
+// (rather than require the caller to follow the error chain)
 type ErrorWithData_any interface {
-	error // i.e. provides an Error() string method
+	error // i.e. provides an Error() string method (redundant from Error_interpolate, but prefer to be explicit)
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
 	Error_interpolate(ParamMap) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
@@ -252,7 +258,7 @@ type ErrorWithData_any interface {
 	HasParameter(parameterName string) bool
 	// GetData_map returns a shallow copy of the parameter map. Note that this must never return a nil map.
 	GetData_map() map[string]any
-	// typically, any ErrorWithData_any also has Unwrap() error -- all errors created by this package do, but this is not part of the interface.
+	// typically, any implementation of ErrorWithData_any also has an Unwrap() error method -- all errors created by this package do, but this is not part of the interface.
 
 	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
 	ValidateError_Final() error                        // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
@@ -289,6 +295,13 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 // [GetData_map], [GetData_struct], [GetParameter], [HasData], [HasParameter]
 // but for [ErrorWithData][StructType], we can also call the GetData member function and
 // we are guaranteed that the error actually contains appropriate parameters to create an instance of StructType.
+//
+// Note: When creating any ErrorWithData_any, we (by default) inherit data from wrapped errors.
+// This is part of the job of the methods GetParameter, HasParameter and GetData_map, GetData_struct, which are required to include inherited data.
+// (rather than require the caller to follow the error chain)
+//
+// StructType must satisfy the constraints defined by [StructSuitableForErrorsWithData].
+// Otherwise, this type is useless and most functions will panic.
 type ErrorWithData[StructType any] interface {
 	ErrorWithData_any
 	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetDataFromError[StructType](e, EnsureDataIsPresent)
@@ -394,7 +407,7 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 // Calling with function with error data that is present but of wrong type will cause a panic.
 // Calling this function with an invalid StructType will cause a panic.
 func GetData_struct[StructType any](err error, mode MissingDataTreatment) (ret StructType) {
-	allParams := GetData_map(err)
+	allParams := GetData_map(err) // TODO: Avoid copying?
 	ret, wrongDataError := makeStructFromMap[StructType](allParams, mode)
 	if wrongDataError != nil {
 		panic(wrongDataError)

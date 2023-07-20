@@ -69,7 +69,8 @@ func CompareMaps[Keys comparable, Values comparable](x, y map[Keys]Values) bool 
 	return true
 }
 
-// CompareParamMaps does the same as [CompareMaps], but works with Go1.19 if the Values type is an interface.
+// CompareParamMaps does the same as [CompareMaps] with Values=any.
+// Up until Go1.19. [CompareMaps] does not work if Values is an interface type, which is why we use this.
 //
 // Note: Starting from Go1.20, CompareMaps just works. See https://go.dev/blog/comparable
 // We use this function for the sole purpose of avoiding a version dependency.

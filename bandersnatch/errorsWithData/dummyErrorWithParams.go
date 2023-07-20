@@ -1,6 +1,7 @@
 package errorsWithData
 
 // currently unused
+
 /*
 
 import (

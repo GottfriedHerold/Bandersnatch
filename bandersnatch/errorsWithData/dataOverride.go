@@ -7,12 +7,16 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// Use an encapsulated enum type for type-safety.
+// Functions and methods that modify errors with data take as input a parameter that controls how already-present data should be handled.
+// The options are to prefer the old, prefer the new or panic on ambiguity.
+// For type-safety, this choice is passed as a parameter of designated type PreviousDataTreatment.
+// This file defined this type and its associated methods.
 
 // PreviousDataTreatment is an encapsulated enum type passed to functions and methods that modify the data associated to errors.
 //
-// It controls how the library should treat setting values that are already present. We provide [PreferPreviousData], [ReplacePreviousData], [AssertDataIsNotReplaced] as potential values.
-// The zero value of this type is not a valid PreviousDataTreatment. Using a zero value will cause panics.
+// It controls how the library should treat setting values that are already present.
+// We provide [PreferPreviousData], [ReplacePreviousData], [AssertDataIsNotReplaced] as potential values.
+// The zero value of this type is not a valid PreviousDataTreatment. Using such a zero value will cause panics.
 type PreviousDataTreatment struct {
 	keep int
 }
@@ -20,7 +24,7 @@ type PreviousDataTreatment struct {
 // internal int-based enum for [PreviousDataTreatment]. We use a struct wrapping an int in our exported API.
 // This is because we want stronger typing for methods that already take "any" or generic-parameter dependent values.
 const (
-	treatPreviousData_Unset = iota // zero value
+	treatPreviousData_Unset = iota // zero value. This is not a valid value.
 	treatPreviousData_Override
 	treatPreviousData_PreferOld
 	treatPreviousData_PanicOnCollision
@@ -54,15 +58,19 @@ func (s PreviousDataTreatment) String() string { // Note: Value receiver
 	}
 }
 
+// TODO: Return error rather than panic on AssertDataIsNotReplaced?
+
+// This particular API (modifying *target) just happens to be convenient for our purpose.
+
 // mergeMaps modifies *target, setting it to the union of *target and source.
 // source == nil is treated as an empty map.
 //
 // The behaviour when *target == nil is unspecified. Use an empty map for *target.
 //
 // The handling of duplicate map keys that appear in both maps depends on mode:
-//   - mode == PreferPreviousData: values already in target take precendence
-//   - mode == ReplacePreviousData: values in source take precedence
-//   - mode == AssertDataIsNotReplaced: this function panics for duplicate keys, unless the values are comparable and equal.
+//   - mode == [PreferPreviousData]: values already in target take precendence
+//   - mode == [ReplacePreviousData]: values in source take precedence
+//   - mode == [AssertDataIsNotReplaced]: this function panics for duplicate keys, unless the values are comparable and equal.
 func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 	switch mode.keep {
 	case treatPreviousData_Override:
@@ -99,15 +107,15 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 // This function adds an entry to the provided (existing) map *m for each visible field of StructType (including from embedded structs).
 // This modifies *m, converting a nil map to an empty map.
 //
-// StructType must be valid for use in this library (in particular contain only exported fields).
-// This functions panics on invalid StructType.
+// StructType must be valid for use in this library (i.e. satisfy [StructSuitableForErrorsWithData]).
+// This functions panics otherwise.
 // If *m is a field inside *s (or similar shenanigans), the behaviour is undefined.
 // Preexisting entries of *m that do not correspond to a field of the struct are left unchanged.
 //
 // Treatment of preexisting keys in *m that correspond to a field of the struct depends on mode:
-//   - mode == PreferPreviousData: preexisting values take precendence
-//   - mode == ReplacePreviousData: values from *s take precedence
-//   - mode == AssertDataIsNotReplaced: panic if a key in *m corresponds to a field in struct, unless the values are (comparable and) equal.
+//   - mode == [PreferPreviousData]: preexisting values take precendence
+//   - mode == [ReplacePreviousData]: values from *s take precedence
+//   - mode == [AssertDataIsNotReplaced]: panic if a key in *m corresponds to a field in struct, unless the values are (comparable and) equal.
 func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, mode PreviousDataTreatment) {
 	if *m == nil {
 		*m = make(map[string]any)
