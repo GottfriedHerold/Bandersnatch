@@ -57,16 +57,23 @@ import (
 // ast_I is an interface type that is satisfied by all nodes (and in particular by the root) of the abstract syntax tree that we
 // parse interpolation strings into.
 //
-// Note that all implementating types are prefixed with ast_.
+// Note that all implementing types are prefixed with ast_.
 // These types may be aliases to pointer types and it's always the ast_foo type (not *ast_foo) that satisfies ast_I.
 // Assignment of any such ast_foo - type is always shallow. (i.e. y=x; y.modify(...) modifies x as well)
 type ast_I interface {
 	IsNode()        // Only to "mark" relevant types
-	String() string // Only used for debugging
+	String() string // Only used for debugging and testing (some test-cases compare against an expected output of String())
+
+	// Interpolate returns a string (by appending to *s) by actually evaluating the subtree below that node.
+	// parameters_direct, parameters_passed and baseError are used to evaluate special tokens.
+	// parameters_passed == nil has the special meaning of not using this feature and behaves mostly like parameters_passed == parameters_direct.
+	// This is very different from parameters_passed being an empty map. parameters_direct should not not be nil (use an empty map instead)
+	//
+	// Appending to *s rather than returning a string is purely for efficiency reasons.
+	Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder)
 
 	// VerifySyntax reports whether a syntax error is contained in the subtree below this node.
-	//
-	// Note that parsing errors are reported by ast_root only; for other types of nodes,
+	// Note that parsing errors may be reported by ast_root only; for other types of nodes,
 	// this method assumes that the node is part of a tree that resulted from error-free parsing.
 	// For such other nodes, the purpose is to check other syntax errors
 	VerifySyntax() (err error)
@@ -82,20 +89,12 @@ type ast_I interface {
 	// parameters_passed == nil has the special meaning of not using this feature (and behaves like parameters_passed == parameters_direct)
 	// This is very different from parameters_passed being an empty map.
 	VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error)
-
-	// Interpolate returns a string (by appending to *s) by actually evaluating the subtree below that node.
-	// parameters_direct, parameters_passed and baseError are used to evaluate special tokens.
-	// parameters_passed == nil has the special meaning of not using this feature and behaves mostly like parameters_passed == parameters_direct.
-	// This is very different from parameters_passed being an empty map. parameters_direct should not not be nil (use an empty map instead)
-	//
-	// Note that appending to *s rather than returning a string is purely for efficiency reasons.
-	Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder)
 }
 
 // We add interfaces for extra functionality that is shared by multiple node types:
 // This allows to cut down the state space that we need to (explicitly) track in our DFA.
 type (
-	childSetter        interface{ set_child(ast_list) }           // ast_root, ast_condPercent, ast_condDollar -- set child ast (only list)
+	childSetter        interface{ set_child_list(ast_list) }      // ast_root, ast_condPercent, ast_condDollar -- set child ast (only list)
 	variableNameSetter interface{ set_variableName(stringToken) } // ast_fmtPercent, ast_fmtDollar -- set variable name
 	fmtStringSetter    interface{ set_formatString(stringToken) } // ast_fmtPercent, ast_fmtDollar -- set format string
 	conditionSetter    interface{ set_condition(stringToken) }    // ast_condPercent, ast_condDollar -- set condition string
@@ -105,6 +104,34 @@ type (
 	conditionGetter    interface{ get_condition() string }        // ast_condPercent, ast_condDollar -- getter for the condition string
 	variableNameGetter interface{ get_variableName() string }     // ast_fmtPercent, ast_fmtDollar -- getter for variable name
 	fmtStringGetter    interface{ get_formatString() string }     // ast_fmtPercent, ast_fmtDollar -- getter for format string
+)
+
+// consolidated:
+
+type (
+	ast_with_children interface {
+		ast_I
+		set_child_list(ast_list)
+		get_children() ast_I
+		simplify()
+	}
+	ast_fmt interface {
+		ast_I
+		set_variableName(stringToken)
+		get_variableName() string
+		set_formatString(stringToken)
+		get_formatString() string
+		token() string
+	}
+	ast_cond interface {
+		ast_I
+		set_condition(stringToken)
+		get_condition() string
+		token() string
+		make_invalid()
+		is_valid() bool
+		simplify()
+	}
 )
 
 // *****
@@ -135,18 +162,25 @@ func (a ast_root) simplify() {
 	(*a).ast = (*a).ast.(ast_list).squash_list()
 }
 
-// new_ast_root creates a new node of type root. Its child node is nil, so you must call [set_child] afterwards.
+// new_ast_root creates a new node of type root. Its child node is nil, so you must call [set_child_list] afterwards.
 //
 // An ast_root with nil child is considered invalid. Add an empty list as child if needed.
 func new_ast_root() ast_root {
 	return &v_ast_root{}
 }
 
-// set_child modifies a, setting the child ast to the provided child.
+// set_child_list modifies a, setting the child ast to the provided child.
 //
-// set_child is accessible via the [childSetter] interface
-func (a ast_root) set_child(child ast_list) {
+// set_child_list is accessible via the [childSetter] interface
+func (a ast_root) set_child_list(child ast_list) {
 	(*a).ast = child
+}
+
+// get_children returns the child ast. The returned value is typically of type ast_list.
+//
+// This method is only used in testing
+func (a ast_root) get_children() ast_I {
+	return (*a).ast
 }
 
 /*
@@ -309,6 +343,8 @@ type base_ast_condition struct {
 	//
 	// Note that not all parse errors need to set this flag.
 	invalidParse bool
+
+	// Note: we store invalidParse rather than validParse, because this way, the zero value for bool (false) makes newly generated instances valid.
 }
 
 // set_condition sets the condition string for an [ast_condPercent] or [ast_condDollar].
@@ -335,12 +371,27 @@ func (a *base_ast_condition) make_invalid() {
 	a.invalidParse = true
 }
 
-// set_child sets the child node of the node of type [ast_condPercent] or [ast_condDollar].
+// is_valid returns whether the node of type [ast_condPercent] or [ast_condDollar] is valid
+//
+// This returns true unless [make_invalid] has been called on the node, which happens on certain parse errors.
+// This method may potentially be unused outside of testing.
+func (a *base_ast_condition) is_valid() bool {
+	return !a.invalidParse
+}
+
+// set_child_list sets the child node of the node of type [ast_condPercent] or [ast_condDollar].
 //
 // This is provided to satisfy the [childSetter] interface.
 // During our algorithm to construct the tree, the child is always an [ast_list] at first. We may later call simplify() to replace it by a non-list node.
-func (a *base_ast_condition) set_child(child ast_list) {
+func (a *base_ast_condition) set_child_list(child ast_list) {
 	a.child = child
+}
+
+// get_children returns the child ast. The returned value is typically of type ast_list (unless simplify was called).
+//
+// This method is only used in testing.
+func (a *base_ast_condition) get_children() ast_I {
+	return a.child
 }
 
 // simplify is provided for node types [ast_condPercent] and [ast_condDollar] to satisfy the [simplifier] interface.
@@ -361,14 +412,14 @@ type (
 
 // new_ast_condPercent creates a new node of type [ast_condPercent].
 //
-// Its condition is the empty string and the (parsed) SubInterpolationString has yet to be set by set_child.
+// Its condition is the empty string and the (parsed) SubInterpolationString has yet to be set by set_child_list.
 func new_ast_condPercent() ast_condPercent {
 	return &v_ast_condPercent{}
 }
 
 // new_ast_condPercent creates a new node of type [ast_condPercent].
 //
-// Its condition is the empty string and the (parsed) SubInterpolationString has yet to be set by set_child
+// Its condition is the empty string and the (parsed) SubInterpolationString has yet to be set by set_child_list
 func new_ast_condDollar() ast_condDollar {
 	return &v_ast_condDollar{}
 }
@@ -389,6 +440,7 @@ func (a ast_condDollar) token() string {
 
 // All ast_foo - types have an IsNode() method to signal they are intented to satisfy ast_I.
 // This is mostly to ensure that other types (such as helper types like base_ast_condition) don't accidentially satisfy ast_I.
+// This helps to prevent errors when writing code.
 
 func (a ast_root) IsNode()          {} // IsNode is a dummy method provided to satisfy [ast_I]
 func (a ast_list) IsNode()          {} // IsNode is a dummy method provided to satisfy [ast_I]
@@ -400,18 +452,19 @@ func (a ast_parentDollar) IsNode()  {} // IsNode is a dummy method provided to s
 func (a ast_condPercent) IsNode()   {} // IsNode is a dummy method provided to satisfy [ast_I]
 func (a ast_condDollar) IsNode()    {} // IsNode is a dummy method provided to satisfy [ast_I]
 
-// We define String methods on each AST node type. These are exclusively used for debugging.
+// We define String methods on each AST node type. These are exclusively used for debugging and testing.
+// (Notably, to write down test-cases compactly.)
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_root) String() string {
 	return "AST(" + (a.ast).String() + ")"
 }
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_list) String() string {
 	var b strings.Builder
 	b.WriteRune('[')
@@ -427,14 +480,14 @@ func (a ast_list) String() string {
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_string) String() string {
 	return `"` + string(a) + `"`
 }
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_fmtPercent) String() string {
 	var b strings.Builder
 	b.WriteRune('%')
@@ -447,7 +500,7 @@ func (a ast_fmtPercent) String() string {
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_fmtDollar) String() string {
 	var b strings.Builder
 	b.WriteRune('$')
@@ -460,21 +513,21 @@ func (a ast_fmtDollar) String() string {
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_parentPercent) String() string {
 	return "%w"
 }
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_parentDollar) String() string {
 	return "$w"
 }
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_condPercent) String() string {
 	var b strings.Builder
 	b.WriteRune('%')
@@ -488,7 +541,7 @@ func (a ast_condPercent) String() string {
 
 // String is required for the [ast_I] interface.
 //
-// It is only used for debugging.
+// It is only used for debugging and testing.
 func (a ast_condDollar) String() string {
 	var b strings.Builder
 	b.WriteRune('$')
@@ -520,7 +573,7 @@ type parseMode int
 const (
 	parseMode_Sequence      parseMode = iota // currently reading a sequence of list elements
 	parseMode_FmtString                      // expecting a format string (after % or $) or { for default format string
-	parseMode_Condition                      // expecting a condition (after %)
+	parseMode_Condition                      // expecting a condition (after %! or $!)
 	parseMode_VariableName                   // expecting a variable name
 	parseMode_OpenSequence                   // expecting a { to start a sequence (after %!COND or $!COND)
 	parseMode_OpenVariable                   // expecting a { to be followed by a variable name (after %fmtString or $fmtString)
@@ -539,46 +592,93 @@ const (
 //
 // Note that the main reason to use this function (over plain [fmt.Sprintf]) is that we may add some extra error string to designate parsing errors.
 // Using this function unifies those.
-func embeddedParseError(s string, args ...any) string {
-	return fmt.Sprintf(`<!META-ERROR: `+s+`>`, args...)
+func embeddedParseError(s string, args ...any) ast_string {
+	return new_ast_string(stringToken(fmt.Sprintf(`<!META-ERROR: `+s+`>`, args...)))
 }
 
 // make_ast creates a syntax tree out of the list of tokens.
 //
 // On failure, reports the first error. Note that we do NOT stop on errors;
-// we rather process the input to the end and build a valid syntax tree.
-// When we encounter the first parse error, we insert some diagnostic message (as a valid node of string type) and close any open %, $ or {'s.
-// Then, any "active" tokens read after the first error are turned into inactive string tokens.
-// From this point on, every processed token will then just be appended to the top list node, which cannot produce more errors.
+// we rather process the input to the end and build a meaningful syntax tree.
+// The returned syntax tree will contain a diagnostic message (as a valid node of string type).
+// Any tokens read after the first error are turned into top-level inactive string tokens (in particular, there will be no more errors). Interpolate will output them unevaluated.
 //
 // If there is a parse error, the returned err is additionally stored in the (root node of the) returned ret.
 // This is needed for diagnostics.
 //
-// To simplify the parser, we make the following assumption about the input list of tokens:
+// To simplify the parser, this function makes the following assumption about the input list of tokens:
 //   - tokens[0] == tokenStart
 //   - token[len(token)-1] == tokenEnd
 //   - no other tokenStart or tokenEnd appear
 //   - no two consecutive tokens have type stringToken
 //   - stringTokens are not the empty string (We have no token at all instead).
 //
-// These assumptions are satisfied by the output of our tokenizer.
-// Note that failure of these assumptions will cause a panic (or possibly weird misparses) rather than report errors.
+// These assumptions are satisfied by the output of our tokenizer. (note the [validateTokenList] function defined in formatting_test.go that checks this)
+// We make no guarantees what happens if these assumptions are not satisfied and do not check this.
+// Failures of these assumptions may cause a panic or possibly weird misparses rather than report errors.
 //
 // Also note that make_ast only constructs the tree. It does not care whether the tokens "make sense".
-// In particular, formatStrings can contain %, Variable names could be unexported and not even valid Go identifiers, conditions not recognized etc.
+// In particular, formatVerbs can contain extra "%", Variable names could be unexported and not even valid Go identifiers, conditions not recognized etc.
 // These (optional) checks come later.
 func make_ast(tokens tokenList) (ret ast_root, err error) {
+
+	// Our parser internally works as follows:
+	//
+	// We process the input tokenList one-by-one
+	// Absent %!cond{...} or $!cond{...} entries, there is actually no nesting involved, so the tree would just be a list
+	// (Note that the ast-nodes for %fmtString{Variable} entries actually store fmtString and Variable inside the node, not as children)
+	//
+	// So our algorithm will read tokens off the input list and append to a list.
+	// Any string or %w or $w token read can be processed immediately
+	// Reading any %, $, %! or $! token determine what kind of tokens must follow.
+	// For % or $, we expect to read fmtString(optional), {, a string, and }. After this, we are done creating a ast_fmtPercent or ast_fmtDollar-node
+	// For simplicity, we already create the appropriate node (with as-of-yet empty fmtString and VariableName) of type ast_fmtPercent or ast_fmtDollar when reading the introducing % or $.
+	// This temporary node is already appended to the list and additionally the top of the stack.
+	// We then set parserState to an appropriate value to interpret the next tokens and actually set fmtString and VariableName.
+	// When we finish reading the }, we pop it from the stack.
+	// For %! or $!, we use the exact same strategy; however, observe that creating the ast_condPercent or ast_condDollar - node is actually finished
+	// after reading %!cond{ or $!cond{, i.e. after the opening `{`
+	// To account for the sub-tree, we just push a node of list-type on the stack and then proceed to append to that.
+	// Reading the closing `}` just means we pop the stack. Note that the meaning of `}` is unambigous here, because the closing `}` of fmt-nodes is read in a parse modes where we MUST read a `}`.
+	//
+	// Our default parsing mode therefore is parseMode_Sequence, where we just expect to read the next node to be added to the list.
+	// We either read a token
+	//  - directly produces a node from a single-token (%w, $w, strings) or
+	//  - initiates a ast_fmtPercent, ast_fmtDollar, ast_condPercent, ast_condDollar - node (%, $, %!, $!)
+	//    In this case, we step through appropriate parseMode states to read what follows until the node is finished constructing and end up in parseMode_Sequence again.
+	//  - affects the stack: `}` means we pop the stack. `{` is actually invalid (because we only may read as we step through parseMode states following %, $, %!, $!).
+	//
+	// Note that as a consequence, the stack only contains (starting at the bottom) ast_root - ast_list, followed by any number >=0 of (ast_cond - ast_list) pairs.
+	// We note that we actually replace one-element lists by their single element, but this is done after the list is fully processed and does not affect parsing.
+	//
+	// Error handling:
+	// There is actually not terribly many error cases involved here and we handle them as follows:
+	//  - We Pop the stack up until we are at the top-level list and enter a special parseMode_Error state
+	//    In this state, everything further read will just be treated as an inactive string token to be appended to this top-level list
+	//    Any ast_condPercent or ast_condDollar popped this way will be marked as tainted.
+	//  - We append a string token that describes the error as an in-band error report
+	//  - We also report the error in the root node an function's return value.
+	//  - If an error occurs while we are in the process of creating an ast_fmtPercent, ast_fmtDollar, ast_condPercent, ast_condDollar (i.e. while we step though parseMode states, but read an unexpected token):
+	//    Note that we actually already created the ast-node upon reading the introducing %, $, %! or $!. In this case, we roll back and remove that node (replacing it by a string node for error reporting).
+	//    This may serve as the in-band error report (Note that it might not in the top-level list)
+	//  - The only errors that can occur are tokens of unexpected type, handled as above or
+	//    stack errors, meaning that we encounter } when there is no stack to pop or finish reading without popping the stack.
+	//  - We use the [set_error] local function to handle the stack popping, tainting ast_cond nodes and returning the error in the root and returned value err.
+	//    The in-band error string is processed by [embeddedParseError]. The actual error string is handled slightly differently by these two:
+	//    [set_error] prefixes the error with [ErrorPrefix], whereas [embeddedParseError] adds some <!META-ERROR...> tag to make the error stand out.
+	//    Both are to follow appropriate conventions: [ErrorPrefix] is used to designate the origin package of the object of type error.
+	//    <!META-ERROR...> is there to be consistent with [fmt]'s error reporting.
 
 	ret = new_ast_root() // Make root node. This is directly stored in ret for simplicity.
 
 	// the top of our tree (apart from the root node) is a list, starting empty.
 	initial_list := new_ast_list()
-	ret.set_child(initial_list)
+	ret.set_child_list(initial_list)
 
 	// since %!Foo{Bar} and $!Foo{Bar} can be nested, we can actually get a tree of arbitrary depth
-	// We maintain a stack that contains pointers to the ast_nodes on the current path to the leaf we are working with.
-	// Note that we push copies of the nodes (rather than pointers to the node) to the stack.
-	// This is fine, because all ast_I - nodes have shallow semantics anyway.
+	// We maintain a stack that contains the ast_nodes on the current path to the leaf we are working with.
+	// Note that we push copies of the nodes (rather than pointers) to the stack.
+	// This is fine, because all ast_I - nodes have shallow semantics.
 	stack := stack.MakeStack[ast_I]()
 	stack.Push(ret)
 	stack.Push(initial_list)
@@ -640,19 +740,23 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 		// This is mostly to ensure that diagnostic is not hidden.
 		for i := 0; i < (stack.Len()/2)-1; i++ {
 			_ = stack.Pop().(ast_list)
-			condNode := stack.Pop()
-			condition := condNode.(conditionGetter).get_condition()
+			condNode := stack.Pop().(ast_cond)
+			condition := condNode.get_condition()
 			if condition == "" {
 				panic("Cannot happen")
 			}
-			condNode.(invalidatable).make_invalid()
-			condNode.(simplifier).simplify()
+			condNode.make_invalid()
+			condNode.simplify()
 		}
 		mode = parseMode_Error
 	}
 
 	for _, token := range tokens {
-	redo: // goto redo can be used to "re-scan" the last token.
+		// goto redo can be used to "re-scan" the last token.
+		// This is done after certain errors:
+		// Re-scanning the token in parseMode_Error will just do the right thing,
+		// thereby simplifying the error handling.
+	redo:
 		var top ast_I = *stack.Top() // Peek at top of stack. NOTE: stack cannot be empty
 		switch mode {
 		case parseMode_Sequence: // expect to get a sequence of strings or tokens.
@@ -686,46 +790,48 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 					stack.Push(newNode)
 					mode = parseMode_Condition // read Condition string next
 				case tokenOpenBracket: // { without prior %, $, %! or $!
-					embeddedErrorMessage := embeddedParseError(`Unexpected '{'`)
-					newNode := new_ast_string(stringToken(embeddedErrorMessage))
-					currentNode.append_ast(newNode)
+					embeddedErrorNode := embeddedParseError(`Unexpected '{'`)
+					currentNode.append_ast(embeddedErrorNode)
 					set_error("Unexpected '{' in format string")
 
-				case tokenCloseBracket, tokenEnd: // terminating a list. tokenCloseBracket is for %!Cond{List} and $!Cond{List}. tokenEnd is for the root.
-					// ensure that } cannot appear at the top level of nested conditions:
-					// recall that stack is (starting from bottom) ROOT, LIST, followed by COND, LIST - pairs
-					// } is only valid if there is at least one such cond,list - pairs, which it terminates.
-					if (token == tokenCloseBracket) && (stack.Len() <= 3) {
+				case tokenCloseBracket:
+					if stack.Len() <= 3 {
 						// We always have ROOT-LIST on the stack until we read tokenEnd.
 						if stack.Len() != 2 {
 							panic("Cannot happen")
 						}
-						embeddedErrorMessage := embeddedParseError(`Unexpected '}'`)
-						newNode := new_ast_string(stringToken(embeddedErrorMessage))
-						currentNode.append_ast(newNode)
+						embeddedErrorNode := embeddedParseError(`Unexpected '}'`)
+						currentNode.append_ast(embeddedErrorNode)
 						set_error("Unexpected '}' in format string")
 						continue // with mode == parseMode_Error, set by set_error
-					} // tokenEnd must only appear at the top level.
-					// If we read a tokenEnd while the stack size is != 2, we have an unterminated %!COND{... somewhere
-					if (token == tokenEnd) && (stack.Len() != 2) {
+					}
+					_ = stack.Pop()                      // type popped is ast_list.
+					rootOrCond := stack.Pop().(ast_cond) // type popped is either ast_condPercent or ast_condDollar
+					rootOrCond.simplify()                // is the child list contains 1 element, replace list by single element.
+
+					// parseMode stays at parseMode_Sequence
+
+				case tokenEnd: // terminating a list. tokenCloseBracket is for %!Cond{List} and $!Cond{List}. tokenEnd is for the root.
+					// recall that stack is (starting from bottom) ROOT, LIST, followed by any number >=0 of (COND, LIST) - pairs
+					// tokenEnd must only appear at the top level, if there are no (COND,LIST)-pairse
+					// If we read a tokenEnd while the stack size is != 2, we therefore have an unterminated %!COND{... somewhere
+					if stack.Len() != 2 {
 						set_error(`Missing '}' in format string`)
 						// stack length is 2 after calling set_error
 						top = *stack.Top()
 						currentNode = top.(ast_list)
-						embeddedErrorMessage := embeddedParseError(`Missing '}' in format string`)
-						newNode := new_ast_string(stringToken(embeddedErrorMessage))
-						currentNode.append_ast(newNode)
+						embeddedErrorNode := embeddedParseError(`Missing '}' in format string`)
+						currentNode.append_ast(embeddedErrorNode)
 						goto redo // reprocess tokenEnd in parseMode_Error; this is just to simplify the code.
 					}
-					// stack.Len() >= 2 is guaranteed
 
-					_ = stack.Pop()                    // type popped is ast_list.
-					rootOrCond := stack.Pop()          // type popped is either ast_condPercent, ast_condDollar or ast_root
-					rootOrCond.(simplifier).simplify() // is the child list contains 1 element, replace list by single element.
+					// stack.Len() == 2 is guaranteed
+					_ = stack.Pop() // type popped is ast_list.
+					// NOTE: We could just do stack.Pop(); ret.simplify(), but this is clearer.
+					root := stack.Pop().(ast_root) // type popped is ast_root
+					root.simplify()                // is the child list contains 1 element, replace list by single element.
 
-					// If token == tokenEnd, mode no longer matters. In fact, since stack.Len() == 0 now, any further iteration will panic @ ast_I = *stack.Top()
-					// If token == tokenCloseBracket, we end up in the parent sequence, so parseMode_Sequence is correct
-					mode = parseMode_Sequence // no-op, but added for clarity
+					// parseMode stays at parseMode_Sequence
 
 				case tokenParentPercent: // create and add node for %w and continue with the list.
 					newNode := new_ast_parentPercent()
@@ -742,41 +848,40 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 
 		case parseMode_FmtString: // expect to read (optional) format string (which must be a string literal)
 			if token == tokenOpenBracket { // %{ or ${ is interpreted as %v{ or $v{
-				// Interpolate treats an empty format string as 'v'.
-				// Note: We don't want to just set formatString to 'v' at this point, because this would interact with
+				// We treat an empty format string as 'v'.
+				// However, we don't want to just set formatString to 'v' at this point, because this would interact with
 				// handling of parse errors: if there is a parse error (such as missing "}" ) in further processing the %{...} - clause
 				// we "undo" the parse and just literally output parts of the %{...} - clause that were read so far (together with an error message)
 				// If we set the formatString to 'v' here, parsing "%{foo" would result in a confusing "%v{foo" appearing in the error message.
+				// So we perform that replacement later.
 
-				mode = parseMode_VariableName // and proceed to the variable name
+				mode = parseMode_VariableName // proceed to the variable name
 			} else {
 				token_string, ok := token.(stringToken) // next token, if not {, must be a literal string
 				if !ok {
 					// remove the already-place ast_fmtPercent/ast_fmtDollar and replace it by a literal % or $
-					undo := stack.Pop()
-					top = *stack.Top() // ast_list
+					undo := stack.Pop().(ast_fmt)
+					top = *stack.Top() // ast_list, undo is (a shallow copy of) the last element of this list
 					currentNode := top.(ast_list)
 					currentNode.remove_last()
-					percentOrDollar := undo.(initialTokenGetter).token() // "%"  or "$"
+					percentOrDollar := undo.token() // "%"  or "$"
 					currentNode.append_ast(new_ast_string(stringToken(percentOrDollar)))
 
 					// The case distinctions is just for better error messages.
 					if token == tokenEnd {
-						embeddedErrorMessage := embeddedParseError(`Interpolation string ends in '%s'`, percentOrDollar)
-						newNode := new_ast_string(stringToken(embeddedErrorMessage))
-						currentNode.append_ast(newNode)
+						embeddedErrorNode := embeddedParseError(`Interpolation string ends in '%s'`, percentOrDollar)
+						currentNode.append_ast(embeddedErrorNode)
 						set_error(`Interpolation string ends in unescaped '%s'`, percentOrDollar)
 						goto redo // re-read tokenEnd in parseMode_Error
 					} else {
-						embeddedErrorMessage := embeddedParseError(`Invalid token %s after %s`, token.String(), percentOrDollar)
-						newNode := new_ast_string(stringToken(embeddedErrorMessage))
-						currentNode.append_ast(newNode)
+						embeddedErrorNode := embeddedParseError(`Invalid token %s after %s`, token.String(), percentOrDollar)
+						currentNode.append_ast(embeddedErrorNode)
 						set_error(`Invalid token %s after %s`, token.String(), percentOrDollar) // sets mode to parseMode_Error
 						goto redo                                                               // re-read the token following % or $. It will be interpreted as a string.
 					}
 
 				} // ok == true, token_string is an actual string
-				top.(fmtStringSetter).set_formatString(token_string)
+				top.(ast_fmt).set_formatString(token_string)
 				mode = parseMode_OpenVariable // expect to read {, followed by variable name next
 			}
 		case parseMode_Condition: // expect to read a condition string (which must be a (non-empty) string literal)
@@ -784,31 +889,29 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			if !ok {
 
 				// remove the already-place ast_condPercent/ast_condDollar and replace it by a literal %! or $!
-				undo := stack.Pop() // ast_condPercent or ast_condDollar
-				top = *stack.Top()  // ast_list
+				undo := stack.Pop().(ast_cond) // ast_condPercent or ast_condDollar
+				top = *stack.Top()             // ast_list
 				currentNode := top.(ast_list)
 				currentNode.remove_last()
-				percentOrDollarExlamMark := undo.(initialTokenGetter).token() // "%!"  or "$!"
+				percentOrDollarExlamMark := undo.token() // "%!"  or "$!"
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollarExlamMark)))
 
 				// The case distinctions is just for better error messages.
 				if token == tokenEnd {
-					embeddedErrorMessage := embeddedParseError(`Interpolation string ends in "%s"`, percentOrDollarExlamMark)
-					newNode := new_ast_string(stringToken(embeddedErrorMessage))
-					currentNode.append_ast(newNode)
+					embeddedErrorNode := embeddedParseError(`Interpolation string ends in "%s"`, percentOrDollarExlamMark)
+					currentNode.append_ast(embeddedErrorNode)
 					set_error(`Interpolation string ends in unescaped "%s"`, percentOrDollarExlamMark)
 					goto redo // re-read tokenEnd in parseMode_Error
 				} else {
-					embeddedErrorMessage := embeddedParseError(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark)
-					newNode := new_ast_string(stringToken(embeddedErrorMessage))
-					currentNode.append_ast(newNode)
+					embeddedErrorNode := embeddedParseError(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark)
+					currentNode.append_ast(embeddedErrorNode)
 					set_error(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark) // sets mode to parseMode_Error
 					goto redo                                                                            // re-read token in parseMode_Error
 				}
 
 			}
 			// ok == true, the token we just read is a string. It cannot be empty due to how the tokenizer works.
-			top.(conditionSetter).set_condition(token_string)
+			top.(ast_cond).set_condition(token_string)
 			mode = parseMode_OpenSequence // expect to read { next, followed by a sequence.
 		case parseMode_VariableName: // expect to read the name of a variable (which must be a string literal) after having processed %fmtString{
 			// The stack is (from top to bottom) ast_fmt - {ast_list - ast_cond -}* ast_list - ast_root
@@ -816,31 +919,30 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			token_string, ok := token.(stringToken)
 			if !ok {
 				// completely remove the ast_fmt and replace it by the literal string that was read so far.
-				undo := stack.Pop() // ast_fmtPercent or ast_fmtDolalr
-				top = *stack.Top()  // ast_list
+				undo := stack.Pop().(ast_fmt) // ast_fmtPercent or ast_fmtDolalr
+				top = *stack.Top()            // ast_list
 				currentNode := top.(ast_list)
 				currentNode.remove_last()
-				fmtString := undo.(fmtStringGetter).get_formatString() // format string
-				percentOrDollar := undo.(initialTokenGetter).token()   // "%" or "$"
+				fmtString := undo.get_formatString() // format string
+				percentOrDollar := undo.token()      // "%" or "$"
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + fmtString)))
 
-				// add a diagnostic node and call set_error. The case distinction is just to provide better error messages.
+				// add a diagnostic node and call set_error.
+				// The case distinction is just to provide better error messages, since tokenEnd.String() would not return the right string.
 				if token == tokenEnd {
-					embeddedErrorMessage := embeddedParseError(`Interpolation string ends where variable name was expected`)
-					newNode := new_ast_string(stringToken(embeddedErrorMessage))
-					currentNode.append_ast(newNode)
+					embeddedErrorNode := embeddedParseError(`Interpolation string ends where variable name was expected`)
+					currentNode.append_ast(embeddedErrorNode)
 					set_error(`Interpolation string ends where variable name was expected`)
 					goto redo
 				} else {
-					embeddedErrorMessage := embeddedParseError(`Got "%v" where variable name was expected`, token.String())
-					newNode := new_ast_string(stringToken(embeddedErrorMessage))
-					currentNode.append_ast(newNode)
+					embeddedErrorNode := embeddedParseError(`Got "%v" where variable name was expected`, token.String())
+					currentNode.append_ast(embeddedErrorNode)
 					set_error(`Got "%v" where variable name was expected`, token.String())
 					goto redo
 				}
 
 			} // good case:
-			top.(variableNameSetter).set_variableName(token_string)
+			top.(ast_fmt).set_variableName(token_string)
 			mode = parseMode_CloseVariable // expect to read } next
 
 		case parseMode_OpenSequence: // expect to read a { after %!COND or $!COND
@@ -849,27 +951,27 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			if token != tokenOpenBracket {
 
 				// completely remove the ast_cond and replace it by the literal string that was read so far.
-				undo := stack.Pop() // ast_condPercent or ast_condDolalr
-				top = *stack.Top()  // ast_list
+				undo := stack.Pop().(ast_cond) // ast_condPercent or ast_condDolalr
+				top = *stack.Top()             // ast_list
 				currentNode := top.(ast_list)
 				currentNode.remove_last()
-				condition := undo.(conditionGetter).get_condition()        // condition
-				percentOrDollarExclam := undo.(initialTokenGetter).token() // "%!" or "$!"
+				condition := undo.get_condition()     // condition
+				percentOrDollarExclam := undo.token() // "%!" or "$!"
 
 				// Note: The pattern %!Cond with missing { is likely because of a stray %! or $! that is not intended as a condition at all.
 				// For that reason, we place the embedded error message just after the %! or $! rather than at the place where we expect the {
 
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollarExclam)))
 
-				embeddedErrorMessage := embeddedParseError(`"%v" has no matching '{'`, percentOrDollarExclam)
-				currentNode.append_ast(new_ast_string(stringToken(embeddedErrorMessage)))
+				embeddedErrorNode := embeddedParseError(`"%v" has no matching '{'`, percentOrDollarExclam)
+				currentNode.append_ast(embeddedErrorNode)
 				currentNode.append_ast(new_ast_string(stringToken(condition)))
-				set_error(`Missing '{' after %vCondition`, percentOrDollarExclam)
+				set_error(`Missing '{' after %v%v`, percentOrDollarExclam, condition)
 				goto redo // reread token. This may well be tokenEnd, which is fine.
 			}
 			// good case: We create a new sub-list
 			newList := new_ast_list()
-			top.(childSetter).set_child(newList)
+			top.(ast_with_children).set_child_list(newList)
 			stack.Push(newList)
 			mode = parseMode_Sequence
 		case parseMode_OpenVariable: // expect to read a { initiating a variable name
@@ -880,20 +982,20 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			if token != tokenOpenBracket {
 
 				// completely remove the ast_fmt and replace it by the literal string that was read so far.
-				undo := stack.Pop() // ast_fmtPercent or ast_fmtDollar
-				top = *stack.Top()  // ast_list
+				undo := stack.Pop().(ast_fmt) // ast_fmtPercent or ast_fmtDollar
+				top = *stack.Top()            // ast_list
 				currentNode := top.(ast_list)
 				currentNode.remove_last()
-				formatString := undo.(fmtStringGetter).get_formatString() // formatString
-				percentOrDollar := undo.(initialTokenGetter).token()      // "%" or "$"
+				formatString := undo.get_formatString() // formatString
+				percentOrDollar := undo.token()         // "%" or "$"
 
 				// Note: The pattern %FmtString or $FmtString with missing { is likely because of a stray unescaped % or $ that is not intended as a formatting string at all.
 				// For that reason, we place the embedded error message just after the % or $ rather than at the place where we expect the {
 
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar)))
 
-				embeddedErrorMessage := embeddedParseError(`unescaped '%v' has no matching '{'`, percentOrDollar)
-				currentNode.append_ast(new_ast_string(stringToken(embeddedErrorMessage)))
+				embeddedErrorNode := embeddedParseError(`unescaped '%v' has no matching '{'`, percentOrDollar)
+				currentNode.append_ast(embeddedErrorNode)
 				currentNode.append_ast(new_ast_string(stringToken(formatString)))
 				set_error(`Missing '{' after %vFmtString`, percentOrDollar)
 				goto redo // reread token. This may well be tokenEnd, which is fine.
@@ -904,13 +1006,11 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 		case parseMode_CloseVariable: // expect to read a } after a variable name
 
 			// We can close the currently open ast for the % or $ - expression, no matter what we actually read.
-			undo := stack.Pop() // named undo, because we need the return value to possibly undo things on failure.
-			// Note: undo is of type ast_fmtPercent or ast_fmtDollar
-			mode = parseMode_Sequence
+			undo := stack.Pop().(ast_fmt) // named undo, because we need the return value to possibly undo things on failure.
 
 			// formatString of the % or $ expression. We need to handle the case where it's empty and replace it by "v".
 			// However, this needs to be done after error handling.
-			formatString := undo.(fmtStringGetter).get_formatString()
+			formatString := undo.get_formatString()
 
 			// We now handle the error case if what we read actually was not a }
 
@@ -921,21 +1021,21 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 				top = *stack.Top() // ast_list
 				currentNode := top.(ast_list)
 
-				percentOrDollar := undo.(initialTokenGetter).token()         // "%" or "$"
-				VariableName := undo.(variableNameGetter).get_variableName() // variableName
+				percentOrDollar := undo.token()         // "%" or "$"
+				VariableName := undo.get_variableName() // variableName
 
 				currentNode.remove_last()                                                                                // remove the ast_fmtPercent or ast_fmtDollar
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + formatString + "{" + VariableName))) // replay what was read so far as a plain string
 				// case distinction to improve error messages.
 				if token == tokenEnd {
-					embeddedErrorMessage := embeddedParseError(`unexpected end of format string after reading a variable name without closing '}'`)
-					currentNode.append_ast(new_ast_string(stringToken(embeddedErrorMessage)))
+					embeddedErrorNode := embeddedParseError(`unexpected end of format string after reading a variable name without closing '}'`)
+					currentNode.append_ast(embeddedErrorNode)
 					set_error(`Variable name not terminated by '}'`)
 					goto redo // to actually handle the tokenEnd token as ending the parse.
 
 				} else {
-					embeddedErrorMessage := embeddedParseError(`Variable name not terminated by '}'`)
-					currentNode.append_ast(new_ast_string(stringToken(embeddedErrorMessage)))
+					embeddedErrorNode := embeddedParseError(`Variable name not terminated by '}'`)
+					currentNode.append_ast(embeddedErrorNode)
 					set_error(`Variable name not terminated by '}'`)
 					goto redo // to actually display the current token.
 				}
@@ -943,8 +1043,10 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			// good case, token == tokenCloseBracket.
 			if formatString == "" {
 				// Note: undo is no longer on the stack, but still part of the tree. Modifying it works.
-				undo.(fmtStringSetter).set_formatString(stringToken("v"))
+				undo.set_formatString(stringToken("v"))
 			}
+			mode = parseMode_Sequence
+
 		case parseMode_Error:
 			// Invariant: The stack looks exactly as follows (from the bottom:) ROOT, LIST.
 			currentNode := top.(ast_list) // top is an ast_list node if we are in parseMode_Error
@@ -961,6 +1063,8 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 					currentNode.append_ast(new_ast_string(stringToken(token.String())))
 				} else {
 					_ = stack.Pop() // type popped is ast_list.
+					// Alternatively, we could do _ = stack.Pop(); ret.simplify() to avoid the type assertion
+					// The stack.Pop()'s are just to maintain the invariant that the stack is empty after we finish.
 					root := stack.Pop().(ast_root)
 					root.simplify()
 				}
@@ -977,6 +1081,8 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 		panic(ErrorPrefix + "Cannot happen")
 	}
 
+	// NOTE: We could remove this and remove the 2 stack.Pop() calls when handling tokenEnd
+	// and use ret.simplify() rather then calling simplify on the returned value from Pop()
 	if stack.Len() != 0 {
 		panic(ErrorPrefix + "Cannot happen")
 	}
@@ -998,7 +1104,7 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 
 // make_ast_successfully is a variant of [make_ast] that panics on failure
 //
-// This is only used for creting test instances during testing of concrete implementation of [ErrorsWithData].
+// This is only used for creating test instances during testing of concrete implementation of [ErrorsWithData].
 // exported panic-upon-failure functions should not use this.
 func make_ast_successfully(s string) (ret ast_root) {
 	t := tokenizeInterpolationString(s)

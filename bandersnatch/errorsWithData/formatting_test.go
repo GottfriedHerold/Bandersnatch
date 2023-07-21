@@ -89,51 +89,111 @@ func TestSpecialTokenToString(t *testing.T) {
 	}
 }
 
-var (
-	_ ast_I = new_ast_root()
-	_ ast_I = new_ast_list()
-	_ ast_I = new_ast_string(stringToken("foo"))
-	_ ast_I = new_ast_fmtPercent()
-	_ ast_I = new_ast_fmtDollar()
-	_ ast_I = new_ast_parentDollar()
-	_ ast_I = new_ast_parentPercent()
-	_ ast_I = new_ast_condDollar()
-	_ ast_I = new_ast_condPercent()
+/**
+ * Tests for individual ast types.
+ * All these are internal tests for unexported types and methods.
+ */
 
-	_ childSetter = new_ast_root()
-	_ childSetter = new_ast_condPercent()
-	_ childSetter = new_ast_condDollar()
+// Create a list containing each type that is intended to satisfy the interface.
+// Note that this also ensures (by failing to compile otherwise) that the intended types actually satisfy the interfaces
+// These are used to consolidate tests
 
-	_ simplifier = new_ast_root()
-	_ simplifier = new_ast_condPercent()
-	_ simplifier = new_ast_condDollar()
+func new_asts_with_children() [3]ast_with_children {
+	return [3]ast_with_children{new_ast_root(), new_ast_condDollar(), new_ast_condPercent()}
+}
 
-	_ variableNameSetter = new_ast_fmtDollar()
-	_ variableNameSetter = new_ast_fmtPercent()
+func new_asts_fmt() [2]ast_fmt {
+	return [2]ast_fmt{new_ast_fmtDollar(), new_ast_fmtPercent()}
+}
 
-	_ variableNameGetter = new_ast_fmtDollar()
-	_ variableNameGetter = new_ast_fmtPercent()
+func new_asts_cond() [2]ast_cond {
+	return [2]ast_cond{new_ast_condDollar(), new_ast_condPercent()}
+}
 
-	_ fmtStringSetter = new_ast_fmtDollar()
-	_ fmtStringSetter = new_ast_fmtPercent()
+// TestASTWithChildren tests that all ast types satisfying [ast_with_children] ([ast_root], [ast_condDollar], [ast_condPercent])
+// satisfy the contracts of that interface (beyond ast_I)
+func TestASTWithChildren(t *testing.T) {
+	L := new_asts_with_children()
+	for _, ast := range L {
+		ast.set_child_list(nil)
+		var astCopy ast_with_children = ast
+		newList := new_ast_list()
+		ast.set_child_list(newList)
+		testutils.FatalUnless(t, ast.get_children() == newList, "Did not get back list")
+		testutils.FatalUnless(t, astCopy.get_children() == newList, "Assignment not shallow")
+		ast.simplify()
+		testutils.FatalUnless(t, ast.get_children() == newList, "Simplify changed empty list")
+		var ast_c1 ast_I = new_ast_list() // not important that it's a list, but we want sth. with state.
+		var ast_c2 ast_I = new_ast_list() // not important that it's a list, but we want sth. with state.
+		newList.append_ast(ast_c1)
+		newList.append_ast(ast_c2)
+		testutils.FatalUnless(t, ast.get_children() == newList, "Modifying child list breaks link")
+		ast.simplify()
+		testutils.FatalUnless(t, ast.get_children() == newList, "Simplify changed 2-element list")
+		newList.remove_last()
+		testutils.FatalUnless(t, ast.get_children() == newList, "Modifying child list breaks link (2)")
+		ast.simplify()
+		testutils.FatalUnless(t, ast.get_children() == ast_c1, "simplfy did not work")
+		testutils.FatalUnless(t, astCopy.get_children() == ast_c1, "Assignment not shallow (2)")
+	}
+}
 
-	_ fmtStringGetter = new_ast_fmtDollar()
-	_ fmtStringGetter = new_ast_fmtDollar()
+// TestASTFmt tests that all ast types satisfying [ast_fmt], i.e. [ast_fmtPercent] and [ast_fmtDollar]
+// satisfy the contracts of that interface (beyond ast_I)
+func TestASTFmt(t *testing.T) {
+	L := new_asts_fmt()
+	for _, ast := range L {
+		testutils.FatalUnless(t, ast.get_formatString() == "" || ast.get_formatString() == "v", "initial fmt string non-empty or \"v\"") // currently, it is "", but "v" might be a valid and meaningful implementation.
+		testutils.FatalUnless(t, ast.get_variableName() == "", "initial variable name non-empty")
+		var astCopy ast_fmt = ast
+		ast.set_variableName("var")
+		ast.set_formatString("fmt")
+		testutils.FatalUnless(t, ast.get_variableName() == "var", "setter/getter failure for variable name")
+		testutils.FatalUnless(t, ast.get_formatString() == "fmt", "setter/getter failure for format string")
+		testutils.FatalUnless(t, astCopy.get_variableName() == "var", "setter/getter not shallow for variable name")
+		testutils.FatalUnless(t, astCopy.get_formatString() == "fmt", "setter/getter not shallow for format string")
+		tok := ast.token()
+		switch ast.(type) {
+		case ast_fmtDollar:
+			testutils.FatalUnless(t, tok == `$`, "")
+		case ast_fmtPercent:
+			testutils.FatalUnless(t, tok == `%`, "")
+		default:
+			t.Fatalf("unexpected ast_fmt type %T", ast)
+		}
+	}
+}
 
-	_ conditionSetter = new_ast_condPercent()
-	_ conditionSetter = new_ast_condDollar()
+// TestASTCond test that all ast types satisfying [ast_cond], i.e. [ast_condPercent] and [ast_condDollar]
+// satisfy the contracts of that interface (beyond ast_I)
+func TestASTCond(t *testing.T) {
+	L := new_asts_cond()
+	for _, ast := range L {
+		testutils.FatalUnless(t, ast.is_valid(), "fresh cond is invalid")
+		testutils.FatalUnless(t, ast.get_condition() == "", "fresh condition ast has non-empty condition %v", ast.get_condition())
+		var astCopy ast_cond = ast
+		ast.set_condition("cond")
+		testutils.FatalUnless(t, ast.get_condition() == "cond", "setter/getter failure for cond")
+		testutils.FatalUnless(t, astCopy.get_condition() == "cond", "shallowness failure for cond")
+		tok := ast.token()
+		switch ast.(type) {
+		case ast_condDollar:
+			testutils.FatalUnless(t, tok == `$!`, "")
+		case ast_condPercent:
+			testutils.FatalUnless(t, tok == `%!`, "")
+		default:
+			t.Fatalf("Unexpected ast_cond type %T", ast)
+		}
+		ast.make_invalid()
+		testutils.FatalUnless(t, !ast.is_valid(), "")
+		testutils.FatalUnless(t, !astCopy.is_valid(), "")
+		ast.make_invalid()
+		testutils.FatalUnless(t, !ast.is_valid(), "")
+		testutils.FatalUnless(t, !astCopy.is_valid(), "")
+	}
+}
 
-	_ conditionGetter = new_ast_condPercent()
-	_ conditionGetter = new_ast_condDollar()
-
-	_ invalidatable = new_ast_condDollar()
-	_ invalidatable = new_ast_condPercent()
-
-	_ initialTokenGetter = new_ast_condPercent()
-	_ initialTokenGetter = new_ast_condDollar()
-	_ initialTokenGetter = new_ast_fmtDollar()
-	_ initialTokenGetter = new_ast_fmtPercent()
-)
+// Parser check for all valid(!) parse cases.
 
 func TestParser(t *testing.T) {
 	test_parse_case := func(s string, expected string) {
@@ -148,10 +208,17 @@ func TestParser(t *testing.T) {
 	}
 	test_parse_case(``, `AST([])`)
 	test_parse_case(`ABC`, `AST("ABC")`)
-	test_parse_case(`%w%w`, `AST([%w,%w])`)
+	test_parse_case(`a\\b`, `AST("a\b")`)
 	test_parse_case(`%w`, `AST(%w)`)
+	test_parse_case(`$w`, `AST($w)`)
+	test_parse_case(`%fmt{Var}`, `AST(%fmt{Var})`)
+	test_parse_case(`$fmt{Var}`, `AST($fmt{Var})`)
+	test_parse_case(`%!cond{}`, `AST(%!cond{[]})`)
+	test_parse_case(`$!cond{}`, `AST($!cond{[]})`)
 	test_parse_case(`ABC%wDEF`, `AST(["ABC",%w,"DEF"])`)
 	test_parse_case(`%{\$Foo}`, `AST(%v{$Foo})`)
+	test_parse_case(`%w%w`, `AST([%w,%w])`)
+
 	test_parse_case(`a$!C{DEF}`, `AST(["a",$!C{"DEF"}])`)
 	test_parse_case(`a%!C1{%!C2{a$w}}`, `AST(["a",%!C1{%!C2{["a",$w]}}])`)
 }
