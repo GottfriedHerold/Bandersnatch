@@ -123,7 +123,8 @@
 //   - %w and $w insert the error message of the wrapped error (with special behaviour for $w).
 //   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
 //     An empty FormatVerb defaults to v. FormatVerb must not start with w or !.
-//   - VariableName must either be an exported identifier or one of the special strings 'm', 'map', 'parameters', 'params'. For these we print all parameters as a map[string]any.
+//   - VariableName must either satisfy [ValidInterpolationName] or be one of the special strings '!m', '!map', '!parameters', '!params'.
+//     For the latter, we print all parameters as a map[string]any.
 //   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar. We currently support the conditions
 //     "m=0" and "m>0" (without the quotation marks). These conditions mean that the parameter map is empty or non-empty, respectively.
 //     The set of supported condition strings may be expanded in the future.
@@ -151,7 +152,8 @@
 // its Error() method will return an error message telling about the mistake instead of the intended errror message.
 // (In case of parse errors, this error message is rather verbose and prints the whole parameter map)
 // The potential mistakes are
-//   - syntax errors
+//   - parse errors
+//   - invalid conditions, invalid variable names, format verbs containing %
 //   - missing parameters
 //   - using $w or %w if there is no wrapped error or the wrapped error does not support $w
 //
@@ -171,6 +173,8 @@ package errorsWithData
 import (
 	"errors"
 	"go/token"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // ParamMap is an alias to map[string]any. It is used to store arbitrary collections of data associated to a given error.
@@ -263,7 +267,7 @@ type ErrorWithData_any interface {
 	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
 	ValidateError_Final() error                        // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
 	ValidateError_Base() error                         // same as ValidateError_Final, but ignores missing variables for $-syntax.
-	ValidateError_Params(params_passed ParamMap) error // same as ValidateError_Final, but use param_passed for any appearing $. Using params_passed == nil will use the errors own stored parameters (as opposed to an empty map).
+	ValidateError_Params(params_passed ParamMap) error // same as ValidateError_Final, but use param_passed for any appearing $. Using params_passed == nil will use the error's own stored parameters (as opposed to an empty map).
 }
 
 // ErrorInterpolater is an extension of the error interface that allows the error output to depend on additional data.
@@ -316,9 +320,21 @@ type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
 // Note: This does not apply to in-band error messages reported by err.Error() when there was a problem with err (such as mis-parsing an interpolation string).
 const ErrorPrefix = "bandersnatch / error handling: "
 
-// IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
+// ValidInterpolationName returns true if the given string is a valid variable name for use in %fmtVerb{parameterName}
+// in our interpolation string language.
+// Note that this function returns false for the special arguments !m, !map, !params, !parameters that are used to interpolate the map itself.
+func ValidInterpolationName(parameterName string) bool {
+	return isExportedIdentifier(parameterName)
+}
+
+// validConditionString checks whether the given condition string (i.e. what follows after %! or $!) is actually recognized by our language.
+func validConditionString(conditionString string) bool {
+	return utils.ElementInList(conditionString, validConditions[:])
+}
+
+// isExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
 // (Meaning it starts with a capital letter, followed by letters, digits and underscores -- note that both letters and digits may be non-ASCII)
-func IsExportedIdentifier(s string) bool {
+func isExportedIdentifier(s string) bool {
 	// "token" here refers to the go/token standard library, not to tokens in the interpolation string grammar (possible unfortunate name collision in the package).
 	// We use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise, due to potential non-ASCII letters and digits.
 	return token.IsIdentifier(s) && token.IsExported(s)

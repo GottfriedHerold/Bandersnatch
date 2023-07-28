@@ -194,21 +194,30 @@ func newErrorWithData_map[StructType any](baseError error, interpolationString s
 
 // ValidateSyntax checks whether the created error has any syntax error in its interpolation string
 func (e *errorWithParameters_common) ValidateSyntax() error {
-	return e.parsedInterpolationString.VerifySyntax()
+	// Check for parse errors
+	if e.parsedInterpolationString.parseError != nil {
+		return e.parsedInterpolationString.parseError
+	}
+	// If no parse errors, check for syntax errors.
+	return e.parsedInterpolationString.HandleSyntaxConditions()
 }
 
 // ValidateError_Final checks whether the created error contains certain errors that would trigger on .Error()
+// Note that this recurses through %w and $w
 func (e *errorWithParameters_common) ValidateError_Final() error {
 	return e.parsedInterpolationString.VerifyParameters_passed(e.params, e.params, e.wrapped_error)
 }
 
 // ValidateError_Base checks whether the created errors contains certain errors, up to the fact that any $-statements are only syntax-checked
+// Note that this recurses through %w and $w
 func (e *errorWithParameters_common) ValidateError_Base() error {
 	return e.parsedInterpolationString.VerifyParameters_direct(e.params, e.wrapped_error)
 }
 
 // ValidateError_Params checks whether the created error contains errors (in particular, ${VarName}-statements are valid), given the passed parameter map.
 // params_passed == nil is taken as using e's own parameters (this is distinct from passing an empty map)
+//
+// This method is required for [ValidateError_Base] or [ValidateError_Final] to recurse and part of the [ErrorInterpolater] interface.
 func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap) error {
 	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
 }

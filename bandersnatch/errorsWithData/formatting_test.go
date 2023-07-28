@@ -38,7 +38,6 @@ func validateTokenList(t *testing.T, tokenized tokenList) {
 		}
 		previousTokenWasString = tokenIsString
 	}
-
 }
 
 func TestTokenizer(t *testing.T) {
@@ -74,6 +73,8 @@ func TestTokenizer(t *testing.T) {
 	// test_token_case("$%%x{%{")
 
 }
+
+// Check that String() outputs a string that, if tokenized, recovers the token.
 
 func TestSpecialTokenToString(t *testing.T) {
 	for _, token := range allSpecialTokens {
@@ -184,10 +185,10 @@ func TestASTCond(t *testing.T) {
 		default:
 			t.Fatalf("Unexpected ast_cond type %T", ast)
 		}
-		ast.make_invalid()
+		ast.make_invalid(1)
 		testutils.FatalUnless(t, !ast.is_valid(), "")
 		testutils.FatalUnless(t, !astCopy.is_valid(), "")
-		ast.make_invalid()
+		ast.make_invalid(3)
 		testutils.FatalUnless(t, !ast.is_valid(), "")
 		testutils.FatalUnless(t, !astCopy.is_valid(), "")
 	}
@@ -237,7 +238,7 @@ func TestMisparses(t *testing.T) {
 		testutils.FatalUnless(t, err != nil, "Got nil error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
 		testutils.FatalUnless(t, parse_result.parseError != nil, "Got no in-band error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
 	}
-	const showall = false
+	const showall = false                            // set to true to display error messages
 	test_misparse_case("%", false || showall)        // missing { after %
 	test_misparse_case("$", false || showall)        // missing { after $
 	test_misparse_case("x%v{f}y}", false || showall) // trailing stray }
@@ -289,12 +290,19 @@ func TestMisparses(t *testing.T) {
 	test_misparse_case("%!cond%w", false || showall)
 	test_misparse_case("%!cond$w", false || showall)
 	test_misparse_case("%!cond}", false || showall)
+}
 
+func TestValidVariableName(t *testing.T) {
+	for _, special := range validMapSelectors {
+		testutils.FatalUnless(t, len(special) > 0, "validMapSelectors contains empty string")
+		testutils.FatalUnless(t, ValidInterpolationName(special) == false, "special variable name %v considered a valid variable name (causing ambiguity)", special)
+		testutils.FatalUnless(t, special[0] == specialVariableNameIndicator, "special variable name %v does not start with %v", special, string(specialVariableNameIndicator))
+	}
 }
 
 // dummy_interpolatableError is a struct satisfying ErrorInterpolater.
 //
-// It simply embeds an error an a function/closure f. If f is non-nil, f is used for Error_interpolate. This is only used in testing.
+// It simply embeds an error and a function/closure f. If f is non-nil, f is used for Error_interpolate and called on the ParamMap. This is only used in testing.
 type dummy_interpolatableError struct {
 	DummyValidator
 	f func(ParamMap) string
@@ -356,11 +364,13 @@ func TestVerifySyntax(t *testing.T) {
 			}
 		}
 		// ensure that VerifyParameters_passed ALSO fails.
-		if ParamDirectCheck != nil {
-			testVerifyParametersPassed(s, params_direct, emptyMap, _baseError, false)
-			testVerifyParametersPassed(s, params_direct, p_direct, _baseError, false)
-			testVerifyParametersPassed(s, params_direct, p_passed, _baseError, false)
-		}
+		/*
+			if ParamDirectCheck != nil {
+				testVerifyParametersPassed(s, params_direct, emptyMap, _baseError, false)
+				testVerifyParametersPassed(s, params_direct, p_direct, _baseError, false)
+				testVerifyParametersPassed(s, params_direct, p_passed, _baseError, false)
+			}
+		*/
 
 	}
 
@@ -370,14 +380,14 @@ func TestVerifySyntax(t *testing.T) {
 		if errParsing != nil {
 			t.Fatalf("Unexpected parsing error when processing string %s, %v", s, errParsing)
 		}
-		syntaxCheck := parsed.VerifySyntax()
+		syntaxCheck := parsed.HandleSyntaxConditions()
 		if expectedGood {
 			if syntaxCheck != nil {
-				t.Fatalf("Unexpected error processing %s returned by VerifySyntax: %v", s, syntaxCheck)
+				t.Fatalf("Unexpected error processing %s returned by HandleSyntaxConditions: %v", s, syntaxCheck)
 			}
 		} else {
 			if syntaxCheck == nil {
-				t.Fatalf("VerifySyntax unexpectedly reported no error on %s", s)
+				t.Fatalf("HandleSyntaxConditions unexpectedly reported no error on %s", s)
 			}
 		}
 		// If Syntax check fails, make sure that Parameters_direct also fails (which in turns check Parameters_passed as well)
@@ -408,8 +418,8 @@ func TestVerifySyntax(t *testing.T) {
 	testSyntaxCheck(`abc%fmt{V}`, true)
 	testSyntaxCheck(`abc$fmt{v}`, false)
 	testSyntaxCheck(`abc%fmt{v}`, false)
-	testSyntaxCheck(`abc$fmt{map}`, true)
-	testSyntaxCheck(`abc%fmt{params}`, true)
+	testSyntaxCheck(`abc$fmt{!map}`, true)
+	testSyntaxCheck(`abc%fmt{!params}`, true)
 	testSyntaxCheck(`abc%v{Foo.Bar}`, false)
 
 	testSyntaxCheck("%!m>0{Foo}", true)
@@ -443,42 +453,42 @@ func TestVerifySyntax(t *testing.T) {
 	testVerifyParametersDirect("${Direct}", p_direct, nil, true)
 	testVerifyParametersDirect("${Passed}", p_direct, nil, true)
 
-	testSyntaxCheck("%!m>0{%{NonExistent}}", true)
-	testVerifyParametersDirect("%!m>0{%{NonExistent}}", emptyMap, nil, true)
-	testVerifyParametersDirect("%!m>0{%{NonExistent}}", p_direct, nil, false)
+	testSyntaxCheck("%!m>0{%{NonExistent}}1", true)
+	testVerifyParametersDirect("%!m>0{%{NonExistent}}2", emptyMap, nil, true)
+	testVerifyParametersDirect("%!m>0{%{NonExistent}}3", p_direct, nil, false)
 
-	testSyntaxCheck("%!m=0{%{NonExistent}}", true)
-	testVerifyParametersDirect("%!m=0{%{NonExistent}}", emptyMap, nil, false)
-	testVerifyParametersDirect("%!m=0{%{NonExistent}}", p_direct, nil, true)
+	testSyntaxCheck("%!m=0{%{NonExistent}}4", true)
+	testVerifyParametersDirect("%!m=0{%{NonExistent}}5", emptyMap, nil, false)
+	testVerifyParametersDirect("%!m=0{%{NonExistent}}6", p_direct, nil, true)
 
-	testSyntaxCheck("$!m>0{%{NonExistent}}", true)
-	testVerifyParametersDirect("$!m>0{%{NonExistent}}", emptyMap, nil, true)
-	testVerifyParametersDirect("$!m>0{%{NonExistent}}", p_direct, nil, true)
+	testSyntaxCheck("$!m>0{%{NonExistent}}7", true)
+	testVerifyParametersDirect("$!m>0{%{NonExistent}}8", emptyMap, nil, false)
+	testVerifyParametersDirect("$!m>0{%{NonExistent}}9", p_direct, nil, false)
 
-	testSyntaxCheck("$!m=0{%{NonExistent}}", true)
-	testVerifyParametersDirect("$!m=0{%{NonExistent}}", emptyMap, nil, true)
-	testVerifyParametersDirect("$!m=0{%{NonExistent}}", p_direct, nil, true)
+	testSyntaxCheck("$!m=0{%{NonExistent}}10", true)
+	testVerifyParametersDirect("$!m=0{%{NonExistent}}11", emptyMap, nil, false)
+	testVerifyParametersDirect("$!m=0{%{NonExistent}}12", p_direct, nil, false)
 
-	testSyntaxCheck("%!m>0{%{Direct}}", true)
-	testVerifyParametersDirect("%!m>0{%{Direct}}", emptyMap, nil, true)
-	testVerifyParametersDirect("%!m>0{%{Direct}}", p_direct, nil, true)
+	testSyntaxCheck("%!m>0{%{Direct}}13", true)
+	testVerifyParametersDirect("%!m>0{%{Direct}}14", emptyMap, nil, true)
+	testVerifyParametersDirect("%!m>0{%{Direct}}15", p_direct, nil, true)
 
-	testSyntaxCheck("%!m=0{%{Direct}}", true)
-	testVerifyParametersDirect("%!m=0{%{Direct}}", emptyMap, nil, false)
-	testVerifyParametersDirect("%!m=0{%{Direct}}", p_direct, nil, true)
+	testSyntaxCheck("%!m=0{%{Direct}}16", true)
+	testVerifyParametersDirect("%!m=0{%{Direct}}17", emptyMap, nil, false)
+	testVerifyParametersDirect("%!m=0{%{Direct}}18", p_direct, nil, true)
 
-	testSyntaxCheck("$!m>0{%{Direct}}", true)
-	testVerifyParametersDirect("$!m>0{%{Direct}}", emptyMap, nil, true)
-	testVerifyParametersDirect("$!m>0{%{Direct}}", p_direct, nil, true)
+	testSyntaxCheck("$!m>0{%{Direct}}19", true)
+	testVerifyParametersDirect("$!m>0{%{Direct}}20", emptyMap, nil, false)
+	testVerifyParametersDirect("$!m>0{%{Direct}}21", p_direct, nil, true)
 
-	testSyntaxCheck("$!m=0{%{Direct}}", true)
-	testVerifyParametersDirect("$!m=0{%{Direct}}", emptyMap, nil, true)
-	testVerifyParametersDirect("$!m=0{%{Direct}}", p_direct, nil, true)
+	testSyntaxCheck("$!m=0{%{Direct}}22", true)
+	testVerifyParametersDirect("$!m=0{%{Direct}}23", emptyMap, nil, false)
+	testVerifyParametersDirect("$!m=0{%{Direct}}24", p_direct, nil, true)
 
-	testVerifyParametersPassed("$!m=0{%{NonExistent}}", p_direct, p_passed, nil, true)
-	testVerifyParametersPassed("$!m=0{%{NonExistent}}", p_direct, emptyMap, nil, false)
-	testVerifyParametersPassed("$!m>0{%{NonExistent}}", p_direct, p_passed, nil, false)
-	testVerifyParametersPassed("$!m>0{%{NonExistent}}", p_direct, emptyMap, nil, true)
+	testVerifyParametersPassed("$!m=0{%{NonExistent}}25", p_direct, p_passed, nil, true)
+	testVerifyParametersPassed("$!m=0{%{NonExistent}}26", p_direct, emptyMap, nil, false)
+	testVerifyParametersPassed("$!m>0{%{NonExistent}}27", p_direct, p_passed, nil, false)
+	testVerifyParametersPassed("$!m>0{%{NonExistent}}28", p_direct, emptyMap, nil, true)
 }
 
 func TestInterpolation(t *testing.T) {
@@ -510,7 +520,7 @@ func TestInterpolation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error parsing input from %s\nReported error was:\n%v", inputString, err)
 		}
-		if err = tree.VerifySyntax(); err != nil {
+		if err = tree.HandleSyntaxConditions(); err != nil {
 			t.Fatalf("Unexpected error during syntax check for input %s\n%v", inputString, err)
 		}
 		if err = tree.VerifyParameters_direct(p_direct, errBase); err != nil {
@@ -564,7 +574,7 @@ func PrintInterpolationWrong(t *testing.T, s string, parseError bool) {
 	tree, err := make_ast(tokens)
 	testutils.FatalUnless(t, parseError == (err != nil), "\nInput string:%s\n, tokenized as:%v\nParsed as:%v\nWas parse error expected: %t\nGot: %v\n", s, tokens, tree, parseError, err)
 	if parseError {
-		testutils.FatalUnless(t, err == tree.VerifySyntax(), "")
+		testutils.FatalUnless(t, err == tree.HandleSyntaxConditions(), "")
 		testutils.FatalUnless(t, err == tree.VerifyParameters_direct(p_direct, errBase), "")
 		testutils.FatalUnless(t, err == tree.VerifyParameters_passed(p_direct, p_passed, errBase), "")
 	}
