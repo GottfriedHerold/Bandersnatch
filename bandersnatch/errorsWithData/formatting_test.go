@@ -195,8 +195,9 @@ func TestASTCond(t *testing.T) {
 }
 
 // Parser check for all valid(!) parse cases.
+// Note that this does not call HandleSyntaxConditions, which would detect errors due to invalid conditions.
 
-func TestParser(t *testing.T) {
+func TestParserValidCases(t *testing.T) {
 	test_parse_case := func(s string, expected string) {
 		tokenized := tokenizeInterpolationString(s)
 		parse_result, err := make_ast(tokenized)
@@ -222,74 +223,172 @@ func TestParser(t *testing.T) {
 
 	test_parse_case(`a$!C{DEF}`, `AST(["a",$!C{"DEF"}])`)
 	test_parse_case(`a%!C1{%!C2{a$w}}`, `AST(["a",%!C1{%!C2{["a",$w]}}])`)
+	test_parse_case(`$%%{!x}`, `AST($%{!x})`)
 }
 
 func TestMisparses(t *testing.T) {
-	test_misparse_case := func(s string, printResult bool) {
-		if printResult {
+	const showall_err = true    // set to true to display error messages
+	const showall_inband = true // set to true to display in-band error message
+
+	test_misparse_case := func(s string, printError bool, printInBand bool) {
+		if printError || printInBand || showall_err || showall_inband {
 			fmt.Printf("Output requested for input %v.\n", s)
 		}
 		tokenized := tokenizeInterpolationString(s)
 		parse_result, err := make_ast(tokenized)
 		ast_as_string := parse_result.String()
-		if printResult {
-			fmt.Printf("n-band error given as %v\n", parse_result.parseError)
+		if printError || showall_err {
+			fmt.Printf("\terror given as \"%v\"\n", parse_result.parseError)
+		}
+		if printInBand || showall_inband {
+			var builder strings.Builder
+			parse_result.Interpolate(make(ParamMap), nil, nil, &builder)
+			fmt.Printf("\tIn-band error would be \"%v\"\n", builder.String())
+
 		}
 		testutils.FatalUnless(t, err != nil, "Got nil error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
-		testutils.FatalUnless(t, parse_result.parseError != nil, "Got no in-band error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
+		testutils.FatalUnless(t, parse_result.parseError != nil, "Got no error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
 	}
-	const showall = false                            // set to true to display error messages
-	test_misparse_case("%", false || showall)        // missing { after %
-	test_misparse_case("$", false || showall)        // missing { after $
-	test_misparse_case("x%v{f}y}", false || showall) // trailing stray }
-	test_misparse_case("%{}", false || showall)      // empty variable name after %
-	test_misparse_case("${}", false || showall)      // empty variable name after $
-	test_misparse_case("%x{%w}", false || showall)   // %w - expressing in variable name
-	test_misparse_case("a%x{$w}", false || showall)  // $w- expression in variable name
-	test_misparse_case("%v{a{}", false || showall)   // stray { in variable name
-	test_misparse_case("%v{a%}", false || showall)   // stray % in variable name
-	test_misparse_case("%v{a$}", false || showall)   // stray $ in variable name
-	test_misparse_case("%v{a%!}", false || showall)  // stray %! in variable name
-	test_misparse_case("%v{a%!}", false || showall)  // stray $! in variable name
-	test_misparse_case("%v{a", false || showall)     // unterminated variable name
-	test_misparse_case("%$", false || showall)
-	test_misparse_case("%{", false || showall)
-	test_misparse_case("%{{", false || showall)
-	test_misparse_case("%x%", false || showall)
-	test_misparse_case("%x$", false || showall)
-	test_misparse_case("%x%!", false || showall)
-	test_misparse_case("%x$!", false || showall)
-	test_misparse_case("%x}", false || showall)
-	test_misparse_case("%x%w", false || showall)
-	test_misparse_case("%x$w", false || showall)
 
-	test_misparse_case("a$x{%w}b", false || showall)
-	test_misparse_case("a$x{$w}b", false || showall)
+	// check correct tail handling
 
-	test_misparse_case("%}", false || showall)
-	test_misparse_case("$}", false || showall)
-	test_misparse_case("a{}", false || showall)
-	test_misparse_case("{", false || showall)
+	test_misparse_case("%!m>0{DONT DISPLAY} $w $!cond{%w $%} TAIL %w $!m>0{%w}", true, true)
 
-	test_misparse_case("a %w %!cond{%}", false || showall)
-	test_misparse_case("a %w $!cond{{}", false || showall)
-	test_misparse_case("a %w %!cond{", false || showall)
+	// unexpected tokens in list mode
+	test_misparse_case("{", false, false)
+	test_misparse_case("}", false, false)
+	// trailing stray }
+	test_misparse_case("x%v{f}y}", false, false)
 
-	test_misparse_case("a%!", false || showall)
-	test_misparse_case("a$!", false || showall)
-	test_misparse_case("a%!}", false || showall)
-	test_misparse_case("a$!}", false || showall)
-	test_misparse_case("a%!{}", false || showall) // empty condition
-	test_misparse_case("a$!{}", false || showall)
-	test_misparse_case("%!cond", false || showall)
-	test_misparse_case("%!cond{", false || showall)
-	test_misparse_case("%!cond%", false || showall)
-	test_misparse_case("%!cond$", false || showall)
-	test_misparse_case("%!cond%!", false || showall)
-	test_misparse_case("%!cond$!", false || showall)
-	test_misparse_case("%!cond%w", false || showall)
-	test_misparse_case("%!cond$w", false || showall)
-	test_misparse_case("%!cond}", false || showall)
+	// wrong tokens where format verb or { was expected after % or $
+	// (Note: %% is an escape sequence for %, so certain tokens cannot follow after %)
+	test_misparse_case("%", false, false)         // missing { after %
+	test_misparse_case("%$", false, false)        // $ after %
+	test_misparse_case("%}", false, false)        // } instead of fmt
+	test_misparse_case("%$w", false, false)       // $w instead of fmt
+	test_misparse_case("%$!cond{}", false, false) // condition instead
+
+	test_misparse_case("$", false, false)
+	test_misparse_case("$%", false, false)
+	test_misparse_case("$$", false, false)
+	test_misparse_case("$}", false, false)
+	test_misparse_case("$%w", false, false)
+	test_misparse_case("$$w", false, false)
+	test_misparse_case("$%!cond{}", false, false)
+	test_misparse_case("$$!cond{}", false, false)
+
+	// wrong token after format verb
+	test_misparse_case("%x%", false, false)
+	test_misparse_case("%x$", false, false)
+	test_misparse_case("%x%!", false, false)
+	test_misparse_case("%x$!", false, false)
+	test_misparse_case("%x}", false, false)
+	test_misparse_case("%x%w", false, false)
+	test_misparse_case("%x$w", false, false)
+
+	test_misparse_case("$x%", false, false)
+	test_misparse_case("$x$", false, false)
+	test_misparse_case("$x%!", false, false)
+	test_misparse_case("$x$!", false, false)
+	test_misparse_case("$x}", false, false)
+	test_misparse_case("$x%w", false, false)
+	test_misparse_case("$x$w", false, false)
+
+	// wrong token when variable name was expected
+	test_misparse_case("%x{%w}", false, false)  // %w - expressing in variable name
+	test_misparse_case("a%x{$w}", false, false) // $w- expression in variable name
+	test_misparse_case("%v{{}}", false, false)  // stray { in variable name
+	test_misparse_case("%v{%}", false, false)   // stray % in variable name
+	test_misparse_case("%v{$}", false, false)   // stray $ in variable name
+	test_misparse_case("%v{%!}", false, false)  // stray %! in variable name
+	test_misparse_case("%v{$!}", false, false)  // stray $! in variable name
+	test_misparse_case("%{", false, false)      // ends when variable name was expected
+	test_misparse_case("%{{", false, false)     // { instead of variable name
+	test_misparse_case("%{}", false, false)     // empty variable name after %
+
+	test_misparse_case("$x{%w}", false, false)  // %w - expressing in variable name
+	test_misparse_case("a$x{$w}", false, false) // $w- expression in variable name
+	test_misparse_case("$v{{}}", false, false)  // stray { in variable name
+	test_misparse_case("$v{%}", false, false)   // stray % in variable name
+	test_misparse_case("$v{$}", false, false)   // stray $ in variable name
+	test_misparse_case("$v{%!}", false, false)  // stray %! in variable name
+	test_misparse_case("$v{$!}", false, false)  // stray $! in variable name
+	test_misparse_case("${", false, false)      // ends when variable name was expected
+	test_misparse_case("${{", false, false)     // { instead of variable name
+	test_misparse_case("${}", false, false)     // empty variable name after %
+
+	// wrong token after variable name
+	test_misparse_case("%{x", false, false)
+	test_misparse_case("%{x{}}", false, false)
+	test_misparse_case("%{x%w}", false, false)
+	test_misparse_case("%{x$w}", false, false)
+	test_misparse_case("%{x%}", false, false)
+	test_misparse_case("%{x$}", false, false)
+	test_misparse_case("%{x%!cond{}}", false, false)
+	test_misparse_case("%{x$!cond{}}", false, false)
+	test_misparse_case("%{x{}}", false, false)
+
+	test_misparse_case("${x", false, false)
+	test_misparse_case("${x{}}", false, false)
+	test_misparse_case("${x%w}", false, false)
+	test_misparse_case("${x$w}", false, false)
+	test_misparse_case("${x%}", false, false)
+	test_misparse_case("${x$}", false, false)
+	test_misparse_case("${x%!cond{}}", false, false)
+	test_misparse_case("${x$!cond{}}", false, false)
+	test_misparse_case("${x{}}", false, false)
+
+	// wrong token when condition string was expected
+	test_misparse_case("a %w %!", false, false)
+	test_misparse_case("a %w %!{}", false, false)
+	test_misparse_case("a %w %!%w{}", false, false)
+	test_misparse_case("a %w %!$w{}", false, false)
+	test_misparse_case("a %w %!%!cond{}{}", false, false)
+	test_misparse_case("a %w %!$!cond{}{}", false, false)
+	test_misparse_case("a %w %!%{var}{}", false, false)
+	test_misparse_case("a %w %!${var}{}", false, false)
+	test_misparse_case("a %w %!}", false, false)
+
+	test_misparse_case("a %w $!", false, false)
+	test_misparse_case("a %w $!{}", false, false)
+	test_misparse_case("a %w $!%w{}", false, false)
+	test_misparse_case("a %w $!$w{}", false, false)
+	test_misparse_case("a %w $!%!cond{}{}", false, false)
+	test_misparse_case("a %w $!$!cond{}{}", false, false)
+	test_misparse_case("a %w $!%{var}{}", false, false)
+	test_misparse_case("a %w $!${var}{}", false, false)
+	test_misparse_case("a %w $!}", false, false)
+
+	// wrong token after condition string
+	test_misparse_case("b %w %!cond%fmt{}{}", false, false)
+	test_misparse_case("b %w %!cond$fmt{}{}", false, false)
+	test_misparse_case("b %w %!cond", false, false)
+	test_misparse_case("b %w %!cond}", false, false)
+	test_misparse_case("b %w %!cond%w{}", false, false)
+	test_misparse_case("b %w %!cond$w{}", false, false)
+	test_misparse_case("b %w %!cond%!cond{}{}", false, false)
+	test_misparse_case("b %w %!cond$!cond{}{}", false, false)
+
+	test_misparse_case("b %w $!cond%fmt{}{}", false, false)
+	test_misparse_case("b %w $!cond$fmt{}{}", false, false)
+	test_misparse_case("b %w $!cond", false, false)
+	test_misparse_case("b %w $!cond}", false, false)
+	test_misparse_case("b %w $!cond%w{}", false, false)
+	test_misparse_case("b %w $!cond$w{}", false, false)
+	test_misparse_case("b %w $!cond%!cond{}{}", false, false)
+	test_misparse_case("b %w $!cond$!cond{}{}", false, false)
+
+	// check some case of invalid subtrees
+	test_misparse_case("c %w %cond{", false, false)       // unterminated
+	test_misparse_case("c %w %cond{string", false, false) // unterminated
+	test_misparse_case("c %w %cond{{}}", false, false)    // stray { in list mode
+	test_misparse_case("c %w %cond{}}", false, false)
+
+	test_misparse_case("c %w $cond{", false, false)       // unterminated
+	test_misparse_case("c %w $cond{string", false, false) // unterminated
+	test_misparse_case("c %w $cond{{}}", false, false)    // stray { in list mode
+	test_misparse_case("c %w $cond{}}", false, false)
+
 }
 
 func TestValidVariableName(t *testing.T) {

@@ -774,8 +774,7 @@ func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, 
 func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if baseError == nil {
 		s.WriteString(`$!w<nil>`)
-	}
-	if errInterpolatable, ok := baseError.(ErrorInterpolater); !ok {
+	} else if errInterpolatable, ok := baseError.(ErrorInterpolater); !ok {
 		s.WriteString(`$!w($w not supported)`)
 		s.WriteString(baseError.Error()) // we still output the base error
 	} else {
