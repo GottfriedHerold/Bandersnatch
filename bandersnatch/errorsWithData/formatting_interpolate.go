@@ -761,7 +761,7 @@ func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passe
 // For %w, we just call Error() on the baseError
 func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, s *strings.Builder) {
 	if baseError == nil {
-		s.WriteString(`%!w(<nil>)`)
+		s.WriteString(`%w(<nil>)`)
 	} else {
 		s.WriteString(baseError.Error())
 	}
@@ -773,9 +773,9 @@ func (a ast_parentPercent) Interpolate(_ ParamMap, _ ParamMap, baseError error, 
 // (If the baseError does not support this, we output a replacement message)
 func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 	if baseError == nil {
-		s.WriteString(`$!w<nil>`)
+		s.WriteString(`$w(<nil>)`)
 	} else if errInterpolatable, ok := baseError.(ErrorInterpolater); !ok {
-		s.WriteString(`$!w($w not supported)`)
+		s.WriteString(`<$w is not supported by base error!>`)
 		s.WriteString(baseError.Error()) // we still output the base error
 	} else {
 		s.WriteString(errInterpolatable.Error_interpolate(parameters_passed))

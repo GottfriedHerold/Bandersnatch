@@ -622,14 +622,14 @@ const (
 // embeddedParseError is used to create error strings for the purpose of embedding them into the tree.
 // the string s may contain formatting verbs understood by [fmt] and args are passed to some fmt formatting function such as [fmt.Sprintf].
 //
-// The intended usage is to call this function, wrap the returned string in an [ast_string] and place it in the tree as a node.
-// As a result, the string returned from embeddedParseError is displayed whenever the tree is interpolated (i.e. whenever we call Error on the errors returned by the package).
-// This is done for diagnostics. Note that we do not return an [ast_string] directly, because the returned string may also be used otherwise.
+// The intended usage is to call this function and place it in the tree as a node (for this reason, we return an [ast_string] for convenience).
+// By doing that, the string returned from embeddedParseError is displayed whenever the tree is interpolated (i.e. whenever we call Error on the errors returned by the package).
+// This is done for diagnostics.
 //
 // Note that the main reason to use this function (over plain [fmt.Sprintf]) is that we may add some extra error string to designate parsing errors.
-// Using this function unifies those.
+// Using this function unifies this.
 func embeddedParseError(s string, args ...any) ast_string {
-	return new_ast_string(stringToken(fmt.Sprintf(`<!META-ERROR: `+s+`>`, args...)))
+	return new_ast_string(stringToken(fmt.Sprintf(`<!PARSE-ERROR: `+s+`>`, args...)))
 }
 
 // make_ast creates a syntax tree out of the list of tokens.
@@ -832,9 +832,9 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 					stack.Push(newNode)
 					mode = parseMode_Condition // read Condition string next
 				case tokenOpenBracket: // { without prior %, $, %! or $!
-					embeddedErrorNode := embeddedParseError(`Unexpected '{'`)
+					embeddedErrorNode := embeddedParseError(`Unexpected "{"`)
 					top.append_ast(embeddedErrorNode)
-					set_parse_error("Unexpected '{' in format string")
+					set_parse_error(`Unexpected "{" in format string`)
 
 				case tokenCloseBracket:
 					if stack.Len() <= 3 {
@@ -842,9 +842,9 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 						if stack.Len() != 2 {
 							panic("Cannot happen")
 						}
-						embeddedErrorNode := embeddedParseError(`Unexpected '}'`)
+						embeddedErrorNode := embeddedParseError(`Unexpected "}"`)
 						top.append_ast(embeddedErrorNode)
-						set_parse_error("Unexpected '}' in format string")
+						set_parse_error(`unexpected "}" in format string`)
 						continue // with mode == parseMode_Error, set by set_error
 					}
 					_ = stack.Pop()                    // type popped is ast_list.
@@ -858,11 +858,11 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 					// tokenEnd must only appear at the top level, if there are no (COND,LIST)-pairse
 					// If we read a tokenEnd while the stack size is != 2, we therefore have an unterminated %!COND{... somewhere
 					if stack.Len() != 2 {
-						set_parse_error(`Missing '}' in format string`)
+						set_parse_error(`Missing "}" in format string`)
 						// stack length is 2 after calling set_error
 
 						currentNode := (*stack.Top()).(ast_list)
-						embeddedErrorNode := embeddedParseError(`Missing '}' in format string`)
+						embeddedErrorNode := embeddedParseError(`Missing "}" in format string`)
 						currentNode.append_ast(embeddedErrorNode)
 						goto redo // reprocess tokenEnd in parseMode_Error; this is just to simplify the code.
 					} else {
@@ -913,13 +913,13 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 
 					// The case distinctions is just for better error messages.
 					if token == tokenEnd {
-						embeddedErrorNode := embeddedParseError(`Interpolation string ends in '%s'`, percentOrDollar)
+						embeddedErrorNode := embeddedParseError(`Interpolation string ends in "%s"`, percentOrDollar)
 						currentNode.append_ast(embeddedErrorNode)
-						set_parse_error(`Interpolation string ends in unescaped '%s'`, percentOrDollar)
+						set_parse_error(`Interpolation string ends in unescaped "%s"`, percentOrDollar)
 					} else {
-						embeddedErrorNode := embeddedParseError(`Invalid token %s after %s`, token.String(), percentOrDollar)
+						embeddedErrorNode := embeddedParseError(`Invalid token "%s" after "%s"`, token.String(), percentOrDollar)
 						currentNode.append_ast(embeddedErrorNode)
-						set_parse_error(`Invalid token %s after %s`, token.String(), percentOrDollar) // sets mode to parseMode_Error
+						set_parse_error(`Invalid token "%s" after "%s"`, token.String(), percentOrDollar) // sets mode to parseMode_Error
 					}
 					goto redo // re-read actual offending token in parseMode_Error. This also handles token==tokenEnd correctly.
 
@@ -947,9 +947,9 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 					currentNode.append_ast(embeddedErrorNode)
 					set_parse_error(`Interpolation string ends in unescaped "%s"`, percentOrDollarExlamMark)
 				} else {
-					embeddedErrorNode := embeddedParseError(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark)
+					embeddedErrorNode := embeddedParseError(`Invalid token "%s" after "%s"`, token.String(), percentOrDollarExlamMark)
 					currentNode.append_ast(embeddedErrorNode)
-					set_parse_error(`Invalid token '%s' after "%s"`, token.String(), percentOrDollarExlamMark) // sets mode to parseMode_Error
+					set_parse_error(`Invalid token "%s" after "%s"`, token.String(), percentOrDollarExlamMark) // sets mode to parseMode_Error
 				}
 				goto redo // re-read tokenEnd in parseMode_Error
 
@@ -1012,10 +1012,10 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 				// Note: The pattern %!Cond with missing { is likely because of a stray %! or $! that is not intended as a condition at all.
 				// For that reason, we place the embedded error message just after the %! or $! rather than at the place where we expect the {
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollarExclam)))
-				embeddedErrorNode := embeddedParseError(`"%v" has no matching '{'`, percentOrDollarExclam)
+				embeddedErrorNode := embeddedParseError(`"%v" has no matching "{"`, percentOrDollarExclam)
 				currentNode.append_ast(embeddedErrorNode)
 				currentNode.append_ast(new_ast_string(stringToken(condition)))
-				set_parse_error(`Missing '{' after %v%v`, percentOrDollarExclam, condition)
+				set_parse_error(`Missing "{" after %v%v`, percentOrDollarExclam, condition)
 				goto redo // reread token. This may well be tokenEnd, which is fine.
 			} else {
 				// good case: We actually read {.
@@ -1050,10 +1050,10 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar)))
 
-				embeddedErrorNode := embeddedParseError(`unescaped '%v' has no matching '{'`, percentOrDollar)
+				embeddedErrorNode := embeddedParseError(`unescaped "%v" has no matching "{"`, percentOrDollar)
 				currentNode.append_ast(embeddedErrorNode)
 				currentNode.append_ast(new_ast_string(stringToken(formatString)))
-				set_parse_error(`Missing '{' after %vFmtString`, percentOrDollar)
+				set_parse_error(`Missing "{" after %v%v`, percentOrDollar, formatString)
 				goto redo // reread token. This may well be tokenEnd, which is fine.
 			} else {
 				// good case: { was present. Proceed to read variable name
@@ -1084,15 +1084,15 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 				currentNode.append_ast(new_ast_string(stringToken(percentOrDollar + formatString + "{" + VariableName))) // replay what was read so far as a plain string
 				// case distinction to improve error messages.
 				if token == tokenEnd {
-					embeddedErrorNode := embeddedParseError(`unexpected end of format string after reading a variable name without closing '}'`)
+					embeddedErrorNode := embeddedParseError(`unexpected end of format string after reading a variable name without closing "}"`)
 					currentNode.append_ast(embeddedErrorNode)
-					set_parse_error(`Variable name not terminated by '}'`)
+					set_parse_error(`Variable name not terminated by "}"`)
 					goto redo // to actually handle the tokenEnd token as ending the parse.
 
 				} else {
-					embeddedErrorNode := embeddedParseError(`Variable name not terminated by '}'`)
+					embeddedErrorNode := embeddedParseError(`Variable name not terminated by "}"`)
 					currentNode.append_ast(embeddedErrorNode)
-					set_parse_error(`Variable name not terminated by '}'`)
+					set_parse_error(`Variable name not terminated by "}"`)
 					goto redo // to actually display the current token.
 				}
 			} else {

@@ -226,10 +226,23 @@ func TestParserValidCases(t *testing.T) {
 	test_parse_case(`$%%{!x}`, `AST($%{!x})`)
 }
 
+// test all cases where a parse error occurs (i.e. all possible cases where an unexpected token was encountered at some point)
+// Note that the test does not check that a specific error message is returned with a knonw-answer-test,
+// because the precise error message is not part of the API spec.
+// Rather, we have constants showall_err and showall_inband and arguements to each call of test_misparse_case
+// that one can set to true to display the actual errors. The idea is to manually inspect each error case to see if
+// it's accurate and helpful.
+
 func TestMisparses(t *testing.T) {
 	const showall_err = true    // set to true to display error messages
 	const showall_inband = true // set to true to display in-band error message
 
+	// checks that parsing interpolation string s actually gives a parse error
+	// and fail the test otherwise
+	// if the printError argument or the global constant showall_err is set to true,
+	//   we display the error returned by make_ast
+	// if the printInBand argument or showall_inband is set to true, we show the
+	//   error message that .Error() would return
 	test_misparse_case := func(s string, printError bool, printInBand bool) {
 		if printError || printInBand || showall_err || showall_inband {
 			fmt.Printf("Output requested for input %v.\n", s)
@@ -248,6 +261,7 @@ func TestMisparses(t *testing.T) {
 		}
 		testutils.FatalUnless(t, err != nil, "Got nil error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
 		testutils.FatalUnless(t, parse_result.parseError != nil, "Got no error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
+		testutils.FatalUnless(t, err == parse_result.parseError, "error returned by make_ast and error stored in parse tree differ")
 	}
 
 	// check correct tail handling
