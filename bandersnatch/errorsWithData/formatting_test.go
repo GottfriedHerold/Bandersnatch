@@ -265,7 +265,7 @@ func TestMisparses(t *testing.T) {
 
 	// check correct tail handling
 
-	test_misparse_case("%!m>0{DONT DISPLAY} $w $!cond{%w $%} TAIL %w $!m>0{%w}", true, true)
+	test_misparse_case("%!m>0{DONT DISPLAY} $w $!cond{%w $%} TAIL %w $!m>0{%w}", false, false)
 
 	// unexpected tokens in list mode
 	test_misparse_case("{", false, false)
@@ -791,7 +791,7 @@ func TestInterpolation(t *testing.T) {
 
 func TestPrintSomeOutput(t *testing.T) {
 
-	const print bool = true // controls whether this test actually prints all its errors.
+	const print bool = false // controls whether this test actually prints all its errors.
 	// (This is the point of this test: to manually inspect error messages for a set of cases)
 
 	var p_direct ParamMap = ParamMap{"ValHundreds": 128, "StringABC": "abc"}
