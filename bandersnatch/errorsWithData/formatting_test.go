@@ -226,16 +226,15 @@ func TestParserValidCases(t *testing.T) {
 	test_parse_case(`$%%{!x}`, `AST($%{!x})`)
 }
 
-// test all cases where a parse error occurs (i.e. all possible cases where an unexpected token was encountered at some point)
+// TestMisparses tests all cases where a parse error occurs (i.e. all possible cases where an unexpected token was encountered at some point)
 // Note that the test does not check that a specific error message is returned with a knonw-answer-test,
 // because the precise error message is not part of the API spec.
-// Rather, we have constants showall_err and showall_inband and arguements to each call of test_misparse_case
+// Rather, we have constants showall_err and showall_inband and arguments to each call of test_misparse_case
 // that one can set to true to display the actual errors. The idea is to manually inspect each error case to see if
 // it's accurate and helpful.
-
 func TestMisparses(t *testing.T) {
-	const showall_err = true    // set to true to display error messages
-	const showall_inband = true // set to true to display in-band error message
+	const showall_err = false    // set to true to display error messages
+	const showall_inband = false // set to true to display in-band error message
 
 	// checks that parsing interpolation string s actually gives a parse error
 	// and fail the test otherwise
@@ -405,6 +404,9 @@ func TestMisparses(t *testing.T) {
 
 }
 
+// Ensure special strings used as variable names that designate the parameters map itself are not valid variable names
+// themselves, because that would lead to ambiguity.
+
 func TestValidVariableName(t *testing.T) {
 	for _, special := range validMapSelectors {
 		testutils.FatalUnless(t, len(special) > 0, "validMapSelectors contains empty string")
@@ -415,10 +417,13 @@ func TestValidVariableName(t *testing.T) {
 
 // dummy_interpolatableError is a struct satisfying ErrorInterpolater.
 //
-// It simply embeds an error and a function/closure f. If f is non-nil, f is used for Error_interpolate and called on the ParamMap. This is only used in testing.
+// It simply embeds an error and a modifyable function/closure f. If f is non-nil, f is used for Error_interpolate and called on the ParamMap. This is only used in testing.
+// valBase and valParams work in a similar way for ValidateError_Base resp. ValidateError_Params
 type dummy_interpolatableError struct {
-	DummyValidator
-	f func(ParamMap) string
+	// DummyValidator
+	f         func(ParamMap) string
+	valBase   func() error
+	valParams func(ParamMap) error
 	error
 }
 
@@ -430,9 +435,76 @@ func (d *dummy_interpolatableError) Error_interpolate(p ParamMap) string {
 	}
 }
 
+func (d *dummy_interpolatableError) ValidateError_Base() error {
+	if d.valBase == nil {
+		return nil
+	} else {
+		return d.valBase()
+	}
+
+}
+
+func (d *dummy_interpolatableError) ValidateError_Params(params ParamMap) error {
+	if d.valParams == nil {
+		return nil
+	} else {
+		return d.valParams(params)
+	}
+}
+
 var _ ErrorInterpolater = &dummy_interpolatableError{}
 
-func TestVerifySyntax(t *testing.T) {
+// Test expected behaviour of HandleSyntaxConditions.
+// Note that this test only tests for reporting of errors by HandleSyntaxConditions;
+// The actualy modifications are not tested, as they are not observable anyway
+// (and may actually be done by parsing)
+
+func TestHandleSyntaxConditions(t *testing.T) {
+
+	testcase := func(s string, expectedOK bool) {
+		tokens := tokenizeInterpolationString(s)
+		parsed, errParsing := make_ast(tokens)
+		parseOK := errParsing == nil
+		errValidity := parsed.HandleSyntaxConditions()
+		errValidity2 := parsed.HandleSyntaxConditions()
+		testutils.FatalUnless(t, errValidity == errValidity2, "For %v, consecutive calls to HandleSyntaxCondtions gives differing results %v and %v", s, errValidity, errValidity2)
+		if expectedOK {
+			testutils.FatalUnless(t, errValidity == nil, "For %v, got unexpected error from HandleSyntaxCondition %v", s, errValidity)
+		} else {
+			testutils.FatalUnless(t, errValidity != nil, "For %v, got no error from HandleSyntaxConditions", s)
+		}
+		if !parseOK {
+			testutils.FatalUnless(t, errValidity == errParsing, "For %v, HandleSyntaxCondition did not reproduce parsing error: %v vs %v", s, errValidity, errParsing)
+		}
+	}
+	testcase("", true)
+	testcase("blah", true)
+	testcase("Blah", true)
+	testcase("foo %{Bar} $x{Baz}", true)
+	testcase("foo %{bar},$x{baz}", false)
+	testcase("foo %{A.B}", false)
+	testcase("%!cond{}", false)
+	testcase("%!m=0{%!m>0{}}", true)
+	testcase("%x%%t{Bar}", false)
+	testcase("$!cond{}", false)
+	testcase("$!m=0{$!m>0{}}", true)
+	testcase("$x%%t{Bar}", false)
+	testcase("sad %w $w %v{X}", true)
+
+	testcase("%v{!Params}", false)
+	testcase("%v{!M}", false)
+	testcase("%v{!X}", false)
+	testcase("%v{!m}", true)
+	testcase("%v{!params}", true)
+
+	testcase("$v{!Params}", false)
+	testcase("$v{!M}", false)
+	testcase("$v{!X}", false)
+	testcase("$v{!m}", true)
+	testcase("$v{!params}", true)
+}
+
+func TestVerifyParameters(t *testing.T) {
 	var baseError error = errors.New("some error")
 	var baseInterpolatableError ErrorInterpolater = &dummy_interpolatableError{error: baseError, f: nil}
 
@@ -440,7 +512,7 @@ func TestVerifySyntax(t *testing.T) {
 	var p_passed ParamMap = map[string]any{"Passed": 1}
 	var emptyMap ParamMap = make(ParamMap)
 
-	// checks whether VerifyParameters_passed reports an error
+	// testVerifyParamtersPassed checks whether the error reporting of VerifyParameters_passed is as expected with the given arguments
 	testVerifyParametersPassed := func(s string, params_direct ParamMap, params_passed ParamMap, _baseError error, expectedGood bool) {
 		tokens := tokenizeInterpolationString(s)
 		parsed, errParsing := make_ast(tokens)
@@ -457,9 +529,13 @@ func TestVerifySyntax(t *testing.T) {
 				t.Fatalf("VerifyParameters_passed unexpectedly reported no error on %s", s)
 			}
 		}
+		handleSyntax := parsed.HandleSyntaxConditions() // re-call it. VerifyParameters_passed is supposed to have called this
+		if handleSyntax != nil {
+			testutils.FatalUnless(t, handleSyntax == CheckPassed, "When processing %s, VerifyParameters_passed did not reproduce the error from HandleSyntaxConditions", s)
+		}
 	}
 
-	// checks whether VerifyParameters_direct reports an error
+	// testVerifyParameterDirect checks whether VerifyParameters_direct reports an error (or not), as expected
 	testVerifyParametersDirect := func(s string, params_direct ParamMap, _baseError error, expectedGood bool) {
 		tokens := tokenizeInterpolationString(s)
 		parsed, errParsing := make_ast(tokens)
@@ -476,17 +552,14 @@ func TestVerifySyntax(t *testing.T) {
 				t.Fatalf("VerifyParameters_direct unexpectedly reported no error on %s", s)
 			}
 		}
-		// ensure that VerifyParameters_passed ALSO fails.
-		/*
-			if ParamDirectCheck != nil {
-				testVerifyParametersPassed(s, params_direct, emptyMap, _baseError, false)
-				testVerifyParametersPassed(s, params_direct, p_direct, _baseError, false)
-				testVerifyParametersPassed(s, params_direct, p_passed, _baseError, false)
-			}
-		*/
-
+		handleSyntax := parsed.HandleSyntaxConditions() // re-call it. VerifyParameters_passed is supposed to have called this
+		if handleSyntax != nil {
+			testutils.FatalUnless(t, handleSyntax == ParamDirectCheck, "When processing %s, VerifyParameters_direct did not reproduce the error from HandleSyntaxConditions", s)
+		}
 	}
 
+	// testSyntaxCheck is used check the returned value of HandleSyntaxConditions
+	// (somewhat redundant with TestMisparses)
 	testSyntaxCheck := func(s string, expectedGood bool) {
 		tokens := tokenizeInterpolationString(s)
 		parsed, errParsing := make_ast(tokens)
@@ -517,6 +590,7 @@ func TestVerifySyntax(t *testing.T) {
 
 	testVerifyParametersPassed("", emptyMap, emptyMap, nil, true)
 	testVerifyParametersDirect("", emptyMap, nil, true)
+
 	testSyntaxCheck("", true)
 
 	testSyntaxCheck("abc", true)
@@ -602,6 +676,51 @@ func TestVerifySyntax(t *testing.T) {
 	testVerifyParametersPassed("$!m=0{%{NonExistent}}26", p_direct, emptyMap, nil, false)
 	testVerifyParametersPassed("$!m>0{%{NonExistent}}27", p_direct, p_passed, nil, false)
 	testVerifyParametersPassed("$!m>0{%{NonExistent}}28", p_direct, emptyMap, nil, true)
+
+	var wrongBase1 *dummy_interpolatableError = &dummy_interpolatableError{}
+	wrongBase1.valBase = func() error { return errors.New("Some error (Base1)") }
+	wrongBase1.valParams = func(_ ParamMap) error { return errors.New("Some error (Base1,params)") }
+	var wrongBase2 *dummy_interpolatableError = &dummy_interpolatableError{}
+	wrongBase2.valParams = func(params ParamMap) error {
+		if _, ok := params["PassVal"]; ok {
+			return nil
+		} else {
+			return errors.New("Some error2")
+		}
+	}
+	var GoodMap ParamMap = ParamMap{"PassVal": 0}
+
+	testSyntaxCheck("%w FOO", true)
+	testVerifyParametersDirect("%w FOO1", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("%w FOO2", GoodMap, wrongBase1, false)
+	testVerifyParametersDirect("$w FOO3", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("$w FOO4", GoodMap, wrongBase1, false)
+
+	testVerifyParametersPassed("%w FOO1", emptyMap, emptyMap, wrongBase1, false)
+	testVerifyParametersPassed("%w FOO2", emptyMap, GoodMap, wrongBase1, false)
+	testVerifyParametersPassed("$w FOO3", emptyMap, emptyMap, wrongBase1, false)
+	testVerifyParametersPassed("$w FOO4", emptyMap, GoodMap, wrongBase1, false)
+
+	testVerifyParametersDirect("%w FOO5", emptyMap, wrongBase2, false)
+	testVerifyParametersDirect("%w FOO6", GoodMap, wrongBase2, false)
+	testVerifyParametersDirect("$w FOO7", emptyMap, wrongBase2, true)
+	testVerifyParametersDirect("$w FOO8", GoodMap, wrongBase2, true)
+
+	testVerifyParametersPassed("%w FOO5", emptyMap, emptyMap, wrongBase2, false)
+	testVerifyParametersPassed("%w FOO6", emptyMap, GoodMap, wrongBase2, false)
+	testVerifyParametersPassed("$w FOO7", emptyMap, emptyMap, wrongBase2, false)
+	testVerifyParametersPassed("$w FOO8", emptyMap, GoodMap, wrongBase2, true)
+
+	testVerifyParametersDirect("%!m=0{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("%!m>0{%w}", emptyMap, wrongBase1, true)
+	testVerifyParametersDirect("$!m=0{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("$!m>0{%w}", emptyMap, wrongBase1, false)
+
+	testVerifyParametersPassed("%!m=0{%w}", emptyMap, emptyMap, wrongBase1, false)
+	testVerifyParametersPassed("%!m>0{%w}", emptyMap, emptyMap, wrongBase1, true)
+	testVerifyParametersPassed("$!m=0{%w}", emptyMap, emptyMap, wrongBase1, false)
+	testVerifyParametersPassed("$!m>0{%w}", emptyMap, emptyMap, wrongBase1, true)
+
 }
 
 func TestInterpolation(t *testing.T) {
@@ -653,7 +772,7 @@ func TestInterpolation(t *testing.T) {
 	testInterpolation("", "")
 	s := "Some string with a linebreak\nin between "
 	testInterpolation(s, s)
-	testInterpolation(`abc\\def`, `abc\def`) // escaped \\ (this is a raw string, the escaping is for our interpolation language)
+	testInterpolation(`abc\\def`, `abc\def`) // escaped \\ (this is a raw Go string, the escaping is for our interpolation language)
 	testInterpolation(`abc\%def`, `abc%def`)
 	testInterpolation(`abc\$def`, `abc$def`)
 	testInterpolation(`abc\{def`, `abc{def`)
@@ -670,11 +789,14 @@ func TestInterpolation(t *testing.T) {
 	testInterpolation("$!m>0{%{ValHundreds}}", "128")
 }
 
-func PrintInterpolationWrong(t *testing.T, s string, parseError bool) {
+func TestPrintSomeOutput(t *testing.T) {
+
+	const print bool = true // controls whether this test actually prints all its errors.
+	// (This is the point of this test: to manually inspect error messages for a set of cases)
+
 	var p_direct ParamMap = ParamMap{"ValHundreds": 128, "StringABC": "abc"}
 	var p_passed ParamMap = ParamMap{"ValHundreds": 256, "StringDEF": "def"}
-	errPlain := errors.New("BASE")
-	errBase := &dummy_interpolatableError{error: errPlain, f: func(p ParamMap) string {
+	errBase := &dummy_interpolatableError{error: errors.New("BASE"), f: func(p ParamMap) string {
 		r := p["StringDEF"]
 		if r == "def" {
 			return "OK"
@@ -683,57 +805,57 @@ func PrintInterpolationWrong(t *testing.T, s string, parseError bool) {
 		}
 	}}
 
-	tokens := tokenizeInterpolationString(s)
-	tree, err := make_ast(tokens)
-	testutils.FatalUnless(t, parseError == (err != nil), "\nInput string:%s\n, tokenized as:%v\nParsed as:%v\nWas parse error expected: %t\nGot: %v\n", s, tokens, tree, parseError, err)
-	if parseError {
-		testutils.FatalUnless(t, err == tree.HandleSyntaxConditions(), "")
-		testutils.FatalUnless(t, err == tree.VerifyParameters_direct(p_direct, errBase), "")
-		testutils.FatalUnless(t, err == tree.VerifyParameters_passed(p_direct, p_passed, errBase), "")
+	// printInterpolationWrong takes a string s, evaluates it against
+	// p_direct, p_passed and errBased defined above.
+	// If expectParseOrSyntaxError is set, we expect an error detected by HandleSyntaxConditions or make_ast.
+	// We then print the error printed by Interpolation if print is set to true
+	printInterpolationWrong := func(s string, expectParseOrSyntaxError bool) {
+
+		tokens := tokenizeInterpolationString(s)
+		tree, errParsing := make_ast(tokens)
+		errSyntax := tree.HandleSyntaxConditions()
+		testutils.FatalUnless(t, expectParseOrSyntaxError == (errParsing != nil || errSyntax != nil), "\nInput string:%s\n, tokenized as:%v\nParsed as:%v\nWas parse error expected: %t\nGot: Parse %v, Syntax %v\n", s, tokens, tree, expectParseOrSyntaxError, errParsing, errSyntax)
+		var b strings.Builder
+		tree.Interpolate(p_direct, p_passed, errBase, &b)
+		output := b.String()
+		if print {
+			fmt.Println(output)
+		}
 	}
-	var b strings.Builder
-	tree.Interpolate(p_direct, p_passed, errBase, &b)
-	output := b.String()
-	fmt.Println(output)
-}
 
-/*
-func TestPrintSomeOutput(t *testing.T) {
+	printInterpolationWrong("Invalid", false)
+	printInterpolationWrong("%%%", true)
+	printInterpolationWrong("Fine1 %${{}{}} FineEnd", true)
+	printInterpolationWrong("Fine2 %${{{}{}} FineEnd", true)
+	printInterpolationWrong("Fine3 $$!} FineEnd", true)
+	printInterpolationWrong("Fine4 #fmt{Foo} FineEnd", true)
 
-	PrintInterpolationWrong(t, "Invalid", false)
-	PrintInterpolationWrong(t, "%%%", true)
-	PrintInterpolationWrong(t, "Fine1 %${{}{}} FineEnd", true)
-	PrintInterpolationWrong(t, "Fine2 %${{{}{}} FineEnd", true)
-	PrintInterpolationWrong(t, "Fine3 $$!} FineEnd", true)
-	PrintInterpolationWrong(t, "Fine4 #fmt{Foo} FineEnd", true)
+	printInterpolationWrong("Fine5 %!", true)
+	printInterpolationWrong("Fine6 %!{", true)
+	printInterpolationWrong("Fine7 %!m=0", true)
+	printInterpolationWrong("Fine8 %!m=0{", true)
+	printInterpolationWrong("Fine9 %!m=0{Bar", true)
 
-	PrintInterpolationWrong(t, "Fine5 %!", true)
-	PrintInterpolationWrong(t, "Fine6 %!{", true)
-	PrintInterpolationWrong(t, "Fine7 %!m=0", true)
-	PrintInterpolationWrong(t, "Fine8 %!m=0{", true)
-	PrintInterpolationWrong(t, "Fine9 %!m=0{Bar", true)
+	printInterpolationWrong("Fine10 $!", true)
+	printInterpolationWrong("Fine11 $!{", true)
+	printInterpolationWrong("Fine12 $!m=0", true)
+	printInterpolationWrong("Fine13 $!m=0{", true)
+	printInterpolationWrong("Fine14 $!m=0{Bar", true)
 
-	PrintInterpolationWrong(t, "Fine10 $!", true)
-	PrintInterpolationWrong(t, "Fine11 $!{", true)
-	PrintInterpolationWrong(t, "Fine12 $!m=0", true)
-	PrintInterpolationWrong(t, "Fine13 $!m=0{", true)
-	PrintInterpolationWrong(t, "Fine14 $!m=0{Bar", true)
+	printInterpolationWrong("Fine15 %", true)
+	printInterpolationWrong("Fine16 %fmt", true)
+	printInterpolationWrong("Fine17 %fmt{", true)
+	printInterpolationWrong("Fine18 %{", true)
+	printInterpolationWrong("Fine19 %fmt{Var", true)
+	printInterpolationWrong("Fine20 %{Var", true)
 
-	PrintInterpolationWrong(t, "Fine15 %", true)
-	PrintInterpolationWrong(t, "Fine16 %fmt", true)
-	PrintInterpolationWrong(t, "Fine17 %fmt{", true)
-	PrintInterpolationWrong(t, "Fine18 %{", true)
-	PrintInterpolationWrong(t, "Fine19 %fmt{Var", true)
-	PrintInterpolationWrong(t, "Fine20 %{Var", true)
+	printInterpolationWrong("Fine21 $", true)
+	printInterpolationWrong("Fine22 $fmt", true)
+	printInterpolationWrong("Fine23 $fmt{", true)
+	printInterpolationWrong("Fine24 ${", true)
+	printInterpolationWrong("Fine25 $fmt{Var", true)
+	printInterpolationWrong("Fine26 ${Var", true)
 
-	PrintInterpolationWrong(t, "Fine21 $", true)
-	PrintInterpolationWrong(t, "Fine22 $fmt", true)
-	PrintInterpolationWrong(t, "Fine23 $fmt{", true)
-	PrintInterpolationWrong(t, "Fine24 ${", true)
-	PrintInterpolationWrong(t, "Fine25 $fmt{Var", true)
-	PrintInterpolationWrong(t, "Fine26 ${Var", true)
-
-	PrintInterpolationWrong(t, "Fine27 %!m=0{Foo}}", true)
+	printInterpolationWrong("Fine27 %!m=0{Foo}}", true)
 
 }
-*/
