@@ -195,7 +195,7 @@ func TestASTCond(t *testing.T) {
 }
 
 // Parser check for all valid(!) parse cases.
-// Note that this does not call HandleSyntaxConditions, which would detect errors due to invalid conditions.
+// Note that this does not call handleSyntaxConditions, which would detect errors due to invalid conditions.
 
 func TestParserValidCases(t *testing.T) {
 	test_parse_case := func(s string, expected string) {
@@ -454,8 +454,8 @@ func (d *dummy_interpolatableError) ValidateError_Params(params ParamMap) error 
 
 var _ ErrorInterpolater = &dummy_interpolatableError{}
 
-// Test expected behaviour of HandleSyntaxConditions.
-// Note that this test only tests for reporting of errors by HandleSyntaxConditions;
+// Test expected behaviour of handleSyntaxConditions.
+// Note that this test only tests for reporting of errors by handleSyntaxConditions;
 // The actualy modifications are not tested, as they are not observable anyway
 // (and may actually be done by parsing)
 
@@ -465,13 +465,13 @@ func TestHandleSyntaxConditions(t *testing.T) {
 		tokens := tokenizeInterpolationString(s)
 		parsed, errParsing := make_ast(tokens)
 		parseOK := errParsing == nil
-		errValidity := parsed.HandleSyntaxConditions()
-		errValidity2 := parsed.HandleSyntaxConditions()
+		errValidity := parsed.handleSyntaxConditions()
+		errValidity2 := parsed.handleSyntaxConditions()
 		testutils.FatalUnless(t, errValidity == errValidity2, "For %v, consecutive calls to HandleSyntaxCondtions gives differing results %v and %v", s, errValidity, errValidity2)
 		if expectedOK {
 			testutils.FatalUnless(t, errValidity == nil, "For %v, got unexpected error from HandleSyntaxCondition %v", s, errValidity)
 		} else {
-			testutils.FatalUnless(t, errValidity != nil, "For %v, got no error from HandleSyntaxConditions", s)
+			testutils.FatalUnless(t, errValidity != nil, "For %v, got no error from handleSyntaxConditions", s)
 		}
 		if !parseOK {
 			testutils.FatalUnless(t, errValidity == errParsing, "For %v, HandleSyntaxCondition did not reproduce parsing error: %v vs %v", s, errValidity, errParsing)
@@ -529,9 +529,9 @@ func TestVerifyParameters(t *testing.T) {
 				t.Fatalf("VerifyParameters_passed unexpectedly reported no error on %s", s)
 			}
 		}
-		handleSyntax := parsed.HandleSyntaxConditions() // re-call it. VerifyParameters_passed is supposed to have called this
+		handleSyntax := parsed.handleSyntaxConditions() // re-call it. VerifyParameters_passed is supposed to have called this
 		if handleSyntax != nil {
-			testutils.FatalUnless(t, handleSyntax == CheckPassed, "When processing %s, VerifyParameters_passed did not reproduce the error from HandleSyntaxConditions", s)
+			testutils.FatalUnless(t, handleSyntax == CheckPassed, "When processing %s, VerifyParameters_passed did not reproduce the error from handleSyntaxConditions", s)
 		}
 	}
 
@@ -552,13 +552,13 @@ func TestVerifyParameters(t *testing.T) {
 				t.Fatalf("VerifyParameters_direct unexpectedly reported no error on %s", s)
 			}
 		}
-		handleSyntax := parsed.HandleSyntaxConditions() // re-call it. VerifyParameters_passed is supposed to have called this
+		handleSyntax := parsed.handleSyntaxConditions() // re-call it. VerifyParameters_passed is supposed to have called this
 		if handleSyntax != nil {
-			testutils.FatalUnless(t, handleSyntax == ParamDirectCheck, "When processing %s, VerifyParameters_direct did not reproduce the error from HandleSyntaxConditions", s)
+			testutils.FatalUnless(t, handleSyntax == ParamDirectCheck, "When processing %s, VerifyParameters_direct did not reproduce the error from handleSyntaxConditions", s)
 		}
 	}
 
-	// testSyntaxCheck is used check the returned value of HandleSyntaxConditions
+	// testSyntaxCheck is used check the returned value of handleSyntaxConditions
 	// (somewhat redundant with TestMisparses)
 	testSyntaxCheck := func(s string, expectedGood bool) {
 		tokens := tokenizeInterpolationString(s)
@@ -566,14 +566,14 @@ func TestVerifyParameters(t *testing.T) {
 		if errParsing != nil {
 			t.Fatalf("Unexpected parsing error when processing string %s, %v", s, errParsing)
 		}
-		syntaxCheck := parsed.HandleSyntaxConditions()
+		syntaxCheck := parsed.handleSyntaxConditions()
 		if expectedGood {
 			if syntaxCheck != nil {
-				t.Fatalf("Unexpected error processing %s returned by HandleSyntaxConditions: %v", s, syntaxCheck)
+				t.Fatalf("Unexpected error processing %s returned by handleSyntaxConditions: %v", s, syntaxCheck)
 			}
 		} else {
 			if syntaxCheck == nil {
-				t.Fatalf("HandleSyntaxConditions unexpectedly reported no error on %s", s)
+				t.Fatalf("handleSyntaxConditions unexpectedly reported no error on %s", s)
 			}
 		}
 		// If Syntax check fails, make sure that Parameters_direct also fails (which in turns check Parameters_passed as well)
@@ -752,7 +752,7 @@ func TestInterpolation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error parsing input from %s\nReported error was:\n%v", inputString, err)
 		}
-		if err = tree.HandleSyntaxConditions(); err != nil {
+		if err = tree.handleSyntaxConditions(); err != nil {
 			t.Fatalf("Unexpected error during syntax check for input %s\n%v", inputString, err)
 		}
 		if err = tree.VerifyParameters_direct(p_direct, errBase); err != nil {
@@ -807,13 +807,13 @@ func TestPrintSomeOutput(t *testing.T) {
 
 	// printInterpolationWrong takes a string s, evaluates it against
 	// p_direct, p_passed and errBased defined above.
-	// If expectParseOrSyntaxError is set, we expect an error detected by HandleSyntaxConditions or make_ast.
+	// If expectParseOrSyntaxError is set, we expect an error detected by handleSyntaxConditions or make_ast.
 	// We then print the error printed by Interpolation if print is set to true
 	printInterpolationWrong := func(s string, expectParseOrSyntaxError bool) {
 
 		tokens := tokenizeInterpolationString(s)
 		tree, errParsing := make_ast(tokens)
-		errSyntax := tree.HandleSyntaxConditions()
+		errSyntax := tree.handleSyntaxConditions()
 		testutils.FatalUnless(t, expectParseOrSyntaxError == (errParsing != nil || errSyntax != nil), "\nInput string:%s\n, tokenized as:%v\nParsed as:%v\nWas parse error expected: %t\nGot: Parse %v, Syntax %v\n", s, tokens, tree, expectParseOrSyntaxError, errParsing, errSyntax)
 		var b strings.Builder
 		tree.Interpolate(p_direct, p_passed, errBase, &b)

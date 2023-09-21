@@ -199,7 +199,7 @@ func (e *errorWithParameters_common) ValidateSyntax() error {
 		return e.parsedInterpolationString.parseError
 	}
 	// If no parse errors, check for syntax errors.
-	return e.parsedInterpolationString.HandleSyntaxConditions()
+	return e.parsedInterpolationString.handleSyntaxConditions()
 }
 
 // ValidateError_Final checks whether the created error contains certain errors that would trigger on .Error()

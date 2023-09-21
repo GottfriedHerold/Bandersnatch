@@ -72,7 +72,7 @@ type ast_I interface {
 	// Appending to *s rather than returning a string is purely for efficiency reasons.
 	Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder)
 
-	// HandleSyntaxConditions handles the following syntactic conditions on nodes:
+	// handleSyntaxConditions handles the following syntactic conditions on nodes:
 	// - literal % in formatVerbs
 	// - invalid variable names
 	// - unrecognized conditions
@@ -82,7 +82,7 @@ type ast_I interface {
 	// We assume that this method is called on the root node after [make_ast].
 	//
 	// NOTE: We could handle these errors during [make_ast], but it feels cleaner to separate that (as [make_ast] is already too complicated)
-	HandleSyntaxConditions() (err error)
+	handleSyntaxConditions() (err error)
 
 	// VerifyParameters_direct report syntax or interpolation errors from the subtree below that node.
 	// Note that we may cut corners here and only require this to be accurate for the root
@@ -164,7 +164,7 @@ type (
 		// parseError takes precendence over argumentError
 		parseError error
 		// argumentError is non-nil if there was a syntax error with the argument of a token.
-		// It is set by calling [HandleSyntaxConditions] on the root, which needs to be done after [make_ast]
+		// It is set by calling [handleSyntaxConditions] on the root, which needs to be done after [make_ast]
 		// Notably, it records if one of the following has occurred:
 		// a fmtVerb contains a %
 		// a condition string was not recognized
@@ -172,7 +172,7 @@ type (
 		// Either of these causes Interpolate to unconditionally output all parameters.
 		argumentError error
 
-		// Set to true if [HandleSyntaxConditions] was called once.
+		// Set to true if [handleSyntaxConditions] was called once.
 		syntaxHandled bool
 	}
 	ast_root = *v_ast_root
@@ -1173,7 +1173,7 @@ func make_ast_successfully(s string) (ret ast_root) {
 	if err != nil {
 		panic(err)
 	}
-	err = ret.HandleSyntaxConditions()
+	err = ret.handleSyntaxConditions()
 	if err != nil {
 		panic(err)
 	}
