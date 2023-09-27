@@ -56,10 +56,13 @@ func CheckParametersForStruct_all[StructType any](fieldNames []string) {
 	}
 }
 
-// CheckParameterForStruct[StructType](fieldNames) checks whether the name of the (exported) fields contains the given
-// fieldName. This is intented to be used in init-routines or tests accompanying places in the code
+// CheckParameterForStruct[StructType](fieldNames) checks whether the name of the (exported) fields contains the given fieldName.
+//
+// This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct contains a field of a given name.
 // The purpose is to create guards in the code / tests. It panics on failure.
+//
+// StructType must satisfy the conditions of [StructSuitableForErrorsWithData], else we panic.
 func CheckParameterForStruct[StructType any](fieldName string) {
 	// No need to check that fieldName is a valid exported name. The function will fail anyway if this is not satisfied.
 	allExpectedFields, err := getStructMapConversionLookup(utils.TypeOfType[StructType]())
@@ -74,8 +77,8 @@ func CheckParameterForStruct[StructType any](fieldName string) {
 	panic(fmt.Errorf(ErrorPrefix+"The given struct does not contain an exported field named %v", fieldName))
 }
 
-// CheckIsSubtype checks that both StructType1 and StructType2 are valid for errorsWithData and the exported fields of StructType1 are a subset of those of StructType2.
-// Note that Struct embedding StructType1 in the definition of StructType2 may be preferred to this approach.
+// CheckIsSubtype checks that both StructType1 and StructType2 are satisfy the conditions of [StructSuitableForErrorsWithData] and
+// that the exported fields of StructType1 are a subset of those of StructType2.
 //
 // CheckIsSubtype only cares about the names of the fields. It completely ignores the types.
 // The purpose is to create guards in the code / tests. It panics on failure.
@@ -91,27 +94,51 @@ func CheckIsSubtype[StructType1 any, StructType2 any]() {
 
 // EnsureErrorsValid_Final runs ValidateError_Final on each of its arguments and panics if there is an issue.
 func EnsureErrorsValid_Final(errs ...ErrorWithData_any) {
+	var firstError error
+	var numberOfErrors int
 	for _, err := range errs {
 		if internalIssue := err.ValidateError_Final(); internalIssue != nil {
-			panic(fmt.Errorf("issue in error: %w", internalIssue))
+			if firstError == nil {
+				firstError = internalIssue
+			}
+			numberOfErrors++
 		}
+	}
+	if numberOfErrors > 0 {
+		panic(fmt.Errorf("EnsureErrorsValid_Final has detected %v issues. The first one was %w", numberOfErrors, firstError))
 	}
 }
 
 // EnsureErrorsValid_Base runs ValidateError_Base on each of its arguments and panics if there is an issue.
 func EnsureErrorsValid_Base(errs ...ErrorWithData_any) {
+	var firstError error
+	var numberOfErrors int
 	for _, err := range errs {
 		if internalIssue := err.ValidateError_Base(); internalIssue != nil {
-			panic(fmt.Errorf("issue in error: %w", internalIssue))
+			if firstError == nil {
+				firstError = internalIssue
+			}
+			numberOfErrors++
 		}
+	}
+	if numberOfErrors > 0 {
+		panic(fmt.Errorf("EnsureErrorsValid_Base has detected %v issues. The first one was %w", numberOfErrors, firstError))
 	}
 }
 
 // EnsureErrorsValid_Syntax runs ValidateSyntax on each of its arguments and panics if there is an issue.
 func EnsureErrorsValid_Syntax(errs ...ErrorWithData_any) {
+	var firstError error
+	var numberOfErrors int
 	for _, err := range errs {
 		if internalIssue := err.ValidateSyntax(); internalIssue != nil {
-			panic(fmt.Errorf("issue in error: %w", internalIssue))
+			if firstError == nil {
+				firstError = internalIssue
+			}
+			numberOfErrors++
 		}
+	}
+	if numberOfErrors > 0 {
+		panic(fmt.Errorf("EnsureErrorsValid_Syntax has detected %v issues. The first one was %w", numberOfErrors, firstError))
 	}
 }
