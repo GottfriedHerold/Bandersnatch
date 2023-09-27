@@ -19,7 +19,7 @@ import (
 // CheckParametersForStruct_all[StructType](fieldNames) checks whether the name of the fields coincides with
 // the slice of fieldNames. Note that we require equality (up to order), i.e. the list of fieldNames is exhaustive;
 //
-// All fields of StructType must be exported and shadowed names must only appear once.
+// StructType must satisfy the requirements of [StructSuitableForErrorsWithData], otherwise we panic.
 // This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct has exactly a given set of field names.
 // The purpose is to create guards in the code / tests. It panics on failure.
