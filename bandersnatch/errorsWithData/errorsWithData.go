@@ -250,10 +250,11 @@ const (
 // as these work for arbitrary errors.
 //
 // Note: When creating any ErrorWithData_any, we (by default) inherit data from wrapped errors.
-// This is part of the job of the methods GetParameter, HasParameter and GetData_map, which are required to include inherited data.
-// (rather than require the caller to follow the error chain)
+// This may be part of the job of the methods GetParameter, HasParameter and GetData_map, which are required to include inherited data
+// or be handled when creating the error.
+// Either way, we do NOT require the caller to follow the error chain.
 type ErrorWithData_any interface {
-	error // i.e. provides an Error() string method (redundant from Error_interpolate, but prefer to be explicit)
+	error // i.e. provides an Error() string method
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
 	Error_interpolate(ParamMap) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
@@ -262,6 +263,7 @@ type ErrorWithData_any interface {
 	HasParameter(parameterName string) bool
 	// GetData_map returns a shallow copy of the parameter map. Note that this must never return a nil map.
 	GetData_map() map[string]any
+
 	// typically, any implementation of ErrorWithData_any also has an Unwrap() error method -- all errors created by this package do, but this is not part of the interface.
 
 	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
@@ -308,7 +310,7 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 // Otherwise, this type is useless and most functions will panic.
 type ErrorWithData[StructType any] interface {
 	ErrorWithData_any
-	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetDataFromError[StructType](e, EnsureDataIsPresent)
+	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetData_Struct[StructType](e, EnsureDataIsPresent)
 }
 
 // unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
@@ -413,6 +415,8 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 	}
 	return nil, false
 }
+
+// TODO: Error behaviour?
 
 // GetData_struct obtains the parameters contained in err in the form of a struct of type StructType.
 //

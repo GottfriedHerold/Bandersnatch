@@ -34,7 +34,7 @@ var (
 //
 // We provide [MissingDataAsZero] and [EnsureDataIsPresent] as possible values. The zero value of this type is invalid.
 //
-// Selecting [EnsureDataIsPresent] causes the package to panic if parameters are missing.
+// Selecting [EnsureDataIsPresent] causes the package to report an error or panic if parameters are missing (This is explicitly specified at a per-function basis).
 // [MissingDataAsZero] causes the package to zero-initialize values if parameters are missing.
 type MissingDataTreatment struct {
 	handleMissingData int
@@ -55,7 +55,7 @@ const (
 var (
 	// MissingDataAsZero is passed to functions to indicate that missing data should be zero initialized
 	MissingDataAsZero = MissingDataTreatment{handleMissingData: handleMissingData_AddZeros}
-	// EnsureDataIsPresent is passed to functions to indicate that the function should panic if data is missing
+	// EnsureDataIsPresent is passed to functions to indicate that the function should report an error (possibly panic) if data is missing
 	EnsureDataIsPresent = MissingDataTreatment{handleMissingData: handleMissingData_AssertPresent}
 )
 
@@ -67,7 +67,7 @@ func (m MissingDataTreatment) String() string { // Note: value receiver
 	case handleMissingData_AddZeros:
 		return "Fill missing data with zeros"
 	case handleMissingData_AssertPresent:
-		return "Panic if data is missing"
+		return "Error if data is missing"
 	default:
 		// cannot happen without using unsafe methods.
 		return fmt.Sprintf("Unexpected internal value %v for MissingDataTreatment", m.handleMissingData)
@@ -99,7 +99,7 @@ func (m MissingDataTreatment) String() string { // Note: value receiver
 // we reject this construction, because the candidates get promoted via different pathways (WrappedT vs. T):
 // S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
 // If, in this example, S itself additionally defined its own field X, then S would satisfy our restrictions.
-// We do not expect such corner-cases to come up, really.
+// We do not expect such corner-cases to come up, really. Frankly speaking, the fact that the Go language allows S is questionable to start with.
 func StructSuitableForErrorsWithData[StructType any]() (err error) {
 	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	return
@@ -164,7 +164,7 @@ func getStructMapConversionLookup(structType reflect.Type) (ret structTypeToFiel
 	// our rules (different from Go, which only looks at depth) would give no clear winner.
 	// T would get the X field via incomparable paths. We would reject T as invalid.
 	// If we sort allFields, we know that whenever we encounter such a situation, there will be no
-	// saving T.X encountered later and we detect that T is invalid right away, simplifying things.
+	// saving T.X encountered later during the iteration and we detect that T is invalid right away, simplifying things.
 	sort.Slice(allFields, func(i int, j int) bool {
 		return len(allFields[i].Index) < len(allFields[j].Index)
 	})
@@ -192,11 +192,8 @@ outer_loop:
 				// shorter length of Index is the one that get precedence according to Go's shadowing rules.
 				// We are stricter
 
-				// In case of ambiguity, we panic:
-				if len(existingField.Index) == len(newField.Index) {
-					err = fmt.Errorf(ErrorPrefix+"struct type %v has an ambiguous promoted field named %v", utils.GetReflectName(structType), existingField.Name)
-					return
-				}
+				// Note that existingField is iterated in order of length and only covers those already put into ret.
+
 				// ensure that for existingField.Index and field.Index, one is a prefix of the other (except for the last entry).
 				// Note that this is stronger that the usual rules, which just compare len of Index.
 				if len(existingField.Index) < len(newField.Index) {
@@ -207,20 +204,19 @@ outer_loop:
 						}
 					}
 					continue outer_loop // don't add visible field, the existing one takes precedence
-				} else { // len(existingField.Index) > len(field.Index)
-					// unreachable
-					panic(ErrorPrefix + "internal error: allFieldNames supposed to have been sorted")
-					/*
-						for i := 0; i < len(newField.Index)-1; i++ {
-							if existingField.Index[i] != newField.Index[i] {
-								panic(ErrorPrefix + "using errorsWithData with struct type that has a promoted field through different embedded fields")
-							}
-						}
-
-						ret[pos] = newField // overwrite previous entry
-						continue outer_loop // to skip the append below
-					*/
 				}
+
+				// In case of ambiguity, we trigger an error.
+				// Note that due to sorting, existingField is known to be a field with shortest index length among the equally named,
+				// so there cannot be other fields that would resolve the ambiguity.
+				if len(existingField.Index) == len(newField.Index) {
+					err = fmt.Errorf(ErrorPrefix+"struct type %v has an ambiguous promoted field named %v", utils.GetReflectName(structType), existingField.Name)
+					return
+				}
+
+				// We would get here if len(existingField.Index) > len(field.Index)
+				// This is unreachable due to sorting.
+				panic(ErrorPrefix + "internal error: allFieldNames supposed to have been sorted")
 			}
 		}
 
@@ -233,7 +229,7 @@ outer_loop:
 	// We need to check if some other goroutine already filled the cache in the meantime.
 	_, ok = structTypeToFieldsMap[structType]
 	if ok {
-		ret = structTypeToFieldsMap[structType]
+		ret = structTypeToFieldsMap[structType] // use the value already in the map, to give consistently identical (not just equal) results.
 	} else {
 		structTypeToFieldsMap[structType] = ret
 	}
@@ -286,7 +282,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, missingDataT
 				return
 			}
 		}
-		mapEntryType := reflect.TypeOf(mapEntry)
+		mapEntryType := reflect.TypeOf(mapEntry) // Note: mapEntry cannot be nil here, because that was handled already
 		// interface types as fields in StructType need special handling, because reflect.TypeOf(mapEntry) contains the dynamic type.
 		if expectedField.Type.Kind() == reflect.Interface {
 			if !mapEntryType.AssignableTo(expectedField.Type) {
@@ -322,7 +318,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, missingDataT
 // We ask that data (if present) has exactly matching type except for interface types in the struct or nil interface values in the map.
 // m == nil is treated like an empty map. An invalid StructType causes an error to be returned (not a panic).
 func makeStructFromMap[StructType any](m map[string]any, missingDataTreatment MissingDataTreatment) (ret StructType, err error) {
-	// ret starts of zero-initialized and gets modified (via reflection) within this function.
+	// ret starts off zero-initialized and gets modified (via reflection) within this function.
 	reflectedStructType := utils.TypeOfType[StructType]() // reflect.TypeOf(ret) would not work in case someone wrongly sets StructType to an interface type.
 	allStructFields, err := getStructMapConversionLookup(reflectedStructType)
 	if err != nil {

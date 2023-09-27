@@ -273,24 +273,24 @@ func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError 
 // VerifyParameters_passed checks whether the AST contains any parse or syntax errors that were recorded when creating it.
 // If not, it checks whether parameters in %fmtVerb{VariableName} or $fmtVerb{VariableName} expressions are actually present and
 // %w and $w expressions refer to valid baseErrors.
-// It also recursively checks the baseError, if referred to via %w or $w, the the base error supports this (via ValidateError_Params())
+// It also recursively checks the baseError, if referred to via %w or $w and the the base error supports this (via ValidateError_Params())
 // Untaken conditional branches are not checked (but parse or syntax errors there will be reported)
 // Only the first error is reported.
 //
 // The method uses parameters_direct resp. parameters_passed for its for variables and baseError as the baseError.
-// NOTE: parameters_passed must not be nil (an empty map is fine), to avoid confusion.
+// NOTE: parameters_passed must not be nil (an empty map is fine), to avoid confusion. We panic in this case.
 // The special-cased meaning of parameters_passed == nil in [ValidateError_Params] from the [ErrorWithData_any] or [ErrorInterpolater] interface
-// needs to be handled by [ValidateError_Params]
+// needs to be handled by [ValidateError_Params] rather than here.
 //
 // VerifyParameters_passed for the root node just checks for errors (those were recorded in the root node by [make_ast], and [handleSyntaxConditions] and hands off to the child)
 func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) error {
 
 	if a.ast == nil {
-		panic(ErrorPrefix + "invalid syntax tree: root has no child")
+		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen
 	}
 
 	if parameters_passed == nil {
-		panic(ErrorPrefix + "VerifyParameters_passed called with nil map for parameters_passed")
+		panic(ErrorPrefix + "VerifyParameters_passed called with nil map for parameters_passed") // bug in caller.
 	}
 
 	syntaxError := a.handleSyntaxConditions() // ensure this is called
@@ -372,7 +372,7 @@ func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) error {
 
 // VerifyParameters_passed for $fmtVerb{variableName} checks whether the variable is present in parameters_passed.
 //
-// NOTE: we assume that parameters_passed is either nil
+// NOTE: we assume that parameters_passed is not nil. This is checked/handled at the root node.
 func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, _ error) (err error) {
 
 	_, ok := parameters_passed[a.variableName]
@@ -409,6 +409,8 @@ func (a ast_parentPercent) VerifyParameters_direct(_ ParamMap, baseError error) 
 
 // VerifyParameters_passed for %w checks whether the base error is present.
 // If possible, we also actually check for problems in the referred baseError
+//
+// The same considerations as with VerifyParameters_direct apply here.
 func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
 	// exactly the same as VerifyParamter_direct
 	if baseError == nil {
@@ -579,7 +581,7 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 //
 // parameters_passed == nil means parameters_passed are the same as parameters_direct.
 // We handle this special-case here, so other node types don't have to handle it.
-// (Note: We could also let the caller or each node do that, but doing it here is more convenient)
+// (Note: We could also let the caller or each node do that, but doing it here is more convenient -- it allows us to make some diagnostics prettier)
 // paramters_direct should not be nil (use an empty map instead)
 //
 // Error handling: Note that [make_ast] always outputs a valid tree that contains a in-band error message.
@@ -614,12 +616,17 @@ func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed Para
 	if hasError {
 		if baseError != nil {
 			s.WriteString("\nBase error:\n")
-			s.WriteString(baseError.Error()) // Note: We don't check for baseError.(ErrorInterpolater), because we output the parameters anyway.
+			s.WriteString(baseError.Error()) // Note: We don't check for baseError.(ErrorInterpolater), because we output the parameters anyway (if present).
 		}
+		
+		// unconditionally output params, if present (parameters_direct == nil is handled as an empty map. This is not supposed to happen, but we handle it gracefully):
 		if len(parameters_direct) != 0 {
 			s.WriteString("\nParameters in error:\n")
 			fmt.Fprintf(s, "%v", parameters_direct)
 		}
+
+		// If parameters_passed == nil, we don't need to output it.
+		// Note that if parameters_passed is an empty map, we actually output it. This is intentional and correct.
 		if parameters_passed != nil {
 			s.WriteString("\nParameters from parent error:\n")
 			fmt.Fprintf(s, "%v", parameters_passed)

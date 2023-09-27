@@ -105,7 +105,7 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 
 // fillMapFromStruct converts a struct of type StructType into a map[string]any.
 // This function adds an entry to the provided (existing) map *m for each visible field of StructType (including from embedded structs).
-// This modifies *m, converting a nil map to an empty map.
+// This modifies *m, converting a nil map to an empty map. This conversion happens even for empty StructType.
 //
 // StructType must be valid for use in this library (i.e. satisfy [StructSuitableForErrorsWithData]).
 // This functions panics otherwise.

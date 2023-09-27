@@ -1,5 +1,7 @@
 package errorsWithData
 
+var _ ErrorInterpolater = func() ErrorWithData_any { return nil }() // ensure ErrorInterpolater is sub-interface of ErrorWithData_any
+
 /*
 
 import (
