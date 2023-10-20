@@ -154,11 +154,11 @@ func TestGetStructMapConversionLookup(t *testing.T) {
 func TestMapToStructConversion(t *testing.T) {
 	var m map[string]any = make(map[string]any)
 	type Empty struct{}
-	_, err := makeStructFromMap[Empty](nil, EnsureDataIsPresent)
+	_, err := makeStructFromMap[Empty](nil, MissingDataIsError)
 	if err != nil {
 		t.Fatalf("Could not create empty struct from nil")
 	}
-	_, err = makeStructFromMap[Empty](m, EnsureDataIsPresent)
+	_, err = makeStructFromMap[Empty](m, MissingDataIsError)
 	if err != nil {
 		t.Fatalf("Could not create empty struct from empty map")
 	}
@@ -183,13 +183,13 @@ func TestMapToStructConversion(t *testing.T) {
 	m["Name3"] = nil
 	m["Name4"] = byte(10)
 
-	somet0, err := makeStructFromMap[T0](m, EnsureDataIsPresent)
+	somet0, err := makeStructFromMap[T0](m, MissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error : %v", err)
 
-	somet1, err := makeStructFromMap[T1](m, EnsureDataIsPresent)
+	somet1, err := makeStructFromMap[T1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error : %v", err)
 
-	_, err = makeStructFromMap[NestedT1](m, EnsureDataIsPresent)
+	_, err = makeStructFromMap[NestedT1](m, MissingDataIsError)
 	// We expect an error because of type mismatch uint vs int
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 
@@ -200,7 +200,7 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, somet1 == T1{5, "foo", nil}, "Unexpected value for somet1: %v", somet1)
 
 	delete(m, "Name3")
-	_, err = makeStructFromMap[T1](m, EnsureDataIsPresent)
+	_, err = makeStructFromMap[T1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but expected one (parameter missing)")
 
 	somet1, err = makeStructFromMap[T1](m, MissingDataAsZero)
@@ -212,19 +212,19 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, !present, "makeStructFromMap modified input map")
 
 	m["Name3"] = io.EOF
-	somet1, err = makeStructFromMap[T1](m, EnsureDataIsPresent)
+	somet1, err = makeStructFromMap[T1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 	testutils.FatalUnless(t, somet1.Name3 == io.EOF, "Unexpected value for somet1: %v", somet1)
 
 	m["Name3"] = "some string, which does not satisfy the error interface"
 	_, err = makeStructFromMap[T1](m, MissingDataAsZero)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
-	_, err = makeStructFromMap[T1](m, EnsureDataIsPresent)
+	_, err = makeStructFromMap[T1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 
 	m["Name3"] = io.EOF
 	m["Name1"] = uint(6)
-	nested, err := makeStructFromMap[NestedT1](m, EnsureDataIsPresent)
+	nested, err := makeStructFromMap[NestedT1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 
 	testutils.FatalUnless(t, nested.Name1 == uint(6), "Unexpected value for nested %v", nested)
@@ -233,10 +233,10 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, nested.T1.Name1 == int(0), "Unexpected value for shadowed values. Nested == %v", nested)
 
 	m["Name1"] = nil
-	_, err = makeStructFromMap[NestedT1](m, EnsureDataIsPresent)
+	_, err = makeStructFromMap[NestedT1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 	delete(m, "Name1")
-	_, err = makeStructFromMap[NestedT1](m, EnsureDataIsPresent)
+	_, err = makeStructFromMap[NestedT1](m, MissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 	nested, err = makeStructFromMap[NestedT1](m, MissingDataAsZero)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
@@ -251,18 +251,18 @@ func TestEnsureCanMakeStructFromParams(t *testing.T) {
 		mNilInterface ParamMap = ParamMap{"Arg": nil}
 	)
 	type EmbeddedInt = int
-	var issue error = ensureCanMakeStructFromParameters[struct{}](&mEmpty, EnsureDataIsPresent)
+	var issue error = ensureCanMakeStructFromParameters[struct{}](&mEmpty, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
 	testutils.FatalUnless(t, len(mEmpty) == 0, "map modified: %v", mEmpty)
-	issue = ensureCanMakeStructFromParameters[struct{}](&mSomeArgs, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[struct{}](&mSomeArgs, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = ensureCanMakeStructFromParameters[struct{ Arg *int }](&mNilInterface, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[struct{ Arg *int }](&mNilInterface, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = ensureCanMakeStructFromParameters[struct{ EmbeddedInt }](&ParamMap{"EmbeddedInt": 5}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[struct{ EmbeddedInt }](&ParamMap{"EmbeddedInt": 5}, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = ensureCanMakeStructFromParameters[struct{ EmbeddedInt }](&ParamMap{"EmbeddedInt": uint(5)}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[struct{ EmbeddedInt }](&ParamMap{"EmbeddedInt": uint(5)}, MissingDataIsError)
 	testutils.FatalUnless(t, issue != nil, "") // Wrong type)
-	issue = ensureCanMakeStructFromParameters[struct{ *EmbeddedInt }](&ParamMap{"EmbeddedInt": new(int)}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[struct{ *EmbeddedInt }](&ParamMap{"EmbeddedInt": new(int)}, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
 
 	type T1 struct {
@@ -274,28 +274,28 @@ func TestEnsureCanMakeStructFromParams(t *testing.T) {
 		X uint
 	}
 
-	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": io.EOF}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": io.EOF}, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": nil, "Z": "foo"}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": nil, "Z": "foo"}, MissingDataIsError)
 	testutils.FatalUnless(t, issue == nil, "%v", issue)
-	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": int(0), "Y": io.EOF}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": int(0), "Y": io.EOF}, MissingDataIsError)
 	testutils.FatalUnless(t, issue != nil, "") // wrong type
 	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": int(0), "Y": io.EOF}, MissingDataAsZero)
 	testutils.FatalUnless(t, issue != nil, "") // wrong type
-	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Z": io.EOF}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Z": io.EOF}, MissingDataIsError)
 	testutils.FatalUnless(t, issue != nil, "") // missing Y
 	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Z": io.EOF}, MissingDataAsZero)
 	testutils.FatalUnless(t, issue == nil, "") // missing Y, but filled in with 0
 
-	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"Y": io.EOF, "Z": 0}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"Y": io.EOF, "Z": 0}, MissingDataIsError)
 	testutils.FatalUnless(t, issue != nil, "") // missing X
 	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"Y": io.EOF, "Z": 0}, MissingDataAsZero)
 	testutils.FatalUnless(t, issue == nil, "") // missing X, but filled in with 0
-	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": "foo", "Z": 0}, EnsureDataIsPresent)
+	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": "foo", "Z": 0}, MissingDataIsError)
 	testutils.FatalUnless(t, issue != nil, "") // Y is no error
 	issue = ensureCanMakeStructFromParameters[T2](&ParamMap{"X": uint(0), "Y": "foo", "Z": 0}, MissingDataAsZero)
 	testutils.FatalUnless(t, issue != nil, "") // Y is no error
 
-	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, EnsureDataIsPresent) != nil, "")
+	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, MissingDataIsError) != nil, "")
 	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, MissingDataAsZero) != nil, "")
 }

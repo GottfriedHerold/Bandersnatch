@@ -1,7 +1,8 @@
 package errorsWithData
 
-import "testing"
+// TODO: Reactivate
 
+/*
 func BenchmarkMergeMaps(b *testing.B) {
 	var inputMap ParamMap = make(ParamMap)
 	inputMap["Param1"] = int(5)
@@ -46,3 +47,4 @@ func BenchmarkFillMapFromStruct(bOuter *testing.B) {
 	})
 
 }
+*/

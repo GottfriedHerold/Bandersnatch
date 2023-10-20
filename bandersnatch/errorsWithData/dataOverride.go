@@ -7,57 +7,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// Functions and methods that modify errors with data take as input a parameter that controls how already-present data should be handled.
-// The options are to prefer the old, prefer the new or panic on ambiguity.
-// For type-safety, this choice is passed as a parameter of designated type PreviousDataTreatment.
-// This file defined this type and its associated methods.
-
-// PreviousDataTreatment is an encapsulated enum type passed to functions and methods that modify the data associated to errors.
-//
-// It controls how the library should treat setting values that are already present.
-// We provide [PreferPreviousData], [ReplacePreviousData], [AssertDataIsNotReplaced] as potential values.
-// The zero value of this type is not a valid PreviousDataTreatment. Using such a zero value will cause panics.
-type PreviousDataTreatment struct {
-	keep int
-}
-
-// internal int-based enum for [PreviousDataTreatment]. We use a struct wrapping an int in our exported API.
-// This is because we want stronger typing for methods that already take "any" or generic-parameter dependent values.
-const (
-	treatPreviousData_Unset = iota // zero value. This is not a valid value.
-	treatPreviousData_Override
-	treatPreviousData_PreferOld
-	treatPreviousData_PanicOnCollision
-)
-
-var (
-	// PreferPreviousData means that when replacing associated data in errors, we keep the old value if some value is already present for a given key.
-	PreferPreviousData = PreviousDataTreatment{keep: treatPreviousData_PreferOld}
-	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values for a given key.
-	ReplacePreviousData = PreviousDataTreatment{keep: treatPreviousData_Override}
-	// AssertDataIsNotReplaced means that when replacing associated data in errors, we panic if a different value was already present for a given key.
-	AssertDataIsNotReplaced = PreviousDataTreatment{keep: treatPreviousData_PanicOnCollision}
-)
-
-// Helps with diagnostics
-
-// String is provided to make PreviousDataTreatment satisfy fmt.Stringer. It returns a string representing the meaning of the value.
-func (s PreviousDataTreatment) String() string { // Note: Value receiver
-	switch s.keep {
-	case treatPreviousData_Unset:
-		return "Unset value" // should we panic? I guess not, since this is just for diagnostics.
-	case treatPreviousData_Override:
-		return "Override old value"
-	case treatPreviousData_PreferOld:
-		return "Keep previous value"
-	case treatPreviousData_PanicOnCollision:
-		return "Panic on ambiguity"
-	default:
-		// cannot really happen unless users use unsafe, because we don't export the type.
-		panic(fmt.Errorf(ErrorPrefix+"invalid value of PreviousDataTreatment : %v", s.keep))
-	}
-}
-
 // TODO: Return error rather than panic on AssertDataIsNotReplaced?
 
 // This particular API (modifying *target) just happens to be convenient for our purpose.
@@ -71,33 +20,187 @@ func (s PreviousDataTreatment) String() string { // Note: Value receiver
 //   - mode == [PreferPreviousData]: values already in target take precendence
 //   - mode == [ReplacePreviousData]: values in source take precedence
 //   - mode == [AssertDataIsNotReplaced]: this function panics for duplicate keys, unless the values are comparable and equal.
-func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
-	switch mode.keep {
-	case treatPreviousData_Override:
-		for key, value := range source {
+func mergeMaps(target *ParamMap, source ParamMap, config mergeParams) (err error) {
+	if !config.PerformEqualityCheck() {
+		if config.PreferOld() {
+			mergeMaps_preferOld(target, source)
+		} else {
+			mergeMaps_preferNew(target, source)
+		}
+		return nil
+	} else {
+		return mergeMaps_EqualityCheck(target, source, config)
+	}
+}
+
+func mergeMaps_preferOld(target *ParamMap, source ParamMap) {
+	for key, value := range source {
+		if _, alreadyPresent := (*target)[key]; !alreadyPresent {
 			(*target)[key] = value
 		}
-	case treatPreviousData_PreferOld:
-		for key, value := range source {
-			if _, alreadyPresent := (*target)[key]; !alreadyPresent {
-				(*target)[key] = value
-			}
-		}
-	case treatPreviousData_PanicOnCollision:
-		for key, value := range source {
-			oldVal, alreadyPresent := (*target)[key]
-			if alreadyPresent {
-				// TODO: Handle incomparable types specially?
-				if oldVal != value {
-					panic(fmt.Errorf(ErrorPrefix+"trying to overwrite data for error when AssertDataIsNotReplaced was set.\nPrevious data: %v\nNew data:%v", oldVal, value))
-				}
-			} else {
-				(*target)[key] = value
-			}
-		}
-	default:
-		panic(fmt.Errorf(ErrorPrefix+"called mergeMaps with invalid value %v for mode", mode))
 	}
+}
+
+func mergeMaps_preferNew(target *ParamMap, source ParamMap) {
+	for key, value := range source {
+		(*target)[key] = value
+	}
+}
+
+func comparison_very_naive(x, y any) (equal bool, reason error) {
+	return x == y, nil
+}
+
+// TODO: This is a dummy implementation. It has bad error reporting and the default comparison function does not work well.
+func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config mergeParams) (err error) {
+	if !config.PerformEqualityCheck() {
+		panic("Cannot happen")
+	}
+	checkFun := config.GetCheckFun()
+	for key, newValue := range source {
+		if oldValue, alreadyPresent := (*target)[key]; alreadyPresent {
+
+			// may override anyway, depending on config
+			if config.PreferNew() {
+				(*target)[key] = newValue
+			}
+			// only report first error
+			if err != nil {
+				continue
+			}
+
+			comparisonEqual, reason := checkFun(oldValue, newValue)
+			if !comparisonEqual {
+				// TODO
+				if reason == nil {
+					reason = fmt.Errorf(ErrorPrefix+"%v != %v", oldValue, newValue)
+				}
+				err = reason
+			}
+
+		} else { // no old value, just use the new one
+			(*target)[key] = newValue
+		}
+	}
+	return
+}
+
+func mergeMaps_errorIfPresent(target *ParamMap, source ParamMap) (err error) {
+	for key, value := range source {
+		if _, alreadyPresent := (*target)[key]; alreadyPresent {
+			if err == nil { // report first error
+				err = fmt.Errorf(ErrorPrefix+"overwriting data for error when flag was set to consider this an error.\nKey value: %v\nOld value: %v\nNew value: %v", key, (*target)[key], value)
+				// NO RETURN HERE. We continue, implicitly prefering new values.
+			}
+			(*target)[key] = value
+		}
+	}
+	return
+}
+
+func mergeMaps_errorOnCollisionNaive(target *ParamMap, source ParamMap) (err error) {
+	for key, value := range source {
+		if oldVal, alreadyPresent := (*target)[key]; alreadyPresent {
+			if err != nil { // only report first error.
+				continue
+			}
+			OldType := reflect.TypeOf(oldVal)
+			if !OldType.Comparable() {
+				// treat oldVal as different from value, but with special error message
+				err = fmt.Errorf(ErrorPrefix+"overwriting data for error when flag was set to err if oldValue != newValue. The old value for parameter named %v is incomparable", key)
+			} else if oldVal != value {
+				err = fmt.Errorf(ErrorPrefix+"trying to overwrite data under key %v for error when flag was set to err if oldValue != newValue.\noldValue: %v\nnewValue: %v", key, oldVal, value)
+			}
+		}
+		(*target)[key] = value
+
+	}
+	return
+}
+
+var boolType reflect.Type = utils.TypeOfType[bool]()
+
+func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err error) {
+	for key, value := range source {
+		if oldVal, alreadyPresent := (*target)[key]; alreadyPresent {
+			if err != nil {
+				// only report first error. We don't overwrite in any case, so just do nothing
+				continue
+			}
+			oldValReflectedPtr := reflect.ValueOf(&oldVal)
+			oldValReflected := oldValReflectedPtr.Elem()
+
+			// NOTE: methodValue and methodType correspond to a function with the receiver set to the oldValue, so no explicit receiver argument.
+			// It's really a reflectValue of a function (or bound method), not of a method.
+			var methodValue reflect.Value
+			var methodType reflect.Type
+
+			methodValue = oldValReflectedPtr.MethodByName("IsEqual")
+			if !methodValue.IsValid() {
+				// try value receiver
+				methodValue = oldValReflected.MethodByName("IsEqual")
+				if !methodValue.IsValid() {
+					goto direct_comparison
+				}
+			}
+
+			methodType = methodValue.Type()
+
+			if methodType.Kind() != reflect.Func {
+				panic("cannot happen")
+			}
+
+			if methodType.NumIn() != 1 {
+				panic(0)
+
+			}
+			if methodType.NumOut() != 1 {
+				panic(0)
+			}
+			if methodType.Out(0) != boolType {
+				panic(0)
+			}
+			{ // limit the scope of declared variables, else the above goto would not work
+				newValueType := reflect.TypeOf(value)
+				funcArgType := methodType.In(1)
+				var resultBool bool
+				if newValueType.AssignableTo(funcArgType) {
+					callResult := methodValue.Call([]reflect.Value{reflect.ValueOf(value)})
+					resultBool = callResult[0].Interface().(bool)
+				} else if reflect.PointerTo(newValueType).AssignableTo(funcArgType) {
+					callResult := methodValue.Call([]reflect.Value{reflect.ValueOf(&value)})
+					resultBool = callResult[0].Interface().(bool)
+				} else {
+					// There is some IsEqual Method, but it's not callable
+				}
+				if resultBool { // [&]oldValue.IsEqual([&]Value) was callable for some choices of &'s and returned true
+					// This is the good case. There is no error. Just continue with the for loop.
+					continue
+				} else {
+					// IsEqual was callable, but returned false:
+					err = fmt.Errorf(ErrorPrefix+"overwriting data under key %v for error when flag was set to err if !oldValue.IsEqual(newValue).\noldValue: %v\nnewValue: %v", key, oldVal, value)
+					continue
+				}
+			}
+
+		direct_comparison:
+			// If we get here, no suitable IsEqual method was found.
+			// methodType is unset, methodValue is invalid.
+			// oldValReflected is valid
+			if !oldValReflected.Type().Comparable() {
+				err = fmt.Errorf(ErrorPrefix+"overwriting data for error when flag was set to err unless oldValue.IsEqual(newValue) || oldValue == newValue. There was no suitable IsEqual method and the old value for parameter named %v is incomparable", key)
+				continue
+			} else if oldVal != value {
+				err = fmt.Errorf(ErrorPrefix+"overwriting data for error under key %v when flag was set to err unless oldValue.IsEqual(newValue) || oldValue == newValue. There was no suitable IsEqual method and the values differ.\noldValue: %v\nnewValue: %v", key, oldVal, value)
+				continue
+			} else {
+				// values are just equal via the old-fashioned ==.
+				continue
+			}
+		}
+		(*target)[key] = value
+	}
+	return
 }
 
 // NOTE: Adding entries to an existing map is more convenient for our use cases than returning a map.
@@ -116,45 +219,57 @@ func mergeMaps(target *ParamMap, source ParamMap, mode PreviousDataTreatment) {
 //   - mode == [PreferPreviousData]: preexisting values take precendence
 //   - mode == [ReplacePreviousData]: values from *s take precedence
 //   - mode == [AssertDataIsNotReplaced]: panic if a key in *m corresponds to a field in struct, unless the values are (comparable and) equal.
-func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, mode PreviousDataTreatment) {
+func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config mergeParams) (err error) {
 	if *m == nil {
 		*m = make(map[string]any)
 	}
 	reflectedStructType := utils.TypeOfType[StructType]()
-	allStructFields, err := getStructMapConversionLookup(reflectedStructType)
-	if err != nil {
-		panic(err)
+	allStructFields, errLookup := getStructMapConversionLookup(reflectedStructType)
+	if errLookup != nil {
+		panic(errLookup)
 	}
 	structValue := reflect.ValueOf(s).Elem()
-	switch mode.keep {
-	case treatPreviousData_Override:
-		for _, structField := range allStructFields {
-			fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
-			(*m)[structField.Name] = fieldInStruct
-		}
-	case treatPreviousData_PreferOld:
-		for _, structField := range allStructFields {
-			_, alreadyPresent := (*m)[structField.Name]
-			if !alreadyPresent {
-				fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
-				(*m)[structField.Name] = fieldInStruct
-			}
-		}
-	case treatPreviousData_PanicOnCollision:
-		for _, structField := range allStructFields {
-			oldValue, alreadyPresent := (*m)[structField.Name]
-			if !alreadyPresent {
-				fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
-				(*m)[structField.Name] = fieldInStruct
-			} else {
-				fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
-				// TODO: Handle incomparable types specially?
-				if fieldInStruct != oldValue {
-					panic(fmt.Errorf(ErrorPrefix+"trying to overwrite data for error when AssertDataIsNotReplaced was set.\nPrevious data: %v\nNew data:%v", oldValue, fieldInStruct))
+	if !config.PerformEqualityCheck() {
+		// simple case. Just prefer old / new value depending on config
+		if config.PreferOld() {
+			for _, structField := range allStructFields {
+				_, alreadyPresent := (*m)[structField.Name]
+				if !alreadyPresent {
+					fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
+					(*m)[structField.Name] = fieldInStruct
 				}
 			}
+		} else { // config.preferOld not set. We always use the new value
+			for _, structField := range allStructFields {
+				fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
+				(*m)[structField.Name] = fieldInStruct
+			}
 		}
-	default:
-		panic(fmt.Errorf(ErrorPrefix+"called fillMapFromStruct with invalid value %v for mode", mode))
+		return nil // no possible error
+	} else {
+		// config.PerformEqualityCheck() returned true
+		checkFun := config.GetCheckFun()
+		for _, structField := range allStructFields {
+			oldValue, alreadyPresent := (*m)[structField.Name]
+			newValue := structValue.FieldByIndex(structField.Index).Interface()
+			if !alreadyPresent {
+				(*m)[structField.Name] = newValue
+				continue
+			}
+			if config.PreferNew() {
+				(*m)[structField.Name] = newValue
+			}
+			if err != nil { // only report first error
+				continue
+			}
+			isEqual, reason := checkFun(oldValue, newValue)
+			if !isEqual {
+				if reason == nil {
+					reason = fmt.Errorf(ErrorPrefix+"%v != %v", oldValue, newValue) // TODO: Better error message
+				}
+				err = reason
+			}
+		}
 	}
+	return
 }

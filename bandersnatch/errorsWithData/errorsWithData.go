@@ -285,7 +285,7 @@ type ErrorInterpolater interface {
 
 // DummyValidator is an empty struct that dummy-implements ValidateError_Base, ValidateError_Final, ValidateSyntax and ValidateError_Params (with value receivers).
 // These method all return nil (indicating that validation succeeded).
-// The usage scenario is struct-embedding in an implementation of the [ErrorWithData] interface to satisfy the validation-related parts of the interface if no validation is supported.
+// The usage scenario is struct-embedding in an implementation of the [ErrorWithData] interface to satisfy the validation-related parts of the interface if no validation is supported/needed.
 type DummyValidator struct{}
 
 func (DummyValidator) ValidateError_Base() error           { return nil }
@@ -349,7 +349,7 @@ func isExportedIdentifier(s string) bool {
 //
 // Calling GetData_map or HasData on errParent should act as if "V" was never present in errBase.
 // This is why it's wrong to say that GetParameter(err, "V") obtains "V" from the first error in the error chain where such as parameter was found.
-// To get the correct semantics, we have to (mentally) associate to every error (including plain errors) an immutable parameter map, where error wrapping defaults to copying/inheriting the map.
+// To get the correct semantics, we have to (mentally) associate to every error (including plain errors that know nothing about this package) an immutable parameter map, where error wrapping defaults to copying/inheriting the map.
 
 // GetData_map returns a map for all parameters stored in the error, where error wrapping defaults to keeping the parameters of the wrapped error.
 // For err==nil or if no error in err's error chain has any data, returns an empty map.
@@ -367,7 +367,10 @@ func GetData_map(err error) map[string]any {
 	return make(map[string]any) // return an empty (rather than a nil) map if no error in the chain supports ErrorWithData_any; this includes the err==nil case.
 }
 
-// HasParameter checks whether some error in err's error chain contains a parameter keyed by parameterName.
+// HasParameter checks whether err contains a parameter keyed by parameterName.
+//
+// Note that err does not need to have been created by package.
+// Error wrapping defaults to retaining all parameters, so we follow the error chain.
 //
 // HasParameter(nil, <anything>) returns false
 func HasParameter(err error, parameterName string) bool {
@@ -388,26 +391,21 @@ func HasParameter(err error, parameterName string) bool {
 
 // HasData checks whether the error contains enough parameters of correct types to create an instance of StructType.
 //
-// Note: This function panics if StructType is malformed for this purpose (e.g containing non-exported fields). Use [StructSuitableForErrorsWithData] to check StructType beforehand if needed.
+// Optional flags supported: [EnsureDataIsPresent] (the default) and [IgnoreMissingData]
+// These control whether merely missing data is ignored; If [IgnoreMissingData] is passed, we only type-check existing entries.
 //
-// If data is present, but of wrong type, returns false.
-func HasData[StructType any](err error) bool {
+// Note: This function panics if StructType is malformed for this purpose (e.g containing non-exported fields).
+// Use [StructSuitableForErrorsWithData] to check StructType beforehand if needed.
+func HasData[StructType any](err error, flags ...flagArgument_HasData) bool {
+	config := parseFlagArgs_HasData(flags...)
 	params := GetData_map(err) // unneeded copy.
-	return ensureCanMakeStructFromParameters[StructType](&params, EnsureDataIsPresent) == nil
+	return ensureCanMakeStructFromParameters[StructType](&params, config) == nil
 }
 
 // GetParameter returns the value stored under the key parameterName, possibly following err's error chain (error wrapping defaults to inheriting the wrapped error's parameters).
 //
 // If no entry was found in the error chain or err==nil, returns (nil, false). Note that the err argument is of plain error type.
 func GetParameter(err error, parameterName string) (value any, wasPresent bool) {
-	/*
-		if f := GetInvalidParameterNameHandler(); f != nil {
-			if !IsExportedIdentifier(parameterName) {
-				f(parameterName)
-			}
-		}
-	*/
-
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.GetParameter(parameterName)
@@ -416,21 +414,31 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 	return nil, false
 }
 
-// TODO: Error behaviour?
-
-// GetData_struct obtains the parameters contained in err in the form of a struct of type StructType.
+// GetData_struct obtains the parameters contained in inputError in the form of a struct of type StructType.
+// Additional Parameters in inputError in excess of what is needed to create a struct are ignored.
 //
-// If err does not contain enough parameters to construct an instance of StructType, the behaviour depends on mode:
-//   - if mode == [MissingDataAsZero], the corresponding fields are zero-initialized
-//   - if mode == [EnsureDataIsPresent], the function panics if parameters are missing.
+// Supported optional flags are [MissingDataIsZero]/[MissingDataIsError] and [ReturnError]/[PanicOnAllErrors]
+// If inputError does not contain enough parameters or paramters of wrong type to construct an instance of StructType, the behaviour depends on those flags:
 //
-// Calling with function with error data that is present but of wrong type will cause a panic.
-// Calling this function with an invalid StructType will cause a panic.
-func GetData_struct[StructType any](err error, mode MissingDataTreatment) (ret StructType) {
-	allParams := GetData_map(err) // TODO: Avoid copying?
-	ret, wrongDataError := makeStructFromMap[StructType](allParams, mode)
-	if wrongDataError != nil {
-		panic(wrongDataError)
+//   - If [MissingDataIsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an error.
+//   - If instead [MissingDataIsError] is set (the default), we also zero-initialize for merely missing data, but treat this an an error returned in structConstructionError.
+//   - if [ReturnError] is set (the default), we return errors via structConstructionError
+//   - if instead [PanicOnAllErrors] is set, we panic rather than returning a structConstructionError
+//
+// Calling this function with an StructType not satisfying [StructSuitableForErrorsWithData] will cause a panic.
+//
+// Note: The types of the parameters in inputError must match the types of the fields of StructType exactly, except that
+// - interface types in StructType only need assignability from the dynamic type of what's in inputError
+// - a nil interface value in inputError's parameters is treated like an untyped nil (i.e. we perform ret.FieldName = nil, converting the nil to the appropriate type) if possible.
+//
+// On error, structConstructionError contains diagnostics for all fields of StructType for which an error occurred.
+// ret's fields are zero-initialized for those failing fields. All non-failing fields contain the values from inputError.
+func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionError error) {
+	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
+	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)
+	ret, structConstructionError = makeStructFromMap[StructType](allParams, zeroFillConfig)
+	if structConstructionError != nil && errorHandlingConfig.PanicOnError() {
+		panic(structConstructionError)
 	}
 	return
 }

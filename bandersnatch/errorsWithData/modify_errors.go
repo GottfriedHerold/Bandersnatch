@@ -19,6 +19,8 @@ import (
 //   creates some new error and then modifies its parameters before returning the new error. This is
 //   done purely to unify the code.
 
+var defaultValidation = validationParams{doValidation: flagArg_ValidateSyntax}
+
 // NewErrorWithData_struct creates a new [ErrorWithData] wrapping the given baseError if non-nil.
 // interpolationString is used to create the new error message, where an empty string is
 // interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil.
@@ -29,14 +31,11 @@ import (
 // For baseError == nil, interpolationString == "", this function panics.
 // For baseError == nil, interpolationString != "", creates a new error that does not wrap an error.
 // The function also panics if StructType is unsuited (e.g. contains unexported fields)
-func NewErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, mode ...PreviousDataTreatment) ErrorWithData[StructType] {
-	if len(mode) > 1 {
-		panic(ErrorPrefix + "called NewErrorWithData_struct with more than 1 mode")
-	}
-	var realMode PreviousDataTreatment = ReplacePreviousData
-	if len(mode) == 1 {
-		realMode = mode[0]
-	}
+func NewErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, flags ...flagArgument_NewErrorStruct) ErrorWithData[StructType] {
+
+	var config = errorCreationParams{validationParams: defaultValidation}
+
+	parseFlagArgs(&config, flags...)
 
 	if baseError == nil && interpolationString == "" {
 		panic(ErrorPrefix + "called NewErrorWithData_struct with nil base error and empty interpolation string")
@@ -62,7 +61,7 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 	// Note: baseError may be nil. This is actually fine.
 
 	// TODO: Validation?
-	return newErrorWithData_struct(baseError, interpolationString, data, realMode)
+	return newErrorWithData_struct(baseError, interpolationString, data, &config)
 }
 
 // Note: We could pass mode and/or missingData as optional arguments as part of params.
@@ -97,7 +96,7 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 //     It is not possible to distinguish automatically zero-initialized parameters from parameters explicitly set to zero.
 //     In particular, [HasParameter] returns true for those parameters and when using an error with such zero-initialized parameters as a base for error wrapping, the wrapping
 //     error will see those zero-initialized parameters.
-func NewErrorWithData_params[StructType any](baseError error, interpolationString string, mode PreviousDataTreatment, missingDataTreatment MissingDataTreatment, params ...any) (ret ErrorWithData[StructType]) {
+func NewErrorWithData_params[StructType any](baseError error, interpolationString string, mode flagPreviousDataTreatment, missingDataTreatment flagMissingDataTreatment, params ...any) (ret ErrorWithData[StructType]) {
 	baseError = UnboxError(baseError)
 
 	// make some validity checks to give meaningful error messages.
@@ -119,7 +118,10 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 
 	// We copy the given variadic params into a map[string]any.
 	// This is an unneccessary copy, but simplifies the code by unifying it with the _map variant.
-	// TODO (?): Make more efficient at the expense of complicating things.
+	//
+	// NOTE: Due to copying, in the case where a parameter is repeated, the last one takes precedence.
+	// This is independent of mode (which the API spec actually requires as stated), which is difficult to achieve otherwise in a simple way.
+
 	params_map := make(ParamMap)
 
 	// add new parameters to it
@@ -141,7 +143,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 }
 
 // NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than (string, any) - pairs.
-func NewErrorWithData_map[StructType any](baseError error, interpolationString string, mode PreviousDataTreatment, missingDataTreatment MissingDataTreatment, newParams ParamMap) (ret ErrorWithData[StructType]) {
+func NewErrorWithData_map[StructType any](baseError error, interpolationString string, mode flagPreviousDataTreatment, missingDataTreatment flagMissingDataTreatment, newParams ParamMap) (ret ErrorWithData[StructType]) {
 	baseError = UnboxError(baseError)
 
 	if baseError == nil && interpolationString == "" {
@@ -168,20 +170,20 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 // There is no missingDataTreatment argument for the _any - variants, as that makes no sense.
 
 // NewErrorWithData_any_params is identical to [NewErrorWithData_params] except for the guarantee about containing data.
-func NewErrorWithData_any_params(baseError error, interpolationString string, mode PreviousDataTreatment, parameters ...any) ErrorWithData_any {
-	return forgetStructType(NewErrorWithData_params[struct{}](baseError, interpolationString, mode, EnsureDataIsPresent, parameters...))
+func NewErrorWithData_any_params(baseError error, interpolationString string, mode flagPreviousDataTreatment, parameters ...any) ErrorWithData_any {
+	return forgetStructType(NewErrorWithData_params[struct{}](baseError, interpolationString, mode, MissingDataIsError, parameters...))
 }
 
 // NewErrorWithData_any_map is identical to [NewErrorWithData_map] except for the guarantee about containing data.
-func NewErrorWithData_any_map(baseError error, interpolationString string, mode PreviousDataTreatment, parameters map[string]any) ErrorWithData_any {
-	return forgetStructType(NewErrorWithData_map[struct{}](baseError, interpolationString, mode, EnsureDataIsPresent, parameters))
+func NewErrorWithData_any_map(baseError error, interpolationString string, mode flagPreviousDataTreatment, parameters map[string]any) ErrorWithData_any {
+	return forgetStructType(NewErrorWithData_map[struct{}](baseError, interpolationString, mode, MissingDataIsError, parameters))
 }
 
 // AddDataToError_params creates a new error wrapping baseError with additional parameters set.
-// This is identical to [NewErrorWithData_params], except that it always used the default interpolationString
+// This is identical to [NewErrorWithData_params], except that it always uses the default interpolationString
 // and for the err==nil case:
 // If err == nil, this function returns nil
-func AddDataToError_params[StructType any](baseError error, mode PreviousDataTreatment, missingDataTreatment MissingDataTreatment, parameters ...any) ErrorWithData[StructType] {
+func AddDataToError_params[StructType any](baseError error, mode flagPreviousDataTreatment, missingDataTreatment flagMissingDataTreatment, parameters ...any) ErrorWithData[StructType] {
 	if baseError == nil {
 		return nil
 	}
@@ -192,7 +194,7 @@ func AddDataToError_params[StructType any](baseError error, mode PreviousDataTre
 // takes parameters as a map[string]any rather than variadic (string, any) - pairs.
 //
 // Like [AddDataToError_params], it returns nil if the provided err==nil.
-func AddDataToError_map[StructType any](err error, mode PreviousDataTreatment, missingDataTreatment MissingDataTreatment, parameters ParamMap) ErrorWithData[StructType] {
+func AddDataToError_map[StructType any](err error, mode flagPreviousDataTreatment, missingDataTreatment flagMissingDataTreatment, parameters ParamMap) ErrorWithData[StructType] {
 	if err == nil {
 		return nil
 	}
@@ -200,20 +202,20 @@ func AddDataToError_map[StructType any](err error, mode PreviousDataTreatment, m
 }
 
 // AddDataToError_any_params is identical to [AddDataToError_params] except for the guarantee about containing data.
-func AddDataToError_any_params(baseError error, mode PreviousDataTreatment, parameters ...any) ErrorWithData_any {
-	return forgetStructType(AddDataToError_params[struct{}](baseError, mode, EnsureDataIsPresent, parameters...))
+func AddDataToError_any_params(baseError error, mode flagPreviousDataTreatment, parameters ...any) ErrorWithData_any {
+	return forgetStructType(AddDataToError_params[struct{}](baseError, mode, MissingDataIsError, parameters...))
 }
 
 // AddDataToError_any_map is identical to [AddDataToError_map] except for the guaranteed about containing data.
-func AddDataToError_any_map(baseError error, mode PreviousDataTreatment, parameters map[string]any) ErrorWithData_any {
-	return forgetStructType(AddDataToError_map[struct{}](baseError, mode, EnsureDataIsPresent, parameters))
+func AddDataToError_any_map(baseError error, mode flagPreviousDataTreatment, parameters map[string]any) ErrorWithData_any {
+	return forgetStructType(AddDataToError_map[struct{}](baseError, mode, MissingDataIsError, parameters))
 }
 
 // AddDataToError_struct returns a new error based on baseError with the data struct merged to the parameters.
 // This is identical to NewErrorWithData_struct except for the baseError == nil case:
 //
 // On nil input for baseError, returns nil, ignoring the provided data.
-func AddDataToError_struct[StructType any](baseError error, data *StructType, mode ...PreviousDataTreatment) ErrorWithData[StructType] {
+func AddDataToError_struct[StructType any](baseError error, data *StructType, mode ...flagPreviousDataTreatment) ErrorWithData[StructType] {
 	if baseError == nil {
 		return nil
 	}
@@ -251,7 +253,7 @@ func DeleteParameterFromError_any(err error, parameterName string) ErrorWithData
 //   - for missingDataTreatment == [EnsureDataIsPresent], we panic on missing data.
 //
 // Note that data that is present, but has wrong type for StructType's fields, will always cause a panic.
-func DeleteParameterFromError[StructType any](err error, parameterName string, missingDataTreatment MissingDataTreatment) (ret ErrorWithData[StructType]) {
+func DeleteParameterFromError[StructType any](err error, parameterName string, missingDataTreatment flagMissingDataTreatment) (ret ErrorWithData[StructType]) {
 	if err == nil {
 		return nil
 	}
@@ -298,7 +300,7 @@ func WrapAsErrorWithData[StructType any](baseError ErrorWithData[StructType], in
 // This does not modify inputError.
 //
 // NOTE: We make no guarantees about whether the returned error wraps inputError; if it does not, it wraps whatever inputError wrapped.
-func AsErrorWithData[StructType any](inputError error, missingDataTreatment MissingDataTreatment) (convertedError ErrorWithData[StructType], ok bool) {
+func AsErrorWithData[StructType any](inputError error, missingDataTreatment flagMissingDataTreatment) (convertedError ErrorWithData[StructType], ok bool) {
 
 	if inputError == nil {
 		return nil, true

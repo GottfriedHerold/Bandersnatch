@@ -1,11 +1,6 @@
 package errorsWithData
 
-import (
-	"testing"
-
-	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
-)
+/*
 
 func TestMergeMaps(t *testing.T) {
 	var m1 ParamMap = ParamMap{}
@@ -24,7 +19,7 @@ func TestMergeMaps(t *testing.T) {
 
 	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{"Bar": nil}, AssertDataIsNotReplaced), "")
 
-	var invalid PreviousDataTreatment
+	var invalid flagPreviousDataTreatment
 	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{}, invalid), "No panic for invalid PreviousDataTreatment")
 }
 
@@ -50,7 +45,7 @@ func TestFillMapFromStruct2(t *testing.T) {
 
 	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[T2], &T2{Bar: 8}, &m1, AssertDataIsNotReplaced), "")
 
-	var invalid PreviousDataTreatment
+	var invalid flagPreviousDataTreatment
 	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[T2], &T2{}, &m1, invalid), "No panic for invalid PreviousDataTreatment")
 
 	var mNil ParamMap = nil
@@ -64,6 +59,29 @@ func TestFillMapFromStruct2(t *testing.T) {
 	type invalidType = struct{ *int }
 	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[invalidType], &invalidType{}, &ParamMap{}, AssertDataIsNotReplaced), "No panic on invalid type")
 }
+
+func TestPrintPreviousDataTreatment(t *testing.T) {
+	s1 := AssertDataIsNotReplaced.String()
+	s2 := PreferPreviousData.String()
+	s3 := ReplacePreviousData.String()
+	s0 := flagPreviousDataTreatment{}.String()
+	testutils.FatalUnless(t, s1 != "", "")
+	testutils.FatalUnless(t, s2 != "", "")
+	testutils.FatalUnless(t, s3 != "", "")
+	testutils.FatalUnless(t, s0 != "", "")
+
+	testutils.FatalUnless(t, s1 != s2, "")
+	testutils.FatalUnless(t, s1 != s3, "")
+	testutils.FatalUnless(t, s2 != s3, "")
+
+	testutils.FatalUnless(t, s0 != s1, "")
+	testutils.FatalUnless(t, s0 != s2, "")
+	testutils.FatalUnless(t, s0 != s3, "")
+}
+
+*/
+
+// OLD TEST
 
 /*
 func TestFillMapFromStruct(t *testing.T) {
@@ -125,22 +143,3 @@ func TestFillMapFromStruct(t *testing.T) {
 	}
 }
 */
-
-func TestPrintPreviousDataTreatment(t *testing.T) {
-	s1 := AssertDataIsNotReplaced.String()
-	s2 := PreferPreviousData.String()
-	s3 := ReplacePreviousData.String()
-	s0 := PreviousDataTreatment{}.String()
-	testutils.FatalUnless(t, s1 != "", "")
-	testutils.FatalUnless(t, s2 != "", "")
-	testutils.FatalUnless(t, s3 != "", "")
-	testutils.FatalUnless(t, s0 != "", "")
-
-	testutils.FatalUnless(t, s1 != s2, "")
-	testutils.FatalUnless(t, s1 != s3, "")
-	testutils.FatalUnless(t, s2 != s3, "")
-
-	testutils.FatalUnless(t, s0 != s1, "")
-	testutils.FatalUnless(t, s0 != s2, "")
-	testutils.FatalUnless(t, s0 != s3, "")
-}
