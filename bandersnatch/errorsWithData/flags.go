@@ -64,6 +64,10 @@ type flagArgument_DeleteAny interface {
 	isFlag_DeleteAny()
 }
 
+type flagArgument_NoEmptyString interface {
+	isFlag_NoEmptyString()
+}
+
 // Note: We have a single list of int values that determine the actual meaning of the flag (rather than a separate list for each type).
 // This is done to decouple the type of the exported argument flags (which is just there to restrict methods to only meaningful flags) from their actual meaning.
 // This allows changing the type without needed to refactor much.
@@ -76,7 +80,7 @@ const (
 	//  - should be check for equality
 	//  - how should we check for equality (we could use nil here as don't check at all, but nil could also special case plain ==)
 	// Note that the old/new preference actually still matters even if we do an equality check, because a custom equality check might not do plain "=="". In fact, the default one does not.
-	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
+  	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
 	// Conversely, setting the equality check will honor the last value of the old/new - preference.
 	// Also, setting any equality check function will actually request an equality check.
 	flagArg_PreferOld       // prefer old values when overwriting data.
@@ -103,6 +107,10 @@ const (
 	// We might consider separating that according to
 	flagArg_PanicOnErrors // panic on (all) errors
 	flagArg_ReturnErrors  // return errors as last return value
+
+	// Handling empty interpolation strings
+	flagArg_AllowEmptyString
+	flagArg_DefaultToWrapped
 )
 
 type fArg struct {
@@ -118,6 +126,7 @@ type fArg_MissingData struct{ val int }
 type fArg_Validity struct{ val int }
 type fArg_Panic struct{ val int }
 type fArg_OldData struct{ val int }
+type fArg_EmptyString struct{ val int }
 
 func (*fArg_HasData) isFlag()         {}
 func (f *fArg_HasData) getValue() int { return f.val }
@@ -138,6 +147,10 @@ func (f fArg_Panic) String() string { return printFlagArg(&f) }
 func (*fArg_OldData) isFlag()         {}
 func (f *fArg_OldData) getValue() int { return f.val }
 func (f fArg_OldData) String() string { return printFlagArg(&f) }
+
+func (*fArg_EmptyString) isFlag()         {}
+func (f *fArg_EmptyString) getValue() int { return f.val }
+func (f fArg_EmptyString) String() string { return printFlagArg(&f) }
 
 func (*fArg_HasData) isFlag_HasData() {}
 
@@ -181,6 +194,11 @@ func printFlagArg(f flagArgument) string {
 		return "Panic if an error is encountered"
 	case flagArg_ReturnErrors:
 		return "Return an error rather than panicking if an error is encountered (some failure conditions still panic, but those are explicitly documented)"
+
+	case flagArg_AllowEmptyString:
+		return "Allow creating errors with empty error message"
+	case flagArg_DefaultToWrapped:
+		return "Empty interpolation string defaults to wrapping base error (or panic)"
 
 	default:
 		return fmt.Sprintf("Unrecognized flag argument with internal value set to %v", v)
@@ -247,11 +265,20 @@ func (p *zeroFillParams) ShouldZeroOnTypeError() bool {
 	return p.addMissingData // TODO: Is this right?
 }
 
+type handleEmptyInterpolationString struct {
+	allowEmpty bool
+}
+
+func (p *handleEmptyInterpolationString) AllowEmptyString() bool {
+	return p.allowEmpty
+}
+
 type errorCreationParams struct {
 	mergeParams
 	errorHandlingParams
 	validationParams
 	zeroFillParams
+	handleEmptyInterpolationString
 }
 
 var (
@@ -282,6 +309,15 @@ var (
 	ErrorUnlessValidSyntax = fArg_Validity{val: flagArg_ValidateSyntax}
 	ErrorUnlessValidBase   = fArg_Validity{val: flagArg_ValidateBase}
 	ErrorUnlessValidFinal  = fArg_Validity{val: flagArg_ValidateFinal}
+
+	// AllowEmptyString needs to be passed to functions creating errors to allow an empty error message.
+	// Otherwise, an empty string defaults to %w resp. $w and we panic if there is no base error.
+	AllowEmptyString = fArg_EmptyString{val: flagArg_AllowEmptyString}
+
+	// DefaultToWrapping is passed to function creating errors to cause an empty interpolation string to default to
+	// %w or $w, repeating the wrapped error. If there is no wrapped error, we panic.
+	// Note that this is the default setting, so there should never be a need to pass this flag.
+	DefaultToWrapping = fArg_EmptyString{val: flagArg_DefaultToWrapped}
 )
 
 const noFlagRestrictions = 0
@@ -354,6 +390,10 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationParams, flags ...ArgTyp
 			p.panicOnError = true
 		case flagArg_NoValidation, flagArg_ValidateBase, flagArg_ValidateSyntax, flagArg_ValidateFinal:
 			p.doValidation = v
+		case flagArg_AllowEmptyString:
+			p.allowEmpty = true
+		case flagArg_DefaultToWrapped:
+			p.allowEmpty = false
 		default:
 			panic("Cannot happen")
 		}

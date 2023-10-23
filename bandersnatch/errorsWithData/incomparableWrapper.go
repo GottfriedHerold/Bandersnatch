@@ -26,9 +26,9 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 //
 //   BoxedErrFoo = MakeErrorIncomparable(ErrFoo)
 //
-// (In this scenario, we would opt to not export ErrFoo at all and probably MakeErrorIncomparable_any)
-// Note that this feature requires exporting the boxed variant as a non-interface type.
-// Go interfaces are always comparable; if the dynamic types turn out to be incomparable, we get a run-time panic.
+// (In this scenario, we might actually opt to not export ErrFoo at all and probably use MakeErrorIncomparable_any)
+// Note that this feature requires exporting the boxed variant as a non-interface type:
+// go interfaces are always comparable; if the dynamic types turn out to be incomparable, we get a run-time panic.
 // While this would be OK-ish (after all, it's a bug and panic is better than silently giving the wrong answer), we would essentially never trigger the panic:
 // comparing interfaces first checks whether the dynamic types are equal and only if yes even checks whether the type is comparable.
 // Consequently, exporting BoxedErrFoo via interfaces would cause (buggy!) returnedError == BoxedErrFoo to just always return false (and not panic),
@@ -40,15 +40,14 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 //
 // We actually choose the second option; this is done to avoid having incomparable errors in error chains,
 // as user code that follows the chain (e.g. a logger creating a map keyed by the errors it encountered) may wrongly assume errors are comparable and panic on it.
-// (The implementations of errors.Is correctly specially-cases this)
 // To implement the second option, we use the hook that errors.Is provides:
 // Notably, errors.Is(err, target) checks whether err's dynamic type defines an
 // Is(target error) bool method and prefers that over plain comparison via ==.
 // So we just need to define such an Is method that unboxes the error.
 //
 // Unfortunately, this Is method needs to be defined on err, not on target, which is the wrong way round for our needs.
-// So it's actually the unboxed error that needs to opt-into this mechanism
-// (This imposes some annoying limitations, complicates the implementation and, worst of all, couples it (somewhat) to the ErrorsWithData type)
+// So it's actually the unboxed error that needs to opt-in to this mechanism
+// This imposes some annoying limitations, complicates the implementation and, worst of all, couples it (somewhat) to the ErrorsWithData type.
 // The alternative to box all returned errors would require returning errors as non-interface types.
 // This is just a very bad idea due to potential confusion of nil interfaces with typed nils;
 // also, making actually returned errors incomparable might trip up code that does not expect it (e.g. a logger creating a map keyed by errors will panic on this).
@@ -72,7 +71,8 @@ type ComparableMaker interface {
 
 // IncomparableMaker is a interface that errors must satisfy in order to be usable by [MakeErrorIncompatible] and its variants.
 //
-// This is because the mechanism requires opt-in from a suitable Is - method.
+// This is because the mechanism requires opt-in from a suitable Is - method, which is defined on the *unboxed* error.
+// So we only allow boxing errors if the unboxed error has one.
 type IncomparableMaker interface {
 	error
 	Is(target error) bool // needs to unbox target. A valid implementation of e.Is(target) is e==UnboxError(target)
@@ -97,8 +97,9 @@ type incomparableError_plain struct {
 // ewd_MakeIncomparable_any is the union of [ErrorWithData_any] and [IncomparableMaker].
 // This is used for struct embedding, which is why it needs some (internal) name.
 //
-// Note: IncomparableMaker is actually a subinterface of ErrorWithData_any, so this is technically superfluous.
-// However, this latter fact is due to an orthogonal reason and I don't like to rely on this here.
+// Note: IncomparableMaker may actually a be subinterface of ErrorWithData_any,
+// so this may be technically superfluous. (May change by refactoring)
+// However, even if true, I don't like to rely on this here.
 type ewd_MakeIncomparable_any = interface {
 	ErrorWithData_any
 	IncomparableMaker
@@ -210,7 +211,7 @@ func (e incomparableError[StructType]) AsComparable_typed() ErrorWithData[Struct
 // Since we only expose errors that support this feature via the ErrorWithData or ErrorWithData_any interface,
 // any such MakeErrorIncomparable methods need to become a part of the interface (unless we want to force users to sprinkle type-assert all over the place)
 //
-// Now, MakeErrorIncomparable needs to return a non-interface type to do its job.
+// Notably, MakeErrorIncomparable needs to return a non-interface type to do its job.
 // However, we want to have versions that preserve any kind of extended interface.
 // Making this a generic dependency on the extended interface does not work:
 // (generics are *not* templates -- incomparable[T error] struct{T; utils.MakeIncomparable} does not and cannot work).
@@ -230,14 +231,14 @@ func (e incomparableError[StructType]) AsComparable_typed() ErrorWithData[Struct
 // (The alternative of returning a boxed nil may be useful in certain circumstances)
 
 // NOTE: The input types to MakeErrorIncomparable_any and MakeErrorIncomparable_struct are anonoymous interfaces,
-// even though we have (unexported) definitions matching those. This is intentional.
+// even though we may have (unexported) definitions matching those. This is intentional.
 
-// MakeErrorIncomparable_returns a boxed version of the given error which is not comparable.
+// MakeErrorIncomparable returns a boxed version of the given error which is not comparable.
 // Note that this function does not return an interface, but a struct containing an interface.
 //
 // This means that == will fail at compile-time (unless the returned value is stored in an interface -- then this causes a run-time panic or may give the wrong result)
 //
-// Comparison with errors.Is() will still work as intended. If e is already boxed, we unbox beforehand to only get one layer.
+// Comparisons using errors.Is() will still work as intended. If e is already boxed, we unbox beforehand to only get one layer.
 // The behaviour when calling this function on nil is unspecified and the function may panic. The precise behaviour may be subject to change.
 func MakeErrorIncomparable(e IncomparableMaker) incomparableError_plain {
 	if e == nil {

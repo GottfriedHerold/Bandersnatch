@@ -124,6 +124,11 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 	return
 }
 
+var (
+	tokenListParentWithError = tokenizeInterpolationString("$w")
+	tokenListParent          = tokenizeInterpolationString("%w")
+)
+
 // Note: Returning pointer (to newly allocated object) or value may change.
 
 // makeErrorWithParameterCommon creates a new errorWithParameters_common from the given baseError and interpolation string.
@@ -135,11 +140,28 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 //
 // This function is never supposed to panic. Errors are reported in-band inside ret.parsedInterpolationString.
 // The [ValidateSyntax] method can be used to access these.
-func makeErrorWithParametersCommon(baseError error, interpolationString string) (ret errorWithParameters_common) {
-
+func makeErrorWithParametersCommon(baseError error, interpolationString string, config handleEmptyInterpolationString) (ret errorWithParameters_common) {
+	var tokens tokenList
 	ret.wrapped_error = baseError
-	tokens := tokenizeInterpolationString(interpolationString)
+	if !config.AllowEmptyString() && interpolationString == "" {
+		if baseError == nil {
+			panic("Must not happen") // needs to be caught at call site
+		}
 
+		// Note: We cannot set ret.parsedInterpolationString to a precomputed AST-parsed "$w" resp. "%w" here.
+		// If we did that, every such error would actually share the same ast. This would almost be fine, except
+		// that Validation actually reports and stores errors in the ast.
+		// Now, validation actually follows the error chain, so validation errors in one error would appear in others.
+		// fpr the tokenizing step, there is no such issue, so we can use precomputed tokenLists rather than re-tokinzing
+		// "$w" or "%w"
+		if _, baseSupportParams := baseError.(ErrorInterpolater); baseSupportParams {
+			tokens = tokenListParentWithError
+		} else {
+			tokens = tokenListParent
+		}
+	} else {
+		tokens = tokenizeInterpolationString(interpolationString)
+	}
 	// Parse the intepolation string.
 	// We ignore potential returned errors: If there is a parsing error, this is additionally recorded in ret.parsedInterpolationString itself.
 	ret.parsedInterpolationString, _ = make_ast(tokens)
