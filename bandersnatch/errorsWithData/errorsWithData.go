@@ -417,10 +417,10 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 // GetData_struct obtains the parameters contained in inputError in the form of a struct of type StructType.
 // Additional Parameters in inputError in excess of what is needed to create a struct are ignored.
 //
-// Supported optional flags are [MissingDataIsZero]/[MissingDataIsError] and [ReturnError]/[PanicOnAllErrors]
+// Supported optional flags are [MissingDataAsZero]/[MissingDataIsError] and [ReturnError]/[PanicOnAllErrors]
 // If inputError does not contain enough parameters or paramters of wrong type to construct an instance of StructType, the behaviour depends on those flags:
 //
-//   - If [MissingDataIsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an error.
+//   - If [MissingDataAsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an error.
 //   - If instead [MissingDataIsError] is set (the default), we also zero-initialize for merely missing data, but treat this an an error returned in structConstructionError.
 //   - if [ReturnError] is set (the default), we return errors via structConstructionError
 //   - if instead [PanicOnAllErrors] is set, we panic rather than returning a structConstructionError

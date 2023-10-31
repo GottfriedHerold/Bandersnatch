@@ -70,12 +70,6 @@ type flagArgument_AsErrorWithData interface {
 	isFlag_AsErrorWithData()
 }
 
-/*
-type flagArgument_NoEmptyString interface {
-	isFlag_NoEmptyString()
-}
-*/
-
 // Note: We have a single list of int values that determine the actual meaning of the flag (rather than a separate list for each type).
 // This is done to decouple the type of the exported argument flags (which is just there to restrict methods to only meaningful flags) from their actual meaning.
 // This allows changing the type without needed to refactor much.
@@ -125,8 +119,8 @@ type fArg struct {
 	val int
 }
 
-func (*fArg) isFlag()         {}
-func (f *fArg) getValue() int { return f.val }
+func (fArg) isFlag()          {}
+func (f fArg) getValue() int  { return f.val }
 func (f fArg) String() string { return printFlagArg(&f) }
 
 type fArg_HasData struct{ val int }
@@ -136,34 +130,34 @@ type fArg_Panic struct{ val int }
 type fArg_OldData struct{ val int }
 type fArg_EmptyString struct{ val int }
 
-func (*fArg_HasData) isFlag()         {}
-func (f *fArg_HasData) getValue() int { return f.val }
+func (fArg_HasData) isFlag()          {}
+func (f fArg_HasData) getValue() int  { return f.val }
 func (f fArg_HasData) String() string { return printFlagArg(&f) }
 
-func (*fArg_MissingData) isFlag()         {}
-func (f *fArg_MissingData) getValue() int { return f.val }
+func (fArg_MissingData) isFlag()          {}
+func (f fArg_MissingData) getValue() int  { return f.val }
 func (f fArg_MissingData) String() string { return printFlagArg(&f) }
 
-func (*fArg_Validity) isFlag()         {}
-func (f *fArg_Validity) getValue() int { return f.val }
+func (fArg_Validity) isFlag()          {}
+func (f fArg_Validity) getValue() int  { return f.val }
 func (f fArg_Validity) String() string { return printFlagArg(&f) }
 
-func (*fArg_Panic) isFlag()         {}
-func (f *fArg_Panic) getValue() int { return f.val }
+func (fArg_Panic) isFlag()          {}
+func (f fArg_Panic) getValue() int  { return f.val }
 func (f fArg_Panic) String() string { return printFlagArg(&f) }
 
-func (*fArg_OldData) isFlag()         {}
-func (f *fArg_OldData) getValue() int { return f.val }
+func (fArg_OldData) isFlag()          {}
+func (f fArg_OldData) getValue() int  { return f.val }
 func (f fArg_OldData) String() string { return printFlagArg(&f) }
 
-func (*fArg_EmptyString) isFlag()         {}
-func (f *fArg_EmptyString) getValue() int { return f.val }
+func (fArg_EmptyString) isFlag()          {}
+func (f fArg_EmptyString) getValue() int  { return f.val }
 func (f fArg_EmptyString) String() string { return printFlagArg(&f) }
 
-func (*fArg_HasData) isFlag_HasData() {}
+func (fArg_HasData) isFlag_HasData() {}
 
-func (*fArg_MissingData) isFlag_GetData() {}
-func (*fArg_Panic) isFlag_GetData()       {}
+func (fArg_MissingData) isFlag_GetData() {}
+func (fArg_Panic) isFlag_GetData()       {}
 
 func printFlagArg(f flagArgument) string {
 	switch v := f.getValue(); v {
@@ -213,25 +207,25 @@ func printFlagArg(f flagArgument) string {
 	}
 }
 
-type mergeParams struct {
+type config_OldData struct {
 	preferOld       bool
 	doEqualityCheck bool
 	checkFun        func(x, y any) (isEqual bool, inequalityReason error)
 }
 
-func (p *mergeParams) PreferOld() bool {
+func (p *config_OldData) PreferOld() bool {
 	return p.preferOld
 }
 
-func (p *mergeParams) PreferNew() bool {
+func (p *config_OldData) PreferNew() bool {
 	return !p.preferOld
 }
 
-func (p *mergeParams) PerformEqualityCheck() bool {
+func (p *config_OldData) PerformEqualityCheck() bool {
 	return p.doEqualityCheck
 }
 
-func (p *mergeParams) GetCheckFun() func(x, y any) (bool, error) {
+func (p *config_OldData) GetCheckFun() func(x, y any) (bool, error) {
 	if p.checkFun == nil {
 		return comparison_very_naive
 	} else {
@@ -240,53 +234,53 @@ func (p *mergeParams) GetCheckFun() func(x, y any) (bool, error) {
 
 }
 
-type errorHandlingParams struct {
+type config_ErrorHandling struct {
 	panicOnError bool
 }
 
-func (p *errorHandlingParams) PanicOnError() bool {
+func (p *config_ErrorHandling) PanicOnError() bool {
 	return p.panicOnError
 }
 
-type validationParams struct {
+type config_Validation struct {
 	doValidation int // reuse constants from flag_Arg_Validate*
 }
 
-func (p *validationParams) WhatValidationIsRequested() int {
+func (p *config_Validation) WhatValidationIsRequested() int {
 	return p.doValidation
 }
 
-type zeroFillParams struct {
+type config_ZeroFill struct {
 	missingDataIsError bool
 	addMissingData     bool
 }
 
-func (p *zeroFillParams) ShouldAddMissingData() bool {
+func (p *config_ZeroFill) ShouldAddMissingData() bool {
 	return p.addMissingData
 }
 
-func (p *zeroFillParams) IsMissingDataError() bool {
+func (p *config_ZeroFill) IsMissingDataError() bool {
 	return p.missingDataIsError
 }
 
-func (p *zeroFillParams) ShouldZeroOnTypeError() bool {
+func (p *config_ZeroFill) ShouldZeroOnTypeError() bool {
 	return p.addMissingData // TODO: May need to change. This only happens to work because there is no meaningful use-case for addMissingData to differ from this.
 }
 
-type handleEmptyInterpolationString struct {
+type config_EmptyString struct {
 	allowEmpty bool
 }
 
-func (p *handleEmptyInterpolationString) AllowEmptyString() bool {
+func (p *config_EmptyString) AllowEmptyString() bool {
 	return p.allowEmpty
 }
 
-type errorCreationParams struct {
-	mergeParams
-	errorHandlingParams
-	validationParams
-	zeroFillParams
-	handleEmptyInterpolationString
+type errorCreationConfig struct {
+	config_OldData
+	config_ErrorHandling
+	config_Validation
+	config_ZeroFill
+	config_EmptyString
 }
 
 var (
@@ -328,8 +322,14 @@ var (
 	DefaultToWrapping = fArg_EmptyString{val: flagArg_DefaultToWrapped}
 )
 
-func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret zeroFillParams) {
-	ret = zeroFillParams{missingDataIsError: false, addMissingData: false}
+// allFlagArgs is a list of all possible flag argument values above (and possible outputs of functions generating flagArguments)
+// This is only used for testing, but defined here to simplify refactoring, as it's tied to the above definitions.
+var allFlagArgs []flagArgument = []flagArgument{
+	PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, MissingDataAsZero, MissingDataIsError, IgnoreMissingData, EnsureDataIsPresent, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping,
+}
+
+func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ZeroFill) {
+	ret = config_ZeroFill{missingDataIsError: false, addMissingData: false}
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
@@ -345,9 +345,9 @@ func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret zeroFillParams) {
 	return
 }
 
-func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill zeroFillParams, retPanic errorHandlingParams) {
-	retPanic = errorHandlingParams{panicOnError: false}
-	retZeroFill = zeroFillParams{addMissingData: false, missingDataIsError: true}
+func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_ZeroFill, retPanic config_ErrorHandling) {
+	retPanic = config_ErrorHandling{panicOnError: false}
+	retZeroFill = config_ZeroFill{addMissingData: false, missingDataIsError: true}
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
@@ -370,7 +370,7 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill zeroFillP
 // Needs to be generic function due to Go's lack of covariance.
 
 // func (p *errorCreationParams) parseFlagArgs(flags ...flagArgument) {
-func parseFlagArgs[ArgType flagArgument](p *errorCreationParams, flags ...ArgType) {
+func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgType) {
 	for _, individualFlag := range flags {
 		switch v := individualFlag.getValue(); v {
 		case flagArg_Unset:

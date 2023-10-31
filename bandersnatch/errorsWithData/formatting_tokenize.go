@@ -24,7 +24,7 @@ import (
 
 // Literal `$`, `\`, `{` and `}` in a regexp string must be escaped as `\$`, `\\`, `\{` and `\}`.
 // This strings.Replaces performs these escapes.
-// This is just used to simplify readability of [re_tokenize].
+// This is just used to simplify readability of the definition of [re_tokenize].
 //
 // Note that re_escaper escapes all occurances, thereby precluding to use e.g. $ as its regexp-specific meaning (end of text/line)
 // We use “-string syntax rather than "", because with the latter we would have to additionally escape all \'s in another layer...

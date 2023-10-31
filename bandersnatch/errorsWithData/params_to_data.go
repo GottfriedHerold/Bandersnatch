@@ -218,7 +218,7 @@ outer_loop:
 // *m == nil must not be used. The function will panic in this case (use an empty map instead).
 //
 // This function panics if called with an invalid (see [StructSuitableForErrorsWithData]) StructType
-func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillConfig zeroFillParams) (err error) {
+func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillConfig config_ZeroFill) (err error) {
 	if *m == nil {
 		panic(ErrorPrefix + "called ensureMakeStructFromParameters with pointer to nil map")
 	}
@@ -313,7 +313,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillCo
 // m == nil is treated like an empty map.
 // An invalid StructType in the sense of [StructSuitableForErrorsWithData] causes a panic.
 // structFillConfig.ShouldAddMissingData() and structFillConfig.ShouldZeroOnTypeError() must be set to true (otherwise we panic).
-func makeStructFromMap[StructType any](m map[string]any, structFillConfig zeroFillParams) (ret StructType, err error) {
+func makeStructFromMap[StructType any](m map[string]any, structFillConfig config_ZeroFill) (ret StructType, err error) {
 
 	// This is implied by the functionality. After all, we return something in ret and there is not much else we can do except for zeroing all of ret, but that is less useful.
 	// So, for consistency, we require that the passed config actually matches what we do anyway. The alternative is just passing a smaller config struct that does not even allow setting this.

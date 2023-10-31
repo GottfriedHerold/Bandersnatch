@@ -20,7 +20,7 @@ import (
 //   - mode == [PreferPreviousData]: values already in target take precendence
 //   - mode == [ReplacePreviousData]: values in source take precedence
 //   - mode == [AssertDataIsNotReplaced]: this function panics for duplicate keys, unless the values are comparable and equal.
-func mergeMaps(target *ParamMap, source ParamMap, config mergeParams) (err error) {
+func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) (err error) {
 	if !config.PerformEqualityCheck() {
 		if config.PreferOld() {
 			mergeMaps_preferOld(target, source)
@@ -52,7 +52,7 @@ func comparison_very_naive(x, y any) (equal bool, reason error) {
 }
 
 // TODO: This is a dummy implementation. It has bad error reporting and the default comparison function does not work well.
-func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config mergeParams) (err error) {
+func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (err error) {
 	if !config.PerformEqualityCheck() {
 		panic("Cannot happen")
 	}
@@ -219,7 +219,7 @@ func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err
 //   - mode == [PreferPreviousData]: preexisting values take precendence
 //   - mode == [ReplacePreviousData]: values from *s take precedence
 //   - mode == [AssertDataIsNotReplaced]: panic if a key in *m corresponds to a field in struct, unless the values are (comparable and) equal.
-func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config mergeParams) (err error) {
+func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config config_OldData) (err error) {
 	if *m == nil {
 		*m = make(map[string]any)
 	}
