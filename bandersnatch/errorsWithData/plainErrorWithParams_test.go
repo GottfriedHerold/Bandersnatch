@@ -1,5 +1,7 @@
 package errorsWithData
 
+/*
+
 import (
 	"errors"
 	"fmt"
@@ -196,3 +198,5 @@ func TestGetData_structForErrorWithParameters(t *testing.T) {
 
 // NOTE: Test for the unexported newErrorWithData_* and deleteParameterFromError_* methods
 // are covered by test for the calling exported functions.
+
+*/

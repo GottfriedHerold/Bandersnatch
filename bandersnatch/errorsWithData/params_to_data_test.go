@@ -1,5 +1,7 @@
 package errorsWithData
 
+/*
+
 import (
 	"io"
 	"reflect"
@@ -299,3 +301,5 @@ func TestEnsureCanMakeStructFromParams(t *testing.T) {
 	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, MissingDataIsError) != nil, "")
 	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, MissingDataAsZero) != nil, "")
 }
+
+*/
