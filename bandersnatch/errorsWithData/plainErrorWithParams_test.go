@@ -91,7 +91,7 @@ func TestErrorInterpolateForConcreteImplementation(t *testing.T) {
 	testutils.FatalUnless(t, base3.ValidateError_Params(ParamMap{"Foo": 1, "Bar": 2}) == nil, "")
 	testutils.FatalUnless(t, base3.Error_interpolate(ParamMap{"Foo": 1, "Bar": 2}) == "Foo412", "")
 
-	err1 := makeErrorWithParametersCommon(baseErr, "%w")
+	err1 := makeErrorWithParametersCommon_any(baseErr, "%w")
 	testutils.FatalUnless(t, len(err1.params) == 0, "")
 	testutils.FatalUnless(t, err1.params != nil, "nil map rather than empty map")
 	testutils.FatalUnless(t, err1.Error() == "BASE", "")

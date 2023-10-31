@@ -61,12 +61,20 @@ type flagArgument_Delete interface {
 }
 
 type flagArgument_DeleteAny interface {
+	flagArgument
 	isFlag_DeleteAny()
 }
 
+type flagArgument_AsErrorWithData interface {
+	flagArgument
+	isFlag_AsErrorWithData()
+}
+
+/*
 type flagArgument_NoEmptyString interface {
 	isFlag_NoEmptyString()
 }
+*/
 
 // Note: We have a single list of int values that determine the actual meaning of the flag (rather than a separate list for each type).
 // This is done to decouple the type of the exported argument flags (which is just there to restrict methods to only meaningful flags) from their actual meaning.
@@ -80,13 +88,13 @@ const (
 	//  - should be check for equality
 	//  - how should we check for equality (we could use nil here as don't check at all, but nil could also special case plain ==)
 	// Note that the old/new preference actually still matters even if we do an equality check, because a custom equality check might not do plain "=="". In fact, the default one does not.
-  	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
+	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
 	// Conversely, setting the equality check will honor the last value of the old/new - preference.
 	// Also, setting any equality check function will actually request an equality check.
 	flagArg_PreferOld       // prefer old values when overwriting data.
 	flagArg_PreferNew       // prefer new values when overwriting data
 	flagArg_AssertEqual     // assume values are equal (using the default comparison function). Note that this is really two options: the last setting of PreferOld/PreferNew actually still determines preference for old/new. We just present it as a ternary toggle to the user for simplicity.
-	flagArg_AssertEqual_fun // assume values are equal (using a custom comparsing function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
+	flagArg_AssertEqual_fun // assume values are equal (using a custom comparison function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
 
 	// for missing data, there is just one config item:
 	//  either silently zero-initialize or zero-initialize and treat it as error.
@@ -262,7 +270,7 @@ func (p *zeroFillParams) IsMissingDataError() bool {
 }
 
 func (p *zeroFillParams) ShouldZeroOnTypeError() bool {
-	return p.addMissingData // TODO: Is this right?
+	return p.addMissingData // TODO: May need to change. This only happens to work because there is no meaningful use-case for addMissingData to differ from this.
 }
 
 type handleEmptyInterpolationString struct {
@@ -316,11 +324,9 @@ var (
 
 	// DefaultToWrapping is passed to function creating errors to cause an empty interpolation string to default to
 	// %w or $w, repeating the wrapped error. If there is no wrapped error, we panic.
-	// Note that this is the default setting, so there should never be a need to pass this flag.
+	// Note that this is the default setting, so there should never be a need to pass this flag explicitly.
 	DefaultToWrapping = fArg_EmptyString{val: flagArg_DefaultToWrapped}
 )
-
-const noFlagRestrictions = 0
 
 func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret zeroFillParams) {
 	ret = zeroFillParams{missingDataIsError: false, addMissingData: false}
@@ -399,235 +405,3 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationParams, flags ...ArgTyp
 		}
 	}
 }
-
-/*
-
-// flagMissingDataTreatment is a type used to pass to exported functions how the library should treat missing parameters
-// when using the struct-based API.
-//
-// We provide [RENAMED] and [RENAMED] as possible values. The zero value of this type is invalid.
-//
-// Selecting [RENAMED] causes the package to report an error or panic if parameters are missing. (This is explicitly specified at a per-function basis).
-// [MissingDataAsZero] causes the package to silently zero-initialize values if parameters are missing.
-type flagMissingDataTreatment struct {
-	val_MissingDataTreatment int
-}
-
-func (flagMissingDataTreatment) isFlag() {}
-
-// potential values of RENAMED
-
-const (
-	handleMissingData_Unset              = iota // The zero value of [MissingDataTreatment] corresponds to an unset value. Using this causes a panic rather than some default behaviour.
-	handleMissingData_FillWithZeros             // zero-initialize missing values
-	handleMissingData_MissingDataIsError        // error if values are missing
-)
-
-var (
-	// MissingDataAsZero is passed to functions to indicate that missing data should be silently zero initialized
-	MissingDataAsZero flag = flagMissingDataTreatment{val_MissingDataTreatment: handleMissingData_FillWithZeros}
-	// MissingDataIsError is passed to functions to indicate that the function should report an error (possibly panic) if data is missing
-	MissingDataIsError flag = flagMissingDataTreatment{val_MissingDataTreatment: handleMissingData_MissingDataIsError}
-)
-
-// String is provided to make MissingDataTreatment satisfy fmt.Stringer. This is used for debugging only.
-func (m flagMissingDataTreatment) String() string { // Note: value receiver
-	switch m.val_MissingDataTreatment {
-	case handleMissingData_Unset:
-		return "Unset value for flagMissingDataTreatment"
-	case handleMissingData_FillWithZeros:
-		return "Fill missing data with zeros"
-	case handleMissingData_MissingDataIsError:
-		return "Error if data is missing"
-	default:
-		// cannot happen without using unsafe methods.
-		return fmt.Sprintf("Unexpected internal value %v for flagMissingDataTreatment", m.val_MissingDataTreatment)
-	}
-}
-
-type flagErrorHandling struct {
-	val_ErrorHandling int
-}
-
-// tag to satisfy interfaces
-
-func (flagErrorHandling) isFlag() {}
-
-const (
-	errorHandling_Unset = iota // unset value. Must never appear
-	errorHandling_ReturnError
-	errorHandling_PanicOnAllErrors
-	errorHandling_PanicOnDataError
-	errorHandling_DontPanicOnDataError
-	errorHandling_PanicOnValidityError
-	errorHandling_DontPanicOnValidityError
-)
-
-type errorHandlingBehaviour struct {
-	panicOnDataError     bool
-	panicOnValidityError bool
-}
-
-var (
-	// ReturnError is passed to functions to indicate that it should return an error rather than panic. Note that certain (explicitly stated) conditions may still cause a panic.
-	ReturnError flag = flagErrorHandling{val_ErrorHandling: errorHandling_ReturnError}
-	// PanicOnAllErrors is passed to functions to indicate that they should panic on failure. Useful for init-level functions.
-	PanicOnAllErrors flag = flagErrorHandling{val_ErrorHandling: errorHandling_PanicOnAllErrors}
-	// PanicOnDataError is passed to functions to indicate that they should panic if the passed parameters are invalid (i.e. data is missing / has wrong type inconsistent with T).
-	// This is only meaningful when creating an ErrorWithData[T] for some non-empty struct type T.
-	PanicOnDataError flag = flagErrorHandling{val_ErrorHandling: errorHandling_PanicOnDataError}
-	// PanicOnValidityError is passed to functions to indicate that they should panic if the created error fails validation.
-	// This is only meaningful when validation is actually requested.
-	PanicOnValidityError flag = flagErrorHandling{val_ErrorHandling: errorHandling_PanicOnValidityError}
-	// DontPanicOnDataError is passed to functions to indicate that they should not panic (but return an error) if the passed parameters are invalid (i.e. data is missing / has wrong type inconsistent with T)
-	// This is only meaningful when creating an ErrorWithData[T] for some non-empty struct type T.
-	DontPanicOnDataError flag = flagErrorHandling{val_ErrorHandling: errorHandling_DontPanicOnDataError}
-	// DontPanicOnValidityError is passed to functions to indicate that they should not panic (but return an error) if the created error fails validation.
-	// This is only meaningful when validation is actually requested.
-	DontPanicOnValidityError flag = flagErrorHandling{val_ErrorHandling: errorHandling_DontPanicOnValidityError}
-)
-
-func (m flagErrorHandling) String() string {
-	switch m.val_ErrorHandling {
-	case errorHandling_Unset:
-		return "Unset value for flagErrorHandling"
-	case errorHandling_PanicOnAllErrors:
-		return "Panic on all errors"
-	case errorHandling_ReturnError:
-		return "Return error"
-	case errorHandling_PanicOnDataError:
-		return "Panic on data error"
-	case errorHandling_DontPanicOnDataError:
-		return "Don't panic on data error"
-	case errorHandling_PanicOnValidityError:
-		return "Panic on validity error"
-	case errorHandling_DontPanicOnValidityError:
-		return "Don't panic on validty error"
-	default:
-		// cannot happen without using unsafe methods
-		return fmt.Sprintf("Unexpected internal value %v for flagErrorHandling", m.val_ErrorHandling)
-	}
-}
-
-type flagValidationRequested struct {
-	val_ValidationRequested int
-}
-
-// tag to satisfy interfaces
-
-func (flagValidationRequested) isFlag() {}
-
-const (
-	validationRequested_Unset = iota
-	validationRequested_ValidateSyntax
-	validationRequested_ValidateBase
-	validationRequested_ValidateFinal
-)
-
-// TODO: DOCSTRING
-
-var (
-	ErrorUnlessValidSyntax flag = flagValidationRequested{val_ValidationRequested: validationRequested_ValidateSyntax}
-	ErrorUnlessValidBase   flag = flagValidationRequested{val_ValidationRequested: validationRequested_ValidateBase}
-	ErrorUnlessValidFinal  flag = flagValidationRequested{val_ValidationRequested: validationRequested_ValidateFinal}
-)
-
-// Functions and methods that modify errors with data take as input a parameter that controls how already-present data should be handled.
-// The options are to prefer the old, prefer the new, err on ambiguity or err is data was there.
-// For type-safety, this choice is passed as a parameter of designated type PreviousDataTreatment.
-// This file defined this type and its associated methods.
-
-// flagPreviousDataTreatment is an encapsulated enum type passed to functions and methods that modify the data associated to errors.
-//
-// It controls how the library should treat setting values that are already present.
-// We provide [PreferPreviousData], [ReplacePreviousData], [AssertDataIsNotReplaced] as potential values.
-// The zero value of this type is not a valid flagPreviousDataTreatment. Using such a zero value will cause panics.
-type flagPreviousDataTreatment struct {
-	val_PreviousDataTreatment int
-}
-
-func (flagPreviousDataTreatment) isFlag() {}
-
-// internal int-based enum for [PreviousDataTreatment]. We use a struct wrapping an int in our exported API.
-// This is because we want stronger typing for methods that already take "any" or generic-parameter dependent values.
-const (
-	treatPreviousData_Unset                       = iota // zero value. This is not a valid value.
-	treatPreviousData_Override                           // new value takes precedence
-	treatPreviousData_PreferOld                          // old value takes precendence
-	treatPreviousData_errorIfPresent                     // error if old value present
-	treatPreviousData_errorOnCollision_naive             // error unless old value == new value (and both comparable)
-	treatPreviousData_errorOnCollision_comparator        // error unless old value equal to new value (with IsEqual function preferred over ==)
-)
-
-var (
-	// PreferPreviousData means that when replacing associated data in errors, we keep the old value if some value is already present for a given key.
-	PreferPreviousData = flagPreviousDataTreatment{val_PreviousDataTreatment: treatPreviousData_PreferOld}
-	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values for a given key.
-	ReplacePreviousData = flagPreviousDataTreatment{val_PreviousDataTreatment: treatPreviousData_Override}
-	// AssertDataIsNotReplaced means that when replacing associated data in errors, we panic if a different value was already present for a given key.
-	AssertDataIsNotReplaced = flagPreviousDataTreatment{val_PreviousDataTreatment: treatPreviousData_errorOnCollision_naive}
-)
-
-// Only with diagnostics
-
-// String is provided to make PreviousDataTreatment satisfy fmt.Stringer. It returns a string representing the meaning of the value.
-func (s flagPreviousDataTreatment) String() string { // Note: Value receiver
-	switch s.val_PreviousDataTreatment {
-	case treatPreviousData_Unset:
-		return "Unset value" // should we panic? I guess not, since this is just for diagnostics.
-	case treatPreviousData_Override:
-		return "Override old value"
-	case treatPreviousData_PreferOld:
-		return "Keep previous value"
-	case treatPreviousData_errorOnCollision_naive:
-		return "Error on ambiguity (naive equality)"
-	default:
-		// cannot really happen unless users use unsafe, because we don't export the type.
-		panic(fmt.Errorf(ErrorPrefix+"invalid value of PreviousDataTreatment : %v", s.val_PreviousDataTreatment))
-	}
-}
-
-const noFlagRestrictions = 0
-
-type allFlags struct {
-	missingData         flagMissingDataTreatment
-	errorHandling       errorHandlingBehaviour
-	oldData             flagPreviousDataTreatment
-	validationRequested flagValidationRequested
-}
-
-func (f *allFlags) parseFlags(_ int, flags ...flag) {
-	for _, individualFlag := range flags {
-		switch individualFlag := individualFlag.(type) {
-		case flagMissingDataTreatment:
-			f.missingData = individualFlag
-		case flagErrorHandling:
-			switch individualFlag.val_ErrorHandling {
-			case errorHandling_PanicOnAllErrors:
-				f.errorHandling.panicOnDataError = true
-				f.errorHandling.panicOnValidityError = true
-			case errorHandling_ReturnError:
-				f.errorHandling.panicOnDataError = false
-				f.errorHandling.panicOnValidityError = false
-			case errorHandling_PanicOnDataError:
-				f.errorHandling.panicOnDataError = true
-			case errorHandling_DontPanicOnDataError:
-				f.errorHandling.panicOnDataError = false
-			case errorHandling_PanicOnValidityError:
-				f.errorHandling.panicOnValidityError = true
-			case errorHandling_DontPanicOnValidityError:
-				f.errorHandling.panicOnValidityError = false
-			default:
-				panic("cannot happen")
-			}
-		case flagPreviousDataTreatment:
-			f.oldData = individualFlag
-		case flagValidationRequested:
-			f.validationRequested = individualFlag
-		default:
-			panic("Cannot happen") // may change
-		}
-	}
-}
-
-*/

@@ -185,7 +185,7 @@ type ParamMap = map[string]any
 //
 // For example, %!m>0{Foo has value %x{Foo}} will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty
 const (
-	ConditionNonEmptyMap = "m>0" // using %!m>0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non empty
+	ConditionNonEmptyMap = "m>0" // using %!m>0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non-empty
 	ConditionEmptyMap    = "m=0" // using %!m=0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is empty
 )
 
@@ -310,7 +310,7 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 // Otherwise, this type is useless and most functions will panic.
 type ErrorWithData[StructType any] interface {
 	ErrorWithData_any
-	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetData_Struct[StructType](e, EnsureDataIsPresent)
+	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetData_Struct[StructType](e).
 }
 
 // unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
@@ -433,6 +433,7 @@ func GetParameter(err error, parameterName string) (value any, wasPresent bool) 
 //
 // On error, structConstructionError contains diagnostics for all fields of StructType for which an error occurred.
 // ret's fields are zero-initialized for those failing fields. All non-failing fields contain the values from inputError.
+// Note that if inputError satisfies ErrorWithData[StructType], then structConstructionError cannot be non-nil.
 func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionError error) {
 	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
 	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)

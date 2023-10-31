@@ -90,12 +90,12 @@ func (e *errorWithParameters_common) Unwrap() error {
 //
 // It constructs a value of type StructType from the provided parameters.
 func (e *errorWithParameters_T[StructType]) GetData_struct() (ret StructType) {
-	// errorWithParameters_T is designed to satisfy the invariant that there can never be a problem extracting a struct.
-	// The chosen config here should not matter. It is chosen to detect internal errors.
+	// errorWithParameters_T is designed to satisfy the invariant that there can never be a problem extracting a struct of type StructType.
+	// The chosen config here should not matter. It is chosen to detect more bugs.
 	config := zeroFillParams{addMissingData: false, missingDataIsError: true}
 	ret, err := makeStructFromMap[StructType](e.params, config)
 	if err != nil {
-		panic(err) // This is not supposed to fail, due to the properties of ErrorWithData[StructType]
+		panic(err) // This is not supposed to fail, due to the properties of ErrorWithData[StructType].
 	}
 	return
 }
@@ -124,6 +124,7 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 	return
 }
 
+// precompute tokenizations. Note that we cannot precompute the creation of the ast as easily.
 var (
 	tokenListParentWithError = tokenizeInterpolationString("$w")
 	tokenListParent          = tokenizeInterpolationString("%w")
@@ -138,9 +139,11 @@ var (
 // [deleteParameterFromError], [deleteParameterFromError_any], [newErrorWithData_struct], [newErrorWithData_map] and possibly the (exported) functions in modify_errors.go
 // These functions actually modify ret.params after creation. The purpose of this method is just to unify those functions.
 //
-// This function is never supposed to panic. Errors are reported in-band inside ret.parsedInterpolationString.
+// This function does not directly report errors. Errors are reported in-band inside ret.parsedInterpolationString.
 // The [ValidateSyntax] method can be used to access these.
-func makeErrorWithParametersCommon(baseError error, interpolationString string, config handleEmptyInterpolationString) (ret errorWithParameters_common) {
+// If config.AllowEmptyString is NOT set, interpolationString == "" and baseError == nil, the function panics.
+// This needs to be handled at the call site (mostly, because we want the error message to originate from the call sites rather than from here)
+func makeErrorWithParametersCommon_any(baseError error, interpolationString string, config handleEmptyInterpolationString) (ret errorWithParameters_common) {
 	var tokens tokenList
 	ret.wrapped_error = baseError
 	if !config.AllowEmptyString() && interpolationString == "" {
@@ -150,14 +153,15 @@ func makeErrorWithParametersCommon(baseError error, interpolationString string, 
 
 		// Note: We cannot set ret.parsedInterpolationString to a precomputed AST-parsed "$w" resp. "%w" here.
 		// If we did that, every such error would actually share the same ast. This would almost be fine, except
-		// that Validation actually reports and stores errors in the ast.
-		// Now, validation actually follows the error chain, so validation errors in one error would appear in others.
-		// fpr the tokenizing step, there is no such issue, so we can use precomputed tokenLists rather than re-tokinzing
+		// that validation actually reports and *stores* validation errors in the ast itself.
+		// Note here validation follows the error chain, so validation of "$w" or "%w$ can actually fail.
+		//
+		// for the tokenizing step, there is no such issue, so we can use precomputed tokenLists rather than re-tokinzing
 		// "$w" or "%w"
 		if _, baseSupportParams := baseError.(ErrorInterpolater); baseSupportParams {
-			tokens = tokenListParentWithError
+			tokens = tokenListParentWithError // "$w"
 		} else {
-			tokens = tokenListParent
+			tokens = tokenListParent // "%w"
 		}
 	} else {
 		tokens = tokenizeInterpolationString(interpolationString)
@@ -169,16 +173,29 @@ func makeErrorWithParametersCommon(baseError error, interpolationString string, 
 	return
 }
 
+func makeErrorWithParameterCommon[StructType any](baseError error, interpolationString string, c_emptyString handleEmptyInterpolationString, c_missingData zeroFillParams) (ret errorWithParameters_T[StructType], err error) {
+	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_emptyString)
+	if !c_missingData.ShouldAddMissingData() {
+		panic(ErrorPrefix + "makeErrorWithParametersCommon called with invalid config (ShouldAddMissingData not set)") // must not happen; the caller of this internal function needs to guarantee this.
+	}
+	err = ensureCanMakeStructFromParameters[StructType](&ret.params, c_missingData)
+	return
+}
+
 // deleteParameterFromError_any is the implementation for DeleteParameterFromError_any that is tied to our specific implementation of the
 // [ErrorWithData_any] interface.
 //
 // It creates a new errorWithParameters_common based on baseError and interpolationString, with the parameter given by parameterName removed.
 // If parameterName is not present to start with, this deletion has no effect. We still create a new error in that case.
 //
-// This function does not perform any input validation or replacement of empty interpolation string by "%w" resp. "$w". These are the caller's job.
-func deleteParameterFromError_any(baseError error, interpolationString string, parameterName string) (ret *errorWithParameters_common) {
+// handleEmptyInterpolationString toggles how an empty interpolationString is interpreted.
+// If config.AllowEmptyString() is true, no special handling is performed.
+// If config.AllowEmptyString() is false (the default), we default to "%w" resp. to "$w" if interpolationString is empty. In this case, this function panics if baseError == nil.
+//
+// Note that this is currently only called with AllowEmptyString() set to false.
+func deleteParameterFromError_any(baseError error, interpolationString string, parameterName string, config handleEmptyInterpolationString) (ret *errorWithParameters_common) {
 	ret = new(errorWithParameters_common)
-	*ret = makeErrorWithParametersCommon(baseError, interpolationString)
+	*ret = makeErrorWithParametersCommon_any(baseError, interpolationString, config)
 	delete(ret.params, parameterName)
 	return
 }
@@ -189,41 +206,42 @@ func deleteParameterFromError_any(baseError error, interpolationString string, p
 // The behaviour mostly matches that of [deleteParametersFromError_any], but we need to handle mismatched/missing data that violates the
 // newly created error's promise regarding StructType.
 //
-// If missingDataTreatment == [EnsureDataIsPresent], we fail if data is missing
-// If missingDataTreatment == [MissingDataAsZero], we fill up missing data with zero values
+// If missingDataTreatment.IsMissingDataError() == true, missing data is an error, otherwise we silently fill up with zero values.
+// (Note that we fill up with zero values even on error, just not silently)
+// missingDataTreatment.ShouldAddMissingData() must be set to true, otherwise we panic.
 //
 // If data is present, but has the wrong type, we always fails.
 //
-// Any such failures are reported in err. If err != nil, the returned *ret should not be used.
+// Any such failures are reported in err. If err != nil, the returned *ret will have failing entries zero-initialized; all non-failing entries are valid (i.e. we do not abort on first error).
 //
 // This function may panic if called with invalid StructType or invalid missingDataTreatment.
 // The caller should ensure that.
-//
-// This function does not perform replacement of empty interpolation string by "%w" resp. "$w". These are the caller's job.
-func deleteParameterFromError[StructType any](baseError error, interpolationString string, parameterName string, missingDataTreatment flagMissingDataTreatment) (ret *errorWithParameters_T[StructType], err error) {
+func deleteParameterFromError[StructType any](baseError error, interpolationString string, parameterName string, missingDataTreatment zeroFillParams, emptyInterpolationHandling handleEmptyInterpolationString) (ret *errorWithParameters_T[StructType], err error) {
 	ret = new(errorWithParameters_T[StructType])
-	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
+	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, emptyInterpolationHandling)
 	delete(ret.params, parameterName)
+	if !missingDataTreatment.ShouldAddMissingData() {
+		panic(ErrorPrefix + "deleteParameterFromError called with invalid config (ShouldAddMissingData not set)") // must not happen; the caller of this internal function needs to guarantee this.
+	}
 	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, missingDataTreatment)
 	return
 }
-
-// NOTE: For newErrorWithData_struct and newErrorWithData_map, we expect the caller to have checked the validity of the input beforehand.
-// (i.e. StructType is valid, interpolating string non-empty). As such, those function should not panic (unless mode says so).
 
 // newErrorWithData_struct is the actual implementation of [NewErrorWithData_struct].
 //
 // It is tied to our particular implementation of ErrorWithData and so does not return an interface.
 // It creates a new error with data with the given baseError, interpolationString and data.
-// There are no checks on the inputs. In particular, interpolation string is assumed to have been replaced by "%w" or "$w" by the caller.
-// mode controls how already-present data in baseError should be handled.
-//
-// The function may panic if called with invalid StructType, so StructType should be checked by the caller beforehand.
-// By design, it also panics if mode==[AssertDataIsNotReplaced] and there is different data in base error.
-func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, mode flagPreviousDataTreatment) (ret *errorWithParameters_T[StructType]) {
+func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, oldDataHandling mergeParams, emptyStringHandling handleEmptyInterpolationString) (ret *errorWithParameters_T[StructType], err error) {
+
 	ret = new(errorWithParameters_T[StructType])
-	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
-	fillMapFromStruct(data, &ret.errorWithParameters_common.params, mode)
+	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, emptyStringHandling) // may panic
+	err = fillMapFromStruct(data, &ret.errorWithParameters_common.params, oldDataHandling)
+	// NOTE: This only matters if oldDataHandling.preferOld == true. In this case, pre-existing data in baseError might not have the correct type.
+	err2 := ensureCanMakeStructFromParameters[StructType](&ret.params, zeroFillParams{missingDataIsError: true, addMissingData: true})
+
+	if err == nil { // TODO: Improve this to report both errors?
+		err = err2
+	}
 	return
 }
 
@@ -241,10 +259,16 @@ func newErrorWithData_struct[StructType any](baseError error, interpolationStrin
 // (such as params with wrong type or missing params with missingDataTreatment set to [EnsureDataIsPresent]),
 // we return an error in err. If err!=nil, ret should not be used by the caller.
 // If mode == [AssertDataIsNotReplaced], the function will panic on conflicting data.
-func newErrorWithData_map[StructType any](baseError error, interpolationString string, mode flagPreviousDataTreatment, missingDataTreatment flagMissingDataTreatment, params ParamMap) (ret *errorWithParameters_T[StructType], err error) {
+func newErrorWithData_map[StructType any](baseError error, interpolationString string, params ParamMap, oldDataHandling mergeParams, missingDataTreatment zeroFillParams, emptyStringHandling handleEmptyInterpolationString) (ret *errorWithParameters_T[StructType], err error) {
 	ret = new(errorWithParameters_T[StructType])
-	ret.errorWithParameters_common = makeErrorWithParametersCommon(baseError, interpolationString)
-	mergeMaps(&ret.errorWithParameters_common.params, params, mode)
+	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, emptyStringHandling)
+	mergeMaps(&ret.errorWithParameters_common.params, params, oldDataHandling)
+
+	// We want to maintain the invariant for the returned value even on error, so we zero out bad values.
+	// The caller of this function rejects flags that would change this behaviour.
+	if !missingDataTreatment.ShouldAddMissingData() || !missingDataTreatment.ShouldZeroOnTypeError() {
+		panic("Must not happen")
+	}
 	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, missingDataTreatment)
 	return
 }
