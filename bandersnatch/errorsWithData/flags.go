@@ -30,46 +30,6 @@ type flagArgument interface {
 	getValue() int
 }
 
-type flagArgument_HasData interface {
-	flagArgument
-	isFlag_HasData()
-}
-
-type flagArgument_GetData interface {
-	flagArgument
-	isFlag_GetData()
-}
-
-type flagArgument_NewErrorStruct interface {
-	flagArgument
-	isFlag_NewErrorStruct()
-}
-
-type flagArgument_NewErrorParams interface {
-	flagArgument
-	isFlag_NewErrorParams()
-}
-
-type flagArgument_NewErrorAny interface {
-	flagArgument
-	isFlag_NewErrorAny()
-}
-
-type flagArgument_Delete interface {
-	flagArgument
-	isFlag_Delete()
-}
-
-type flagArgument_DeleteAny interface {
-	flagArgument
-	isFlag_DeleteAny()
-}
-
-type flagArgument_AsErrorWithData interface {
-	flagArgument
-	isFlag_AsErrorWithData()
-}
-
 // Note: We have a single list of int values that determine the actual meaning of the flag (rather than a separate list for each type).
 // This is done to decouple the type of the exported argument flags (which is just there to restrict methods to only meaningful flags) from their actual meaning.
 // This allows changing the type without needed to refactor much.
@@ -153,11 +113,6 @@ func (f fArg_OldData) String() string { return printFlagArg(&f) }
 func (fArg_EmptyString) isFlag()          {}
 func (f fArg_EmptyString) getValue() int  { return f.val }
 func (f fArg_EmptyString) String() string { return printFlagArg(&f) }
-
-func (fArg_HasData) isFlag_HasData() {}
-
-func (fArg_MissingData) isFlag_GetData() {}
-func (fArg_Panic) isFlag_GetData()       {}
 
 func printFlagArg(f flagArgument) string {
 	switch v := f.getValue(); v {
@@ -405,3 +360,68 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 		}
 	}
 }
+
+type flagArgument_HasData interface {
+	flagArgument
+	isFlag_HasData()
+}
+
+func (fArg_HasData) isFlag_HasData() {}
+
+type flagArgument_GetData interface {
+	flagArgument
+	isFlag_GetData()
+}
+
+type flagArgument_NewErrorStruct interface {
+	flagArgument
+	isFlag_NewErrorStruct()
+}
+
+type flagArgument_NewErrorParams interface {
+	flagArgument
+	isFlag_NewErrorParams()
+}
+
+type flagArgument_NewErrorAny = flagArgument_NewErrorStruct // same constraints.
+
+type flagArgument_Delete interface {
+	flagArgument
+	isFlag_Delete()
+}
+
+type flagArgument_DeleteAny interface {
+	flagArgument
+	isFlag_DeleteAny()
+}
+
+type flagArgument_AsErrorWithData interface {
+	flagArgument
+	isFlag_AsErrorWithData()
+}
+
+func (fArg_MissingData) isFlag_GetData() {}
+func (fArg_Panic) isFlag_GetData()       {}
+
+func (fArg_OldData) isFlag_NewErrorStruct()     {}
+func (fArg_Panic) isFlag_NewErrorStruct()       {}
+func (fArg_Validity) isFlag_NewErrorStruct()    {}
+func (fArg_EmptyString) isFlag_NewErrorStruct() {}
+
+func (fArg_OldData) isFlag_NewErrorParams()     {}
+func (fArg_Panic) isFlag_NewErrorParams()       {}
+func (fArg_Validity) isFlag_NewErrorParams()    {}
+func (fArg_EmptyString) isFlag_NewErrorParams() {}
+func (fArg_MissingData) isFlag_NewErrorParams() {}
+
+func (fArg_Panic) isFlag_DeleteAny()    {}
+func (fArg_Validity) isFlag_DeleteAny() {}
+
+func (fArg_MissingData) isFlag_Delete() {}
+func (fArg_Panic) isFlag_Delete()       {}
+func (fArg_Validity) isFlag_Delete()    {}
+
+func (fArg_MissingData) isFlag_AsErrorWithData() {}
+func (fArg_Panic) isFlag_AsErrorWithData()       {}
+
+// flagArgument_NewErrorAny handled by type alias
