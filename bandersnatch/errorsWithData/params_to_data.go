@@ -200,25 +200,24 @@ outer_loop:
 // Note that this function is used both to verify and modify *m. Using a single function for this simplifies the code.
 //
 // On type mismatch between type expected for StructType and what's in *m, we always return an error.
-// If structFillConfig.ShouldZeroOnTypeError() is true, then we then modify those entries with type-mismatch.
-// If data is merely missing, the behaviour depends on structFillConfig:
-//   - Iff structFillConfig.ShouldAddMissingData() == true, this function fills the map with zero of appropriate type.
-//   - Iff structFillConfig.IsMissingDataError() == true, this function reports an error if data is missing.
-//
+// If c_SetZeros.ModifyData() is true, then we modify those entries with type-mismatch or missing data.
+// If data is merely missing, the behaviour depends on c_ImplicitZero:
+//   - Iff c_ImplicitZero.IsMissingDataError() == true, this function reports an error if data is missing.
+//   - Iff c_SetZeros.ModifyData() == true, this function fills the map with zero of appropriate type.
+
 // (note these the latter two questions are actually orthogonal).
-// Note that function does not abort on first error.
+// The function does not abort on first error.
 // If there is an error for multiple keys/required fields of StructType, the returned err message
 // contains information about all of them.
 //
-// The point of having both ShouldZeroOnTypeError() and ShouldAddMissingData() set to true is that this actually guarantees that
+// The point of having ModifyData() set to true is that this actually guarantees that
 // the resulting *m can be used to construct an instance of StructType. This is used to by calls from ErrorWithData[T]-creating functions to
 // make sure that even if an error occurs, the created instance of ErrorWithData[T] satisfies appropriate invariants.
-// Note that currently, there is no way to have structFillConfig.ShouldZeroOnTypeError() and structFillConfig.ShouldAddMissingData() differ.
 //
 // *m == nil must not be used. The function will panic in this case (use an empty map instead).
 //
 // This function panics if called with an invalid (see [StructSuitableForErrorsWithData]) StructType
-func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillConfig config_ZeroFill) (err error) {
+func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZero config_ImplicitZero, c_SetZeros config_SetZeros) (err error) {
 	if *m == nil {
 		panic(ErrorPrefix + "called ensureMakeStructFromParameters with pointer to nil map")
 	}
@@ -236,11 +235,11 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillCo
 
 		mapEntry, exists := (*m)[expectedField.Name]
 		if !exists {
-			if structFillConfig.ShouldAddMissingData() {
+			if c_SetZeros.ModifyData() {
 				(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 			}
 			// no else!
-			if structFillConfig.IsMissingDataError() {
+			if c_ImplicitZero.IsMissingDataError() {
 				errors = append(errors, fmt.Errorf("lacking a parameter named %v", expectedField.Name))
 			}
 			continue // no need to check the type
@@ -262,7 +261,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillCo
 			if !mapEntryType.AssignableTo(expectedField.Type) {
 				errors = append(errors, fmt.Errorf("parameter %v is set to the value %v; this value is not assignable to the intended field (which is of interface type) of the struct",
 					expectedField.Name, mapEntry))
-				if structFillConfig.ShouldZeroOnTypeError() {
+				if c_SetZeros.ModifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 				}
 				// typeError = true
@@ -272,7 +271,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillCo
 			if mapEntryType != expectedField.Type {
 				errors = append(errors, fmt.Errorf("parameter %v is of wrong type.\nValue is %v of type %v, but the expected type is %v",
 					expectedField.Name, mapEntry, utils.GetReflectName(mapEntryType), utils.GetReflectName(expectedField.Type)))
-				if structFillConfig.ShouldZeroOnTypeError() {
+				if c_SetZeros.ModifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 				}
 				// typeError = true
@@ -301,7 +300,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillCo
 // m is allowed to contain additional entries that are not required/used for StructType.
 //
 // If there is no entry in m for some field of StructType, the behaviour depends on structFieldConfig.
-// if structFillConfig.MissingDataIsError() == true, this causes an error to be returned.
+// if c_ImplicitZero.IsMissingDataError() == true, this causes an error to be returned.
 // Independently from that, the corresponding field in ret is zero-initialized.
 //
 // If the data type in m is inappropriate for some field of ret, this is also an error and the corresponding field is zero-initialized.
@@ -312,19 +311,13 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, structFillCo
 // We ask that data (if present) has exactly matching type except for interface types in the struct or nil interface values in the map.
 // m == nil is treated like an empty map.
 // An invalid StructType in the sense of [StructSuitableForErrorsWithData] causes a panic.
-// structFillConfig.ShouldAddMissingData() and structFillConfig.ShouldZeroOnTypeError() must be set to true (otherwise we panic).
-func makeStructFromMap[StructType any](m map[string]any, structFillConfig config_ZeroFill) (ret StructType, err error) {
-
-	// This is implied by the functionality. After all, we return something in ret and there is not much else we can do except for zeroing all of ret, but that is less useful.
-	// So, for consistency, we require that the passed config actually matches what we do anyway. The alternative is just passing a smaller config struct that does not even allow setting this.
-	// That would work, but make the flag parsing more annoying. This condition needs to be (and is) guaranteed by the callers of this function.
-	if !structFillConfig.ShouldAddMissingData() || !structFillConfig.ShouldZeroOnTypeError() {
-		panic(ErrorPrefix + "Called makeStructFromMap with invalid config") // cannot happen unless there is a bug in the library.
-	}
+func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_ImplicitZero) (ret StructType, err error) {
 
 	// ret starts off zero-initialized and gets modified (via reflection) within this function.
 
-	reflectedStructType := utils.TypeOfType[StructType]() // reflect.TypeOf(ret) would not fail via the intended way in case someone wrongly sets StructType to an interface type.
+	// reflect.TypeOf(ret) would not fail via the intended way in case someone wrongly sets StructType to an interface type.
+	// getStructMapConversionLookup panics either way, but the error message would be confusing.
+	reflectedStructType := utils.TypeOfType[StructType]()
 	allStructFields, errInvalidStructType := getStructMapConversionLookup(reflectedStructType)
 	if errInvalidStructType != nil {
 		panic(errInvalidStructType)
@@ -342,7 +335,7 @@ func makeStructFromMap[StructType any](m map[string]any, structFillConfig config
 			// missing value:
 			// We need to zero-initialize the appropriate field. This was already done automatically by the compiler when we declared ret, so we don't need to do anything.
 
-			if structFillConfig.IsMissingDataError() {
+			if c_ImplicitZero.IsMissingDataError() {
 				errors = append(errors, fmt.Errorf(ErrorPrefix+"for the field named %v, there is no entry in the parameter map",
 					structField.Name))
 			}

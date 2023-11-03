@@ -17,18 +17,17 @@ import (
 //   creates some new error and then modifies its parameters before returning the new error. This is
 //   done purely to unify the code.
 
-var defaultValidation = config_Validation{doValidation: flagArg_ValidateSyntax}
-var noValidation = config_Validation{doValidation: flagArg_NoValidation}
+var noValidation = config_Validation{doValidation: validationRequest_NoValidation}
 
 func validateError(inputError ErrorWithData_any, config config_Validation) (err error) {
 	switch config.WhatValidationIsRequested() {
-	case flagArg_NoValidation:
+	case validationRequest_NoValidation:
 		// do nothing
-	case flagArg_ValidateSyntax:
+	case validationRequest_Syntax:
 		err = inputError.ValidateSyntax()
-	case flagArg_ValidateBase:
+	case validationRequest_Base:
 		err = inputError.ValidateError_Base()
-	case flagArg_ValidateFinal:
+	case validationRequest_Final:
 		err = inputError.ValidateError_Final()
 	default:
 		panic("Cannot happen")
@@ -54,7 +53,7 @@ func validateError(inputError ErrorWithData_any, config config_Validation) (err 
 // If StructType does not satisfy [StructSuitableForErrorsWithData], this function panics.
 func NewErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, flags ...flagArgument_NewErrorStruct) (ret ErrorWithData[StructType], err error) {
 
-	var config = errorCreationConfig{config_Validation: defaultValidation} // zero value is the correct default value for the other config entries
+	var config errorCreationConfig // zero value is the correct default value for the config entries
 
 	parseFlagArgs(&config, flags...)
 
@@ -79,7 +78,7 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 		err = validateError(ret, config.config_Validation)
 	}
 
-	if err != nil && config.PanicOnError() {
+	if err != nil && config.PanicOnAllErrors() {
 		panic(err)
 	}
 
@@ -119,8 +118,8 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 func NewErrorWithData_params[StructType any](baseError error, interpolationString string, paramsAndFlags ...any) (ret ErrorWithData[StructType], err error) {
 	baseError = UnboxError(baseError)
 
-	// zero value is the correct default value for the other config entries
-	var config = errorCreationConfig{config_Validation: defaultValidation, config_ZeroFill: config_ZeroFill{missingDataIsError: true, addMissingData: true}}
+	// zero value is the correct default value for the config entries
+	var config errorCreationConfig
 
 	L := len(paramsAndFlags)
 	params_map := make(ParamMap, L/2)
@@ -154,7 +153,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 		panic(errInvalidStruct)
 	}
 
-	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, params_map, config.config_OldData, config.config_ZeroFill, config.config_EmptyString)
+	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, params_map, config.config_OldData, config.config_ImplicitZero, config.config_EmptyString)
 
 	if err != nil {
 		validateError(ret, config.config_Validation)
@@ -162,7 +161,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 		err = validateError(ret, config.config_Validation)
 	}
 
-	if err != nil && config.PanicOnError() {
+	if err != nil && config.PanicOnAllErrors() {
 		panic(err)
 	}
 
@@ -173,8 +172,8 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 func NewErrorWithData_map[StructType any](baseError error, interpolationString string, newParams ParamMap, flags ...flagArgument_NewErrorParams) (ret ErrorWithData[StructType], err error) {
 	baseError = UnboxError(baseError)
 
-	// zero value is the correct default value for the other config entries
-	var config = errorCreationConfig{config_Validation: defaultValidation, config_ZeroFill: config_ZeroFill{missingDataIsError: true, addMissingData: true}}
+	// zero value is the correct default value for the config
+	var config errorCreationConfig
 	parseFlagArgs(&config, flags...)
 
 	if baseError == nil && interpolationString == "" && !config.AllowEmptyString() {
@@ -186,7 +185,7 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 		panic(errInvalidStruct)
 	}
 
-	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, newParams, config.config_OldData, config.config_ZeroFill, config.config_EmptyString)
+	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, newParams, config.config_OldData, config.config_ImplicitZero, config.config_EmptyString)
 
 	if err != nil {
 		validateError(ret, config.config_Validation)
@@ -194,7 +193,7 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 		err = validateError(ret, config.config_Validation)
 	}
 
-	if err != nil && config.PanicOnError() {
+	if err != nil && config.PanicOnAllErrors() {
 		panic(err)
 	}
 
@@ -273,7 +272,7 @@ func AddDataToError_struct[StructType any](baseError error, data *StructType, mo
 // - [ReturnError] (default), [PanicOnAllErrors],
 // - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
 //
-// Note that validation actually follows the error chain, so the validation flags are meaningful.
+// Note that validation actually follows the error chain, so the validation flags are meaningful. The returned err can only be non-nil if a validation flag is set.
 func DeleteParameterFromError_any(inputError error, parameterName string, flags ...flagArgument_DeleteAny) (ret ErrorWithData_any, err error) {
 	if inputError == nil {
 		return nil, nil
@@ -286,7 +285,7 @@ func DeleteParameterFromError_any(inputError error, parameterName string, flags 
 	ret = deleteParameterFromError_any(inputError, "", parameterName, config_EmptyString{allowEmpty: false})
 	err = validateError(ret, config.config_Validation)
 
-	if err != nil && config.PanicOnError() {
+	if err != nil && config.PanicOnAllErrors() {
 		panic(err)
 	}
 
@@ -322,11 +321,11 @@ func DeleteParameterFromError[StructType any](inputError error, parameterName st
 	}
 	inputError = UnboxError(inputError)
 
-	var config = errorCreationConfig{config_Validation: noValidation, config_ZeroFill: config_ZeroFill{missingDataIsError: true, addMissingData: true}}
+	var config = errorCreationConfig{config_Validation: noValidation}
 	parseFlagArgs(&config, flags...)
 
-	// note that the last argument actually equals config.handleEmptyInterpolationString
-	ret, err = deleteParameterFromError[StructType](inputError, "", parameterName, config.config_ZeroFill, config_EmptyString{allowEmpty: false})
+	// Note that the last argument actually equals config.handleEmptyInterpolationString. This is just more explicit.
+	ret, err = deleteParameterFromError[StructType](inputError, "", parameterName, config.config_ImplicitZero, config_EmptyString{allowEmpty: false})
 
 	if err != nil {
 		validateError(ret, config.config_Validation)
@@ -334,27 +333,12 @@ func DeleteParameterFromError[StructType any](inputError error, parameterName st
 		err = validateError(ret, config.config_Validation)
 	}
 
-	if err != nil && config.PanicOnError() {
+	if err != nil && config.PanicOnAllErrors() {
 		panic(err)
 	}
 
 	return
 }
-
-/*
-// TODO: Rename? The purpose of this function is to change the displayed string.
-
-// WrapAsErrorWithData returns a new ErrorWithData[StructType] based on baseError with error message given by the interpolation string.
-// If baseError == nil, this function return nil
-//
-// WrapAsErrorWithData is deprecated
-func WrapAsErrorWithData[StructType any](baseError ErrorWithData[StructType], interpolationString string) ErrorWithData[StructType] {
-	if baseError == nil {
-		return nil
-	}
-	return NewErrorWithData_params[StructType](baseError, interpolationString, AssertDataIsNotReplaced)
-}
-*/
 
 // AsErrorWithData[StructType](inputError) returns a copy of inputError with a data type that guarantees that a struct of type StructType is contained in the data.
 // This is intended to "cast" ErrorWithData_any to ErrorWithData[StructType] or to change StructType. Returns (nil, nil) on nil input.
@@ -381,11 +365,11 @@ func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsE
 
 	inputError = UnboxError(inputError)
 
-	var config = errorCreationConfig{config_ZeroFill: config_ZeroFill{missingDataIsError: true, addMissingData: true}}
+	var config errorCreationConfig // zero value is correct default
 	parseFlagArgs(&config, flags...)
 
 	// Consider refactoring makeErrorWithParametersCommon into newErrorWithParametersCommon to avoid this
-	convertedErrorVal, err := makeErrorWithParameterCommon[StructType](inputError, "", config.config_EmptyString, config.config_ZeroFill)
+	convertedErrorVal, err := makeErrorWithParameterCommon[StructType](inputError, "", config.config_EmptyString, config.config_ImplicitZero)
 	return &convertedErrorVal, err
 
 	// NOTE: No validateError here; this would make little sense.

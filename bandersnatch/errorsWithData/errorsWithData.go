@@ -399,14 +399,14 @@ func HasParameter(err error, parameterName string) bool {
 func HasData[StructType any](err error, flags ...flagArgument_HasData) bool {
 	config := parseFlagArgs_HasData(flags...)
 	params := GetData_map(err) // unneeded copy.
-	return ensureCanMakeStructFromParameters[StructType](&params, config) == nil
+	return ensureCanMakeStructFromParameters[StructType](&params, config, config_SetZeros{setErrorsToZero: false}) == nil
 }
 
-// GetParameter returns the value stored under the key parameterName, possibly following err's error chain (error wrapping defaults to inheriting the wrapped error's parameters).
+// GetParameter returns the value stored under the key parameterName, possibly following inputError's error chain (error wrapping defaults to inheriting the wrapped error's parameters).
 //
-// If no entry was found in the error chain or err==nil, returns (nil, false). Note that the err argument is of plain error type.
-func GetParameter(err error, parameterName string) (value any, wasPresent bool) {
-	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+// If no entry was found in the error chain or inputError==nil, returns (nil, false). Note that the inputError argument is of plain error type.
+func GetParameter(inputError error, parameterName string) (value any, wasPresent bool) {
+	for errorChain := inputError; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.GetParameter(parameterName)
 		}
@@ -438,7 +438,7 @@ func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetD
 	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
 	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)
 	ret, structConstructionError = makeStructFromMap[StructType](allParams, zeroFillConfig)
-	if structConstructionError != nil && errorHandlingConfig.PanicOnError() {
+	if structConstructionError != nil && errorHandlingConfig.PanicOnAllErrors() {
 		panic(structConstructionError)
 	}
 	return

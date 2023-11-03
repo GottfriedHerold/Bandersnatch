@@ -25,12 +25,17 @@ import "fmt"
 // Note that different flags *may* actually have a different type. This allows to satisfy sub-interfaces of flagArgument to restrict a method to only take a subset of the
 // possible flags, with a compile-time failure for meaningless flags.
 
+// flagArgument is the interface type satisfied by all optional flags that are passed to exported function.
+// Note that the API of these exported functions typically takes a more constrained interface than flagArgument to
+// further filter the set of allowed flags on a per-function basis.
 type flagArgument interface {
-	isFlag()
-	getValue() int
+	isFlag()        // tag to mark flags
+	getValue() int  // returns a enum-type constant flagArg_<foo> that determines the actual value/meaning of the flag.
+	String() string // returns a string describing the meaning of the flag. Only used for debugging.
 }
 
-// Note: We have a single list of int values that determine the actual meaning of the flag (rather than a separate list for each type).
+// Note: Even though our different flags are realized with different types,
+// we have a single list of int values that determine the actual meaning of the flag (rather than a separate list for each type).
 // This is done to decouple the type of the exported argument flags (which is just there to restrict methods to only meaningful flags) from their actual meaning.
 // This allows changing the type without needed to refactor much.
 
@@ -51,11 +56,13 @@ const (
 	flagArg_AssertEqual_fun // assume values are equal (using a custom comparison function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
 
 	// for missing data, there is just one config item:
-	//  either silently zero-initialize or zero-initialize and treat it as error.
-
+	// either silently zero-initialize or zero-initialize and treat it as error.
 	flagArg_FillWithZeros      // zero-initialize missing value for T's fields when creating an ErrorWithData[T]
 	flagArg_MissingDataIsError // missing values for T's fields are an error when creating an ErrorWithData[T]
 
+	// Since we use a single utility function for checking that data is there and zeroing out the data,
+	// these are kind-of equivalent to FillWithZeros and MissingDataIsError, but used for [HasData].
+	// The reason is simply that [HasData] does not actually modify the error and zero out missing data, so the above flags would be a misnomer.
 	flagArg_IgnoreMissingData // Treat missing data as zero of appropriate type. Only check that data that is there has the right type. Only valid for [HasData]
 	flagArg_EnsureDataPresent // Don't treat missing data as zero. Only valid for [HasData]
 
@@ -63,16 +70,16 @@ const (
 	flagArg_NoValidation   // Don't perform validation
 	flagArg_ValidateSyntax // Check for syntax errors
 	flagArg_ValidateBase   // Validate as a base error (i.e. ignore missing values for $fmt{Var} - expression, as those might be filled in later). Note that we follow the error chain if applicable.
-	flagArg_ValidateFinal  // Validate as a final error (i.e. ensure all variables refered) actuall exist. Note that we may follow the error chain if applicable.
+	flagArg_ValidateFinal  // Validate as a final error (this means we ensure all variables referred to by format strings actuall exist). Note that we may follow the error chain if applicable.
 
 	// Error handling: Return error or panic
-	// We might consider separating that according to
+	// We might consider separating that according to the type of error
 	flagArg_PanicOnErrors // panic on (all) errors
 	flagArg_ReturnErrors  // return errors as last return value
 
 	// Handling empty interpolation strings
-	flagArg_AllowEmptyString
-	flagArg_DefaultToWrapped
+	flagArg_AllowEmptyString // an empty interpolation string is just an empty string. This allows .Error() to return an empty string.
+	flagArg_DefaultToWrapped // an empty interpolation string is interpreted as "refer to base error" (and panic if no base error exists).
 )
 
 type fArg struct {
@@ -83,36 +90,12 @@ func (fArg) isFlag()          {}
 func (f fArg) getValue() int  { return f.val }
 func (f fArg) String() string { return printFlagArg(&f) }
 
-type fArg_HasData struct{ val int }
-type fArg_MissingData struct{ val int }
-type fArg_Validity struct{ val int }
-type fArg_Panic struct{ val int }
-type fArg_OldData struct{ val int }
-type fArg_EmptyString struct{ val int }
-
-func (fArg_HasData) isFlag()          {}
-func (f fArg_HasData) getValue() int  { return f.val }
-func (f fArg_HasData) String() string { return printFlagArg(&f) }
-
-func (fArg_MissingData) isFlag()          {}
-func (f fArg_MissingData) getValue() int  { return f.val }
-func (f fArg_MissingData) String() string { return printFlagArg(&f) }
-
-func (fArg_Validity) isFlag()          {}
-func (f fArg_Validity) getValue() int  { return f.val }
-func (f fArg_Validity) String() string { return printFlagArg(&f) }
-
-func (fArg_Panic) isFlag()          {}
-func (f fArg_Panic) getValue() int  { return f.val }
-func (f fArg_Panic) String() string { return printFlagArg(&f) }
-
-func (fArg_OldData) isFlag()          {}
-func (f fArg_OldData) getValue() int  { return f.val }
-func (f fArg_OldData) String() string { return printFlagArg(&f) }
-
-func (fArg_EmptyString) isFlag()          {}
-func (f fArg_EmptyString) getValue() int  { return f.val }
-func (f fArg_EmptyString) String() string { return printFlagArg(&f) }
+type fArg_HasData struct{ fArg }
+type fArg_MissingData struct{ fArg }
+type fArg_Validity struct{ fArg }
+type fArg_Panic struct{ fArg }
+type fArg_OldData struct{ fArg }
+type fArg_EmptyString struct{ fArg }
 
 func printFlagArg(f flagArgument) string {
 	switch v := f.getValue(); v {
@@ -162,25 +145,38 @@ func printFlagArg(f flagArgument) string {
 	}
 }
 
+// config_OldData collects the (internal) flags that determine how old vs new data is handled.
+// Note that we require that the zero value of this type corresponds to the default settings.
+// Since this couples semantics of internals to the defaults (we would have use a preferNew bool to change the default)
+// we require all read accesses to go through methods to get an API independent from the defaults.
 type config_OldData struct {
 	preferOld       bool
 	doEqualityCheck bool
 	checkFun        func(x, y any) (isEqual bool, inequalityReason error)
 }
 
+// PreferOld reads out the configuration to determine whether data from the base error or newly provided data should take preference.
 func (p *config_OldData) PreferOld() bool {
 	return p.preferOld
 }
 
+// PreferNew reads out the configuration to determine whether data from the base error or newly provided data should take preference.
+// It is just the negation of [PreferOld]
 func (p *config_OldData) PreferNew() bool {
 	return !p.preferOld
 }
 
+// PerformEqualityCheck reads out the configuration to determine whether we perform an equality check (with a failure considered an error)
+// between data from the base error and newly provided data (if both exist).
+//
+// Note the the equality check is not just done by ==, but rather by calling a custom function, which is obtained by [GetCheckFun]
 func (p *config_OldData) PerformEqualityCheck() bool {
 	return p.doEqualityCheck
 }
 
-func (p *config_OldData) GetCheckFun() func(x, y any) (bool, error) {
+// GetCheckFun reads out the configuration to provide the custom equality check function.
+// This is only meaningful if [PerformEqualityCheck] returns true.
+func (p *config_OldData) GetCheckFun() func(x, y any) (isEqual bool, inequalityReason error) {
 	if p.checkFun == nil {
 		return comparison_very_naive
 	} else {
@@ -189,110 +185,171 @@ func (p *config_OldData) GetCheckFun() func(x, y any) (bool, error) {
 
 }
 
+// config_ErrorHandling collects the internal flags that determine how errors during creating of errors are handled.
+// Notably, we may just return an error or panic, the latter being appropriate for error constants that are created during program initialization.
+//
+// similar to [config_OldData], reads should go through methods.
 type config_ErrorHandling struct {
 	panicOnError bool
 }
 
-func (p *config_ErrorHandling) PanicOnError() bool {
+// PanicOnAllErrors returns true if the configuration is set to panic on all errors.
+func (p *config_ErrorHandling) PanicOnAllErrors() bool {
 	return p.panicOnError
 }
 
+// config_Validation collects the internal flags that determine whether validation of the newly created error is requested (and what kind of validation)
+//
+// Similar to [config_OldData], reads should go through methods.
 type config_Validation struct {
-	doValidation int // reuse constants from flag_Arg_Validate*
+	doValidation int // use constants validationRequest_* for meaning.
 }
 
+// Note: We do not want to (re-)use the flagArg_* values here, because we want the zero value to match our default setting.
+const (
+	validationRequest_Syntax = iota
+	validationRequest_NoValidation
+	validationRequest_Base
+	validationRequest_Final
+)
+
+// WhatValidationIsRequested returns an int determining the type of requested validation.
+//
+// The meaning of the returned int-constants is defined by the validationRequest_* constants
 func (p *config_Validation) WhatValidationIsRequested() int {
 	return p.doValidation
 }
 
-type config_ZeroFill struct {
-	missingDataIsError bool
-	addMissingData     bool
+// config_ImplicitZero collects the internal flags that determine what should be done if data for some error is missing.
+// Note that "missing" only makes sense for ErrorWithData[T] rather than ErrorWithData_any and refers to the possibility that some
+// data required for a field of T might not be present.
+//
+// This config determines whether missing data should be *silently* treated as zero or considered an error (and still be treated as zero, because there is nothing else we can do)
+//
+// Similar to [config_OldData], reads should go through methods.
+type config_ImplicitZero struct {
+	implicitZero bool
+	// addMissingData     bool
 }
 
+/*
+// ShouldAddMissingData determines whether we actually modify the error under consideration and add zero entries for missing data.
+//
+// This is the correct behaviour for methods creating errors of type (satisfying) ErrorWithData[T], because we want to guarantee internal invariants even if data is missing.
 func (p *config_ZeroFill) ShouldAddMissingData() bool {
 	return p.addMissingData
 }
+*/
 
-func (p *config_ZeroFill) IsMissingDataError() bool {
-	return p.missingDataIsError
+// IsMissingDataError determines whether missing data is treated as an error or silently as a zero value.
+func (p *config_ImplicitZero) IsMissingDataError() bool {
+	return !p.implicitZero
 }
 
+/*
+// ShouldZeroOnTypeError determines whether we actually modify the error under consideration and zero out values for which we detect a type error.
 func (p *config_ZeroFill) ShouldZeroOnTypeError() bool {
 	return p.addMissingData // TODO: May need to change. This only happens to work because there is no meaningful use-case for addMissingData to differ from this.
 }
+*/
 
+type config_SetZeros struct {
+	setErrorsToZero bool
+}
+
+func (p *config_SetZeros) ModifyData() bool {
+	return p.setErrorsToZero
+}
+
+// config_EmtpyString collects the interal flags that determine how empty interpolation strings should be handled.
+// We can either treat them as-is or have them default to "refer to the base error" (with a panic if there is no base error)
+// Since we do not want to encourage empty error messages, we default to the latter.
+//
+// Similar to [config_OldData], reads should go through methods.
 type config_EmptyString struct {
 	allowEmpty bool
 }
 
+// AllowEmptyString reads out the config whether empty strings are just taken literally.
 func (p *config_EmptyString) AllowEmptyString() bool {
 	return p.allowEmpty
 }
 
+// NOTE: config_ZeroFill might be split into two and the part dealing with actual modification would not even enter errorCreationConfig.
+// If this is done, the reservations on [config_ZeroFill] can be lifted.
+
+// errorCreatingConfig is a struct collecting all our configuration options.
+// The intended usage is to initialize it with defaults and call [parseFlagArgs] on it to modify it according to user-provided flags.
+//
+// In order to avoid having a multitude of [parseFlagArgs] - variants, [parseFlagArgs] only works with this struct (which contains all config_* types), even if some parts of
+// it are meaningless in a given context.
+// If even relevant in context, the embedded fields [config_Validation] and [config_ZeroFill] should not be zero-initialized (and hence the full config struct itself should not be zero-initialized either),
+// because the zero of type [config_Validation] is an invalid object and [config_ZeroFill] has no default that is applicable for all sitatuations.
 type errorCreationConfig struct {
 	config_OldData
 	config_ErrorHandling
 	config_Validation
-	config_ZeroFill
+	config_ImplicitZero
 	config_EmptyString
 }
 
+// Actually exported flags go here:
+
 var (
 	// PreferPreviousData means that when replacing associated data in errors, we keep the old value if some value is already present for a given key.
-	PreferPreviousData = fArg_OldData{val: flagArg_PreferOld}
+	PreferPreviousData = fArg_OldData{fArg{val: flagArg_PreferOld}}
 	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values for a given key.
-	ReplacePreviousData = fArg_OldData{val: flagArg_PreferNew}
+	ReplacePreviousData = fArg_OldData{fArg{val: flagArg_PreferNew}}
 	// TODO: Document equality notion here
 	// AssertDataIsNotReplaced means that when replacing associated data in errors, we panic if a different value was already present for a given key.
-	AssertDataIsNotReplaced = fArg_OldData{val: flagArg_AssertEqual}
+	AssertDataIsNotReplaced = fArg_OldData{fArg{val: flagArg_AssertEqual}}
 
 	// MissingDataAsZero is passed to functions to indicate that missing data should be silently zero initialized
-	MissingDataAsZero = fArg_MissingData{val: flagArg_FillWithZeros}
+	MissingDataAsZero = fArg_MissingData{fArg{val: flagArg_FillWithZeros}}
 	// MissingDataIsError is passed to functions to indicate that the function should report an error (possibly panic) if data is missing
-	MissingDataIsError = fArg_MissingData{val: flagArg_MissingDataIsError}
+	MissingDataIsError = fArg_MissingData{fArg{val: flagArg_MissingDataIsError}}
 
 	// IgnoreMissingData is passed to [HasData] to cause it to ignore the case of merely missing data. We only type-check in this case
-	IgnoreMissingData = fArg_HasData{val: flagArg_IgnoreMissingData}
+	IgnoreMissingData = fArg_HasData{fArg{val: flagArg_IgnoreMissingData}}
 	// EnsureMissingData is passed to [HasData] to cause it to not ignore merely missing data. As this is the default, this flag is never needed.
-	EnsureDataIsPresent = fArg_HasData{val: flagArg_EnsureDataPresent}
+	EnsureDataIsPresent = fArg_HasData{fArg{val: flagArg_EnsureDataPresent}}
 
 	// ReturnError is passed to functions to indicate that it should return an error rather than panic. Note that certain (explicitly stated) conditions may still cause a panic.
-	ReturnError = fArg_Panic{val: flagArg_ReturnErrors}
+	ReturnError = fArg_Panic{fArg{val: flagArg_ReturnErrors}}
 	// PanicOnAllErrors is passed to functions to indicate that they should panic on failure. Useful for init-level functions.
-	PanicOnAllErrors = fArg_Panic{val: flagArg_PanicOnErrors}
+	PanicOnAllErrors = fArg_Panic{fArg{val: flagArg_PanicOnErrors}}
 
-	NoValidation           = fArg_Validity{val: flagArg_NoValidation}
-	ErrorUnlessValidSyntax = fArg_Validity{val: flagArg_ValidateSyntax}
-	ErrorUnlessValidBase   = fArg_Validity{val: flagArg_ValidateBase}
-	ErrorUnlessValidFinal  = fArg_Validity{val: flagArg_ValidateFinal}
+	NoValidation           = fArg_Validity{fArg{val: flagArg_NoValidation}}
+	ErrorUnlessValidSyntax = fArg_Validity{fArg{val: flagArg_ValidateSyntax}}
+	ErrorUnlessValidBase   = fArg_Validity{fArg{val: flagArg_ValidateBase}}
+	ErrorUnlessValidFinal  = fArg_Validity{fArg{val: flagArg_ValidateFinal}}
 
 	// AllowEmptyString needs to be passed to functions creating errors to allow an empty error message.
 	// Otherwise, an empty string defaults to %w resp. $w and we panic if there is no base error.
-	AllowEmptyString = fArg_EmptyString{val: flagArg_AllowEmptyString}
+	AllowEmptyString = fArg_EmptyString{fArg{val: flagArg_AllowEmptyString}}
 
 	// DefaultToWrapping is passed to function creating errors to cause an empty interpolation string to default to
 	// %w or $w, repeating the wrapped error. If there is no wrapped error, we panic.
 	// Note that this is the default setting, so there should never be a need to pass this flag explicitly.
-	DefaultToWrapping = fArg_EmptyString{val: flagArg_DefaultToWrapped}
+	DefaultToWrapping = fArg_EmptyString{fArg{val: flagArg_DefaultToWrapped}}
 )
 
 // allFlagArgs is a list of all possible flag argument values above (and possible outputs of functions generating flagArguments)
-// This is only used for testing, but defined here to simplify refactoring, as it's tied to the above definitions.
+// This is only used for testing, but defined here to simplify refactoring, as it's tied to the above list of definitions.
 var allFlagArgs []flagArgument = []flagArgument{
 	PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, MissingDataAsZero, MissingDataIsError, IgnoreMissingData, EnsureDataIsPresent, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping,
 }
 
-func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ZeroFill) {
-	ret = config_ZeroFill{missingDataIsError: false, addMissingData: false}
+func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZero) {
+	ret = config_ImplicitZero{implicitZero: true}
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
 			panic("cannot happen") // unless the user tries hard
 		case flagArg_IgnoreMissingData:
-			ret.missingDataIsError = false
+			ret.implicitZero = true
 		case flagArg_EnsureDataPresent:
-			ret.missingDataIsError = true
+			ret.implicitZero = false
 		default:
 			panic("Cannot happen")
 		}
@@ -300,17 +357,17 @@ func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ZeroFill) 
 	return
 }
 
-func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_ZeroFill, retPanic config_ErrorHandling) {
-	retPanic = config_ErrorHandling{panicOnError: false}
-	retZeroFill = config_ZeroFill{addMissingData: false, missingDataIsError: true}
+func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_ImplicitZero, retPanic config_ErrorHandling) {
+	// retPanic = config_ErrorHandling{panicOnError: false}
+	retZeroFill = config_ImplicitZero{implicitZero: false}
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
 			panic("Cannot happen")
 		case flagArg_MissingDataIsError:
-			retZeroFill.missingDataIsError = true
+			retZeroFill.implicitZero = false
 		case flagArg_FillWithZeros:
-			retZeroFill.missingDataIsError = false
+			retZeroFill.implicitZero = true
 		case flagArg_PanicOnErrors:
 			retPanic.panicOnError = true
 		case flagArg_ReturnErrors:
@@ -338,19 +395,25 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 			p.doEqualityCheck = false
 		case flagArg_AssertEqual:
 			p.doEqualityCheck = true
-			panic("Not implemented yet") // p.checkFun = ...
+			p.checkFun = nil
 		case flagArg_AssertEqual_fun:
 			panic("Not implemented yet")
 		case flagArg_MissingDataIsError:
-			p.missingDataIsError = true
+			p.implicitZero = false
 		case flagArg_FillWithZeros:
-			p.missingDataIsError = false
+			p.implicitZero = true
 		case flagArg_ReturnErrors:
 			p.panicOnError = false
 		case flagArg_PanicOnErrors:
 			p.panicOnError = true
-		case flagArg_NoValidation, flagArg_ValidateBase, flagArg_ValidateSyntax, flagArg_ValidateFinal:
-			p.doValidation = v
+		case flagArg_NoValidation:
+			p.doValidation = validationRequest_NoValidation
+		case flagArg_ValidateSyntax:
+			p.doValidation = validationRequest_Syntax
+		case flagArg_ValidateBase:
+			p.doValidation = validationRequest_Base
+		case flagArg_ValidateFinal:
+			p.doValidation = validationRequest_Final
 		case flagArg_AllowEmptyString:
 			p.allowEmpty = true
 		case flagArg_DefaultToWrapped:

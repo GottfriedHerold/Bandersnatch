@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	// list of all exported functions that takes flag and a full list of all flags taken for each.
+	// list of all exported functions that take flags and a full list of all flags taken for each.
 	// Note that validFlagRestrictions needs an entry for each variable here to specify restrictions.
 	validFlags_HasData                     []flagArgument = []flagArgument{EnsureDataIsPresent, IgnoreMissingData}
 	validFlags_GetData_struct              []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
