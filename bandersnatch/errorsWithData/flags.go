@@ -246,17 +246,13 @@ func (p *config_ImplicitZero) IsMissingDataError() bool {
 	return !p.implicitZero
 }
 
-/*
-// ShouldZeroOnTypeError determines whether we actually modify the error under consideration and zero out values for which we detect a type error.
-func (p *config_ZeroFill) ShouldZeroOnTypeError() bool {
-	return p.addMissingData // TODO: May need to change. This only happens to work because there is no meaningful use-case for addMissingData to differ from this.
-}
-*/
-
+// config_SetZeros is passed to [ensureCanMakeStructFromParameters] to determine whether the function should actually modify the error or just perform a check.
+// Which of these options is appropriate is entirely determined by the call site, so we only ever use constants of this type.
 type config_SetZeros struct {
 	setErrorsToZero bool
 }
 
+// ModifyData is used to query a given [config_SetZeros] as to whether data should be modified or not.
 func (p *config_SetZeros) ModifyData() bool {
 	return p.setErrorsToZero
 }
@@ -275,16 +271,12 @@ func (p *config_EmptyString) AllowEmptyString() bool {
 	return p.allowEmpty
 }
 
-// NOTE: config_ZeroFill might be split into two and the part dealing with actual modification would not even enter errorCreationConfig.
-// If this is done, the reservations on [config_ZeroFill] can be lifted.
-
-// errorCreatingConfig is a struct collecting all our configuration options.
+// errorCreatingConfig is a struct collecting all our configuration options (except [config_SetZero]).
 // The intended usage is to initialize it with defaults and call [parseFlagArgs] on it to modify it according to user-provided flags.
 //
 // In order to avoid having a multitude of [parseFlagArgs] - variants, [parseFlagArgs] only works with this struct (which contains all config_* types), even if some parts of
-// it are meaningless in a given context.
-// If even relevant in context, the embedded fields [config_Validation] and [config_ZeroFill] should not be zero-initialized (and hence the full config struct itself should not be zero-initialized either),
-// because the zero of type [config_Validation] is an invalid object and [config_ZeroFill] has no default that is applicable for all sitatuations.
+// it are meaningless in a given context. Note that the internals of each config type are chosen such that the zero value of errorCreationConfig corresponds to the default value,
+// at least for most cases.
 type errorCreationConfig struct {
 	config_OldData
 	config_ErrorHandling
@@ -319,10 +311,14 @@ var (
 	// PanicOnAllErrors is passed to functions to indicate that they should panic on failure. Useful for init-level functions.
 	PanicOnAllErrors = fArg_Panic{fArg{val: flagArg_PanicOnErrors}}
 
-	NoValidation           = fArg_Validity{fArg{val: flagArg_NoValidation}}
+	// NoValidation is passed to functions creating errors to indicate that no validation (pertaining to recursive checking of interpolation strings) is requested.
+	NoValidation = fArg_Validity{fArg{val: flagArg_NoValidation}}
+	// ErrorUnlessValidSyntax is passed to functions creating errors to indicate that syntax-validation of the interpolation string is requested
 	ErrorUnlessValidSyntax = fArg_Validity{fArg{val: flagArg_ValidateSyntax}}
-	ErrorUnlessValidBase   = fArg_Validity{fArg{val: flagArg_ValidateBase}}
-	ErrorUnlessValidFinal  = fArg_Validity{fArg{val: flagArg_ValidateFinal}}
+	// ErrorUnlessValidBase is passed to functions creating errors to indicate that recursive validation of interpolation strings is requested. This includes that data referred to actually exists, except for possible $fmtVerb{Param} expressions, which might be filled by a wrapping error.
+	ErrorUnlessValidBase = fArg_Validity{fArg{val: flagArg_ValidateBase}}
+	// ErrorUnlessValidFinal is passed to functions creating errors to indicate that recursive validation of interpolation strings is requested. This includes checking that data referred to by %fmtVerb{Param} or $fmtVerb{Param}-expressions actually exists.
+	ErrorUnlessValidFinal = fArg_Validity{fArg{val: flagArg_ValidateFinal}}
 
 	// AllowEmptyString needs to be passed to functions creating errors to allow an empty error message.
 	// Otherwise, an empty string defaults to %w resp. $w and we panic if there is no base error.
