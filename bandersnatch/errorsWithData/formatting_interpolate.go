@@ -75,6 +75,8 @@ var specialVariableNameIndicator byte = '!' // must be first byte of each validM
  * - Invalid condition strings are marked to trigger unconditional evaluation and special display behaviour.
  */
 
+// TODO: error reporting ([]error vs error?), thread-safety issues with the design.
+
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
@@ -618,8 +620,9 @@ func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed Para
 			s.WriteString("\nBase error:\n")
 			s.WriteString(baseError.Error()) // Note: We don't check for baseError.(ErrorInterpolater), because we output the parameters anyway (if present).
 		}
-		
-		// unconditionally output params, if present (parameters_direct == nil is handled as an empty map. This is not supposed to happen, but we handle it gracefully):
+
+		// unconditionally output params, if present:
+		// (parameters_direct == nil is handled as an empty map. This is not supposed to happen, but we handle it gracefully)
 		if len(parameters_direct) != 0 {
 			s.WriteString("\nParameters in error:\n")
 			fmt.Fprintf(s, "%v", parameters_direct)
@@ -681,11 +684,13 @@ func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strin
 	var value any
 	var ok bool
 	if utils.ElementInList(a.variableName, validMapSelectors[:]) {
-		value = parameters_relevant
-		ok = true
-		if value == nil {
+		if parameters_relevant == nil {
 			value = make(ParamMap) // nil -> empty map. This should not happen, but better safe than sorry.
+		} else {
+			value = parameters_relevant
 		}
+		ok = true
+
 	} else {
 		// NOTE: [handleSyntaxConditions] has checked whether the variable name is a valid name for our language.
 		// This means that an invalid name can never be looked up in the parameters_relevant map.
@@ -697,7 +702,9 @@ func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strin
 		s.WriteString(a.formatString)
 		s.WriteString(`!<missing value>`)
 	} else {
-		fmt.Fprintf(s, "%"+a.formatString, value) // NOTE: a.formatString is guaranteed not to contain further %'s. At any rate, fmt.Fprintf would handle it just fine (by printing an error).
+		// NOTE: a.formatString is guaranteed not to contain further %'s at this point.
+		// At any rate, fmt.Fprintf would handle it just fine (by printing an error).
+		fmt.Fprintf(s, "%"+a.formatString, value)
 	}
 }
 

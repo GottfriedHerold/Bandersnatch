@@ -2,6 +2,7 @@ package errorsWithData
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
@@ -56,5 +57,14 @@ func TestOnlyValidFlagsAccepted(t *testing.T) {
 			testutils.FatalUnless(t, expectedYes == assignable, "Flag assignability not as expected for \"%v\" and %v. Iteration count = %v", flag, typeRestriction, i)
 		}
 		i++
+	}
+}
+
+func TestPrintFlag(t *testing.T) {
+	for i, value := range allFlagArgs {
+		s := printFlagArg(value)
+		if strings.HasPrefix(s, "Unrecognized") || strings.HasPrefix(s, "Zero value of flag argument") {
+			t.Fatalf("printFlagArg does not handle exported flag %v of type %T correctly. Output is:\n\"%v\"", i, value, s)
+		}
 	}
 }

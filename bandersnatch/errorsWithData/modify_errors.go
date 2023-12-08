@@ -7,18 +7,20 @@ import (
 // This file contains functions used to create / modify errors.
 // Due to immutability of errors, modifications really means return modified copy.
 //
-// On the implementations side, there are 2 subtleties to note here:
+// On the implementations side, there is a subtlety to note here:
 // - We unbox any input base error via incomparabilityUndoer_any, if applicable.
 //   This is because we do not want incomparable errors to appear in actual error chains,
 //   because this could trigger bugs in 3rd party code, which might silently make assumptions here.
 //   The sole purpose of incomparable errors is to export them for users to compare against with
 //   errors.Is, documenting potential errors and to wrap them (usually via this package).
-// - In spite of the usual immutability principle for errors, the code to create actual errors first
-//   creates some new error and then modifies its parameters before returning the new error. This is
-//   done purely to unify the code.
 
+// noValidation is a constant of type config_Validation with meaning "No validation requested"
 var noValidation = config_Validation{doValidation: validationRequest_NoValidation}
 
+// validateError validates inputError according to config (which specifies which type of validation is requested).
+// The result is returned as err, which err==nil meaning that validation succeeded.
+//
+// Note: This is a purely internal function used to unify code. We happen to only need it for inputError of type ErrorWithData_any.
 func validateError(inputError ErrorWithData_any, config config_Validation) (err error) {
 	switch config.WhatValidationIsRequested() {
 	case validationRequest_NoValidation:
@@ -35,9 +37,11 @@ func validateError(inputError ErrorWithData_any, config config_Validation) (err 
 	return
 }
 
+// TODO: Review panic on empty string
+
 // NewErrorWithData_struct creates a new [ErrorWithData] wrapping the given baseError if non-nil.
 // interpolationString is used to create the new error message, where by default an empty string is
-// interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil.
+// interpreted as a default interpolation string ("$w" or "%w"), which asserts that baseError is non-nil.
 // Parameters are added for each visible field of StructType.
 // flags are optional and can be used to change the default behaviour.
 //
@@ -110,11 +114,11 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 // Note that even on error, ret will be a valid ErrorWithData[StructType].
 // For each field of StructType where the provided/inherited parameter is missing or has the wrong type, we add or replace it by a zero value of appropriate type.
 // This implies that [MissingDataAsZero] or [MissingDataIsError] only affect whether adding zeros happens silently or triggers an error.
-// These zero values are actually added when creating the error, not when retrieving data. In particular, [HasParameter] will see those entries
+// These zero values are actually added when creating the error, not when retrieving data. In particular, [HasParameter] will see those zero entries
 // and they are inherited if ret is subsequently used as baseError.
 //
 // A nil interface value among the params is converted to a nil of appropriate type if the corresponding field can be nil. So this case is not treated as "has the wrong type" above if the field can be nil.
-// However, this conversion happens when *retrieving* data via the struct API. The parameter contained in the error is remains any(nil) and is not converted.
+// However, this conversion happens when *retrieving* data via the struct API. The parameter contained in the error remains any(nil) and is not converted.
 func NewErrorWithData_params[StructType any](baseError error, interpolationString string, paramsAndFlags ...any) (ret ErrorWithData[StructType], err error) {
 	baseError = UnboxError(baseError)
 

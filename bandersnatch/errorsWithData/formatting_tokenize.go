@@ -27,7 +27,7 @@ import (
 // This is just used to simplify readability of the definition of [re_tokenize].
 //
 // Note that re_escaper escapes all occurances, thereby precluding to use e.g. $ as its regexp-specific meaning (end of text/line)
-// We use “-string syntax rather than "", because with the latter we would have to additionally escape all \'s in another layer...
+// We use `...`-string syntax rather than "", because with the latter we would have to additionally escape all \'s in another layer...
 var re_escaper = strings.NewReplacer(`\`, `\\`, `$`, `\$`, `{`, `\{`, `}`, `\}`)
 
 // Regular expression to greedily subdivide the input string into non-overlapping instances of
@@ -168,12 +168,12 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 
 // String will output a string representation of the special token. It matches the string that gets parsed into it.
 //
-// For tokenStart resp. tokenEnd, we return a "[" resp. "]"
-// (this is not really important, but convenient for tokenList.String() and our tests rely on this)
+// For tokenStart resp. tokenEnd, we return a "[" resp. "]".
+// This is not really important, but convenient for tokenList.String() and our tests rely on this (as it makes writing test-cases simpler).
 func (token specialToken) String() string {
 	switch token {
 	case tokenInvalid:
-		return `INVALID TOKEN` // must never happen. We don't panic, because this may be called during recover() for diagnostics.
+		return `INVALID TOKEN` // must never happen. We don't panic, because this may be called during recover() by the testing framework for diagnostics.
 	case tokenPercent:
 		return `%`
 	case tokenDollar:
@@ -200,12 +200,14 @@ func (token specialToken) String() string {
 }
 
 // String will output a string representation of the token list.
-// For valid tokenList, this should have the form `[ TOKEN1 TOKEN2 TOKEN3 ]`
+// For valid tokenList, this should have the form `[ TOKEN1 TOKEN2 TOKEN3 ]`.
 // where for each special token we output a string that corresponds to the corresponding token and
 // each string token get output with ""s added.
 // (tokenStart and tokenEnd correspond to the [ ])
+// We use a space as separator.
 //
 // Note that this function is only used internally, for testing the package itself. This output format is not part of the API.
+// The user has no way of getting hold of an instance of tokenList, so this cannot be called.
 func (tokens tokenList) String() string {
 	var ret strings.Builder
 	for i, t := range tokens {

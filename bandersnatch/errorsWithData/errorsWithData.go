@@ -337,7 +337,7 @@ func validConditionString(conditionString string) bool {
 // isExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
 // (Meaning it starts with a capital letter, followed by letters, digits and underscores -- note that both letters and digits may be non-ASCII)
 func isExportedIdentifier(s string) bool {
-	// "token" here refers to the go/token standard library, not to tokens in the interpolation string grammar (possible unfortunate name collision in the package).
+	// "token" here refers to the go/token standard library, not to tokens in our interpolation string grammar (possible unfortunate name collision in the package).
 	// We use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise, due to potential non-ASCII letters and digits.
 	return token.IsIdentifier(s) && token.IsExported(s)
 }

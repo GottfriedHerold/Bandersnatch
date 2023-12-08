@@ -7,7 +7,7 @@ import "fmt"
 //
 // When setting values for parameters, if there is already a parameter present from the wrapped error, which one should take precendence?
 // In addition to either prefering the old or new one, there is also the option to require that the values actually match.
-// For this this matching, we may further need to specify a custom equality check (to accomodate for uncomparable types and IsEqual-methods)
+// For this matching, we may further need to specify a custom equality check (to accomodate for uncomparable types and IsEqual-methods)
 //
 // When creating an ErrorWithData[T] for some appropriate T, we need to make sure that there is some data for every field of T.
 // We can either silently zero-initialize missing fields or treat missing fields as errors
@@ -44,7 +44,7 @@ const (
 
 	// For overwriting data, there are really 3 (essential) config items:
 	//  - preference for old/new
-	//  - should be check for equality
+	//  - should we check for equality
 	//  - how should we check for equality (we could use nil here as don't check at all, but nil could also special case plain ==)
 	// Note that the old/new preference actually still matters even if we do an equality check, because a custom equality check might not do plain "=="". In fact, the default one does not.
 	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
@@ -82,25 +82,37 @@ const (
 	flagArg_DefaultToWrapped // an empty interpolation string is interpreted as "refer to base error" (and panic if no base error exists).
 )
 
+// fArg is an implementation of flagArgument that just wraps an int (enum-style)
+// Note that flagArgument is implemented by the value type fArg itself as opposed to *fArg (which then also implements it, by Go's rules).
+//
+// the fArg type is not really used directly; our concrete exported errors have various types fArg_Foo, which all struct-embed fArg.
 type fArg struct {
 	val int
 }
 
 func (fArg) isFlag()          {}
 func (f fArg) getValue() int  { return f.val }
-func (f fArg) String() string { return printFlagArg(&f) }
+func (f fArg) String() string { return printFlagArg(&f) } // Both &f and f work here.
 
-type fArg_HasData struct{ fArg }
-type fArg_MissingData struct{ fArg }
-type fArg_Validity struct{ fArg }
-type fArg_Panic struct{ fArg }
-type fArg_OldData struct{ fArg }
-type fArg_EmptyString struct{ fArg }
+// the various fArg_Foo types are the concrete types that our exported flags have. Each of these types satisfies the flagArgument interface.
+// The actual type depends on the flag. Each flag types implements certain extra functions, which makes it satisfy a more constrained interface, depening on the flag type.
+// This is done to further restrict the set of allowed flags to certain functions at compile-time, if applicable.
+type (
+	fArg_HasData     struct{ fArg }
+	fArg_MissingData struct{ fArg }
+	fArg_Validity    struct{ fArg }
+	fArg_Panic       struct{ fArg }
+	fArg_OldData     struct{ fArg }
+	fArg_EmptyString struct{ fArg }
+)
 
+// printFlagArg output a string representation of the flag. This is only used for debugging.
 func printFlagArg(f flagArgument) string {
 	switch v := f.getValue(); v {
 	case flagArg_Unset:
-		return fmt.Sprintf("Zero value of flag argument of specific type %T", f)
+		// Note: The type information is lost here due to fArg_Foo implementing String(), which calls printFlagArg, via struct-embedding.
+		// There is no way to retain the type-information without proper inheritance, which Go does not provide.
+		return fmt.Sprintf("Zero value of flag argument of some specific type, possibly %T", f)
 
 	case flagArg_PreferOld:
 		return "Prefer old values when overwriting data"
@@ -178,7 +190,7 @@ func (p *config_OldData) PerformEqualityCheck() bool {
 // This is only meaningful if [PerformEqualityCheck] returns true.
 func (p *config_OldData) GetCheckFun() func(x, y any) (isEqual bool, inequalityReason error) {
 	if p.checkFun == nil {
-		return comparison_very_naive
+		return comparison_very_naive_old
 	} else {
 		return p.checkFun
 	}
