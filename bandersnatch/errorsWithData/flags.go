@@ -258,8 +258,8 @@ func (p *config_SetZeros) ModifyData() bool {
 }
 
 // config_EmtpyString collects the interal flags that determine how empty interpolation strings should be handled.
-// We can either treat them as-is or have them default to "refer to the base error" (with a panic if there is no base error)
-// Since we do not want to encourage empty error messages, we default to the latter.
+// We can either treat them as-is or have them default to "refer to the base error" (with an error / panic if there is no base error)
+// Since we do not want to encourage empty error messages, we default to "refer to the base error".
 //
 // Similar to [config_OldData], reads should go through methods.
 type config_EmptyString struct {
@@ -276,7 +276,7 @@ func (p *config_EmptyString) AllowEmptyString() bool {
 //
 // In order to avoid having a multitude of [parseFlagArgs] - variants, [parseFlagArgs] only works with this struct (which contains all config_* types), even if some parts of
 // it are meaningless in a given context. Note that the internals of each config type are chosen such that the zero value of errorCreationConfig corresponds to the default value,
-// at least for most cases.
+// at least when possible (the meaningful default may depend on more than the type).
 type errorCreationConfig struct {
 	config_OldData
 	config_ErrorHandling
@@ -330,7 +330,7 @@ var (
 	DefaultToWrapping = fArg_EmptyString{fArg{val: flagArg_DefaultToWrapped}}
 )
 
-// allFlagArgs is a list of all possible flag argument values above (and possible outputs of functions generating flagArguments)
+// allFlagArgs is a list of all possible flag argument values above (and some possible outputs of functions generating flagArguments)
 // This is only used for testing, but defined here to simplify refactoring, as it's tied to the above list of definitions.
 var allFlagArgs []flagArgument = []flagArgument{
 	PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, MissingDataAsZero, MissingDataIsError, IgnoreMissingData, EnsureDataIsPresent, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping,
@@ -376,6 +376,7 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_Im
 }
 
 // Needs to be generic function due to Go's lack of covariance.
+// Note that ArgType may actually be an *interface* type.
 
 // func (p *errorCreationParams) parseFlagArgs(flags ...flagArgument) {
 func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgType) {
