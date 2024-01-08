@@ -14,13 +14,13 @@ var (
 	// Note that validFlagRestrictions needs an entry for each variable here to specify restrictions.
 	validFlags_HasData                     []flagArgument = []flagArgument{EnsureDataIsPresent, IgnoreMissingData}
 	validFlags_GetData_struct              []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
-	validFlags_NewErrorWithData_struct     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
-	validFlags_NewErrorWithData_params     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping, MissingDataAsZero, MissingDataIsError}
+	validFlags_NewErrorWithData_struct     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_NewErrorWithData_params     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping, MissingDataAsZero, MissingDataIsError}
 	validFlags_NewErrorWithData_map                       = validFlags_NewErrorWithData_params
 	validFlags_DeleteParam_any             []flagArgument = []flagArgument{ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal}
 	validFlags_DeleteParam_T               []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal}
 	validFlags_AsErrorWithData_T           []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
-	validFlags_NewErrorWithData_params_any []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_NewErrorWithData_params_any []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
 	validFlags_NewErrorWithData_map_any    []flagArgument = validFlags_NewErrorWithData_params_any
 )
 

@@ -26,9 +26,10 @@ func NameOfType[T any]() string {
 //
 // The behaviour when calling this on reflect.TypeOf(nil) or the zero value of reflect.Type is unspecified.
 //
-// NOTE: We currently panic, which is intended and reflect.TypeOf(nil) returns the zero value of reflect.Type.
-// The issue is that the behaviour of the standard library is kind-of suboptimal (that's why this function is even needed in the first place)
-// and there are serious considerations of changing it in future Go versions. Hence we give no promises that we panic.
+// NOTE: We currently panic in the latter case. Recall that reflect.TypeOf(nil) returns the zero value of reflect.Type, which is considered an invalid object.
+// The issue is that the behaviour of the standard reflect library is kind-of suboptimal (that's why this function is even needed in the first place)
+// and there are serious considerations of changing it in future Go versions. Hence we give no promises that we panic, since we might want to update the behaviour if the
+// standard library changes.
 func IsNilable(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Interface,

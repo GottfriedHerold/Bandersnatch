@@ -304,13 +304,15 @@ var (
 	PreferPreviousData = fArg_OldData{fArg{val: flagArg_PreferOld}}
 	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values for a given key.
 	ReplacePreviousData = fArg_OldData{fArg{val: flagArg_PreferNew}}
-	// TODO: Document equality notion here
-	// AssertDataIsNotReplaced means that when replacing associated data in errors, we panic if a different value was already present for a given key.
-	AssertDataIsNotReplaced = fArg_OldData{fArg{val: flagArg_AssertEqual}}
+	// EnsureDataIsNotReplaced means that when replacing associated data in errors, we treat it as an error if a value was already present for a given key, unless the values are equal.
+	//
+	// TODO: Document the default equality notion
+	// [EnsureDataIsNotReplaced_fun] may be used to customize this with a custom equlity-comparison function.
+	EnsureDataIsNotReplaced = fArg_OldData{fArg{val: flagArg_AssertEqual}}
 
 	// MissingDataAsZero is passed to functions to indicate that missing data should be silently zero initialized
 	MissingDataAsZero = fArg_MissingData{fArg{val: flagArg_FillWithZeros}}
-	// MissingDataIsError is passed to functions to indicate that the function should report an error (possibly panic) if data is missing
+	// MissingDataIsError is passed to functions to indicate that the function should consider it an error if data is missing
 	MissingDataIsError = fArg_MissingData{fArg{val: flagArg_MissingDataIsError}}
 
 	// IgnoreMissingData is passed to [HasData] to cause it to ignore the case of merely missing data. We only type-check in this case
@@ -333,19 +335,26 @@ var (
 	ErrorUnlessValidFinal = fArg_Validity{fArg{val: flagArg_ValidateFinal}}
 
 	// AllowEmptyString needs to be passed to functions creating errors to allow an empty error message.
-	// Otherwise, an empty string defaults to %w resp. $w and we panic if there is no base error.
+	// Otherwise, an empty string defaults to %w resp. $w and we consider it an error if there is no base error.
 	AllowEmptyString = fArg_EmptyString{fArg{val: flagArg_AllowEmptyString}}
 
 	// DefaultToWrapping is passed to function creating errors to cause an empty interpolation string to default to
-	// %w or $w, repeating the wrapped error. If there is no wrapped error, we panic.
+	// %w or $w, repeating the wrapped error. If there is no wrapped error, we treat this as an error.
 	// Note that this is the default setting, so there should never be a need to pass this flag explicitly.
 	DefaultToWrapping = fArg_EmptyString{fArg{val: flagArg_DefaultToWrapped}}
 )
 
+// EnsureDataIsNotReplaced_fun returns a flag to indicate that when potentially replacing associated data in errors, we treat it as an error if a value was already present for a given key,
+// unless the old value equals the new.
+// As opposed to plain [EnsureDataIsNotReplaced], the provided function f is used to test for equality.
+func EnsureDataIsNotReplaced_fun(f EqualityComparisonFunction) fArg_OldData {
+	panic("Not implemented yet")
+}
+
 // allFlagArgs is a list of all possible flag argument values above (and possible outputs of functions generating flagArguments)
 // This is only used for testing, but defined here to simplify refactoring, as it's tied to the above list of definitions.
 var allFlagArgs []flagArgument = []flagArgument{
-	PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, MissingDataAsZero, MissingDataIsError, IgnoreMissingData, EnsureDataIsPresent, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping,
+	PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, MissingDataAsZero, MissingDataIsError, IgnoreMissingData, EnsureDataIsPresent, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping,
 }
 
 func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZero) {
