@@ -2,6 +2,7 @@ package errorsWithData
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
@@ -13,13 +14,13 @@ var (
 	// Note that validFlagRestrictions needs an entry for each variable here to specify restrictions.
 	validFlags_HasData                     []flagArgument = []flagArgument{EnsureDataIsPresent, IgnoreMissingData}
 	validFlags_GetData_struct              []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
-	validFlags_NewErrorWithData_struct     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
-	validFlags_NewErrorWithData_params     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping, MissingDataAsZero, MissingDataIsError}
+	validFlags_NewErrorWithData_struct     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_NewErrorWithData_params     []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping, MissingDataAsZero, MissingDataIsError}
 	validFlags_NewErrorWithData_map                       = validFlags_NewErrorWithData_params
 	validFlags_DeleteParam_any             []flagArgument = []flagArgument{ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal}
 	validFlags_DeleteParam_T               []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal}
 	validFlags_AsErrorWithData_T           []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
-	validFlags_NewErrorWithData_params_any []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, AssertDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_NewErrorWithData_params_any []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
 	validFlags_NewErrorWithData_map_any    []flagArgument = validFlags_NewErrorWithData_params_any
 )
 
@@ -56,5 +57,14 @@ func TestOnlyValidFlagsAccepted(t *testing.T) {
 			testutils.FatalUnless(t, expectedYes == assignable, "Flag assignability not as expected for \"%v\" and %v. Iteration count = %v", flag, typeRestriction, i)
 		}
 		i++
+	}
+}
+
+func TestPrintFlag(t *testing.T) {
+	for i, value := range allFlagArgs {
+		s := printFlagArg(value)
+		if strings.HasPrefix(s, "Unrecognized") || strings.HasPrefix(s, "Zero value of flag argument") {
+			t.Fatalf("printFlagArg does not handle exported flag %v of type %T correctly. Output is:\n\"%v\"", i, value, s)
+		}
 	}
 }

@@ -634,6 +634,10 @@ func embeddedParseError(s string, args ...any) ast_string {
 
 // make_ast creates a syntax tree out of the list of tokens.
 //
+// IMPORTANT: Any ast_root (contained in a struct) that is returned by an exported function *must* have
+// been post-processed by [handleSyntaxConditions]. While this post-processing is triggered by anything that requires it,
+// it modifies the ast on its first call; consequently, forgetting this yields a potential thread-safety issue.
+//
 // On failure, reports the first error. Note that we do NOT stop on errors;
 // we rather process the input to the end and build a meaningful syntax tree.
 // The returned syntax tree will contain a diagnostic message (as a valid node of string type).

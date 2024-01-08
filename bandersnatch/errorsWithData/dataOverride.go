@@ -47,9 +47,6 @@ func mergeMaps_preferNew(target *ParamMap, source ParamMap) {
 	}
 }
 
-func comparison_very_naive(x, y any) (equal bool, reason error) {
-	return x == y, nil
-}
 
 // TODO: This is a dummy implementation. It has bad error reporting and the default comparison function does not work well.
 func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (err error) {
