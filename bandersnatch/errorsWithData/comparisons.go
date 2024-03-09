@@ -65,10 +65,12 @@ func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 	// Mostly Copy&Pasted from specialized function for (single) methodname  == "IsEqual" and adapted.
 	// TODO: Check in-code comments
 	return func(x, y any) (isEqual bool) {
+		// Note: if x or y are nil, these are invalid objects. We special case these below.
+		// Because of that, we cannot use xType = xValue.Type(), because that would panic for x==nil
 		xValue := reflect.ValueOf(x)
-		xType := xValue.Type()
+		xType := reflect.TypeOf(x)
 		yValue := reflect.ValueOf(y)
-		yType := yValue.Type()
+		yType := reflect.TypeOf(y)
 
 		if x == nil {
 			if y == nil { // Note that yValue:=reflect.ValueOf(nil) panics on yReflected.IsNil(), so we have to special-case this
@@ -203,10 +205,12 @@ func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 // not necessarily because the pointers are the objects where we want to have custom equality semantics.
 // Unfortunately, the Go language has no way to differentiate these concepts.
 func Comparison_IsEqual(x, y any) (isEqual bool) {
+	// Note: if x or y are nil, these are invalid objects. We special case these below.
+	// Because of that, we cannot use xType = xValue.Type(), because that would panic for x==nil
 	xValue := reflect.ValueOf(x)
-	xType := xValue.Type()
+	xType := reflect.TypeOf(x)
 	yValue := reflect.ValueOf(y)
-	yType := yValue.Type()
+	yType := reflect.TypeOf(y)
 
 	if x == nil {
 		if y == nil { // Note that yValue:=reflect.ValueOf(nil) panics on yReflected.IsNil(), so we have to special-case this
