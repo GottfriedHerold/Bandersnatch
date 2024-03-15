@@ -75,89 +75,82 @@ func assumeComparisonState(t *testing.T, target ...any) {
 
 // types with an IsEqual method defined on value resp. pointer receivers and arguments
 type (
-	StructIsEqual_Val struct{ val int } // dummy types
-	StructIsEqual_Ptr struct{ val int }
+	structIsEqual_Val struct{ val int } // dummy types
+	structIsEqual_Ptr struct{ val int }
 )
 
 // same types as above, but incomparable
 type (
-	IncomparableType     struct{ utils.MakeIncomparable }
-	IncomparableType_Val struct {
+	incomparableType     struct{ utils.MakeIncomparable }
+	incomparableType_Val struct {
 		utils.MakeIncomparable
-		StructIsEqual_Val
+		structIsEqual_Val
 	}
-	IncomparableType_Ptr struct {
+	incomparableType_Ptr struct {
 		utils.MakeIncomparable
-		StructIsEqual_Ptr
+		structIsEqual_Ptr
 	}
 )
 
-func (x StructIsEqual_Val) IsEqual(y StructIsEqual_Val) bool {
+func (x structIsEqual_Val) IsEqual(y structIsEqual_Val) bool {
 	last_comparison_target = y
 	last_comparison_id = 1
 	return x.val == y.val
 }
-func (x *StructIsEqual_Ptr) IsEqual(y *StructIsEqual_Ptr) bool {
+func (x *structIsEqual_Ptr) IsEqual(y *structIsEqual_Ptr) bool {
 	last_comparison_target = *y
 	last_comparison_id = 2
 	return x.val == y.val
 }
 
-func (x IncomparableType_Val) IsEqual(y IncomparableType_Val) bool {
-	last_comparison_target = y.StructIsEqual_Val
+func (x incomparableType_Val) IsEqual(y incomparableType_Val) bool {
+	last_comparison_target = y.structIsEqual_Val
 	last_comparison_id = 3
 	return x.val == y.val
 }
 
-func (x *IncomparableType_Ptr) IsEqual(y *IncomparableType_Ptr) bool {
-	last_comparison_target = y.StructIsEqual_Ptr
+func (x *incomparableType_Ptr) IsEqual(y *incomparableType_Ptr) bool {
+	last_comparison_target = y.structIsEqual_Ptr
 	last_comparison_id = 4
 	return x.val == y.val
 }
 
-func withPanicResults(f EqualityComparisonFunction) func(any, any) (result bool, didPanic bool, panicValue any) {
-	return func(x, y any) (result bool, didPanic bool, panicValue any) {
-		didPanic, panicValue = testutils.CheckPanic2(func() { result = f(x, y) })
-		return
-	}
-}
-
-type I2_Val struct {
+type i2_Val struct {
 	utils.MakeIncomparable
-	StructIsEqual_Val
+	structIsEqual_Val
 }
 
-type I2_Ptr struct {
+type i2_Ptr struct {
 	utils.MakeIncomparable
-	StructIsEqual_Ptr
+	structIsEqual_Ptr
 }
 
-func (x I2_Val) IsEqual(y any) bool {
+func (x i2_Val) IsEqual(y any) bool {
 	last_comparison_target = y
 	last_comparison_id = 5
 	switch y := y.(type) {
-	case I2_Val:
+	case i2_Val:
 		return x.val == y.val
-	case StructIsEqual_Val:
+	case structIsEqual_Val:
 		return x.val == y.val
-	case IncomparableType_Val:
+	case incomparableType_Val:
 		return x.val == y.val
 	default:
 		panic(fmt.Errorf("I2_Val.IsEqual called with %v of type %T", y, y))
 	}
 }
 
-func (x *I2_Ptr) IsEqual(y any) bool {
+func (x *i2_Ptr) IsEqual(y any) bool {
 	last_comparison_id = 6
 	switch y := y.(type) {
-	case *I2_Ptr:
-		last_comparison_target = y.StructIsEqual_Ptr
+	case *i2_Ptr:
+		last_comparison_target = y.structIsEqual_Ptr
 		return x.val == y.val
-	case *StructIsEqual_Ptr:
+	case *structIsEqual_Ptr:
 		last_comparison_target = *y
 		return x.val == y.val
-	case *IncomparableType_Ptr:
-		last_comparison_target = y.StructIsEqual_Ptr
+	case *incomparableType_Ptr:
+		last_comparison_target = y.structIsEqual_Ptr
 		return x.val == y.val
 	default:
 		panic(fmt.Errorf("I2_Val.IsEqual called with %v of type %T", y, y))
@@ -174,24 +167,8 @@ func TestComparisonHandleNils(t *testing.T) {
 	testutils.FatalUnless(t, comparison_handleNils((*int)(nil), nil) == true, "")
 	testutils.FatalUnless(t, comparison_handleNils(nil, nil) == true, "")
 	comparison_handleNilExt := withPanicResults(comparison_handleNils)
-	_, didPanic, _ := comparison_handleNilExt(IncomparableType{}, IncomparableType{})
+	_, didPanic, _ := comparison_handleNilExt(incomparableType{}, incomparableType{})
 	testutils.FatalUnless(t, didPanic == true, "")
-}
-
-func TestDummy(t *testing.T) {
-	VType := reflect.TypeOf(StructIsEqual_Val{})
-	VTypePtr := reflect.PointerTo(VType)
-	PtrType := reflect.TypeOf(StructIsEqual_Ptr{})
-	PtrTypePtr := reflect.PointerTo(PtrType)
-
-	_, found := VType.MethodByName("IsEqual")
-	fmt.Println(found)
-	_, found = VTypePtr.MethodByName("IsEqual")
-	fmt.Println(found)
-	_, found = PtrType.MethodByName("IsEqual")
-	fmt.Println(found)
-	_, found = PtrTypePtr.MethodByName("IsEqual")
-	fmt.Println(found)
 }
 
 var Comp_IsEqual2 = CustomComparisonMethod("IsEqual") // functionally equivalent to Comparison_IsEqual
@@ -247,33 +224,35 @@ func makeCheckerForComparisonFunctions(t *testing.T, funsWithNames ...namedT[Equ
 
 			funCatchPanic := withPanicResults(funDirect)
 			var res, didPanic bool
+			var panicVal any
 
-			res, didPanic, _ = funCatchPanic(x, y)
+			res, didPanic, panicVal = funCatchPanic(x, y)
 			if len(target) > 0 {
 				assumeComparisonState(t, target...)
 			}
+			testutils.FatalUnless(t, didPanic == shouldPanic,
+				"Comparison function %v, called with %v and %v did not match expected panic behavior: Expected Panic: %v, GotPanic: %v, PanicValue: %v",
+				name, x, y, shouldPanic, didPanic, panicVal)
+
 			testutils.FatalUnless(t, res == expectedResult,
 				"Comparison function %v, called with %v and %v did not produce the expected result: Got %v, expected %v. GotPanic: %v",
 				name, x, y, res, expectedResult, didPanic)
-			testutils.FatalUnless(t, didPanic == shouldPanic,
-				"Comparison function %v, called with %v and %v did not match expected panic behavior: Expected Panic: %v, GotPanic: %v",
-				name, x, y, shouldPanic, didPanic)
 
 			if doNotFlip {
 				return
 			}
 
-			res, didPanic, _ = funCatchPanic(y, x)
+			res, didPanic, panicVal = funCatchPanic(y, x)
 			/*if len(target) > 0 {
 				assumeComparisonState(t, target...)
 			}
 			*/
+			testutils.FatalUnless(t, didPanic == shouldPanic,
+				"Comparison function %v, called with %v and %v did not match expected panic behavior: Expected Panic: %v, GotPanic: %v, PanicValue: %v",
+				name, y, x, shouldPanic, didPanic, panicVal)
 			testutils.FatalUnless(t, res == expectedResult,
 				"Comparison function %v, called with %v and %v did not produce the expected result: Got %v, expected %v. GotPanic: %v",
 				name, y, x, res, expectedResult, didPanic)
-			testutils.FatalUnless(t, didPanic == shouldPanic,
-				"Comparison function %v, called with %v and %v did not match expected panic behavior: Expected Panic: %v, GotPanic: %v",
-				name, y, x, shouldPanic, didPanic)
 
 		}
 	}
@@ -295,19 +274,19 @@ func TestComparisonIsEqual(t *testing.T) {
 	intPtr := new(int)
 	checkPair(intPtr, intPtr, true)
 
-	incompValue := IncomparableType{}
+	incompValue := incomparableType{}
 
-	sVal := StructIsEqual_Val{val: 4}
-	sVal2 := StructIsEqual_Val{val: 5}
-	sVal3 := StructIsEqual_Val{val: 4}
-	pVal := StructIsEqual_Ptr{val: 4}
-	pVal2 := StructIsEqual_Ptr{val: 5}
-	pVal3 := StructIsEqual_Ptr{val: 4}
+	sVal := structIsEqual_Val{val: 4}
+	sVal2 := structIsEqual_Val{val: 5}
+	sVal3 := structIsEqual_Val{val: 4}
+	pVal := structIsEqual_Ptr{val: 4}
+	pVal2 := structIsEqual_Ptr{val: 5}
+	pVal3 := structIsEqual_Ptr{val: 4}
 
-	sValI := IncomparableType_Val{StructIsEqual_Val: StructIsEqual_Val{val: 4}}
-	sValI2 := IncomparableType_Val{StructIsEqual_Val: StructIsEqual_Val{val: 5}}
-	pValI := IncomparableType_Ptr{StructIsEqual_Ptr: StructIsEqual_Ptr{val: 4}}
-	pValI2 := IncomparableType_Ptr{StructIsEqual_Ptr: StructIsEqual_Ptr{val: 5}}
+	sValI := incomparableType_Val{structIsEqual_Val: structIsEqual_Val{val: 4}}
+	sValI2 := incomparableType_Val{structIsEqual_Val: structIsEqual_Val{val: 5}}
+	pValI := incomparableType_Ptr{structIsEqual_Ptr: structIsEqual_Ptr{val: 4}}
+	pValI2 := incomparableType_Ptr{structIsEqual_Ptr: structIsEqual_Ptr{val: 5}}
 
 	checkPair(incompValue, incompValue, false, expectPanic)
 	checkPair(sVal, sVal, true, sVal, 1)
@@ -321,5 +300,28 @@ func TestComparisonIsEqual(t *testing.T) {
 	checkPair(sValI, sValI2, false, sVal2, 3)
 	checkPair(pValI, pValI, true, pVal, 4)
 	checkPair(pValI, pValI2, false, pVal2, 4)
+
+	iVal := i2_Val{structIsEqual_Val: structIsEqual_Val{val: 4}}
+	iVal2 := i2_Val{structIsEqual_Val: structIsEqual_Val{val: 5}}
+	iVal3 := i2_Val{structIsEqual_Val: structIsEqual_Val{val: 4}}
+
+	ipVal := i2_Ptr{structIsEqual_Ptr: structIsEqual_Ptr{val: 4}}
+	ipVal2 := i2_Ptr{structIsEqual_Ptr: structIsEqual_Ptr{val: 5}}
+	ipVal3 := i2_Ptr{structIsEqual_Ptr: structIsEqual_Ptr{val: 4}}
+
+	checkPair(iVal, iVal, true, iVal, 5)
+	checkPair(iVal, iVal2, false, iVal2, 5)
+	checkPair(iVal, iVal3, true, iVal3, 5)
+
+	checkPair(ipVal, ipVal, true, pVal, 6)
+	checkPair(ipVal, ipVal2, false, pVal2, 6)
+	checkPair(ipVal, ipVal3, true, pVal3, 6)
+
+	checkPair(iVal, sVal, true, noFlip, sVal, 5) // sVal.IsEqual(iVal) is not tested, as that would panic
+	checkPair(sVal, iVal, false, noFlip, expectPanic)
+	checkPair(iVal, pVal, false, noFlip, expectPanic)
+
+	checkPair(ipVal, pVal, true, noFlip, pVal, 6)
+	checkPair(ipVal, sVal, false, noFlip, expectPanic)
 
 }

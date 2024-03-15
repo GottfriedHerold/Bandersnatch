@@ -7,8 +7,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// TODO: Return error rather than panic on AssertDataIsNotReplaced?
-
 // This particular API (modifying *target) just happens to be convenient for our purpose.
 
 // mergeMaps modifies *target, setting it to the union of *target and source.
@@ -16,24 +14,30 @@ import (
 //
 // The behaviour when *target == nil is unspecified. Use an empty map for *target.
 //
-// The handling of duplicate map keys that appear in both maps depends on mode:
-//   - mode == [PreferPreviousData]: values already in target take precendence
-//   - mode == [ReplacePreviousData]: values in source take precedence
-//   - mode == [AssertDataIsNotReplaced]: this function panics for duplicate keys, unless the values are comparable and equal.
-func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) (err error) {
+// The handling of duplicate map keys that appear in both maps depends on config:
+//   - Either old values take precendence or new values take precendence.
+//   - We might ensure that old value and new value coincide. This comparison may be performed by a custom comparison function.
+//     NOTE: In the latter case, we still honor the old value vs. new value choice.
+//     If old and new values do not coincide, we report errors. Note that we do not abort on first error, but rather continue and we report all errors.
+//
+// Note that the returned errors for this internal function do not have ErrorPrefix.
+func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) (errors []error) {
+	// just dispatch to one of the mergeMaps_<foo> functions below.
 	if !config.PerformEqualityCheck() {
 		if config.PreferOld() {
 			mergeMaps_preferOld(target, source)
 		} else {
 			mergeMaps_preferNew(target, source)
 		}
-		return nil
+		return nil // the only cases that can fail are with PerformEqualityCheck.
 	} else {
 		return mergeMaps_EqualityCheck(target, source, config)
 	}
 }
 
+// mergeMaps_preferOld is the implementation of [mergeMaps] for the case EqualityCheck == false, PreferOld == true
 func mergeMaps_preferOld(target *ParamMap, source ParamMap) {
+	// set *target to the union on *target and source, prefering *target[key] for keys present in both.
 	for key, value := range source {
 		if _, alreadyPresent := (*target)[key]; !alreadyPresent {
 			(*target)[key] = value
@@ -41,47 +45,65 @@ func mergeMaps_preferOld(target *ParamMap, source ParamMap) {
 	}
 }
 
+// mergeMaps_preferNew is the implementation of [mergeMaps] for the case EqualityCheck == false, PreferOld == false
 func mergeMaps_preferNew(target *ParamMap, source ParamMap) {
+	// set *target to the union on *target and source, prefering source[key] for keys present in both.
 	for key, value := range source {
 		(*target)[key] = value
 	}
 }
 
-
-// TODO: This is a dummy implementation. It has bad error reporting and the default comparison function does not work well.
-func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (err error) {
+// mergeMaps_EqualityCheck is the implementation of [mergeMaps] for the case EqualityCheck == true.
+//
+// See the documentation of [mergeMaps] for its semantics.
+func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (errors []error) {
+	// This function is only called from [mergeMaps] if PerformEqualityCheck is true.
+	// For simplicity, we just forward config as-is, rather than stripping off the PerformEqualityCheck bool.
 	if !config.PerformEqualityCheck() {
 		panic("Cannot happen")
 	}
-	checkFun := config.GetCheckFun()
+	
+	var checkFun EqualityComparisonFunction = config.GetCheckFun()
+	checkFunWithPanicRecovery := withPanicResults(checkFun)
 	for key, newValue := range source {
 		if oldValue, alreadyPresent := (*target)[key]; alreadyPresent {
 
-			// may override anyway, depending on config
+			// If PreferNew is set, we always override the value, no matter what.
+			// The old value is still saved in oldValue
 			if config.PreferNew() {
 				(*target)[key] = newValue
 			}
-			// only report first error
-			if err != nil {
-				continue
-			}
 
-			comparisonEqual, reason := checkFun(oldValue, newValue)
-			if !comparisonEqual {
-				// TODO
-				if reason == nil {
-					reason = fmt.Errorf(ErrorPrefix+"%v != %v", oldValue, newValue)
+			if config.CatchPanic() {
+				// Call checkFun with panic recovery. Note that if we get a panic, then comparisonResult is guaranteed to be false.
+				comparisonResult, didPanic, panicValue := checkFunWithPanicRecovery(oldValue, newValue)
+				if comparisonResult == false {
+					var newError error
+					if !didPanic {
+						// No ErrorPrefix here, no line break
+						newError = fmt.Errorf("for key %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
+					} else { // recovered panic in comparison function.
+						newError = fmt.Errorf("for key %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+					}
+					errors = append(errors, newError)
 				}
-				err = reason
+			} else { // config.CatchPanic set to false
+				comparisonResult := checkFun(oldValue, newValue)
+				if comparisonResult == false {
+					errors = append(errors, fmt.Errorf("for key %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue))
+				}
 			}
 
-		} else { // no old value, just use the new one
+		} else { // alreadyPresent == false. So we have no entry under key in *target yet. We just use the new one.
 			(*target)[key] = newValue
 		}
 	}
 	return
 }
 
+// DEPRECATED FUNCTIONS:
+
+/*
 func mergeMaps_errorIfPresent(target *ParamMap, source ParamMap) (err error) {
 	for key, value := range source {
 		if _, alreadyPresent := (*target)[key]; alreadyPresent {
@@ -200,6 +222,8 @@ func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err
 	return
 }
 
+*/
+
 // NOTE: Adding entries to an existing map is more convenient for our use cases than returning a map.
 // This duplicates some code from mergeMaps, but the alternative would be even more copying.
 
@@ -212,11 +236,10 @@ func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err
 // If *m is a field inside *s (or similar shenanigans), the behaviour is undefined.
 // Preexisting entries of *m that do not correspond to a field of the struct are left unchanged.
 //
-// Treatment of preexisting keys in *m that correspond to a field of the struct depends on mode:
-//   - mode == [PreferPreviousData]: preexisting values take precendence
-//   - mode == [ReplacePreviousData]: values from *s take precedence
-//   - mode == [AssertDataIsNotReplaced]: panic if a key in *m corresponds to a field in struct, unless the values are (comparable and) equal.
-func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config config_OldData) (err error) {
+// The meaning of config and error reporting is the same as [mergeMaps]
+//
+// Note that the returned errors for this internal function do not have ErrorPrefix.
+func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config config_OldData) (errors []error) {
 	if *m == nil {
 		*m = make(map[string]any)
 	}
@@ -246,26 +269,40 @@ func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config 
 	} else {
 		// config.PerformEqualityCheck() returned true
 		checkFun := config.GetCheckFun()
+		checkFunWithPanicRecovery := withPanicResults(checkFun)
+
 		for _, structField := range allStructFields {
-			oldValue, alreadyPresent := (*m)[structField.Name]
+			var key string = structField.Name
+			oldValue, alreadyPresent := (*m)[key]
 			newValue := structValue.FieldByIndex(structField.Index).Interface()
 			if !alreadyPresent {
-				(*m)[structField.Name] = newValue
+				(*m)[key] = newValue
 				continue
 			}
 			if config.PreferNew() {
-				(*m)[structField.Name] = newValue
+				(*m)[key] = newValue // unconditionally write. Note there is no "continue" here.
 			}
-			if err != nil { // only report first error
-				continue
-			}
-			isEqual, reason := checkFun(oldValue, newValue)
-			if !isEqual {
-				if reason == nil {
-					reason = fmt.Errorf(ErrorPrefix+"%v != %v", oldValue, newValue) // TODO: Better error message
+
+			if config.CatchPanic() {
+				comparisonResult, didPanic, panicValue := checkFunWithPanicRecovery(oldValue, newValue)
+				if comparisonResult == false {
+					var err error
+					if !didPanic {
+						// No ErrorPrefix here, no line break
+						err = fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
+					} else { // recovered panic in comparison function.
+						err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+					}
+					errors = append(errors, err)
 				}
-				err = reason
+			} else {
+				// config.CatchPanic set to false
+				comparisonResult := checkFun(oldValue, newValue)
+				if comparisonResult == false {
+					errors = append(errors, fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v"))
+				}
 			}
+
 		}
 	}
 	return

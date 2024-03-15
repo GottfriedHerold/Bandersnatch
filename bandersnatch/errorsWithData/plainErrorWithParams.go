@@ -25,7 +25,7 @@ type errorWithParameters_common struct {
 
 // errorWithParameters_T is the extension of errorWithParameters_common that satisfies ErrorWithData[StructType]
 //
-// It is identical as a struct and only differs in some methods, so we just stuct-embed [errorWithParameters_common]
+// It is identical as a struct and some methods coincide, so we just stuct-embed [errorWithParameters_common]
 type errorWithParameters_T[StructType any] struct {
 	errorWithParameters_common
 }
@@ -91,7 +91,7 @@ func (e *errorWithParameters_common) Unwrap() error {
 // It constructs a value of type StructType from the provided parameters.
 func (e *errorWithParameters_T[StructType]) GetData_struct() (ret StructType) {
 	// errorWithParameters_T is designed to satisfy the invariant that there can never be a problem extracting a struct of type StructType.
-	// The chosen config here should not matter. It is chosen to detect more bugs.
+	// The chosen config here should not matter. It is chosen to detect more (internal) bugs.
 	config := config_ImplicitZero{implicitZero: false}
 	ret, err := makeStructFromMap[StructType](e.params, config)
 	if err != nil {
@@ -148,13 +148,13 @@ func makeErrorWithParametersCommon_any(baseError error, interpolationString stri
 	ret.wrapped_error = baseError
 	if !config.AllowEmptyString() && interpolationString == "" {
 		if baseError == nil {
-			panic("Must not happen") // needs to be caught at call site
+			panic("This must be unreachable") // needs to be caught at call site
 		}
 
 		// Note: We cannot set ret.parsedInterpolationString to a precomputed AST-parsed "$w" resp. "%w" here.
 		// If we did that, every such error would actually share the same ast. This would almost be fine, except
 		// that validation actually reports and *stores* validation errors in the ast itself.
-		// Note here validation follows the error chain, so validation of "$w" or "%w$ can actually fail.
+		// Validation follows the error chain, so validation of "$w" or "%w$ can actually fail.
 		//
 		// for the tokenizing step, there is no such issue, so we can use precomputed tokenLists rather than re-tokinzing
 		// "$w" or "%w"
@@ -226,16 +226,15 @@ func deleteParameterFromError[StructType any](baseError error, interpolationStri
 //
 // It is tied to our particular implementation of ErrorWithData and so does not return an interface.
 // It creates a new error with data with the given baseError, interpolationString and data.
-func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, c_OldData config_OldData, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], err error) {
+func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, c_OldData config_OldData, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], errors []error) {
 
 	ret = new(errorWithParameters_T[StructType])
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString) // may panic
-	err = fillMapFromStruct(data, &ret.errorWithParameters_common.params, c_OldData)
+	errors = fillMapFromStruct(data, &ret.errorWithParameters_common.params, c_OldData)
 	// NOTE: the config arguments here only matter if oldDataHandling.preferOld == true. In this case, pre-existing data in baseError might not have the correct type.
 	err2 := ensureCanMakeStructFromParameters[StructType](&ret.params, config_ImplicitZero{}, config_SetZeros{setErrorsToZero: true})
-
-	if err == nil { // TODO: Improve this to report both errors?
-		err = err2
+	if err2 != nil {
+		errors = append(errors, err2)
 	}
 	return
 }

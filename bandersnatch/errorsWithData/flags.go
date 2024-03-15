@@ -50,10 +50,12 @@ const (
 	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
 	// Conversely, setting the equality check will honor the last value of the old/new - preference.
 	// Also, setting any equality check function will actually request an equality check.
-	flagArg_PreferOld       // prefer old values when overwriting data.
-	flagArg_PreferNew       // prefer new values when overwriting data
-	flagArg_AssertEqual     // assume values are equal (using the default comparison function). Note that this is really two options: the last setting of PreferOld/PreferNew actually still determines preference for old/new. We just present it as a ternary toggle to the user for simplicity.
-	flagArg_AssertEqual_fun // assume values are equal (using a custom comparison function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
+	flagArg_PreferOld         // prefer old values when overwriting data.
+	flagArg_PreferNew         // prefer new values when overwriting data
+	flagArg_AssertEqual       // assume values are equal (using the default comparison function). Note that this is really two options: the last setting of PreferOld/PreferNew actually still determines preference for old/new. We just present it as a ternary toggle to the user for simplicity.
+	flagArg_AssertEqual_fun   // assume values are equal (using a custom comparison function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
+	flagArg_RecoverPanicEqual // recover from panic in comparison functions and turn them into errors.
+	flagArg_PassPanicEqual    // if a comparison function panics, just forward the panic
 
 	// for missing data, there is just one config item:
 	// either silently zero-initialize or zero-initialize and treat it as error.
@@ -102,7 +104,10 @@ type (
 	fArg_MissingData struct{ fArg }
 	fArg_Validity    struct{ fArg }
 	fArg_Panic       struct{ fArg }
-	fArg_OldData     struct{ fArg }
+	fArg_OldData     struct {
+		fArg
+		f EqualityComparisonFunction
+	}
 	fArg_EmptyString struct{ fArg }
 )
 
@@ -122,6 +127,10 @@ func printFlagArg(f flagArgument) string {
 		return "Check that values are equal when overwriting already set data"
 	case flagArg_AssertEqual_fun:
 		return "Check that values are equal when overwriting already set data, using a custom comparison function"
+	case flagArg_PassPanicEqual:
+		return "Do not recover panics in equality comparison functions"
+	case flagArg_RecoverPanicEqual:
+		return "Recover from panics in equality comparison functions"
 
 	case flagArg_FillWithZeros:
 		return "Zero-initialize missing values for T when creating an ErrorWithData[T]"
@@ -164,7 +173,8 @@ func printFlagArg(f flagArgument) string {
 type config_OldData struct {
 	preferOld       bool
 	doEqualityCheck bool
-	checkFun        func(x, y any) (isEqual bool, inequalityReason error)
+	checkFun        EqualityComparisonFunction
+	passPanic       bool
 }
 
 // PreferOld reads out the configuration to determine whether data from the base error or newly provided data should take preference.
@@ -186,15 +196,20 @@ func (p *config_OldData) PerformEqualityCheck() bool {
 	return p.doEqualityCheck
 }
 
-// GetCheckFun reads out the configuration to provide the custom equality check function.
+// GetCheckFun reads out the configuration to provide the (possibly custom) equality check function.
 // This is only meaningful if [PerformEqualityCheck] returns true.
-func (p *config_OldData) GetCheckFun() func(x, y any) (isEqual bool, inequalityReason error) {
+// If no equality check function was explicitly set, we return a default one.
+func (p *config_OldData) GetCheckFun() EqualityComparisonFunction {
 	if p.checkFun == nil {
-		return comparison_very_naive_old
+		return comparison_handleNils
 	} else {
 		return p.checkFun
 	}
+}
 
+// CatchPanic reads out the configuration to tell whether we should recover panic's in comparison functions.
+func (p *config_OldData) CatchPanic() bool {
+	return !p.passPanic
 }
 
 // config_ErrorHandling collects the internal flags that determine how errors during creating of errors are handled.
@@ -301,14 +316,31 @@ type errorCreationConfig struct {
 
 var (
 	// PreferPreviousData means that when replacing associated data in errors, we keep the old value if some value is already present for a given key.
-	PreferPreviousData = fArg_OldData{fArg{val: flagArg_PreferOld}}
+	PreferPreviousData = fArg_OldData{fArg{val: flagArg_PreferOld}, nil}
 	// ReplacePreviousData means that when replacing associated data in errors, we unconditionally override already-present values for a given key.
-	ReplacePreviousData = fArg_OldData{fArg{val: flagArg_PreferNew}}
+	ReplacePreviousData = fArg_OldData{fArg{val: flagArg_PreferNew}, nil}
 	// EnsureDataIsNotReplaced means that when replacing associated data in errors, we treat it as an error if a value was already present for a given key, unless the values are equal.
-	//
-	// TODO: Document the default equality notion
 	// [EnsureDataIsNotReplaced_fun] may be used to customize this with a custom equlity-comparison function.
-	EnsureDataIsNotReplaced = fArg_OldData{fArg{val: flagArg_AssertEqual}}
+	// NOTE: by default, we recover from a panic in the comparison function (such as using == on values of the same incomparable type), treating it a "unequal" with a custom error message determined by the panic.
+	// Use [LetComparisonFunctionPanic] to change that behaviour.
+	EnsureDataIsNotReplaced = fArg_OldData{fArg{val: flagArg_AssertEqual}, nil}
+
+	// LetComparisonFunctionPanic is only useful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
+	// If LetComparsionFunctionPanic is set, a panic in the comparison function is not recovered from and immediately escapes whatever function the user called.
+	// In particular, setting of data is aborted at the point of panic (This differs from the usual behaviour of the package, which is not to abort on first error)
+	// The [ReturnError] or [PanicOnAllErrors] setting does not affect this.
+	//
+	// This is useful if the external caller needs to handle the actual panic value.
+	// Note that just setting [PanicOnAllErrors] would first recover(), turn the panic into an error, collect errors and raise a new panic.
+	LetComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_PassPanicEqual}}
+
+	// RecoverFromComparisonFunctionPanic is only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
+	// It causes any panic in the comparsion function (such as using == to compare values of the same incomparable type) to be recover()ed from.
+	// We treat this then as a simple "unequal", with the panic value X entering the message contained in the returned error err.
+	// Note that, if [PanicOnAllErrors] is set, we will then ultimately call panic(err). However, observe that err's message just prints X using [fmt]; the actual value of X may be lost.
+	//
+	// As this is the default behaviour, the [RecoverFromComparisonFunctionPanic] flag is never needed.
+	RecoverFromComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_RecoverPanicEqual}}
 
 	// MissingDataAsZero is passed to functions to indicate that missing data should be silently zero initialized
 	MissingDataAsZero = fArg_MissingData{fArg{val: flagArg_FillWithZeros}}
@@ -347,14 +379,35 @@ var (
 // EnsureDataIsNotReplaced_fun returns a flag to indicate that when potentially replacing associated data in errors, we treat it as an error if a value was already present for a given key,
 // unless the old value equals the new.
 // As opposed to plain [EnsureDataIsNotReplaced], the provided function f is used to test for equality.
+//
+// Calling this with a nil function will cause a panic.
 func EnsureDataIsNotReplaced_fun(f EqualityComparisonFunction) fArg_OldData {
-	panic("Not implemented yet")
+	if f == nil {
+		panic(ErrorPrefix + "called EnsureDataIsNotReplaced_fun with nil function")
+	}
+	return fArg_OldData{fArg{val: flagArg_AssertEqual_fun}, f}
 }
 
 // allFlagArgs is a list of all possible flag argument values above (and possible outputs of functions generating flagArguments)
 // This is only used for testing, but defined here to simplify refactoring, as it's tied to the above list of definitions.
 var allFlagArgs []flagArgument = []flagArgument{
-	PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, MissingDataAsZero, MissingDataIsError, IgnoreMissingData, EnsureDataIsPresent, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping,
+	PreferPreviousData,
+	ReplacePreviousData,
+	EnsureDataIsNotReplaced,
+	MissingDataAsZero,
+	MissingDataIsError,
+	IgnoreMissingData,
+	EnsureDataIsPresent,
+	ReturnError, PanicOnAllErrors,
+	NoValidation,
+	ErrorUnlessValidSyntax,
+	ErrorUnlessValidBase,
+	ErrorUnlessValidFinal,
+	AllowEmptyString,
+	DefaultToWrapping,
+	RecoverFromComparisonFunctionPanic,
+	LetComparisonFunctionPanic,
+	EnsureDataIsNotReplaced_fun(Comparison_IsEqual),
 }
 
 func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZero) {
@@ -414,8 +467,13 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 		case flagArg_AssertEqual:
 			p.doEqualityCheck = true
 			p.checkFun = nil
+		case flagArg_PassPanicEqual:
+			p.passPanic = true
+		case flagArg_RecoverPanicEqual:
+			p.passPanic = false
 		case flagArg_AssertEqual_fun:
-			panic("Not implemented yet")
+			p.doEqualityCheck = true
+			p.checkFun = flagArgument(individualFlag).(fArg_OldData).f
 		case flagArg_MissingDataIsError:
 			p.implicitZero = false
 		case flagArg_FillWithZeros:
@@ -441,6 +499,8 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 		}
 	}
 }
+
+// Differentiate the various fArg-types according to their *usage* by defining an interface for each usage scenario.
 
 type flagArgument_HasData interface {
 	flagArgument

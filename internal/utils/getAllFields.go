@@ -12,7 +12,7 @@ import "reflect"
 
 // AllFields returns all fields (including fields from embedded structs) in t.
 //
-// The returned StructField.Index is an index sequence relative to the passed t; use this to access the corresponding entry.
+// The returned StructField.Index is an index sequence (see [reflect.StructField]) relative to the passed t; use this to access the corresponding entry.
 //   - For embedded structs, fields contains both the embedded struct itself as well as its fields.
 //   - For embedded struct pointers, fields contains ONLY the embedded struct poiner, NOT the fields.
 //   - For embedded non-structs, non-pointer, fields contains the embedded type.

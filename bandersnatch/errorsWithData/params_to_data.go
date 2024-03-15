@@ -1,6 +1,7 @@
 package errorsWithData
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -40,7 +41,7 @@ var (
 //   - All non-embedded field names must be exported.
 //   - Embedded pointer-to-non-structs must be exported
 //   - Embedded types must not be pointer-to-struct. Embedded structs or embedded pointer-to-non-structs are allowed.
-//   - Embedded structs lead to a promoted field hierarchy, which has a tree structure.
+//   - Embedded structs lead to a promoted field hierarchy, which has a tree structure (due to the above limitation).
 //     We are more strict than the usual Go rules and allow shadowing of fields
 //     only iff every shadowed field is actually in a subtree of the struct that defines the shadowing field.
 //
@@ -64,6 +65,8 @@ func StructSuitableForErrorsWithData[StructType any]() (err error) {
 // Note: getStructMapConversionLookup used to call reflect.VisibleFields rather than utils.AllFields.
 // Unfortunately, reflect.VisibleFields does not handle embedded fields of non-struct type the way we like.
 // (e.g. one issue is embedded struct pointers)
+
+// TODO: Pass struct Type as a generic parameter? This would feel more "clean"
 
 // getStructMapConversionLookup obtains a lookup data structure for converting a struct data type (passed as reflect.Type)
 // to a map[string]any. Repeated calls with the same argument give identical results (slice with same backing array)
@@ -204,7 +207,7 @@ outer_loop:
 // If data is merely missing, the behaviour depends on c_ImplicitZero:
 //   - Iff c_ImplicitZero.IsMissingDataError() == true, this function reports an error if data is missing.
 //   - Iff c_SetZeros.ModifyData() == true, this function fills the map with zero of appropriate type.
-
+//
 // (note these the latter two questions are actually orthogonal).
 // The function does not abort on first error.
 // If there is an error for multiple keys/required fields of StructType, the returned err message
@@ -223,8 +226,8 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 	}
 
 	// we do not abort on first error, but actually collect and report all of them in the returned err.
-	// TODO: Use Go >=1.21 (IIRC) multiple-error wrapping to report all errors.
-	var errors []error = make([]error, 0)
+	// TODO: Use Go >=1.21 (IIRC) multiple-error wrapping to report all returnedErrors.
+	var returnedErrors []error = make([]error, 0)
 
 	structType := utils.TypeOfType[StructType]()
 	allExpectedFields, errBadStructType := getStructMapConversionLookup(structType)
@@ -240,7 +243,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			}
 			// no else!
 			if c_ImplicitZero.IsMissingDataError() {
-				errors = append(errors, fmt.Errorf("lacking a parameter named %v", expectedField.Name))
+				returnedErrors = append(returnedErrors, fmt.Errorf("lacking a parameter named %v", expectedField.Name))
 			}
 			continue // no need to check the type
 		}
@@ -250,7 +253,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			if utils.IsNilable(expectedField.Type) {
 				continue // no further check neccessary.
 			} else {
-				errors = append(errors, fmt.Errorf("containing a parameter %v that is set to the nil interface. This cannot be used for the corresponding field of non-nilable type %v",
+				returnedErrors = append(returnedErrors, fmt.Errorf("containing a parameter %v that is set to the nil interface. This cannot be used for the corresponding field of non-nilable type %v",
 					expectedField.Name, utils.GetReflectName(expectedField.Type)))
 				continue
 			}
@@ -259,7 +262,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 		// interface types as fields in StructType need special handling, because reflect.TypeOf(mapEntry) contains the dynamic type.
 		if expectedField.Type.Kind() == reflect.Interface {
 			if !mapEntryType.AssignableTo(expectedField.Type) {
-				errors = append(errors, fmt.Errorf("parameter %v is set to the value %v; this value is not assignable to the intended field (which is of interface type) of the struct",
+				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is set to the value %v; this value is not assignable to the intended field (which is of interface type) of the struct",
 					expectedField.Name, mapEntry))
 				if c_SetZeros.ModifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
@@ -269,7 +272,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			}
 		} else { // field of non-interface type in T: We require the types to match exactly.
 			if mapEntryType != expectedField.Type {
-				errors = append(errors, fmt.Errorf("parameter %v is of wrong type.\nValue is %v of type %v, but the expected type is %v",
+				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is of wrong type.\nValue is %v of type %v, but the expected type is %v",
 					expectedField.Name, mapEntry, utils.GetReflectName(mapEntryType), utils.GetReflectName(expectedField.Type)))
 				if c_SetZeros.ModifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
@@ -279,12 +282,12 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			}
 		}
 	}
-	if len(errors) != 0 {
+	if len(returnedErrors) != 0 {
 		typeName := utils.GetReflectName(structType)
-		if len(errors) == 1 {
-			err = fmt.Errorf(ErrorPrefix+"not possible to construct a struct of type %v from the given parameters for the following reason: %w", typeName, errors[0])
+		if len(returnedErrors) == 1 {
+			err = fmt.Errorf(ErrorPrefix+"not possible to construct a struct of type %v from the given parameters for the following reason: %w", typeName, returnedErrors[0])
 		} else {
-			err = fmt.Errorf(ErrorPrefix+"not possible to construct a struct of type %v from the given parameters for the following %v reasons: %v", typeName, len(errors), errors)
+			err = fmt.Errorf(ErrorPrefix+"not possible to construct a struct of type %v from the given parameters for the following %v reasons: %w", typeName, len(returnedErrors), errors.Join(returnedErrors...))
 		}
 	}
 	return
@@ -381,7 +384,7 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 		if len(errors) == 1 {
 			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following reason: %w", typeName, errors[0])
 		} else {
-			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following list of %v reasons: %v", typeName, len(errors), errors)
+			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following list of %v reasons: %v", typeName, len(errors), errors.Join())
 		}
 	}
 	return
