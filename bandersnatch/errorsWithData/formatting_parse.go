@@ -356,6 +356,13 @@ func new_ast_parentDollar() ast_parentDollar {
  * ast_condDollar
  */
 
+// potential values for base_ast_condition.invalidParse
+const (
+	astConditionValidity_VALID            = 0
+	astConditionValidity_OUTPUT_CHILD     = 1
+	astConditionValidity_OUTPUT_CONDITION = 2
+)
+
 // base_ast_condition is a helper type for joint functionality of [ast_condPercent] and [ast_condDollar] (via struct embedding)
 type base_ast_condition struct {
 	condition string // condition string that controls under what condition child is interpolated.
@@ -374,7 +381,7 @@ type base_ast_condition struct {
 	// 3: Output child unconditionally and make an error output with the condition
 	invalidParse int
 
-	// Note: we store invalidParse rather than validParse, because this way, the zero value for bool (false) makes newly generated instances valid.
+	// Note: we store invalidParse rather than validParse, because this way, the zero value makes newly generated instances valid (it was originially a bool).
 }
 
 // set_condition sets the condition string for an [ast_condPercent] or [ast_condDollar].
@@ -406,7 +413,7 @@ func (a *base_ast_condition) make_invalid(flags int) {
 // This returns true unless [make_invalid] has been called on the node, which happens on certain parse errors.
 // This method may potentially be unused outside of testing.
 func (a *base_ast_condition) is_valid() bool {
-	return (a.invalidParse == 0)
+	return (a.invalidParse == astConditionValidity_VALID)
 }
 
 // set_child_list sets the child node of the node of type [ast_condPercent] or [ast_condDollar].

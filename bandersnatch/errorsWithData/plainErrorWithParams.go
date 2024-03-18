@@ -169,10 +169,21 @@ func makeErrorWithParametersCommon_any(baseError error, interpolationString stri
 	// Parse the intepolation string.
 	// We ignore potential returned errors: If there is a parsing error, this is additionally recorded in ret.parsedInterpolationString itself.
 	ret.parsedInterpolationString, _ = make_ast(tokens)
+	_ = ret.parsedInterpolationString.handleSyntaxConditions()
 	ret.params = GetData_map(baseError)
 	return
 }
 
+// makeErrorWithParameterCommon creates a new errorWithParamters_T[StructType] from the given base error and interpolation string.
+//
+// This works similar to (and indeed just calls) [makeErrorWithParameterCommon]. Again, note that this is an internal function
+// that only serves to unify some functions in modify_errors.go
+// The additional parameter c_ImplicitZero controls whether missing data should be either
+//   - *silently* zero-initialized
+//   - zero-initialzed and trigger an error
+//
+// This function reports errors in two separate channels:
+// The returned err reports persing errors in-band in ret.parsedInterpolationString
 func makeErrorWithParameterCommon[StructType any](baseError error, interpolationString string, c_emptyString config_EmptyString, c_ImplicitZero config_ImplicitZero) (ret errorWithParameters_T[StructType], err error) {
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_emptyString)
 	err = ensureCanMakeStructFromParameters[StructType](&ret.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})

@@ -107,7 +107,7 @@ func getStructMapConversionLookup(structType reflect.Type) (ret structTypeToFiel
 	// The intended result will be a subset of all fields
 	allFields, embeddedStructPointer := utils.AllFields(structType)
 	if embeddedStructPointer {
-		err = fmt.Errorf(ErrorPrefix+"the struct type %v contains an embedded struct pointer. This is not supported", utils.GetReflectName(structType))
+		err = fmt.Errorf(ErrorPrefix+"the struct type %v contains an embedded struct pointer. This is not supported by this package", utils.GetReflectName(structType))
 		return
 	}
 
@@ -226,8 +226,8 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 	}
 
 	// we do not abort on first error, but actually collect and report all of them in the returned err.
-	// TODO: Use Go >=1.21 (IIRC) multiple-error wrapping to report all returnedErrors.
-	var returnedErrors []error = make([]error, 0)
+
+	var returnedErrors []error // = make([]error, 0)
 
 	structType := utils.TypeOfType[StructType]()
 	allExpectedFields, errBadStructType := getStructMapConversionLookup(structType)
@@ -327,8 +327,8 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 	}
 
 	// we do not abort on first error, but actually collect and report all of them in the returned err.
-	// TODO: Use Go >=1.21 (IIRC) multiple-error wrapping to report all errors.
-	var errors []error = make([]error, 0)
+
+	var collectedErrors []error // =  make([]error, 0) -- append to nil works just fine; note: cannot call variable errors due to conflict with package name.
 
 	retValue := reflect.ValueOf(&ret).Elem() // need to pass pointer (and deref via .Elem() ) for settability
 	for _, structField := range allStructFields {
@@ -339,7 +339,7 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 			// We need to zero-initialize the appropriate field. This was already done automatically by the compiler when we declared ret, so we don't need to do anything.
 
 			if c_ImplicitZero.IsMissingDataError() {
-				errors = append(errors, fmt.Errorf(ErrorPrefix+"for the field named %v, there is no entry in the parameter map",
+				collectedErrors = append(collectedErrors, fmt.Errorf("for the field named %v, there is no entry in the parameter map",
 					structField.Name))
 			}
 			continue // done with this value (the code below would not work, in fact)
@@ -353,7 +353,7 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 				appropriateNil := reflect.Zero(fieldInRetValue.Type())
 				fieldInRetValue.Set(appropriateNil)
 			} else {
-				errors = append(errors, fmt.Errorf("parameter named %v is set to any(nil), but the struct field cannot be nil",
+				collectedErrors = append(collectedErrors, fmt.Errorf("parameter named %v is set to any(nil), but the struct field cannot be nil",
 					structField.Name))
 
 			}
@@ -364,13 +364,13 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 			// type equality for concrete types, but assignability for struct fields of interface type.
 			if fieldInRetValue.Kind() == reflect.Interface {
 				if !reflect.TypeOf(valueFromMap).AssignableTo(fieldInRetValue.Type()) {
-					errors = append(errors, fmt.Errorf("parameter named %v with value %v of (dynamic) type %T does not satisfy the required interface type %v",
+					collectedErrors = append(collectedErrors, fmt.Errorf("parameter named %v with value %v of (dynamic) type %T does not satisfy the required interface type %v",
 						structField.Name, valueFromMap, valueFromMap, fieldInRetValue.Type()))
 					continue // actual value in struct stays zero-initialized
 				}
 			} else { // non-interface type for the struct field
 				if fieldInRetValue.Type() != reflect.TypeOf(valueFromMap) {
-					errors = append(errors, fmt.Errorf("parameter named %v is of wrong type: expected type %v, got value %v of type %T",
+					collectedErrors = append(collectedErrors, fmt.Errorf("parameter named %v is of wrong type: expected type %v, got value %v of type %T",
 						structField.Name, fieldInRetValue.Type(), valueFromMap, valueFromMap))
 					continue // actual value in struct stays zero-initialized
 				}
@@ -379,12 +379,12 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 			fieldInRetValue.Set(reflect.ValueOf(valueFromMap))
 		}
 	}
-	if len(errors) != 0 {
+	if len(collectedErrors) != 0 {
 		typeName := utils.GetReflectName(utils.TypeOfType[StructType]())
-		if len(errors) == 1 {
-			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following reason: %w", typeName, errors[0])
+		if len(collectedErrors) == 1 {
+			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following reason: %w", typeName, collectedErrors[0])
 		} else {
-			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following list of %v reasons: %v", typeName, len(errors), errors.Join())
+			err = fmt.Errorf(ErrorPrefix+"error constructing a struct of type %v from the given parameter map for the following list of %v reasons: %v", typeName, len(collectedErrors), errors.Join(collectedErrors...))
 		}
 	}
 	return

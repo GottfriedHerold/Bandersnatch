@@ -116,7 +116,7 @@ func (a ast_root) handleSyntaxConditions() (err error) {
 // For ast_list, we just call it on each child and report the first error. Note that we do not abort on first error.
 func (a ast_list) handleSyntaxConditions() (err error) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
-		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
+		panic(ErrorPrefix + "invalid syntax tree: unitialized list") // cannot happen for ast's created by make_ast
 	}
 	for _, ast := range *a {
 		// We report the first error, but do process all nodes.
@@ -207,8 +207,8 @@ func (abase *base_ast_fmt) handleSyntaxConditions() error {
 // For ast_cond, we just flag the conditional as invalid on failure.
 func (abase *base_ast_condition) handleSyntaxConditions() error {
 	if !validConditionString(abase.condition) {
-		// make_invalid(3) causes Interpolate to display children unconditionally && display an error message containing the condition.
-		abase.make_invalid(3)
+		// This causes Interpolate to display children unconditionally && display an error message containing the condition string.
+		abase.make_invalid(astConditionValidity_OUTPUT_CHILD | astConditionValidity_OUTPUT_CONDITION)
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", abase.condition)
 	} else {
 		return nil
@@ -716,16 +716,22 @@ func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strin
 // We have a flag for "always evaluate the subtree" and a flag for "display condition string"
 func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 
-	// invalidparse & 2 marks whether we should output the condition string.
-	if (a.invalidParse & 2) != 0 {
+	// Check whether we should output the condition string.
+	if (a.invalidParse & astConditionValidity_OUTPUT_CONDITION) != 0 {
 		s.WriteString(`%!<INVALID CONDITION:`)
 		s.WriteString(a.condition)
 		s.WriteRune('>')
 	}
 
-	// invalidParse & 1 marks whether we should output the children unconditionally.
-	if (a.invalidParse & 1) != 0 {
+	// Note: Currently, if a.invalidParse & astConditionValidity_OUTPUT_CONDITION is set,
+	// then _OUTPUT_CHILD is actually always set as well.
+
+	// Check whether we should output the children unconditionally.
+	if (a.invalidParse & astConditionValidity_OUTPUT_CHILD) != 0 {
 		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+	}
+
+	if !a.is_valid() { // in this case, either of the above was triggered.
 		return
 	}
 
@@ -752,16 +758,19 @@ func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_pass
 // We have a flag for "always evaluate the subtree" and a flag for "display condition string"
 func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 
-	// invalidparse & 2 marks whether we should output the condition string.
-	if (a.invalidParse & 2) != 0 {
+	// Check whether we should output the condition string.
+	if (a.invalidParse & astConditionValidity_OUTPUT_CONDITION) != 0 {
 		s.WriteString(`$!<INVALID CONDITION:`)
 		s.WriteString(a.condition)
 		s.WriteRune('>')
 	}
 
-	// invalidParse & 1 marks whether we should output the children unconditionally.
-	if (a.invalidParse & 1) != 0 {
+	// Check whether we should output the children unconditionally.
+	if (a.invalidParse & astConditionValidity_OUTPUT_CHILD) != 0 {
 		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
+	}
+
+	if !a.is_valid() { // in this case, either of the above was triggered.
 		return
 	}
 
