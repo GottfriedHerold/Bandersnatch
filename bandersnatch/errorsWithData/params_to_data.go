@@ -226,8 +226,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 	}
 
 	// we do not abort on first error, but actually collect and report all of them in the returned err.
-
-	var returnedErrors []error // = make([]error, 0)
+	var returnedErrors []error = nil // = make([]error, 0)
 
 	structType := utils.TypeOfType[StructType]()
 	allExpectedFields, errBadStructType := getStructMapConversionLookup(structType)
@@ -253,7 +252,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			if utils.IsNilable(expectedField.Type) {
 				continue // no further check neccessary.
 			} else {
-				returnedErrors = append(returnedErrors, fmt.Errorf("containing a parameter %v that is set to the nil interface. This cannot be used for the corresponding field of non-nilable type %v",
+				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is set to a nil interface. This cannot be used for the corresponding struct field of non-nilable type %v",
 					expectedField.Name, utils.GetReflectName(expectedField.Type)))
 				continue
 			}
@@ -285,9 +284,9 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 	if len(returnedErrors) != 0 {
 		typeName := utils.GetReflectName(structType)
 		if len(returnedErrors) == 1 {
-			err = fmt.Errorf(ErrorPrefix+"not possible to construct a struct of type %v from the given parameters for the following reason: %w", typeName, returnedErrors[0])
+			err = fmt.Errorf(ErrorPrefix+"failure to construct a struct of type %v from the given parameters for the following reason: %w", typeName, returnedErrors[0])
 		} else {
-			err = fmt.Errorf(ErrorPrefix+"not possible to construct a struct of type %v from the given parameters for the following %v reasons: %w", typeName, len(returnedErrors), errors.Join(returnedErrors...))
+			err = fmt.Errorf(ErrorPrefix+"failure to construct a struct of type %v from the given parameters for the following %v reasons: %w", typeName, len(returnedErrors), errors.Join(returnedErrors...))
 		}
 	}
 	return

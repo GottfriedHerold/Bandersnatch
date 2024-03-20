@@ -50,12 +50,12 @@ const (
 	// Still, we simplify the API insofar as that setting any old/new preference unsets the equality check and this is the only way to unset it.
 	// Conversely, setting the equality check will honor the last value of the old/new - preference.
 	// Also, setting any equality check function will actually request an equality check.
-	flagArg_PreferOld         // prefer old values when overwriting data.
-	flagArg_PreferNew         // prefer new values when overwriting data
-	flagArg_AssertEqual       // assume values are equal (using the default comparison function). Note that this is really two options: the last setting of PreferOld/PreferNew actually still determines preference for old/new. We just present it as a ternary toggle to the user for simplicity.
-	flagArg_AssertEqual_fun   // assume values are equal (using a custom comparison function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
-	flagArg_RecoverPanicEqual // recover from panic in comparison functions and turn them into errors.
-	flagArg_PassPanicEqual    // if a comparison function panics, just forward the panic
+	flagArg_PreferOld                     // prefer old values when overwriting data.
+	flagArg_PreferNew                     // prefer new values when overwriting data
+	flagArg_AssertEqual                   // assume values are equal (using the default comparison function). Note that this is really two options: the last setting of PreferOld/PreferNew actually still determines preference for old/new. We just present it as a ternary toggle to the user for simplicity.
+	flagArg_AssertEqual_fun               // assume values are equal (using a custom comparison function)). Note that a flagArg with this value may have a type that also contains a function pointer in addition to wrapping just this int.
+	flagArg_RecoverPanicFromEqualityTests // recover from panic in comparison functions and turn them into errors.
+	flagArg_PassPanicFromEqualiltyTests   // if a comparison function panics, just forward the panic
 
 	// for missing data, there is just one config item:
 	// either silently zero-initialize or zero-initialize and treat it as error.
@@ -127,9 +127,9 @@ func printFlagArg(f flagArgument) string {
 		return "Check that values are equal when overwriting already set data"
 	case flagArg_AssertEqual_fun:
 		return "Check that values are equal when overwriting already set data, using a custom comparison function"
-	case flagArg_PassPanicEqual:
+	case flagArg_PassPanicFromEqualiltyTests:
 		return "Do not recover panics in equality comparison functions"
-	case flagArg_RecoverPanicEqual:
+	case flagArg_RecoverPanicFromEqualityTests:
 		return "Recover from panics in equality comparison functions"
 
 	case flagArg_FillWithZeros:
@@ -173,7 +173,7 @@ func printFlagArg(f flagArgument) string {
 type config_OldData struct {
 	preferOld       bool
 	doEqualityCheck bool
-	checkFun        EqualityComparisonFunction
+	checkFun        EqualityComparisonFunction // nil meaning "use default function"
 	passPanic       bool
 }
 
@@ -332,7 +332,7 @@ var (
 	//
 	// This is useful if the external caller needs to handle the actual panic value.
 	// Note that just setting [PanicOnAllErrors] would first recover(), turn the panic into an error, collect errors and raise a new panic.
-	LetComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_PassPanicEqual}}
+	LetComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_PassPanicFromEqualiltyTests}}
 
 	// RecoverFromComparisonFunctionPanic is only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
 	// It causes any panic in the comparsion function (such as using == to compare values of the same incomparable type) to be recover()ed from.
@@ -340,7 +340,7 @@ var (
 	// Note that, if [PanicOnAllErrors] is set, we will then ultimately call panic(err). However, observe that err's message just prints X using [fmt]; the actual value of X may be lost.
 	//
 	// As this is the default behaviour, the [RecoverFromComparisonFunctionPanic] flag is never needed.
-	RecoverFromComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_RecoverPanicEqual}}
+	RecoverFromComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_RecoverPanicFromEqualityTests}}
 
 	// MissingDataAsZero is passed to functions to indicate that missing data should be silently zero initialized
 	MissingDataAsZero = fArg_MissingData{fArg{val: flagArg_FillWithZeros}}
@@ -452,7 +452,8 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_Im
 // Needs to be generic function due to Go's lack of covariance.
 // Note that ArgType may actually be an *interface* type.
 
-// func (p *errorCreationParams) parseFlagArgs(flags ...flagArgument) {
+// parseFlagArgs parses the passed flags in order and modifies *p according to each flag.
+// Note that ArgType will typically be an interface type that refines flagArgument, which may restrict the set of allowed flags.
 func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgType) {
 	for _, individualFlag := range flags {
 		switch v := individualFlag.getValue(); v {
@@ -467,9 +468,9 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 		case flagArg_AssertEqual:
 			p.doEqualityCheck = true
 			p.checkFun = nil
-		case flagArg_PassPanicEqual:
+		case flagArg_PassPanicFromEqualiltyTests:
 			p.passPanic = true
-		case flagArg_RecoverPanicEqual:
+		case flagArg_RecoverPanicFromEqualityTests:
 			p.passPanic = false
 		case flagArg_AssertEqual_fun:
 			p.doEqualityCheck = true
@@ -555,12 +556,14 @@ func (fArg_Validity) isFlag_NewErrorParams()    {}
 func (fArg_EmptyString) isFlag_NewErrorParams() {}
 func (fArg_MissingData) isFlag_NewErrorParams() {}
 
-func (fArg_Panic) isFlag_DeleteAny()    {}
-func (fArg_Validity) isFlag_DeleteAny() {}
+func (fArg_Panic) isFlag_DeleteAny()       {}
+func (fArg_Validity) isFlag_DeleteAny()    {}
+func (fArg_EmptyString) isFlag_DeleteAny() {}
 
 func (fArg_MissingData) isFlag_Delete() {}
 func (fArg_Panic) isFlag_Delete()       {}
 func (fArg_Validity) isFlag_Delete()    {}
+func (fArg_EmptyString) isFlag_Delete() {}
 
 func (fArg_MissingData) isFlag_AsErrorWithData() {}
 func (fArg_Panic) isFlag_AsErrorWithData()       {}

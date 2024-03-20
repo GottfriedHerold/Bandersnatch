@@ -1,6 +1,7 @@
 package errorsWithData
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -37,8 +38,6 @@ func validateError(inputError ErrorWithData_any, config config_Validation) (err 
 	return
 }
 
-// TODO: Review panic on empty string
-
 // NewErrorWithData_struct creates a new [ErrorWithData] wrapping the given baseError if non-nil.
 // interpolationString is used to create the new error message, where by default an empty string is
 // interpreted as a default interpolation string ("$w" or "%w"), which asserts that baseError is non-nil.
@@ -46,7 +45,8 @@ func validateError(inputError ErrorWithData_any, config config_Validation) (err 
 // flags are optional and can be used to change the default behaviour.
 //
 // We support the following flags:
-// - [PreferPreviousData], [ReplacePreviousData] (default), [AssertDataIsNotReplaced]: Controls how to handle data already present in baseError with the same key.
+// - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data already present in baseError with the same key.
+// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
 // - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
 // - [NoValidation], [ErrorUnlessValidSyntax] (default), [ErrorUnlessValidBase], [ErrorUnlessValidFinal]: Controls validation of created errors
 // - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".
@@ -57,10 +57,11 @@ func validateError(inputError ErrorWithData_any, config config_Validation) (err 
 // If StructType does not satisfy [StructSuitableForErrorsWithData], this function panics.
 func NewErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, flags ...flagArgument_NewErrorStruct) (ret ErrorWithData[StructType], err error) {
 
+	// parse received flags into config
 	var config errorCreationConfig // zero value is the correct default value for the config entries
-
 	parseFlagArgs(&config, flags...)
 
+	// Needs to be caught here, because newErrorWithData_struct is not supposed to handle this.
 	if baseError == nil && interpolationString == "" && !config.AllowEmptyString() {
 		panic(ErrorPrefix + "called NewErrorWithData_struct with nil base error and empty interpolation string without [AllowEmptyString] flag")
 	}
@@ -68,18 +69,34 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 	// unbox base error if possible.
 	baseError = UnboxError(baseError)
 
-	err = StructSuitableForErrorsWithData[StructType]() // trigger early panic for invalid StructType
-	if err != nil {
-		// TODO: Other handling? Print interpolation string and data?
-		panic(err)
+	// trigger early panic for invalid StructType. This would panic down the line anyway, but doing so here simplifies debugging.
+	if unsuitableStructError := StructSuitableForErrorsWithData[StructType](); unsuitableStructError != nil {
+		panic(unsuitableStructError)
 	}
 
-	ret, err = newErrorWithData_struct[StructType](baseError, interpolationString, data, config.config_OldData, config.config_EmptyString)
+	// actually create the error with function specific to the implementation of the ErrorWithData[StructType] interface.
+	// Note that we get a valid ret even on failure.
+	ret, errsNewError := newErrorWithData_struct[StructType](baseError, interpolationString, data, config.config_OldData, config.config_EmptyString)
 
-	if err != nil {
-		validateError(ret, config.config_Validation)
+	// perform syntax validation, if requested. Note that we do this even the step above "failed" with errsNewError != nil.
+	// The reason is that this detects a largely disjoint set of failure cases and we report all of them.
+	errValidate := validateError(ret, config.config_Validation)
+
+	// construct error message to be displayed in case something went wrong above.
+	if errsNewError != nil {
+		if errValidate != nil {
+
+			// NOTE: Go 1.20+ (or 1.21+) supports multiple %w's in fmt.Errorf
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_struct failed to create error for the following %v reasons: %w."+
+				"\nAdditionally, validation or the result failed with the following error: %w", len(errsNewError), errors.Join(errsNewError...), errValidate)
+		} else {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_struct failed to create error for the following %v reasons: %w",
+				len(errsNewError), errors.Join(errsNewError...))
+		}
 	} else {
-		err = validateError(ret, config.config_Validation)
+		// We only got a validation error. We just forward it without wrappign and taking note that it originated from NewErrorWithData_struct
+		// The reason is that validation errors are tied to ret, not to the particular way we constructed it.
+		err = errValidate // may be nil
 	}
 
 	if err != nil && config.PanicOnAllErrors() {
@@ -99,17 +116,19 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 // If parameter names are repeated, the last value takes precendence.
 //
 // We support the following flags:
-// - [PreferPreviousData], [ReplacePreviousData] (default), [AssertDataIsNotReplaced]: Controls how to handle data already present in baseError with the same key.
+// - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data already present in baseError with the same key.
+// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
 // - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
 // - [NoValidation], [ErrorUnlessValidSyntax] (default), [ErrorUnlessValidBase], [ErrorUnlessValidFinal]: Controls validation of created errors
 // - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".
-// - [MissingDataAsZero], [MissingDataIsError] (default): Controls whether data required for StructType that is missing is zero-initialized
+// - [MissingDataAsZero], [MissingDataIsError] (default): Controls whether data required for StructType that is missing is silently zero-initialized
 //
 // The function panics under any of the following conditions:
 //   - StructType is unsuited, i.e. does not satisfy [StructSuitableForErrorsWithData]
 //   - paramsAndFlags is malformed
 //   - interpolationsString == "", baseError == nil, [AllowEmptyString] is not set
 //   - [PanicOnAllErrors] was set and there is an error
+//   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type)
 //
 // Note that even on error, ret will be a valid ErrorWithData[StructType].
 // For each field of StructType where the provided/inherited parameter is missing or has the wrong type, we add or replace it by a zero value of appropriate type.
@@ -118,19 +137,18 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 // and they are inherited if ret is subsequently used as baseError.
 //
 // A nil interface value among the params is converted to a nil of appropriate type if the corresponding field can be nil. So this case is not treated as "has the wrong type" above if the field can be nil.
-// However, this conversion happens when *retrieving* data via the struct API. The parameter contained in the error remains any(nil) and is not converted.
+// However, this conversion happens when *retrieving* data via the struct API. The parameter stored in the error remains any(nil) and is not converted.
 func NewErrorWithData_params[StructType any](baseError error, interpolationString string, paramsAndFlags ...any) (ret ErrorWithData[StructType], err error) {
 	baseError = UnboxError(baseError)
 
-	// zero value is the correct default value for the config entries
-	var config errorCreationConfig
+	// We parse the config and parameters first
 
 	L := len(paramsAndFlags)
-	params_map := make(ParamMap, L/2)
-	flagArgs := make([]flagArgument_NewErrorParams, 0, L)
+	params_map := make(ParamMap, L/2)                     // L/2 is given as lower bound for initial capacity .
+	flagArgs := make([]flagArgument_NewErrorParams, 0, L) // L given as capacity to avoid reallocation
 
 	// parse paramsAndFlags into flagArgs and params_map
-	for i := 0; i < L; i++ {
+	for i := 0; i < L; i++ { // i modified in loop body
 		switch arg := paramsAndFlags[i].(type) {
 		case string:
 			if i == L-1 {
@@ -138,31 +156,40 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 			}
 			i++
 			params_map[arg] = paramsAndFlags[i]
-		case flagArgument_NewErrorParams:
+		case flagArgument_NewErrorParams: // must come before flagArgument below
 			flagArgs = append(flagArgs, arg)
-		case flagArgument: // -- general case of a flag. This catches unsupported flags
+		case flagArgument: // -- general case of a flag. This catches flags not satisfying flagArgument_NewErrorParams for better error message.
 			panic(fmt.Errorf(ErrorPrefix + "NewErrorWithData_params called with a flag that is not supported by this function"))
 		default:
 			panic(fmt.Errorf(ErrorPrefix + "NewErrorWithData_params called with invalid parameters. Parameters must come as string-any pairs and valid flags"))
 		}
 	}
+	// parse the collected flags into config
+	var config errorCreationConfig // The zero value is the correct default value for the config entries
 	parseFlagArgs(&config, flagArgs...)
 
+	// We need to settle this case here rather than in newErrorWithData_map
 	if baseError == nil && interpolationString == "" && !config.AllowEmptyString() {
 		panic(ErrorPrefix + "called NewErrorWithData_params with nil base error and empty interpolation string without [AllowEmptyString] flag")
 	}
 
-	errInvalidStruct := StructSuitableForErrorsWithData[StructType]() // trigger early panic for invalid StructType
-	if errInvalidStruct != nil {
+	// trigger early panic for invalid StructType
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
 		panic(errInvalidStruct)
 	}
 
-	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, params_map, config.config_OldData, config.config_ImplicitZero, config.config_EmptyString)
+	ret, errCreateError := newErrorWithData_map[StructType](baseError, interpolationString, params_map, config.config_OldData, config.config_ImplicitZero, config.config_EmptyString)
+	errValidation := validateError(ret, config.config_Validation)
 
-	if err != nil {
-		validateError(ret, config.config_Validation)
+	// merge the two errors
+	if errCreateError != nil {
+		if errValidation != nil {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_params failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
+		} else {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_params failed with the following error: %w", errCreateError)
+		}
 	} else {
-		err = validateError(ret, config.config_Validation)
+		err = errValidation // possibly nil
 	}
 
 	if err != nil && config.PanicOnAllErrors() {
@@ -184,17 +211,23 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 		panic(ErrorPrefix + "called NewErrorWithData_map with nil base error and empty interpolation string without [AllowEmptyString] flag")
 	}
 
-	errInvalidStruct := StructSuitableForErrorsWithData[StructType]() // trigger early panic for invalid StructType
-	if errInvalidStruct != nil {
+	// trigger early panic for invalid StructType
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
 		panic(errInvalidStruct)
 	}
 
-	ret, err = newErrorWithData_map[StructType](baseError, interpolationString, newParams, config.config_OldData, config.config_ImplicitZero, config.config_EmptyString)
+	ret, errCreateError := newErrorWithData_map[StructType](baseError, interpolationString, newParams, config.config_OldData, config.config_ImplicitZero, config.config_EmptyString)
+	errValidation := validateError(ret, config.config_Validation)
 
-	if err != nil {
-		validateError(ret, config.config_Validation)
+	// merge the two errors
+	if errCreateError != nil {
+		if errValidation != nil {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_map failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
+		} else {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_map failed with the following error: %w", errCreateError)
+		}
 	} else {
-		err = validateError(ret, config.config_Validation)
+		err = errValidation // possibly nil
 	}
 
 	if err != nil && config.PanicOnAllErrors() {
@@ -202,6 +235,150 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 	}
 
 	return
+}
+
+// DeleteParameterFromError_any takes an error and returns a modified copy (wrapping the original) that has the given parameter removed.
+// Has no effect (except for copying, possibly unboxing [MakeIncomparable], and wrapping) if the parameter was not present to start with.
+// It works even if the input error's parameter is due to something deep in the error chain.
+//
+// interpolationString is used to change the error message. If interpolationString == "" and [DefaultToWrapping], we refer to inputError.
+//
+// if the input error is nil, interpolationString == nil and [DefaultToWrapping] is set, returns (nil,nil)
+// if the input error is nil, interpolationString == nil and [AllowEmptyString] is set, this function panics
+//
+// This function accepts the following optional flags:
+//
+// - [ReturnError] (default), [PanicOnAllErrors],
+// - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
+// - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".]
+//
+// Note that validation actually follows the error chain, so the validation flags are meaningful. The returned err can only be non-nil if a validation flag is set.
+func DeleteParameterFromError_any(inputError error, interpolationString string, parameterName string, flags ...flagArgument_DeleteAny) (ret ErrorWithData_any, err error) {
+	inputError = UnboxError(inputError)
+
+	var config = errorCreationConfig{config_Validation: noValidation}
+	parseFlagArgs(&config, flags...)
+
+	if inputError == nil && interpolationString == "" {
+		if config.AllowEmptyString() {
+			panic(fmt.Errorf("DeleteParameterFromError_any called with explict empty interpolation string and nil inputError"))
+		} else {
+			return nil, nil
+		}
+	}
+
+	ret = deleteParameterFromError_any(inputError, interpolationString, parameterName, config.config_EmptyString)
+	err = validateError(ret, config.config_Validation)
+
+	if err != nil && config.PanicOnAllErrors() {
+		panic(err)
+	}
+
+	return
+}
+
+// DeleteParameterFromError takes an error and returns a modified copy (wrapping the original) that has the given parameter removed.
+// Deletion has no effect (except for copying, wrapping and ensuring it safisfies ErrorWithData[StructType]) if the parameter was not present to start with.
+// It works even if the input error's parameter is due to something deep in the error chain.
+//
+// interpolationString is used to change the error message. If interpolationString == "" and [DefaultToWrapping], we refer to inputError.
+// if the input error is nil, interpolationString == nil and [DefaultToWrapping] is set, returns (nil,nil)
+// if the input error is nil, interpolationString == nil and [AllowEmptyString] is set, this function panics
+//
+// This function accepts the following optional flags:
+//
+// - [MissingDataAsZero], [MissingDataIsError] (default),
+// - [ReturnError] (default), [PanicOnAllErrors],
+// - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
+// - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".]
+//
+// As opposed to [DeleteParameterFromError_any], this function returns an ErrorWithData[StructType] for some StructType.
+// If StructType does not satisfy the conditions explained in [StructSuitableForErrorsWithData], this function panics, irrespective of the [ReturnError] or [PanicOnAllErrors] flag.
+//
+// Error handling depends on the flags passed. The same considerations as laid out in [NewErrorWithData_params] apply.
+// Note that validation actually follows the error chain, so the validation flags are meaningful.
+func DeleteParameterFromError[StructType any](inputError error, interpolationString, parameterName string, flags ...flagArgument_Delete) (ret ErrorWithData[StructType], err error) {
+
+	// trigger early panic for invalid StructType. This happens even for nil inputError.
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
+		panic(errInvalidStruct)
+	}
+
+	inputError = UnboxError(inputError)
+
+	var config = errorCreationConfig{config_Validation: noValidation}
+	parseFlagArgs(&config, flags...)
+
+	if inputError == nil && interpolationString == "" {
+		if config.AllowEmptyString() {
+			panic(fmt.Errorf("DeleteParameterFromError called with explict empty interpolation string and nil inputError"))
+		} else {
+			return nil, nil
+		}
+	}
+
+	ret, errCreateError := deleteParameterFromError[StructType](inputError, interpolationString, parameterName, config.config_ImplicitZero, config.config_EmptyString)
+	errValidation := validateError(ret, config.config_Validation)
+
+	// merge the two errors
+	if errCreateError != nil {
+		if errValidation != nil {
+			err = fmt.Errorf(ErrorPrefix+"DeleteParameterFromError failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
+		} else {
+			err = fmt.Errorf(ErrorPrefix+"DeleteParameterFromError failed with the following error: %w", errCreateError)
+		}
+	} else {
+		// Note we do not wrap here, because the information that it was DeleteParameterFromError that failed is not useful.
+		// Validation errors are tied to ret rather the way we constructed it.
+		err = errValidation // possibly nil.
+	}
+
+	if err != nil && config.PanicOnAllErrors() {
+		panic(err)
+	}
+	return
+}
+
+// AsErrorWithData[StructType](inputError) returns a copy of inputError with a data type that guarantees that a struct of type StructType is contained in the data.
+// This is intended to "cast" ErrorWithData_any to ErrorWithData[StructType] or to change StructType.
+//
+// This function unconditionally panics for StructType not satisfying [StructSuitableForErrorsWithData].
+//
+// If inputError == nil, this function returns (nil, nil).
+//
+// This function accepts the following optional flags:
+//
+// - [MissingDataAsZero], [MissingDataIsError] (default),
+// - [ReturnError] (default), [PanicOnAllErrors]
+//
+// If inputError does not contain entries of appropriate type for each field of StructType, this function add zero-initialized fields to the parameters of convertedError.
+// For entries that are merely missing this is considered an error depending on whether [MissingDataIsError] or [MissingDataIsZero] is set.
+// In any case, if [ReturnError] is set (the default), these type-mismatch and missing-param errors are reported in err.
+// If [PanicOnAllErrors] is set, we panic(err) instead.
+func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsErrorWithData) (ret ErrorWithData[StructType], err error) {
+
+	// trigger early panic for invalid StructType. This happens even for nil inputError.
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
+		panic(errInvalidStruct)
+	}
+
+	var config errorCreationConfig // zero value is correct default
+	parseFlagArgs(&config, flags...)
+
+	if inputError == nil {
+		return nil, nil
+	}
+
+	inputError = UnboxError(inputError)
+
+	ret, err = asErrorWithData[StructType](inputError, config.config_ImplicitZero)
+	if config.PanicOnAllErrors() && err != nil {
+		panic(err)
+	}
+
+	// NOTE: No validateError here; this would make little sense.
+	return
+
 }
 
 // TEMPORARILY COMMENTED OUT
@@ -264,117 +441,3 @@ func AddDataToError_struct[StructType any](baseError error, data *StructType, mo
 }
 
 */
-
-// DeleteParameterFromError_any takes an error and returns a modified copy (wrapping the original) that has the given parameter removed.
-// Has no effect (except for copying, possibly unboxing [MakeIncomparable], and wrapping) if the parameter was not present to start with.
-// It works even if the input error's parameter is due to something deep in the error chain.
-//
-// if the input error is nil, returns nil
-//
-// This function accepts the following optional flags:
-//
-// - [ReturnError] (default), [PanicOnAllErrors],
-// - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
-//
-// Note that validation actually follows the error chain, so the validation flags are meaningful. The returned err can only be non-nil if a validation flag is set.
-func DeleteParameterFromError_any(inputError error, parameterName string, flags ...flagArgument_DeleteAny) (ret ErrorWithData_any, err error) {
-	if inputError == nil {
-		return nil, nil
-	}
-	inputError = UnboxError(inputError)
-
-	var config = errorCreationConfig{config_Validation: noValidation}
-	parseFlagArgs(&config, flags...)
-
-	ret = deleteParameterFromError_any(inputError, "", parameterName, config_EmptyString{allowEmpty: false})
-	err = validateError(ret, config.config_Validation)
-
-	if err != nil && config.PanicOnAllErrors() {
-		panic(err)
-	}
-
-	return
-}
-
-// DeleteParameterFromError takes an error and returns a modified copy (wrapping the original) that has the given parameter removed.
-// Deletion has no effect (except for copying, wrapping and ensuring it safisfies ErrorWithData[StructType]) if the parameter was not present to start with.
-// It works even if the input error's parameter is due to something deep in the error chain.
-//
-// If err == nil, this function returns nil.
-//
-// This function accepts the following optional flags:
-//
-// - [MissingDataAsZero], [MissingDataIsError] (default),
-// - [ReturnError] (default), [PanicOnAllErrors],
-// - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
-//
-// As opposed to [DeleteParameterFromError_any], this function returns an ErrorWithData[StructType] for some StructType.
-// If StructType does not satisfy the conditions explained in [StructSuitableForErrorsWithData], this function panics, irrespective of the [ReturnError] or [PanicOnAllErrors] flag.
-//
-// Error handling depends on the flags passed. The same considerations as laid out in [NewErrorWithData_params] apply.
-// Note that validation actually follows the error chain, so the validation flags are meaningful.
-func DeleteParameterFromError[StructType any](inputError error, parameterName string, flags ...flagArgument_Delete) (ret ErrorWithData[StructType], err error) {
-
-	errInvalidStruct := StructSuitableForErrorsWithData[StructType]() // trigger early panic for invalid StructType. This happens even for nil inputError.
-	if errInvalidStruct != nil {
-		panic(errInvalidStruct)
-	}
-
-	if inputError == nil {
-		return nil, nil
-	}
-	inputError = UnboxError(inputError)
-
-	var config = errorCreationConfig{config_Validation: noValidation}
-	parseFlagArgs(&config, flags...)
-
-	// Note that the last argument actually equals config.handleEmptyInterpolationString. This is just more explicit.
-	ret, err = deleteParameterFromError[StructType](inputError, "", parameterName, config.config_ImplicitZero, config_EmptyString{allowEmpty: false})
-
-	if err != nil {
-		validateError(ret, config.config_Validation)
-	} else {
-		err = validateError(ret, config.config_Validation)
-	}
-
-	if err != nil && config.PanicOnAllErrors() {
-		panic(err)
-	}
-
-	return
-}
-
-// AsErrorWithData[StructType](inputError) returns a copy of inputError with a data type that guarantees that a struct of type StructType is contained in the data.
-// This is intended to "cast" ErrorWithData_any to ErrorWithData[StructType] or to change StructType. Returns (nil, nil) on nil input.
-//
-// This function panics for StructType not satisfying [StructSuitableForErrorsWithData].
-//
-// This function accepts the following optional flags:
-//
-// - [MissingDataAsZero], [MissingDataIsError] (default),
-// - [ReturnError] (default), [PanicOnAllErrors]
-//
-// If inputError does not contain entries of appropriate type for each field of StructType, this function add zero-initialized fields to the parameters of convertedError.
-// For entries that are merely missing this is considered an error depending on whether [MissingDataIsError] or [MissingDataIsZero] is set.
-func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsErrorWithData) (convertedError ErrorWithData[StructType], err error) {
-
-	errInvalidStruct := StructSuitableForErrorsWithData[StructType]() // trigger early panic for invalid StructType. This happens even for nil inputError.
-	if errInvalidStruct != nil {
-		panic(errInvalidStruct)
-	}
-
-	if inputError == nil {
-		return nil, nil
-	}
-
-	inputError = UnboxError(inputError)
-
-	var config errorCreationConfig // zero value is correct default
-	parseFlagArgs(&config, flags...)
-
-	// Consider refactoring makeErrorWithParametersCommon into newErrorWithParametersCommon to avoid this
-	convertedErrorVal, err := makeErrorWithParameterCommon[StructType](inputError, "", config.config_EmptyString, config.config_ImplicitZero)
-	return &convertedErrorVal, err
-
-	// NOTE: No validateError here; this would make little sense.
-}

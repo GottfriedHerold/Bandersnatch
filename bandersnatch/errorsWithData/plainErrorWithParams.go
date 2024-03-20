@@ -6,10 +6,20 @@ import (
 
 // This file is part of the errorsWithData package and defines the (currently only) implementation of the [ErrorWithData]
 // and [ErrorWithData_any] interface.
-// Note that the user-facing functions in modify_errors.go that are used to actually create an [ErrorWithData]
-// are neccessarily coupled to the concrete implementation.
-// We try to keep most of the specifics to the concrete implementation in this file here, so the functions in modify_errors.go
+// Note that the user-facing functions in modify_errors.go that are used to actually create an [ErrorWithData] or [ErrorWithData_any]
+// are somewhat coupled to the concrete implementation.
+// We try to keep the specifics to the concrete implementation in this file here, so the functions in modify_errors.go
 // are mostly wrappers to some function defined here.
+//
+// NOTE: The functions in modify_errors.go usually call a function from plainErrorWithParams.go and store the result in an [ErrorWithData]
+// or [ErrorWithData_any] interface (and from that point on only uses the interface API). This is done to separate the interface from the implementation.
+// Observe, however, that this means that the functions in modify_errors.go have no way to modify these result without adding a
+// level of wrapping, because [ErrorWithData] only allows modifying copies. Extra wrapping breaks validation ([ValidateSyntax] does not follow the error chain).
+// For that reason, the functions defined in plainErrorWithParams.go need to basically create the final result "in one go";
+// different functions in modify_errors.go call completely different functions in plainErrorWithParams.go.
+// If there is shared code, it will therefore be in plainErrorWithParams.go; this is particularly annoying for the
+// distinction between *_any variants and the non-*_any variants:
+// keeping the code "clean" by maintaining this separation neccessitates copy&pasting a lot of the actual code in modifyErrors.go.
 
 // errorWithParameters_common is a simple implementation of the [ErrorWithData_any] interface
 // NOTE:
@@ -124,6 +134,36 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 	return
 }
 
+// ValidateSyntax checks whether the created error has any syntax error in its interpolation string
+func (e *errorWithParameters_common) ValidateSyntax() error {
+	// Check for parse errors
+	if e.parsedInterpolationString.parseError != nil {
+		return e.parsedInterpolationString.parseError
+	}
+	// If no parse errors, check for syntax errors.
+	return e.parsedInterpolationString.handleSyntaxConditions()
+}
+
+// ValidateError_Final checks whether the created error contains certain errors that would trigger on .Error()
+// Note that this recurses through %w and $w
+func (e *errorWithParameters_common) ValidateError_Final() error {
+	return e.parsedInterpolationString.VerifyParameters_passed(e.params, e.params, e.wrapped_error)
+}
+
+// ValidateError_Base checks whether the created errors contains certain errors, up to the fact that any $-statements are only syntax-checked
+// Note that this recurses through %w and $w
+func (e *errorWithParameters_common) ValidateError_Base() error {
+	return e.parsedInterpolationString.VerifyParameters_direct(e.params, e.wrapped_error)
+}
+
+// ValidateError_Params checks whether the created error contains errors (in particular, ${VarName}-statements are valid), given the passed parameter map.
+// params_passed == nil is taken as using e's own parameters (this is distinct from passing an empty map)
+//
+// This method is required for [ValidateError_Base] or [ValidateError_Final] to recurse and part of the [ErrorInterpolater] interface.
+func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap) error {
+	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
+}
+
 // precompute tokenizations. Note that we cannot precompute the creation of the ast as easily.
 var (
 	tokenListParentWithError = tokenizeInterpolationString("$w")
@@ -169,23 +209,71 @@ func makeErrorWithParametersCommon_any(baseError error, interpolationString stri
 	// Parse the intepolation string.
 	// We ignore potential returned errors: If there is a parsing error, this is additionally recorded in ret.parsedInterpolationString itself.
 	ret.parsedInterpolationString, _ = make_ast(tokens)
-	_ = ret.parsedInterpolationString.handleSyntaxConditions()
+	_ = ret.parsedInterpolationString.handleSyntaxConditions() // ensure this is called at least once.
 	ret.params = GetData_map(baseError)
 	return
 }
 
 // makeErrorWithParameterCommon creates a new errorWithParamters_T[StructType] from the given base error and interpolation string.
 //
-// This works similar to (and indeed just calls) [makeErrorWithParameterCommon]. Again, note that this is an internal function
-// that only serves to unify some functions in modify_errors.go
+// This works similar to (and indeed just calls) [makeErrorWithParameterCommon_any]. Again, note that this is an internal function
+// that only serves to unify functions within this file.
 // The additional parameter c_ImplicitZero controls whether missing data should be either
 //   - *silently* zero-initialized
 //   - zero-initialzed and trigger an error
 //
 // This function reports errors in two separate channels:
-// The returned err reports persing errors in-band in ret.parsedInterpolationString
+// The returned ret allows to check for syntax and parse errors by querying ret for those via [ValidateSyntax] etc.
+// What is returned in err is *only* errors about a mismatch between StructType and what is in baseError's ParamMap.
+//
+// NOTE: This function is only really useful for AsErrorWithData, i.e. casting. The reason for that is this function does not take "extra" parameters outside from baseError.
+// As a consequence, this function is only ever called with interpolationString == "" and defaulted c_emptyString.
+// For those, there can be no syntax / parse errors.
+//
+// NOTE2: We could implement public API function to create instances of ErrorWithParam[T] by always using some *_any variant, then doing modification
+// and finally converting with makeErrorWithParameterCommon. This is *NOT* a good idea:
+// The reason is that makeErrorWithParamerCommon actually create a level of indirection by wrapping; as a consequence, ret.ValidateSyntax() will never report errors
+// as this won't follow the chain.
+//
+// This indirection could only be avoided by special-casing everything if baseError has type *errorWithParameters_common.
+// However, this would be hacky, because it would not work with a user-defined implementation of ErrorWithData_any.
+// At any rate, the needed functionality (without wrapping) is literally provided by ensureCanMakeStructFromParameters;
+// we just don't call ensureCanMakeStructFromParameters from any public API function in modify_errors_go, but rather call a small function in this file
+// that in turn calls ensureCanMakeStructFromparameters, because the latter is not part of the ErrorWithData interface.
 func makeErrorWithParameterCommon[StructType any](baseError error, interpolationString string, c_emptyString config_EmptyString, c_ImplicitZero config_ImplicitZero) (ret errorWithParameters_T[StructType], err error) {
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_emptyString)
+	err = ensureCanMakeStructFromParameters[StructType](&ret.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
+	return
+}
+
+// simplified replacement for makeErrorWithParamtersCommon. The only use-case was AsErrorWithData, which had some arguments hardwired. We don't need those and can simplify the API (and doc).
+
+// asErrorWithData is the implementation for AsErrorWithData that is tied to our specific implementation of the [ErrorWithData] interface.
+//
+// This function just "converts" (by wrapping) an arbitrary base error into a *errorWithParameters_T[StructType].
+// Note that we do not allow changing/setting the interpolation string.
+//
+// c_ImplicitZero determines whether zero-ing missing parameters is silent or not.
+//
+// This function must not be called with baseError == nil.
+//
+// NOTE: This function always wraps baseError, even if baseError satisfies [ErrorWithData_any], for consistency reasons.
+// We could implement public API function to create instances of ErrorWithParam[T] by always using some *_any variant, then doing modification
+// and finally converting with asErrorWithData. This is *NOT* a good idea:
+// The reason is that asErrorWithData creates a level of indirection by wrapping; as a consequence, ret.ValidateSyntax() will never report errors
+// as this won't follow the chain.
+//
+// This indirection could only be avoided by special-casing everything if baseError has type *errorWithParameters_common.
+// However, this would be hacky, because then the exported [AsErrorWithData] would work differently with a user-defined implementation of ErrorWithData_any.
+// At any rate, the needed functionality (without wrapping) is literally provided by ensureCanMakeStructFromParameters;
+// we just don't call ensureCanMakeStructFromParameters from any public API function in modify_errors_go, but rather call a small function in this file
+// that in turn calls ensureCanMakeStructFromparameters, because the latter is not part of the ErrorWithData interface.
+func asErrorWithData[StructType any](baseError error, c_ImplicitZero config_ImplicitZero) (ret *errorWithParameters_T[StructType], err error) {
+	if baseError == nil {
+		panic("Must not happen")
+	}
+	ret = new(errorWithParameters_T[StructType])
+	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, "", config_EmptyString{})
 	err = ensureCanMakeStructFromParameters[StructType](&ret.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
 	return
 }
@@ -200,8 +288,6 @@ func makeErrorWithParameterCommon[StructType any](baseError error, interpolation
 // If c_EmptyString.AllowEmptyString() is true, no special handling is performed.
 // If c_EmptyString.AllowEmptyString() is false (the default), we default to "%w" resp. to "$w" if interpolationString is empty.
 // In this case, this function panics if baseError == nil. This case must be caught at the call site rather than letting this function panic, because the error message is not right.
-//
-// Note that this is currently only called with AllowEmptyString() set to false.
 func deleteParameterFromError_any(baseError error, interpolationString string, parameterName string, c_EmptyString config_EmptyString) (ret *errorWithParameters_common) {
 	ret = new(errorWithParameters_common)
 	*ret = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
@@ -237,15 +323,28 @@ func deleteParameterFromError[StructType any](baseError error, interpolationStri
 //
 // It is tied to our particular implementation of ErrorWithData and so does not return an interface.
 // It creates a new error with data with the given baseError, interpolationString and data.
-func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, c_OldData config_OldData, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], errors []error) {
+//
+// NOTE: We must not call this with interpolationString == "", baseError==nil, c_EmptyString set to default.
+// (We need to handle this at the call site, possibly by panic)
+//
+// We return all errors as a slice. The returned slice is nil (rather than empty) iff there was no error.
+func newErrorWithData_struct[StructType any](baseError error, interpolationString string, data *StructType, c_OldData config_OldData, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], errs []error) {
 
 	ret = new(errorWithParameters_T[StructType])
-	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString) // may panic
-	errors = fillMapFromStruct(data, &ret.errorWithParameters_common.params, c_OldData)
-	// NOTE: the config arguments here only matter if oldDataHandling.preferOld == true. In this case, pre-existing data in baseError might not have the correct type.
-	err2 := ensureCanMakeStructFromParameters[StructType](&ret.params, config_ImplicitZero{}, config_SetZeros{setErrorsToZero: true})
-	if err2 != nil {
-		errors = append(errors, err2)
+
+	// This would panic if interpolationString=="", baseError==nil, c_EmptyString defaulted. Ruled out by pre-condition.
+	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
+	errs = fillMapFromStruct(data, &ret.errorWithParameters_common.params, c_OldData)
+
+	// NOTE: We are given *data, so we are guaranteed to have no missing keys in the resulting ParamMap.
+	// However, pre-existing data in baseError might have the wrong type. So if c_OldData.preferOld is set, this can still fail,
+	// config_ImplictZero{} is irrelevant (missing data cannot happen anyway),
+	// config_SetZero{setErrorToZero:true} is here to replace pre-existing data in baseError of the wrong type by a zero value;
+	// This is done to ensure that the invariants we expect from errorWithParameters_T[StructType] are satisfied even on error.
+	// (The option to unconditionally take the new value from *data on error is not supported by our API)
+	wrongTypeErrors := ensureCanMakeStructFromParameters[StructType](&ret.params, config_ImplicitZero{}, config_SetZeros{setErrorsToZero: true})
+	if wrongTypeErrors != nil {
+		errs = append(errs, wrongTypeErrors)
 	}
 	return
 }
@@ -272,34 +371,4 @@ func newErrorWithData_map[StructType any](baseError error, interpolationString s
 	// We want to maintain the invariant for the returned value even on error, so we zero out bad values.
 	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
 	return
-}
-
-// ValidateSyntax checks whether the created error has any syntax error in its interpolation string
-func (e *errorWithParameters_common) ValidateSyntax() error {
-	// Check for parse errors
-	if e.parsedInterpolationString.parseError != nil {
-		return e.parsedInterpolationString.parseError
-	}
-	// If no parse errors, check for syntax errors.
-	return e.parsedInterpolationString.handleSyntaxConditions()
-}
-
-// ValidateError_Final checks whether the created error contains certain errors that would trigger on .Error()
-// Note that this recurses through %w and $w
-func (e *errorWithParameters_common) ValidateError_Final() error {
-	return e.parsedInterpolationString.VerifyParameters_passed(e.params, e.params, e.wrapped_error)
-}
-
-// ValidateError_Base checks whether the created errors contains certain errors, up to the fact that any $-statements are only syntax-checked
-// Note that this recurses through %w and $w
-func (e *errorWithParameters_common) ValidateError_Base() error {
-	return e.parsedInterpolationString.VerifyParameters_direct(e.params, e.wrapped_error)
-}
-
-// ValidateError_Params checks whether the created error contains errors (in particular, ${VarName}-statements are valid), given the passed parameter map.
-// params_passed == nil is taken as using e's own parameters (this is distinct from passing an empty map)
-//
-// This method is required for [ValidateError_Base] or [ValidateError_Final] to recurse and part of the [ErrorInterpolater] interface.
-func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap) error {
-	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
 }

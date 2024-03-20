@@ -62,7 +62,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 	if !config.PerformEqualityCheck() {
 		panic("Cannot happen")
 	}
-	
+
 	var checkFun EqualityComparisonFunction = config.GetCheckFun()
 	checkFunWithPanicRecovery := withPanicResults(checkFun)
 	for key, newValue := range source {
@@ -238,7 +238,7 @@ func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err
 //
 // The meaning of config and error reporting is the same as [mergeMaps]
 //
-// Note that the returned errors for this internal function do not have ErrorPrefix.
+// Note that the returned errors for this internal function do not have ErrorPrefix. We return errors==nil rather than an empty list in case of success.
 func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config config_OldData) (errors []error) {
 	if *m == nil {
 		*m = make(map[string]any)

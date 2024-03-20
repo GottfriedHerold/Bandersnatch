@@ -1131,10 +1131,10 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 				// do not interpret tokens (except for tokenEnd) but rather output a string representation of it as a plain ast_string.
 				if token != tokenEnd {
 					currentNode.append_ast(new_ast_string(stringToken(token.String())))
-				} else {
+				} else { // token == tokenEnd
+					// Alternatively, we could do ret.simplify() to avoid the type assertion
+					// The two stack.Pop()'s are just to maintain the invariant that the stack is empty after we finish.
 					_ = stack.Pop() // type popped is ast_list.
-					// Alternatively, we could do _ = stack.Pop(); ret.simplify() to avoid the type assertion
-					// The stack.Pop()'s are just to maintain the invariant that the stack is empty after we finish.
 					root := stack.Pop().(ast_root)
 					root.simplify()
 				}
