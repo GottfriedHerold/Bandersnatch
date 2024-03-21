@@ -299,7 +299,7 @@ func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config 
 				// config.CatchPanic set to false
 				comparisonResult := checkFun(oldValue, newValue)
 				if comparisonResult == false {
-					errors = append(errors, fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v"))
+					errors = append(errors, fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue))
 				}
 			}
 

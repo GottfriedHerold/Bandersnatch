@@ -106,7 +106,7 @@ type (
 	fArg_Panic       struct{ fArg }
 	fArg_OldData     struct {
 		fArg
-		f EqualityComparisonFunction
+		f *EqualityComparisonFunction
 	}
 	fArg_EmptyString struct{ fArg }
 )
@@ -332,7 +332,7 @@ var (
 	//
 	// This is useful if the external caller needs to handle the actual panic value.
 	// Note that just setting [PanicOnAllErrors] would first recover(), turn the panic into an error, collect errors and raise a new panic.
-	LetComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_PassPanicFromEqualiltyTests}}
+	LetComparisonFunctionPanic = fArg_OldData{fArg{val: flagArg_PassPanicFromEqualiltyTests}, nil}
 
 	// RecoverFromComparisonFunctionPanic is only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
 	// It causes any panic in the comparsion function (such as using == to compare values of the same incomparable type) to be recover()ed from.
@@ -340,7 +340,7 @@ var (
 	// Note that, if [PanicOnAllErrors] is set, we will then ultimately call panic(err). However, observe that err's message just prints X using [fmt]; the actual value of X may be lost.
 	//
 	// As this is the default behaviour, the [RecoverFromComparisonFunctionPanic] flag is never needed.
-	RecoverFromComparisonFunctionPanic = fArg_MissingData{fArg{val: flagArg_RecoverPanicFromEqualityTests}}
+	RecoverFromComparisonFunctionPanic = fArg_OldData{fArg{val: flagArg_RecoverPanicFromEqualityTests}, nil}
 
 	// MissingDataAsZero is passed to functions to indicate that missing data should be silently zero initialized
 	MissingDataAsZero = fArg_MissingData{fArg{val: flagArg_FillWithZeros}}
@@ -385,8 +385,13 @@ func EnsureDataIsNotReplaced_fun(f EqualityComparisonFunction) fArg_OldData {
 	if f == nil {
 		panic(ErrorPrefix + "called EnsureDataIsNotReplaced_fun with nil function")
 	}
-	return fArg_OldData{fArg{val: flagArg_AssertEqual_fun}, f}
+	return fArg_OldData{fArg{val: flagArg_AssertEqual_fun}, &f}
 }
+
+// specific instance for allFlagArgs below. This is only used in testing, the issue being that
+// EnsureDataIsNotReplaced_fun(Comparison_IsEqual) == EnsureDataIsNotReplaced_fun(Comparison_IsEqual) may fail.
+// (repeated calls do not give the same result)
+var customComparisonFlag = EnsureDataIsNotReplaced_fun(Comparison_IsEqual)
 
 // allFlagArgs is a list of all possible flag argument values above (and possible outputs of functions generating flagArguments)
 // This is only used for testing, but defined here to simplify refactoring, as it's tied to the above list of definitions.
@@ -407,7 +412,7 @@ var allFlagArgs []flagArgument = []flagArgument{
 	DefaultToWrapping,
 	RecoverFromComparisonFunctionPanic,
 	LetComparisonFunctionPanic,
-	EnsureDataIsNotReplaced_fun(Comparison_IsEqual),
+	customComparisonFlag,
 }
 
 func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZero) {
@@ -474,7 +479,7 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 			p.passPanic = false
 		case flagArg_AssertEqual_fun:
 			p.doEqualityCheck = true
-			p.checkFun = flagArgument(individualFlag).(fArg_OldData).f
+			p.checkFun = *(flagArgument(individualFlag).(fArg_OldData).f)
 		case flagArg_MissingDataIsError:
 			p.implicitZero = false
 		case flagArg_FillWithZeros:
