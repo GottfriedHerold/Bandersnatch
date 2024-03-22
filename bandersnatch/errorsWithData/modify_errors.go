@@ -38,6 +38,8 @@ func validateError(inputError ErrorWithData_any, config config_Validation) (err 
 	return
 }
 
+// NOTE: Make sure that the set of documented accepted flags and the specific type in each function here precisely matches the list of flags_test.go
+
 // NewErrorWithData_struct creates a new [ErrorWithData] wrapping the given baseError if non-nil.
 // interpolationString is used to create the new error message, where by default an empty string is
 // interpreted as a default interpolation string ("$w" or "%w"), which asserts that baseError is non-nil.

@@ -1,9 +1,6 @@
 package errorsWithData
 
-/*
-
 import (
-	"io"
 	"reflect"
 	"testing"
 
@@ -153,6 +150,7 @@ func TestGetStructMapConversionLookup(t *testing.T) {
 
 }
 
+/*
 func TestMapToStructConversion(t *testing.T) {
 	var m map[string]any = make(map[string]any)
 	type Empty struct{}

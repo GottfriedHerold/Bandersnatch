@@ -3,6 +3,7 @@ package fieldElements
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
 // This file contains an efficient square root algorithms, which involves a considerable amount of pre-computed constants.
+// (Note that the "actual" exported SquareRoot function is in field_element_montgomery.go)
 
 // The algorithm used is essentiall Tonelli-Shanks.
 // Note that BaseFieldSize mod 4 == 1, with a large power of 2, namely 2^32 dividing BaseFieldSize-1 (BaseField2Adicity==32).

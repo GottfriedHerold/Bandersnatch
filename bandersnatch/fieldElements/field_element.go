@@ -68,7 +68,7 @@ type FieldElementInterface[FieldElementPointer any] interface {
 	Sub(x, y FieldElementPointer)          // z.Sub(&x,&y) performs z = x - y
 	Mul(x, y FieldElementPointer)          // z.Mul(&x,&y) performs z = x * y
 	Divide(x, y FieldElementPointer)       // z.Divide(&x, &y) performs z = x / y. Panics for y == 0 (including 0/0)
-	Double(x FieldElementPointer)          // z.Double(&x) performs z = 2*x =
+	Double(x FieldElementPointer)          // z.Double(&x) performs z = 2*x = x + x
 	Square(x FieldElementPointer)          // z.Square(&x) performs z = x*x
 	SquareRoot(x FieldElementPointer) bool // z.SquareRoot(&x) sets z to a square root of x. If no such square root exists, returns false without modifying z. There are no guarantees about the choice of square root (repeated calls with same x may differ).
 
@@ -92,7 +92,7 @@ type FieldElementInterface[FieldElementPointer any] interface {
 	//   it may actually be (much) better to convert to field element once and then use the general methods.
 	//   If the internal representation is not in Montgomery form, the special Addition and subtraction methods are slightly faster than the general methods.
 	//
-	//   For multiplication and division, these special-purpose function may be optimized to be considerably more efficient.
+	//   For multiplication and division, these special-purpose function may be optimized to be considerably more efficient than the general methods.
 	AddInt64(x FieldElementPointer, y int64)      // z.AddInt64(&x, y) performs z = x + y, where y is an int64
 	AddUint64(x FieldElementPointer, y uint64)    // z.AddUint64(&x, y) performs z = x + y, where y is an uint64
 	SubInt64(x FieldElementPointer, y int64)      // z.SubInt64(&x, y) performs z = x - y, where y is an int64

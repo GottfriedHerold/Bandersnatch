@@ -200,6 +200,11 @@ func (p *config_OldData) PerformEqualityCheck() bool {
 // This is only meaningful if [PerformEqualityCheck] returns true.
 // If no equality check function was explicitly set, we return a default one.
 func (p *config_OldData) GetCheckFun() EqualityComparisonFunction {
+
+	// NOTE: This (internal) function should never be called unless p.PerformEqualityCheck() == true.
+	// The function should probably panic if this is violated.
+	// We do not check this, however, because some testing functions actually DO call it with
+	// p.PerformEqualityCheck() set to false. The latter choice was done to simplify writing the tests.
 	if p.checkFun == nil {
 		return comparison_handleNils
 	} else {
@@ -438,7 +443,7 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_Im
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
-			panic("Cannot happen")
+			panic("Cannot happen") // unless the user tries hard
 		case flagArg_MissingDataIsError:
 			retZeroFill.implicitZero = false
 		case flagArg_FillWithZeros:
@@ -463,13 +468,15 @@ func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgTyp
 	for _, individualFlag := range flags {
 		switch v := individualFlag.getValue(); v {
 		case flagArg_Unset:
-			panic("Cannot happen")
+			panic("Cannot happen") // unless the user tries hard
 		case flagArg_PreferOld:
 			p.preferOld = true
 			p.doEqualityCheck = false
+			p.checkFun = nil
 		case flagArg_PreferNew:
 			p.preferOld = false
 			p.doEqualityCheck = false
+			p.checkFun = nil
 		case flagArg_AssertEqual:
 			p.doEqualityCheck = true
 			p.checkFun = nil
