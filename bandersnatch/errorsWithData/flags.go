@@ -352,10 +352,10 @@ var (
 	// MissingDataIsError is passed to functions to indicate that the function should consider it an error if data is missing
 	MissingDataIsError = fArg_MissingData{fArg{val: flagArg_MissingDataIsError}}
 
-	// IgnoreMissingData is passed to [HasData] to cause it to ignore the case of merely missing data. We only type-check in this case
-	IgnoreMissingData = fArg_HasData{fArg{val: flagArg_IgnoreMissingData}}
 	// EnsureMissingData is passed to [HasData] to cause it to not ignore merely missing data. As this is the default, this flag is never needed.
 	EnsureDataIsPresent = fArg_HasData{fArg{val: flagArg_EnsureDataPresent}}
+	// IgnoreMissingData is (only) passed to [HasData] to cause it to ignore the case of merely missing data. We only type-check existing data in this case.
+	IgnoreMissingData = fArg_HasData{fArg{val: flagArg_IgnoreMissingData}}
 
 	// ReturnError is passed to functions to indicate that it should return an error rather than panic. Note that certain (explicitly stated) conditions may still cause a panic.
 	ReturnError = fArg_Panic{fArg{val: flagArg_ReturnErrors}}
@@ -368,7 +368,7 @@ var (
 	ErrorUnlessValidSyntax = fArg_Validity{fArg{val: flagArg_ValidateSyntax}}
 	// ErrorUnlessValidBase is passed to functions creating errors to indicate that recursive validation of interpolation strings is requested. This includes that data referred to actually exists, except for possible $fmtVerb{Param} expressions, which might be filled by a wrapping error.
 	ErrorUnlessValidBase = fArg_Validity{fArg{val: flagArg_ValidateBase}}
-	// ErrorUnlessValidFinal is passed to functions creating errors to indicate that recursive validation of interpolation strings is requested. This includes checking that data referred to by %fmtVerb{Param} or $fmtVerb{Param}-expressions actually exists.
+	// ErrorUnlessValidFinal is passed to functions creating errors to indicate that recursive validation of interpolation strings is requested. This includes checking that all data referred to by %fmtVerb{Param} or $fmtVerb{Param}-expressions actually exists.
 	ErrorUnlessValidFinal = fArg_Validity{fArg{val: flagArg_ValidateFinal}}
 
 	// AllowEmptyString needs to be passed to functions creating errors to allow an empty error message.
@@ -377,7 +377,7 @@ var (
 
 	// DefaultToWrapping is passed to function creating errors to cause an empty interpolation string to default to
 	// %w or $w, repeating the wrapped error. If there is no wrapped error, we treat this as an error.
-	// Note that this is the default setting, so there should never be a need to pass this flag explicitly.
+	// This is the default setting, so there should never be a need to pass this flag explicitly.
 	DefaultToWrapping = fArg_EmptyString{fArg{val: flagArg_DefaultToWrapped}}
 )
 
@@ -478,7 +478,7 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_Im
 }
 
 // Needs to be generic function due to Go's lack of covariance.
-// Note that ArgType may actually be an *interface* type.
+// Note that the concrete ArgType that is used when we call this is actually be an *interface* type (unusal for generics) refining flagArgument.
 
 // parseFlagArgs parses the passed flags in order and modifies *p according to each flag.
 // Note that ArgType will typically be an interface type that refines flagArgument, which may restrict the set of allowed flags.
