@@ -420,8 +420,15 @@ var allFlagArgs []flagArgument = []flagArgument{
 	customComparisonFlag,
 }
 
+// parseFlagArgs_HasData parses the provided flags and constructs a config_ImplicitZero from this.
+//
+// The flags are parsed in order and overwrite default or previous settings.
+// Consequently, when conflicting flags are provided, the last ones take precedence.
+//
+// Currently accepted flags are [IgnoreMissingData] and [EnsureDataIsPresent] (default)
+// NOTE: For the query-only HasData, the seemingly useless [IgnoreMissingData] setting has the purpose of type-checking the existing data.
 func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZero) {
-	ret = config_ImplicitZero{implicitZero: true}
+	ret = config_ImplicitZero{implicitZero: false}
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
@@ -437,9 +444,20 @@ func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZe
 	return
 }
 
+// parseFlagArgs_GetData parses the provided flags and constructs a config_ImplicitZero and config_ErrorHandling from this.
+//
+// The flags are parsed in order and overwrite default or previous settings.
+// Consequently, when conflicting flags are provided, the last ones take precedence.
+//
+// Currently accepted flags are
+// - [MissingDataAsZero] or [MissingDataIsError] (default)
+// - [ReturnError] (default) or [PanicOnAllErrors]
 func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_ImplicitZero, retPanic config_ErrorHandling) {
-	// retPanic = config_ErrorHandling{panicOnError: false}
+
+	// no-ops, but written here to make the defaults explicit.
+	retPanic = config_ErrorHandling{panicOnError: false}
 	retZeroFill = config_ImplicitZero{implicitZero: false}
+
 	for _, flag := range flags {
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:

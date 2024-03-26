@@ -291,3 +291,53 @@ func TestParseFlags(t *testing.T) {
 	testutils.FatalUnless(t, called == true, "")
 
 }
+
+func TestParseFlagArgs_HasData(t *testing.T) {
+	// make sure parseFlagArgs_HasData actually handles all possible flags.
+	for _, flagGen := range validFlags_HasData {
+		flag := flagGen.(flagArgument_HasData) // if this panics, then TestOnlyValidFlagsAccepted should also fail.
+		_ = parseFlagArgs_HasData(flag)        // The test is that this does not panic (i.e. the switch-statement in the function is exhaustive)
+	}
+	c1 := parseFlagArgs_HasData(IgnoreMissingData)
+	testutils.FatalUnless(t, c1.IsMissingDataError() == false, "")
+	c2 := parseFlagArgs_HasData(EnsureDataIsPresent)
+	testutils.FatalUnless(t, c2.IsMissingDataError() == true, "")
+
+	// test default
+	c3 := parseFlagArgs_HasData()
+	testutils.FatalUnless(t, c3.IsMissingDataError() == true, "")
+
+	// test multiple arguments
+
+	c4 := parseFlagArgs_HasData(IgnoreMissingData, EnsureDataIsPresent, IgnoreMissingData)
+	testutils.FatalUnless(t, c4.IsMissingDataError() == false, "")
+}
+
+func TestParseFlagArgs_GetData(t *testing.T) {
+	for _, flagGeneral := range validFlags_GetData_struct {
+		flag := flagGeneral.(flagArgument_GetData) // if this panics, then TestOnlyValidFlagsAccepted should fail.
+		_, _ = parseFlagArgs_GetData(flag)         // The relevant test is that this does not panic (i.e. the switch-statement in the function is exhaustive)
+	}
+	zf1, p1 := parseFlagArgs_GetData(MissingDataAsZero)
+	testutils.FatalUnless(t, zf1.IsMissingDataError() == false, "")
+	testutils.FatalUnless(t, p1.PanicOnAllErrors() == false, "")
+	zf2, p2 := parseFlagArgs_GetData(MissingDataIsError)
+	testutils.FatalUnless(t, zf2.IsMissingDataError() == true, "")
+	testutils.FatalUnless(t, p2.PanicOnAllErrors() == false, "")
+
+	zf3, p3 := parseFlagArgs_GetData(PanicOnAllErrors)
+	testutils.FatalUnless(t, zf3.IsMissingDataError() == true, "")
+	testutils.FatalUnless(t, p3.PanicOnAllErrors() == true, "")
+
+	zf4, p4 := parseFlagArgs_GetData(ReturnError)
+	testutils.FatalUnless(t, zf4.IsMissingDataError() == true, "")
+	testutils.FatalUnless(t, p4.PanicOnAllErrors() == false, "")
+
+	zfDefault, pDefault := parseFlagArgs_GetData()
+	testutils.FatalUnless(t, zfDefault.IsMissingDataError() == true, "")
+	testutils.FatalUnless(t, pDefault.PanicOnAllErrors() == false, "")
+
+	zf5, p5 := parseFlagArgs_GetData(PanicOnAllErrors, MissingDataAsZero, MissingDataIsError, ReturnError, ReturnError, PanicOnAllErrors, MissingDataIsError, MissingDataAsZero)
+	testutils.FatalUnless(t, zf5.IsMissingDataError() == false, "")
+	testutils.FatalUnless(t, p5.PanicOnAllErrors() == true, "")
+}
