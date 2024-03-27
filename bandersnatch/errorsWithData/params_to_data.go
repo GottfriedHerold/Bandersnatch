@@ -75,6 +75,7 @@ func StructSuitableForErrorsWithData[StructType any]() (err error) {
 // This mostly is just utils.AllFields with some extra checks upfront, skipping embedded fields and handling shadowed fields.
 //
 // This functions returns an error if called with a structType that is deemed invalid for our purpose.
+// This must not be called with structType == nil. This needs be be caught by the caller.
 func getStructMapConversionLookup(structType reflect.Type) (ret structTypeToFieldsLookupEntry, err error) {
 	// Note: We cache the result in a global map. This implies
 	// that e.g. the order of entries in the returned struct is consistent.

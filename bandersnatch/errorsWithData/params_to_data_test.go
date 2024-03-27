@@ -1,6 +1,7 @@
 package errorsWithData
 
 import (
+	"io"
 	"reflect"
 	"testing"
 
@@ -147,21 +148,80 @@ func TestGetStructMapConversionLookup(t *testing.T) {
 	if !testutils.CheckPanic(getStructMapConversionLookup, nil) {
 		t.Fatalf("No panic, but we expected to")
 	}
+}
+
+// test case for TestStructSuitableForErrorsWithData.
+// This is not defined as a local function, because the actual instance is a *type*, which is passed as a generic parameter.
+// Go does not allow defining local generic functions (as of Go1.21). This is in part because you could not even assign them to a variable (the type system does not have a "generic function" type)
+func testCaseSSFEWD[Instance any](t *testing.T, expectedResult bool) {
+	var result error = StructSuitableForErrorsWithData[Instance]()
+	if expectedResult == true {
+		testutils.FatalUnless(t, result == nil, "StructSuitableForErrorsWithData unexpectedly said type %v was not suitable.\n Reason given was %v", utils.NameOfType[Instance](), result)
+	} else {
+		testutils.FatalUnless(t, result != nil, "StructSuitableForErrorsWithData unexpectedly said type %v was suitable", utils.NameOfType[Instance]())
+	}
+}
+
+func TestStructSuitableForErrorsWithData(t *testing.T) {
+	testCaseSSFEWD[struct{}](t, true)
+	testCaseSSFEWD[int](t, false)
+	testCaseSSFEWD[string](t, false)
+	testCaseSSFEWD[*struct{}](t, false)
+	testCaseSSFEWD[*int](t, false)
+	testCaseSSFEWD[any](t, false)
+	testCaseSSFEWD[[]int](t, false)
+	testCaseSSFEWD[chan int](t, false)
+
+	testCaseSSFEWD[struct{ unexported int }](t, false)
+	testCaseSSFEWD[struct{ Exported int }](t, true)
+
+	type intBased int
+	testCaseSSFEWD[intBased](t, false)
+
+	type T1 struct {
+		*T1
+	}
+	testCaseSSFEWD[T1](t, false) // in particular, this checks that it terminates.
+
+	type T2 struct {
+		X T1
+	}
+	testCaseSSFEWD[T2](t, true)
+
+	type WrappedInt struct{ X int }
+	type AnotherWrappedInt struct{ X int }
+	type EmbeddedWrappedInt struct{ WrappedInt }
+	type TwoPaths struct {
+		WrappedInt
+		EmbeddedWrappedInt
+	}
+	_ = TwoPaths{}.X // Note: This compiles according to Go's rules.
+	testCaseSSFEWD[TwoPaths](t, false)
+	type TwoPathsAndOverride struct {
+		X string
+		EmbeddedWrappedInt
+		WrappedInt
+	}
+	testCaseSSFEWD[TwoPathsAndOverride](t, true)
+
+	testCaseSSFEWD[struct {
+		WrappedInt
+		AnotherWrappedInt
+	}](t, false)
 
 }
 
-/*
 func TestMapToStructConversion(t *testing.T) {
 	var m map[string]any = make(map[string]any)
 	type Empty struct{}
-	_, err := makeStructFromMap[Empty](nil, MissingDataIsError)
-	if err != nil {
-		t.Fatalf("Could not create empty struct from nil")
-	}
-	_, err = makeStructFromMap[Empty](m, MissingDataIsError)
-	if err != nil {
-		t.Fatalf("Could not create empty struct from empty map")
-	}
+
+	configMissingDataIsError, _ := parseFlagArgs_GetData(MissingDataIsError)
+	configMissingDataAsZero, _ := parseFlagArgs_GetData(MissingDataAsZero)
+
+	_, err := makeStructFromMap[Empty](nil, configMissingDataIsError)
+	testutils.FatalUnless(t, err == nil, "Could not create empty struct from nil map")
+	_, err = makeStructFromMap[Empty](m, configMissingDataIsError)
+	testutils.FatalUnless(t, err == nil, "Could not create empty struct from empty map")
 
 	type T0 struct {
 		Name1 int
@@ -178,32 +238,32 @@ func TestMapToStructConversion(t *testing.T) {
 		Name4 byte
 	}
 
-	m["Name1"] = 5 // int, not uint
+	m["Name1"] = int(5)
 	m["Name2"] = "foo"
 	m["Name3"] = nil
 	m["Name4"] = byte(10)
 
-	somet0, err := makeStructFromMap[T0](m, MissingDataIsError)
+	somet0, err := makeStructFromMap[T0](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error : %v", err)
 
-	somet1, err := makeStructFromMap[T1](m, MissingDataIsError)
+	somet1, err := makeStructFromMap[T1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error : %v", err)
 
-	_, err = makeStructFromMap[NestedT1](m, MissingDataIsError)
+	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsError)
 	// We expect an error because of type mismatch uint vs int
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 
 	// silence unused variable errors.
 	_ = somet0
-	_ = somet1
+	// _ = somet1
 
 	testutils.FatalUnless(t, somet1 == T1{5, "foo", nil}, "Unexpected value for somet1: %v", somet1)
 
 	delete(m, "Name3")
-	_, err = makeStructFromMap[T1](m, MissingDataIsError)
+	_, err = makeStructFromMap[T1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but expected one (parameter missing)")
 
-	somet1, err = makeStructFromMap[T1](m, MissingDataAsZero)
+	somet1, err = makeStructFromMap[T1](m, configMissingDataAsZero)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 	testutils.FatalUnless(t, somet1 == T1{5, "foo", nil}, "unexpected value for somet1: %v", somet1)
 
@@ -212,19 +272,19 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, !present, "makeStructFromMap modified input map")
 
 	m["Name3"] = io.EOF
-	somet1, err = makeStructFromMap[T1](m, MissingDataIsError)
+	somet1, err = makeStructFromMap[T1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 	testutils.FatalUnless(t, somet1.Name3 == io.EOF, "Unexpected value for somet1: %v", somet1)
 
 	m["Name3"] = "some string, which does not satisfy the error interface"
-	_, err = makeStructFromMap[T1](m, MissingDataAsZero)
+	_, err = makeStructFromMap[T1](m, configMissingDataAsZero)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
-	_, err = makeStructFromMap[T1](m, MissingDataIsError)
+	_, err = makeStructFromMap[T1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 
 	m["Name3"] = io.EOF
 	m["Name1"] = uint(6)
-	nested, err := makeStructFromMap[NestedT1](m, MissingDataIsError)
+	nested, err := makeStructFromMap[NestedT1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 
 	testutils.FatalUnless(t, nested.Name1 == uint(6), "Unexpected value for nested %v", nested)
@@ -233,17 +293,19 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, nested.T1.Name1 == int(0), "Unexpected value for shadowed values. Nested == %v", nested)
 
 	m["Name1"] = nil
-	_, err = makeStructFromMap[NestedT1](m, MissingDataIsError)
+	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 	delete(m, "Name1")
-	_, err = makeStructFromMap[NestedT1](m, MissingDataIsError)
+	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsError)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
-	nested, err = makeStructFromMap[NestedT1](m, MissingDataAsZero)
+	nested, err = makeStructFromMap[NestedT1](m, configMissingDataAsZero)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 	testutils.FatalUnless(t, nested.Name1 == 0, "Unexpected value for nested.Name1. nested == %v", nested)
 	testutils.FatalUnless(t, nested.Name3 == io.EOF && nested.Name4 == 10 && nested.Name2 == "foo", "Unexptected value for nested :%v", nested)
 
 }
+
+/*
 func TestEnsureCanMakeStructFromParams(t *testing.T) {
 	var (
 		mEmpty        ParamMap = make(ParamMap)
