@@ -1,27 +1,172 @@
 package errorsWithData
 
-/*
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"testing"
 
-func TestMergeMaps(t *testing.T) {
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
+)
+
+func TestMergeMapsPreferOld(t *testing.T) {
 	var m1 ParamMap = ParamMap{}
 	var m2 ParamMap = ParamMap{"Foo": 5}
 
-	mergeMaps(&m2, ParamMap{}, PreferPreviousData)
-	testutils.FatalUnless(t, utils.CompareParamMaps(m2, ParamMap{"Foo": 5}), "")
-	mergeMaps(&m2, ParamMap{}, ReplacePreviousData)
-	testutils.FatalUnless(t, utils.CompareParamMaps(m2, ParamMap{"Foo": 5}), "")
-	mergeMaps(&m2, ParamMap{}, AssertDataIsNotReplaced)
-	testutils.FatalUnless(t, utils.CompareParamMaps(m2, ParamMap{"Foo": 5}), "")
-	mergeMaps(&m1, ParamMap{"Bar": 5}, AssertDataIsNotReplaced)
-	mergeMaps(&m1, ParamMap{"Bar": 6}, ReplacePreviousData)
-	mergeMaps(&m1, ParamMap{"Bar": uint(7), "Bar2": "Bar2"}, PreferPreviousData)
-	testutils.FatalUnless(t, utils.CompareParamMaps(m1, ParamMap{"Bar": 6, "Bar2": "Bar2"}), "")
+	var config errorCreationConfig
+	parseFlagArgs(&config, PreferPreviousData)
+	var configPreferOld config_OldData = config.config_OldData
 
-	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{"Bar": nil}, AssertDataIsNotReplaced), "")
-
-	var invalid flagPreviousDataTreatment
-	testutils.FatalUnless(t, testutils.CheckPanic(mergeMaps, &m1, ParamMap{}, invalid), "No panic for invalid PreviousDataTreatment")
+	ret := mergeMaps(&m2, ParamMap{}, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m2, ParamMap{"Foo": 5}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	mergeMaps(&m2, nil, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m2, ParamMap{"Foo": 5}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	mergeMaps(&m1, ParamMap{"Foo": 6}, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m1, ParamMap{"Foo": 6}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	mergeMaps(&m1, ParamMap{"Foo": nil, "Bar": nil}, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m1, ParamMap{"Foo": 6, "Bar": nil}), "")
+	testutils.FatalUnless(t, ret == nil, "")
 }
+
+func TestMergeMapsPreferNew(t *testing.T) {
+	var m1 ParamMap = ParamMap{}
+	var m2 ParamMap = ParamMap{"Foo": 5}
+
+	var config errorCreationConfig
+	parseFlagArgs(&config, ReplacePreviousData)
+	var configPreferOld config_OldData = config.config_OldData
+
+	ret := mergeMaps(&m2, ParamMap{}, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m2, ParamMap{"Foo": 5}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	ret = mergeMaps(&m2, nil, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m2, ParamMap{"Foo": 5}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	ret = mergeMaps(&m1, ParamMap{"Foo": 6}, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m1, ParamMap{"Foo": 6}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	ret = mergeMaps(&m1, ParamMap{"Foo": nil, "Bar": nil}, configPreferOld)
+	testutils.FatalUnless(t, utils.CompareMaps(m1, ParamMap{"Foo": nil, "Bar": nil}), "")
+	testutils.FatalUnless(t, ret == nil, "")
+}
+
+func TestMergeMaps_EqualityCheck(t *testing.T) {
+	var configGeneral errorCreationConfig
+	parseFlagArgs(&configGeneral, ReplacePreviousData, EnsureDataIsNotReplaced) // Note: Flag order matters here.
+	config := configGeneral.config_OldData
+	type incomp struct{ utils.MakeIncomparable } // incomparable type
+
+	// comparison that returns true (and does not panic) if x and y have the same non-comparable type
+	dummyEqFn := func(x, y any) bool {
+		result, didPanic := compare_catch_panic(x, y)
+		return result || didPanic
+	}
+	// compare maps with this, using maps.EqualFunc from the standard library
+	mapsEq := func(x, y ParamMap) bool {
+		return maps.EqualFunc(x, y, dummyEqFn)
+	}
+
+	// We work with m all the time, resetting it to startMap after each actual modification.
+	startMap := ParamMap{"Nil": nil, "TypedNil": (*int)(nil), "Foo": int(5), "Inc": incomp{}}
+	m := maps.Clone(startMap)
+
+	ret := mergeMaps(&m, ParamMap{}, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	ret = mergeMaps(&m, nil, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	testutils.FatalUnless(t, ret == nil, "")
+
+	ret = mergeMaps(&m, ParamMap{"Nil": (*uint)(nil), "Bar": -5, "Foo": uint(5)}, config)
+	testutils.FatalUnless(t, mapsEq(m, ParamMap{"Nil": (*uint)(nil), "TypedNil": (*int)(nil), "Bar": -5, "Foo": uint(5), "Inc": incomp{}}), "Unexpected value of m: %v", m)
+	//fmt.Println(ret)
+	testutils.FatalUnless(t, len(ret) == 1, "unexpected errors: %v", ret) // expect 1 error (from type mismatch with Foo)
+
+	m = maps.Clone(startMap)
+	ret = mergeMaps(&m, m, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	// fmt.Println(ret)
+	testutils.FatalUnless(t, len(ret) == 1, "") // 1 error from the incomparable value (with panic being caught)
+
+	m = maps.Clone(startMap)
+	ret = mergeMaps(&m, ParamMap{"Foo": 5}, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	testutils.FatalUnless(t, ret == nil, "")
+
+	// repeat the above with config.PreferNew() set to false
+	parseFlagArgs(&configGeneral, PreferPreviousData, EnsureDataIsNotReplaced)
+	config = configGeneral.config_OldData
+	m = maps.Clone(startMap)
+
+	ret = mergeMaps(&m, ParamMap{}, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	testutils.FatalUnless(t, ret == nil, "")
+	ret = mergeMaps(&m, nil, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	testutils.FatalUnless(t, ret == nil, "")
+
+	ret = mergeMaps(&m, ParamMap{"Nil": (*uint)(nil), "Bar": -5, "Foo": uint(5)}, config)
+	testutils.FatalUnless(t, mapsEq(m, ParamMap{"Nil": nil, "TypedNil": (*int)(nil), "Bar": -5, "Foo": int(5), "Inc": incomp{}}), "Unexpected value of m: %v", m)
+	//fmt.Println(ret)
+	testutils.FatalUnless(t, len(ret) == 1, "unexpected errors: %v", ret) // expect 1 error (from type mismatch with Foo)
+
+	m = maps.Clone(startMap)
+	ret = mergeMaps(&m, m, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	// fmt.Println(ret)
+	testutils.FatalUnless(t, len(ret) == 1, "") // 1 error from the incomparable value (with panic being caught)
+
+	m = maps.Clone(startMap)
+	ret = mergeMaps(&m, ParamMap{"Foo": 5}, config)
+	testutils.FatalUnless(t, mapsEq(m, startMap), "")
+	testutils.FatalUnless(t, ret == nil, "")
+
+	errPanic := fmt.Errorf("Some Error")
+	var numCalls int
+	panickingCompare := func(x, y any) bool { numCalls++; panic(errPanic) }
+	parseFlagArgs(&configGeneral, EnsureDataIsNotReplaced_fun(panickingCompare))
+	config = configGeneral.config_OldData
+	m = maps.Clone(startMap)
+	ret = mergeMaps(&m, ParamMap{"New": 10, "Foo": 7, "Nil": nil}, config)
+	testutils.FatalUnless(t, mapsEq(m, ParamMap{"Nil": nil, "TypedNil": (*int)(nil), "Foo": 5, "Inc": incomp{}, "New": 10}), "")
+	// We expect 2 calls to the comparison function, from "Foo" and "Nil"
+	testutils.FatalUnless(t, len(ret) == 2, "%v", ret)
+	testutils.FatalUnless(t, numCalls == 2, "")
+	// returned errors should wrap the panic value if it is an error
+	testutils.FatalUnless(t, errors.Is(ret[0], errPanic), "")
+	testutils.FatalUnless(t, errors.Is(ret[1], errPanic), "")
+
+	//repeat with ReplacePreviousData
+	parseFlagArgs(&configGeneral, ReplacePreviousData, EnsureDataIsNotReplaced_fun(panickingCompare))
+	config = configGeneral.config_OldData
+	m = maps.Clone(startMap)
+	numCalls = 0
+	ret = mergeMaps(&m, ParamMap{"New": 10, "Foo": 7, "Nil": nil}, config)
+	testutils.FatalUnless(t, mapsEq(m, ParamMap{"Nil": nil, "TypedNil": (*int)(nil), "Foo": 7, "Inc": incomp{}, "New": 10}), "")
+	// We expect 2 calls to the comparison function, from "Foo" and "Nil"
+	testutils.FatalUnless(t, len(ret) == 2, "%v", ret)
+	testutils.FatalUnless(t, numCalls == 2, "")
+	// returned errors should wrap the panic value if it is an error
+	testutils.FatalUnless(t, errors.Is(ret[0], errPanic), "")
+	testutils.FatalUnless(t, errors.Is(ret[1], errPanic), "")
+
+	//not catching panics:
+	parseFlagArgs(&configGeneral, LetComparisonFunctionPanic)
+	config = configGeneral.config_OldData
+	m = maps.Clone(startMap)
+	numCalls = 0
+	didPanic, panicValue := testutils.CheckPanic2(mergeMaps, &m, ParamMap{"New": 10, "Foo": 7, "Nil": nil}, config)
+	testutils.FatalUnless(t, didPanic == true, "")
+	testutils.FatalUnless(t, panicValue == errPanic, "")
+	testutils.FatalUnless(t, numCalls == 1, "")
+
+}
+
+/*
 
 func TestFillMapFromStruct2(t *testing.T) {
 	var m1 ParamMap = ParamMap{}
@@ -59,7 +204,9 @@ func TestFillMapFromStruct2(t *testing.T) {
 	type invalidType = struct{ *int }
 	testutils.FatalUnless(t, testutils.CheckPanic(fillMapFromStruct[invalidType], &invalidType{}, &ParamMap{}, AssertDataIsNotReplaced), "No panic on invalid type")
 }
+*/
 
+/*
 func TestPrintPreviousDataTreatment(t *testing.T) {
 	s1 := AssertDataIsNotReplaced.String()
 	s2 := PreferPreviousData.String()

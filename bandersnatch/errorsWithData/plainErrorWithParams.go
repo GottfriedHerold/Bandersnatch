@@ -334,7 +334,7 @@ func newErrorWithData_struct[StructType any](baseError error, interpolationStrin
 
 	// This would panic if interpolationString=="", baseError==nil, c_EmptyString defaulted. Ruled out by pre-condition.
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
-	errs = fillMapFromStruct(data, &ret.errorWithParameters_common.params, c_OldData)
+	errs = fillMapFromStruct(&ret.errorWithParameters_common.params, data, c_OldData)
 
 	// NOTE: We are given *data, so we are guaranteed to have no missing keys in the resulting ParamMap.
 	// However, pre-existing data in baseError might have the wrong type. So if c_OldData.preferOld is set, this can still fail,

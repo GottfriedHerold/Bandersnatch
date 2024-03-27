@@ -21,6 +21,8 @@ import (
 //     If old and new values do not coincide, we report errors. Note that we do not abort on first error, but rather continue and we report all errors.
 //
 // Note that the returned errors for this internal function do not have ErrorPrefix.
+// In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
+// satisfies the [error] interface, the resulting error[i] wraps that argument.
 func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) (errors []error) {
 	// just dispatch to one of the mergeMaps_<foo> functions below.
 	if !config.PerformEqualityCheck() {
@@ -83,13 +85,16 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 						// No ErrorPrefix here, no line break
 						newError = fmt.Errorf("for key %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
 					} else { // recovered panic in comparison function.
-						newError = fmt.Errorf("for key %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+						if panicValueError, ok := panicValue.(error); ok {
+							newError = fmt.Errorf("for key %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %w", key, oldValue, newValue, panicValueError)
+						} else {
+							newError = fmt.Errorf("for key %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+						}
 					}
 					errors = append(errors, newError)
 				}
 			} else { // config.CatchPanic set to false
-				comparisonResult := checkFun(oldValue, newValue)
-				if comparisonResult == false {
+				if !checkFun(oldValue, newValue) {
 					errors = append(errors, fmt.Errorf("for key %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue))
 				}
 			}
@@ -239,7 +244,9 @@ func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err
 // The meaning of config and error reporting is the same as [mergeMaps]
 //
 // Note that the returned errors for this internal function do not have ErrorPrefix. We return errors==nil rather than an empty list in case of success.
-func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config config_OldData) (errors []error) {
+// In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
+// satisfies the [error] interface, the resulting error[i] wraps that argument.
+func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config config_OldData) (errors []error) {
 	if *m == nil {
 		*m = make(map[string]any)
 	}
@@ -291,14 +298,17 @@ func fillMapFromStruct[StructType any](s *StructType, m *map[string]any, config 
 						// No ErrorPrefix here, no line break
 						err = fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
 					} else { // recovered panic in comparison function.
-						err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+						if panicValueError, ok := panicValue.(error); ok { // differentiate to preserve error wrappin
+							err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %w", key, oldValue, newValue, panicValueError)
+						} else {
+							err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+						}
 					}
 					errors = append(errors, err)
 				}
 			} else {
 				// config.CatchPanic set to false
-				comparisonResult := checkFun(oldValue, newValue)
-				if comparisonResult == false {
+				if !checkFun(oldValue, newValue) {
 					errors = append(errors, fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue))
 				}
 			}
