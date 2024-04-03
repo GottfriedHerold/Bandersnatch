@@ -106,6 +106,95 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 	return
 }
 
+// NOTE: Adding entries to an existing map is more convenient for our use cases than returning a map.
+// This duplicates some code from mergeMaps, but the alternative would be even more copying.
+
+// fillMapFromStruct converts a struct of type StructType into a map[string]any.
+// This function adds an entry to the provided (existing) map *m for each visible field of StructType (including from embedded structs).
+// This modifies *m, converting a nil map to an empty map. This conversion happens even for empty StructType.
+//
+// StructType must be valid for use in this library (i.e. satisfy [StructSuitableForErrorsWithData]).
+// This functions panics otherwise.
+// If *m is a field inside *s (or similar shenanigans), the behaviour is undefined.
+// Preexisting entries of *m that do not correspond to a field of the struct are left unchanged.
+//
+// The meaning of config and error reporting is the same as [mergeMaps]
+//
+// Note that the returned errors for this internal function do not have ErrorPrefix. We return errors==nil rather than an empty list in case of success.
+// In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
+// satisfies the [error] interface, the resulting error[i] wraps that argument.
+func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config config_OldData) (errors []error) {
+	if *m == nil {
+		*m = make(map[string]any)
+	}
+	reflectedStructType := utils.TypeOfType[StructType]()
+	allStructFields, errLookup := getStructMapConversionLookup(reflectedStructType)
+	if errLookup != nil {
+		panic(errLookup)
+	}
+	structValue := reflect.ValueOf(s).Elem()
+	if !config.PerformEqualityCheck() {
+		// simple case. Just prefer old / new value depending on config
+		if config.PreferOld() {
+			for _, structField := range allStructFields {
+				_, alreadyPresent := (*m)[structField.Name]
+				if !alreadyPresent {
+					fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
+					(*m)[structField.Name] = fieldInStruct
+				}
+			}
+		} else { // config.preferOld not set. We always use the new value
+			for _, structField := range allStructFields {
+				fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
+				(*m)[structField.Name] = fieldInStruct
+			}
+		}
+		return nil // no possible error
+	} else {
+		// config.PerformEqualityCheck() returned true
+		checkFun := config.GetCheckFun()
+		checkFunWithPanicRecovery := withPanicResults(checkFun)
+
+		for _, structField := range allStructFields {
+			var key string = structField.Name
+			oldValue, alreadyPresent := (*m)[key]
+			newValue := structValue.FieldByIndex(structField.Index).Interface()
+			if !alreadyPresent {
+				(*m)[key] = newValue
+				continue
+			}
+			if config.PreferNew() {
+				(*m)[key] = newValue // unconditionally write. Note there is no "continue" here.
+			}
+
+			if config.CatchPanic() {
+				comparisonResult, didPanic, panicValue := checkFunWithPanicRecovery(oldValue, newValue)
+				if comparisonResult == false {
+					var err error
+					if !didPanic {
+						// No ErrorPrefix here, no line break
+						err = fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
+					} else { // recovered panic in comparison function.
+						if panicValueError, ok := panicValue.(error); ok { // differentiate to preserve error wrappin
+							err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %w", key, oldValue, newValue, panicValueError)
+						} else {
+							err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
+						}
+					}
+					errors = append(errors, err)
+				}
+			} else {
+				// config.CatchPanic set to false
+				if !checkFun(oldValue, newValue) {
+					errors = append(errors, fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue))
+				}
+			}
+
+		}
+	}
+	return
+}
+
 // DEPRECATED FUNCTIONS:
 
 /*
@@ -228,92 +317,3 @@ func mergeMaps_errorOnCollisionomparator(target *ParamMap, source ParamMap) (err
 }
 
 */
-
-// NOTE: Adding entries to an existing map is more convenient for our use cases than returning a map.
-// This duplicates some code from mergeMaps, but the alternative would be even more copying.
-
-// fillMapFromStruct converts a struct of type StructType into a map[string]any.
-// This function adds an entry to the provided (existing) map *m for each visible field of StructType (including from embedded structs).
-// This modifies *m, converting a nil map to an empty map. This conversion happens even for empty StructType.
-//
-// StructType must be valid for use in this library (i.e. satisfy [StructSuitableForErrorsWithData]).
-// This functions panics otherwise.
-// If *m is a field inside *s (or similar shenanigans), the behaviour is undefined.
-// Preexisting entries of *m that do not correspond to a field of the struct are left unchanged.
-//
-// The meaning of config and error reporting is the same as [mergeMaps]
-//
-// Note that the returned errors for this internal function do not have ErrorPrefix. We return errors==nil rather than an empty list in case of success.
-// In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
-// satisfies the [error] interface, the resulting error[i] wraps that argument.
-func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config config_OldData) (errors []error) {
-	if *m == nil {
-		*m = make(map[string]any)
-	}
-	reflectedStructType := utils.TypeOfType[StructType]()
-	allStructFields, errLookup := getStructMapConversionLookup(reflectedStructType)
-	if errLookup != nil {
-		panic(errLookup)
-	}
-	structValue := reflect.ValueOf(s).Elem()
-	if !config.PerformEqualityCheck() {
-		// simple case. Just prefer old / new value depending on config
-		if config.PreferOld() {
-			for _, structField := range allStructFields {
-				_, alreadyPresent := (*m)[structField.Name]
-				if !alreadyPresent {
-					fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
-					(*m)[structField.Name] = fieldInStruct
-				}
-			}
-		} else { // config.preferOld not set. We always use the new value
-			for _, structField := range allStructFields {
-				fieldInStruct := structValue.FieldByIndex(structField.Index).Interface()
-				(*m)[structField.Name] = fieldInStruct
-			}
-		}
-		return nil // no possible error
-	} else {
-		// config.PerformEqualityCheck() returned true
-		checkFun := config.GetCheckFun()
-		checkFunWithPanicRecovery := withPanicResults(checkFun)
-
-		for _, structField := range allStructFields {
-			var key string = structField.Name
-			oldValue, alreadyPresent := (*m)[key]
-			newValue := structValue.FieldByIndex(structField.Index).Interface()
-			if !alreadyPresent {
-				(*m)[key] = newValue
-				continue
-			}
-			if config.PreferNew() {
-				(*m)[key] = newValue // unconditionally write. Note there is no "continue" here.
-			}
-
-			if config.CatchPanic() {
-				comparisonResult, didPanic, panicValue := checkFunWithPanicRecovery(oldValue, newValue)
-				if comparisonResult == false {
-					var err error
-					if !didPanic {
-						// No ErrorPrefix here, no line break
-						err = fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
-					} else { // recovered panic in comparison function.
-						if panicValueError, ok := panicValue.(error); ok { // differentiate to preserve error wrappin
-							err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %w", key, oldValue, newValue, panicValueError)
-						} else {
-							err = fmt.Errorf("for key/field name %v, there was already a value present. When comparing the old and new values, a panic was encountered in the comparison function. Old value: %v, new value: %v, panic was: %v", key, oldValue, newValue, panicValue)
-						}
-					}
-					errors = append(errors, err)
-				}
-			} else {
-				// config.CatchPanic set to false
-				if !checkFun(oldValue, newValue) {
-					errors = append(errors, fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue))
-				}
-			}
-
-		}
-	}
-	return
-}

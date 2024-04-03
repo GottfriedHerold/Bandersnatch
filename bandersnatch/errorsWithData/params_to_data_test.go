@@ -1,7 +1,9 @@
 package errorsWithData
 
 import (
+	"errors"
 	"io"
+	"maps"
 	"reflect"
 	"testing"
 
@@ -305,6 +307,115 @@ func TestMapToStructConversion(t *testing.T) {
 
 }
 
+// individual test case for ensureCanMakeStructFromParameters. This is not defined as a local functions because it takes a type as generic parameter.
+// Note a single testcase is run with several settings for config
+//
+// m is the value passed to ensureCanMakeStructFromParameters (or rather, a pointer to m)
+// expectedMap is what we expect the function to modify m into if ModifyData() is set
+// expectedUnconditionalErrors is the number of errors we expect if IsMissingDataError is not set.
+// expectedUnconditionalErrors + expectedZeros is the number of errros we expect if it is set.
+//
+// NOTE: If StructType contains an incomparable type, expectedMap is ignored.
+func testcaseEnsureCanMakeStructFromParams[StructType any](t *testing.T, m ParamMap, expectedMap ParamMap, expectedUnconditionalErrors int, expectedZeroErrors int) {
+
+	var returnedErr error
+
+	sType := utils.TypeOfType[StructType]()
+	isComparable := sType.Comparable()
+
+	// Determines the number of errors found by ensureCanMakeStructFromParams. This is pried from the returned error in an implementation-specific way.
+	//
+	// This code may need to change. Maybe it would be easier to parse the e.Error() string???
+	getNumberofErrors := func(e error) (num int) {
+		if e == nil {
+			return 0
+		}
+		num = 1
+		e = errors.Unwrap(e)
+		if e == nil {
+			panic("Must not happen")
+		}
+		if e, ok := e.(interface{ Unwrap() []error }); ok {
+			num = len(e.Unwrap())
+			if num <= 1 {
+				panic("Must not happen")
+			}
+		}
+		return
+	}
+
+	mCopy := maps.Clone(m)
+	returnedErr = ensureCanMakeStructFromParameters[StructType](&mCopy, config_ImplicitZero{implicitZero: true}, config_SetZeros{setErrorsToZero: false})
+	numErrs := getNumberofErrors(returnedErr)
+	testutils.FatalUnless(t, numErrs == expectedUnconditionalErrors, "When called with %v, an unexpected number of errors was returned. We expected %v errors, but got as error %v", m, expectedUnconditionalErrors, returnedErr)
+	testutils.FatalUnless(t, !isComparable || maps.Equal(mCopy, m), "When called with %v, the map was unexpectedly modifed into %v", m, mCopy)
+
+	mCopy = maps.Clone(m)
+	returnedErr = ensureCanMakeStructFromParameters[StructType](&mCopy, config_ImplicitZero{implicitZero: false}, config_SetZeros{setErrorsToZero: false})
+	numErrs = getNumberofErrors(returnedErr)
+	testutils.FatalUnless(t, numErrs == expectedUnconditionalErrors+expectedZeroErrors, "When called with %v, an unexpected number of errors was returned. We expected %v errors, but got as error %v", m, expectedUnconditionalErrors+expectedZeroErrors, returnedErr)
+	testutils.FatalUnless(t, !isComparable || maps.Equal(mCopy, m), "When called with %v, the map was unexpectedly modifed into %v", m, mCopy)
+
+	mCopy = maps.Clone(m)
+	returnedErr = ensureCanMakeStructFromParameters[StructType](&mCopy, config_ImplicitZero{implicitZero: true}, config_SetZeros{setErrorsToZero: true})
+	numErrs = getNumberofErrors(returnedErr)
+	testutils.FatalUnless(t, numErrs == expectedUnconditionalErrors, "When called with %v, an unexpected number of errors was returned. We expected %v errors, but got as error %v", m, expectedUnconditionalErrors, returnedErr)
+	testutils.FatalUnless(t, !isComparable || maps.Equal(mCopy, expectedMap), "When called with %v, the map was unexpectedly modifed into %v while we expected %v", m, mCopy, expectedMap)
+
+	mCopy = maps.Clone(m)
+	returnedErr = ensureCanMakeStructFromParameters[StructType](&mCopy, config_ImplicitZero{implicitZero: false}, config_SetZeros{setErrorsToZero: true})
+	numErrs = getNumberofErrors(returnedErr)
+	testutils.FatalUnless(t, numErrs == expectedUnconditionalErrors+expectedZeroErrors, "When called with %v, an unexpected number of errors was returned. We expected %v errors, but got as error %v", m, expectedUnconditionalErrors+expectedZeroErrors, returnedErr)
+	testutils.FatalUnless(t, !isComparable || maps.Equal(mCopy, expectedMap), "When called with %v, the map was unexpectedly modifed into %v while we expected %v", m, mCopy, expectedMap)
+
+}
+
+func TestEnsureCanMakeStructFromParams(t *testing.T) {
+	type invalid struct{ unexported int }
+	testutils.FatalUnless(t, testutils.CheckPanic(ensureCanMakeStructFromParameters[invalid],
+		&ParamMap{"unexported": 5}, config_ImplicitZero{}, config_SetZeros{}), "ensureCanMakeStructFromParamters did not panic for invalid StructType")
+	testutils.FatalUnless(t, testutils.CheckPanic(ensureCanMakeStructFromParameters[invalid],
+		new(ParamMap), config_ImplicitZero{}, config_SetZeros{}), "ensureCanMakeStructFromParameters did not panic for nil map")
+
+	type empty struct{}
+
+	testcaseEnsureCanMakeStructFromParams[empty](t, ParamMap{}, ParamMap{}, 0, 0)
+	testcaseEnsureCanMakeStructFromParams[empty](t, ParamMap{"Foo": 5}, ParamMap{"Foo": 5}, 0, 0)
+
+	type WithData struct{ Data int }
+
+	testcaseEnsureCanMakeStructFromParams[WithData](t, ParamMap{}, ParamMap{"Data": 0}, 0, 1)
+	testcaseEnsureCanMakeStructFromParams[WithData](t, ParamMap{"Foo": 5}, ParamMap{"Data": 0, "Foo": 5}, 0, 1)
+	testcaseEnsureCanMakeStructFromParams[WithData](t, ParamMap{"Data": 10, "Foo": 20}, ParamMap{"Data": 10, "Foo": 20}, 0, 0)
+	testcaseEnsureCanMakeStructFromParams[WithData](t, ParamMap{"Data": "Data", "Foo": 20}, ParamMap{"Data": 0, "Foo": 20}, 1, 0)
+
+	type WithPointers struct {
+		WithData
+		P *int
+		Q *int
+	}
+
+	type WithSlices struct {
+		WithData
+		P []int
+	}
+
+	type WithInterface struct {
+		V flagArgument // arbitrary interface. We can't use any, because that has no no-cases.
+	}
+
+	var intPtrNil *int
+
+	testcaseEnsureCanMakeStructFromParams[WithPointers](t, ParamMap{}, ParamMap{"Data": 0, "P": intPtrNil, "Q": intPtrNil}, 0, 3)
+	testcaseEnsureCanMakeStructFromParams[WithPointers](t, ParamMap{"Data": nil, "P": nil, "Q": nil}, ParamMap{"Data": 0, "P": nil, "Q": nil}, 1, 0)
+	testcaseEnsureCanMakeStructFromParams[WithSlices](t, ParamMap{}, nil, 0, 2)
+	testcaseEnsureCanMakeStructFromParams[WithPointers](t, ParamMap{"P": nil}, ParamMap{"Data": 0, "P": any(nil), "Q": intPtrNil}, 0, 2)
+	testcaseEnsureCanMakeStructFromParams[WithPointers](t, ParamMap{"P": (*string)(nil)}, ParamMap{"Data": 0, "P": intPtrNil, "Q": intPtrNil}, 1, 2)
+	testcaseEnsureCanMakeStructFromParams[WithInterface](t, ParamMap{}, ParamMap{"V": nil}, 0, 1)
+	testcaseEnsureCanMakeStructFromParams[WithInterface](t, ParamMap{"V": fArg_EmptyString{}}, ParamMap{"V": fArg_EmptyString{}}, 0, 0)
+	testcaseEnsureCanMakeStructFromParams[WithInterface](t, ParamMap{"V": intPtrNil}, ParamMap{"V": nil}, 1, 0)
+}
+
 /*
 func TestEnsureCanMakeStructFromParams(t *testing.T) {
 	var (
@@ -361,5 +472,4 @@ func TestEnsureCanMakeStructFromParams(t *testing.T) {
 	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, MissingDataIsError) != nil, "")
 	testutils.FatalUnless(t, ensureCanMakeStructFromParameters[struct{ Arg int }](&mNilInterface, MissingDataAsZero) != nil, "")
 }
-
 */

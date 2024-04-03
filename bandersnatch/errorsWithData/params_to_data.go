@@ -253,6 +253,9 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			if utils.IsNilable(expectedField.Type) {
 				continue // no further check neccessary.
 			} else {
+				if c_SetZeros.ModifyData() {
+					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
+				}
 				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is set to a nil interface. This cannot be used for the corresponding struct field of non-nilable type %v",
 					expectedField.Name, utils.GetReflectName(expectedField.Type)))
 				continue
@@ -350,8 +353,10 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 		// cf. https://github.com/golang/go/issues/51649
 		if valueFromMap == nil { // nil interface in map
 			if utils.IsNilable(fieldInRetValue.Type()) {
-				appropriateNil := reflect.Zero(fieldInRetValue.Type())
-				fieldInRetValue.Set(appropriateNil)
+				// We don't need this: ret was initialized with the correct value
+
+				// appropriateNil := reflect.Zero(fieldInRetValue.Type())
+				// fieldInRetValue.Set(appropriateNil)
 			} else {
 				collectedErrors = append(collectedErrors, fmt.Errorf("parameter named %v is set to any(nil), but the struct field cannot be nil",
 					structField.Name))
@@ -376,7 +381,7 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 				}
 			}
 			// no problem detected. Actually set the value
-			fieldInRetValue.Set(reflect.ValueOf(valueFromMap))
+			fieldInRetValue.Set(reflect.ValueOf(valueFromMap)) // if this ever panics, it is this function that screwed up and not the caller.
 		}
 	}
 	if len(collectedErrors) != 0 {

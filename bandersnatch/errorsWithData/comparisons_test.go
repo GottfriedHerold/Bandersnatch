@@ -20,6 +20,8 @@ import (
 // To avoid race-conditions if someone tries to run these tests in parallel, we include a mutex.
 // This mutex must be locked at the beginning of every test that accesses these global variables.
 
+// Note: An (probably better) alternative would be to wrap the function into a closure that modifies local variables instead. Not being able to compare functions makes this annoying, though.
+
 // as explained above, these are global variables that our (test-)comparison functions write to in order to provide a channel to indicate what was called with what.
 // (Note: we could make these actual Go channels, but that wouldn't help much, as we still need the mutex.
 var (
@@ -271,6 +273,7 @@ func TestComparisonIsEqual(t *testing.T) {
 	checkPair(nil, new(int), false)
 	checkPair(nil, nil, true)
 	checkPair(new(int), new(int), false)
+	checkPair(nil, 4, false)
 	intPtr := new(int)
 	checkPair(intPtr, intPtr, true)
 

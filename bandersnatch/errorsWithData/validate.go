@@ -56,7 +56,10 @@ func CheckParametersForStruct_all[StructType any](fieldNames []string) {
 	}
 }
 
-// CheckParameterForStruct[StructType](fieldNames) checks whether the name of the (exported) fields contains the given fieldName.
+// CheckParameterForStruct[StructType](fieldNames) checks whether the given fieldName is among the fields of StructType, in the sense that
+// the map[string]any - API would work. Note that this picks up names of embedded fields.
+//
+// StructType must satisfy the conditions of [StructSuitableForErrorsWithData], else we panic. Due 
 //
 // This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct contains a field of a given name.

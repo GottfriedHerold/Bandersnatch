@@ -390,7 +390,13 @@ func EnsureDataIsNotReplaced_fun(f EqualityComparisonFunction) fArg_OldData {
 	if f == nil {
 		panic(ErrorPrefix + "called EnsureDataIsNotReplaced_fun with nil function")
 	}
-	return fArg_OldData{fArg{val: flagArg_AssertEqual_fun}, &f}
+
+	g := f // unneccessary, but added for clarity.
+
+	// Note: This stores a pointer to a local variable of function type.
+	// This extra indirection (from having a pointer-to-function) inside fArg_OldData has one single purpose:
+	// It avoids making fArg_OldData (and types containing it) incomparable.
+	return fArg_OldData{fArg{val: flagArg_AssertEqual_fun}, &g}
 }
 
 // specific instance for allFlagArgs below. This is only used in testing, the issue being that

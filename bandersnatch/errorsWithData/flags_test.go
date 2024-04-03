@@ -341,3 +341,17 @@ func TestParseFlagArgs_GetData(t *testing.T) {
 	testutils.FatalUnless(t, zf5.IsMissingDataError() == false, "")
 	testutils.FatalUnless(t, p5.PanicOnAllErrors() == true, "")
 }
+
+func TestEnsureDataIsNotReplaced_fun(t *testing.T) {
+	testutils.FatalUnless(t, testutils.CheckPanic(EnsureDataIsNotReplaced_fun, nil) == true, "EnsureDataIsNotReplace_fun(nil) does not panic")
+
+	var state int
+	f := func(x, y any) bool {
+		state += 1
+		return true
+	}
+	flag := EnsureDataIsNotReplaced_fun(f)
+	(*flag.f)(nil, nil) // ensure that flag actually contains f
+	testutils.FatalUnless(t, state == 1, "")
+
+}
