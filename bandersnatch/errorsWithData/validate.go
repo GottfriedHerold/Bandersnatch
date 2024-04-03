@@ -1,6 +1,7 @@
 package errorsWithData
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
@@ -57,13 +58,14 @@ func CheckParametersForStruct_all[StructType any](fieldNames []string) {
 }
 
 // CheckParameterForStruct[StructType](fieldNames) checks whether the given fieldName is among the fields of StructType, in the sense that
-// the map[string]any - API would work. Note that this picks up names of embedded fields.
+// the map[string]any - API would work. Note that this picks up fields of embedded structs.
 //
-// StructType must satisfy the conditions of [StructSuitableForErrorsWithData], else we panic. Due 
+// StructType must satisfy the conditions of [StructSuitableForErrorsWithData], else we panic.
+// Due to the restictions this places on StructType, only fieldNames that can be exported identifiers are meaningful.
 //
 // This is intented to be used in init-routines or tests accompanying places in the code
 // where we assume that a certain struct contains a field of a given name.
-// The purpose is to create guards in the code / tests. It panics on failure.
+// The purpose is to create guards in the code / tests that trigger if variables get renamed. It panics on failure.
 //
 // StructType must satisfy the conditions of [StructSuitableForErrorsWithData], else we panic.
 func CheckParameterForStruct[StructType any](fieldName string) {
@@ -90,58 +92,55 @@ func CheckIsSubtype[StructType1 any, StructType2 any]() {
 	if err != nil {
 		panic(err)
 	}
+
 	for _, expectedField1 := range allExpectedFields1 {
 		CheckParameterForStruct[StructType2](expectedField1.Name)
+	}
+
+	// if len(allExpectedFields1) == 0, the above loop is ran 0 times, so we don't check that StructType2 is well-formed.
+	if len(allExpectedFields1) == 0 {
+		if err := StructSuitableForErrorsWithData[StructType2](); err != nil {
+			panic(err)
+		}
 	}
 }
 
 // EnsureErrorsValid_Final runs ValidateError_Final on each of its arguments and panics if there is an issue.
 func EnsureErrorsValid_Final(errs ...ErrorWithData_any) {
-	var firstError error
-	var numberOfErrors int
+	var allErrors []error
 	for _, err := range errs {
 		if internalIssue := err.ValidateError_Final(); internalIssue != nil {
-			if firstError == nil {
-				firstError = internalIssue
-			}
-			numberOfErrors++
+			allErrors = append(allErrors, internalIssue)
 		}
 	}
-	if numberOfErrors > 0 {
-		panic(fmt.Errorf("EnsureErrorsValid_Final has detected %v issues. The first one was %w", numberOfErrors, firstError))
+	if len(allErrors) > 0 {
+		panic(fmt.Errorf("EnsureErrorsValid_Final has detected issues with %v errors:\n%w", len(allErrors), errors.Join(allErrors...)))
 	}
 }
 
 // EnsureErrorsValid_Base runs ValidateError_Base on each of its arguments and panics if there is an issue.
 func EnsureErrorsValid_Base(errs ...ErrorWithData_any) {
-	var firstError error
-	var numberOfErrors int
+	var allErrors []error
 	for _, err := range errs {
 		if internalIssue := err.ValidateError_Base(); internalIssue != nil {
-			if firstError == nil {
-				firstError = internalIssue
-			}
-			numberOfErrors++
+			allErrors = append(allErrors, internalIssue)
 		}
 	}
-	if numberOfErrors > 0 {
-		panic(fmt.Errorf("EnsureErrorsValid_Base has detected %v issues. The first one was %w", numberOfErrors, firstError))
+	if len(allErrors) > 0 {
+		panic(fmt.Errorf("EnsureErrorsValid_Base has detected issues with %v errors:\n%w", len(allErrors), errors.Join(allErrors...)))
 	}
 }
 
 // EnsureErrorsValid_Syntax runs ValidateSyntax on each of its arguments and panics if there is an issue.
 func EnsureErrorsValid_Syntax(errs ...ErrorWithData_any) {
-	var firstError error
-	var numberOfErrors int
+	var allErrors []error
+
 	for _, err := range errs {
 		if internalIssue := err.ValidateSyntax(); internalIssue != nil {
-			if firstError == nil {
-				firstError = internalIssue
-			}
-			numberOfErrors++
+			allErrors = append(allErrors, internalIssue)
 		}
 	}
-	if numberOfErrors > 0 {
-		panic(fmt.Errorf("EnsureErrorsValid_Syntax has detected %v issues. The first one was %w", numberOfErrors, firstError))
+	if len(allErrors) > 0 {
+		panic(fmt.Errorf("EnsureErrorsValid_Syntax has detected issues with %v errors:\n%w", len(allErrors), errors.Join(allErrors...)))
 	}
 }
