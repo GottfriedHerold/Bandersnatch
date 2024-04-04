@@ -1,6 +1,7 @@
 package errorsWithData
 
-/*
+// NOTE: Tests for functions that are basically implementations of the exported functions from modify_errors.go
+// are NOT tested in this file. We instead only write tests for the exported API in modify_errors.go to avoid reduncancy.
 
 import (
 	"errors"
@@ -17,6 +18,7 @@ var (
 	_ ErrorWithData[struct{ Foo int }] = &errorWithParameters_T[struct{ Foo int }]{}
 )
 
+/*
 func TestForgetStructType(t *testing.T) {
 
 	var e_T ErrorWithData[struct{ foo int }] = &errorWithParameters_T[struct{ foo int }]{}
@@ -25,6 +27,7 @@ func TestForgetStructType(t *testing.T) {
 
 	// testing other branch of forgetStructType would require a mock implementation of ErrorWithData -- not worth it.
 }
+*/
 
 // helper function for TestPanicOnNilValues.
 // not defined as a lambda, because it's generic.
@@ -36,7 +39,7 @@ func testPanicOnConcreteNil[E ErrorWithData_any](t *testing.T) {
 	}
 	nilable := utils.IsNilable(EType)
 	if !nilable {
-		return
+		return // not supposed to happen, actually.
 	}
 	var zeroOfE E
 	zero := ErrorWithData_any(zeroOfE)
@@ -93,7 +96,7 @@ func TestErrorInterpolateForConcreteImplementation(t *testing.T) {
 	testutils.FatalUnless(t, base3.ValidateError_Params(ParamMap{"Foo": 1, "Bar": 2}) == nil, "")
 	testutils.FatalUnless(t, base3.Error_interpolate(ParamMap{"Foo": 1, "Bar": 2}) == "Foo412", "")
 
-	err1 := makeErrorWithParametersCommon_any(baseErr, "%w")
+	err1 := makeErrorWithParametersCommon_any(baseErr, "", config_EmptyString{allowEmpty: false})
 	testutils.FatalUnless(t, len(err1.params) == 0, "")
 	testutils.FatalUnless(t, err1.params != nil, "nil map rather than empty map")
 	testutils.FatalUnless(t, err1.Error() == "BASE", "")
@@ -198,5 +201,3 @@ func TestGetData_structForErrorWithParameters(t *testing.T) {
 
 // NOTE: Test for the unexported newErrorWithData_* and deleteParameterFromError_* methods
 // are covered by test for the calling exported functions.
-
-*/

@@ -40,6 +40,7 @@ type errorWithParameters_T[StructType any] struct {
 	errorWithParameters_common
 }
 
+/*
 // forgetStructType "downcasts" ErrorWithData to ErrorWithData_any.
 //
 // Note: The same effect can be achieved by plain assignment (one is a sub-interface of the other, after all),
@@ -60,8 +61,9 @@ func forgetStructType[StructType any](err ErrorWithData[StructType]) ErrorWithDa
 		return &errImpl.errorWithParameters_common
 	}
 }
+*/
 
-// NOTE: The e == nil checks can never be satisfied if the concrete type of e is errorWithParameters_T due the way struct-embedding in Go works:
+// NOTE: The e == nil checks can never be satisfied if the concrete type of e is *errorWithParameters_T due the way struct-embedding in Go works:
 // In this case, Go will resolve the struct-embedding by calling (*e).errorWithParameters_common.METHOD(...), which dereferences nil and panics
 // before the promoted method is even called.
 
@@ -165,6 +167,10 @@ func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap
 }
 
 // precompute tokenizations. Note that we cannot precompute the creation of the ast as easily.
+// The reason for the latter is that for the current implementation, calling error validation on the AST
+// a) follows the error chain and
+// b) stores/memoizes the result in the AST itself.
+// This means we must not share ASTs between errors with different bases.
 var (
 	tokenListParentWithError = tokenizeInterpolationString("$w")
 	tokenListParent          = tokenizeInterpolationString("%w")
@@ -182,13 +188,16 @@ var (
 // This function does not directly report errors. Errors are reported in-band inside ret.parsedInterpolationString.
 // The [ValidateSyntax] method can be used to access these.
 // If config.AllowEmptyString is NOT set, interpolationString == "" and baseError == nil, the function panics.
-// This needs to be handled at the call site (mostly, because we want the error message to originate from the call sites rather than from here)
+// This combination needs to be handled at the call site (mostly, because we want the error message to originate from the call sites rather than from here)
+//
+// NOTE: Due to the fact that validation follows the error chain and may memoize errors, modifying the returned value needs
+// to be done before any validation function is called. ValidateSyntax is OK, though, as it only depends on the interpolation string/AST.
 func makeErrorWithParametersCommon_any(baseError error, interpolationString string, config config_EmptyString) (ret errorWithParameters_common) {
 	var tokens tokenList
 	ret.wrapped_error = baseError
 	if !config.AllowEmptyString() && interpolationString == "" {
 		if baseError == nil {
-			panic("This must be unreachable") // needs to be caught at call site
+			panic(ErrorPrefix + "makeErrorsWithParamtersCommon_any asked to create error with empty interpolation string and config forbidding this. This should be unreachable from the exported API") // needs to be caught at call site
 		}
 
 		// Note: We cannot set ret.parsedInterpolationString to a precomputed AST-parsed "$w" resp. "%w" here.

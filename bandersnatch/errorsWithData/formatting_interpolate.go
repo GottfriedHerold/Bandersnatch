@@ -256,7 +256,7 @@ func (abase *base_ast_condition) handleSyntaxConditions() error {
 func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError error) error {
 
 	if a.ast == nil {
-		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen
+		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen for ASTs created by make_ast
 	}
 
 	syntaxError := a.handleSyntaxConditions() // ensure this is called
@@ -288,11 +288,11 @@ func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError 
 func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) error {
 
 	if a.ast == nil {
-		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen
+		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen for ASTs created by make_ast
 	}
 
 	if parameters_passed == nil {
-		panic(ErrorPrefix + "VerifyParameters_passed called with nil map for parameters_passed") // bug in caller.
+		panic(ErrorPrefix + "VerifyParameters_passed called with nil map for parameters_passed. This must be unreachable for the exported API") // bug in caller.
 	}
 
 	syntaxError := a.handleSyntaxConditions() // ensure this is called
@@ -311,7 +311,7 @@ func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters
 // VerifyParameters_direct for list nodes just reports the first error in a child
 func (a ast_list) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
-		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
+		panic(ErrorPrefix + "invalid syntax tree: unitialized list") // cannot happen for ASTs created by make_ast
 	}
 	for _, ast := range *a {
 		err = ast.VerifyParameters_direct(parameters_direct, baseError)
@@ -325,7 +325,7 @@ func (a ast_list) VerifyParameters_direct(parameters_direct ParamMap, baseError 
 // VerifyParameters_passed for list nodes just reports the first error in a child
 func (a ast_list) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
-		panic(ErrorPrefix + "invalid syntax tree: unitialized list")
+		panic(ErrorPrefix + "invalid syntax tree: unitialized list") // cannot happen for ASTs created by make_ast
 	}
 	for _, ast := range *a {
 		err = ast.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
