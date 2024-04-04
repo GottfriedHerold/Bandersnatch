@@ -53,6 +53,14 @@ var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMa
 var validMapSelectors [4]string = [4]string{"!m", "!map", "!parameters", "!params"}
 var specialVariableNameIndicator byte = '!' // must be first byte of each validMapSelectors - entry. Note type is byte, not rune.
 
+// $w{#} or %w{#} outputs the lenth of the list output of base_error.Unwrap(), where Unwrap returns []error.
+var outputChildNumber string = "#"
+
+type multiUnwrap interface {
+	error
+	Unwrap() []error
+}
+
 // NOTE on panics:
 // None of handleSyntaxConditions, VerifyParameters_direct, VerifyParameters_passed or Interpolate is supposed to ever panic.
 // All panics in those methods are (supposed to be) unreachable if called on the output of [make_ast] (with input satisfying its assertions), even for mis-parses.
@@ -156,6 +164,16 @@ func (a ast_parentPercent) handleSyntaxConditions() error {
 //
 // For ast_parentDollar, there are no failure cases
 func (a ast_parentDollar) handleSyntaxConditions() error {
+	return nil
+}
+
+// handleSyntaxConditions is used to post-process the ast after calling [make_ast]
+//
+// It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
+// and ensures that errors are handled correctly later.
+//
+// For ast_parentDollarMulti or ast_parentPercentMulti, there are no failure cases
+func (*base_ast_parentMult) handleSyntaxConditions() error {
 	return nil
 }
 
@@ -472,6 +490,152 @@ func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, parameters_passed 
 		}
 	}
 	return nil
+}
+
+func (a ast_parentPercentMulti) VerifyParameters_direct(_ ParamMap, baseError error) error {
+	// Check that the base error is non-nil has an Unwrap() []error - method
+	if baseError == nil {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w{...}-expression, but the error does not wrap a non-nil error")
+	}
+	errMulti, ok := baseError.(multiUnwrap)
+	if !ok {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w{...}-expression, but the base error has no Unwrap() []error - method")
+	}
+
+	// a.whichChild == -1 indicates we just want count the number of errors. This cannot fail.
+	if a.whichChild == -1 {
+		return nil
+	}
+	if a.whichChild <= 0 { // whichChild is 1-indexed into the result of Unwrap()
+		panic("Cannot happen")
+	}
+
+	// ensure the relevant child exists; if yes and we can recurse, do so:
+	childErrors := errMulti.Unwrap()
+	if a.whichChild > len(childErrors) {
+		return fmt.Errorf(ErrorPrefix+"Interpolating string contains %%w{%v}-expression, but the base error wraps only %v errors", a.whichChild, len(childErrors))
+	}
+	if relevantChild, CanRecurse := childErrors[a.whichChild-1].(ErrorInterpolater); CanRecurse {
+		if relevantChild == nil { // should not happen unless the user uses a custom Join method.
+			return nil
+		}
+		if errFromChild := relevantChild.ValidateError_Params(nil); errFromChild != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromChild)
+		} else {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (a ast_parentPercentMulti) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
+	// exactly the same code as VerifyParameters_direct
+	if baseError == nil {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w{...}-expression, but the error does not wrap a non-nil error")
+	}
+	errMulti, ok := baseError.(multiUnwrap)
+	if !ok {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w{...}-expression, but the base error has no Unwrap() []error - method")
+	}
+	if a.whichChild == -1 {
+		return nil
+	}
+	if a.whichChild <= 0 {
+		panic("Cannot happen")
+	}
+	childErrors := errMulti.Unwrap()
+	if a.whichChild > len(childErrors) {
+		return fmt.Errorf(ErrorPrefix+"Interpolating string contains %%w{%v}-expression, but the base error wraps only %v errors", a.whichChild, len(childErrors))
+	}
+	if relevantChild, CanRecurse := childErrors[a.whichChild-1].(ErrorInterpolater); CanRecurse {
+		if relevantChild == nil { // should not happen unless the user uses a custom Join method.
+			return nil
+		}
+		if errFromChild := relevantChild.ValidateError_Params(nil); errFromChild != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromChild)
+		} else {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (a ast_parentDollarMulti) VerifyParameters_direct(_ ParamMap, baseError error) error {
+	// similar to the above:
+
+	// Check that the base error is non-nil has an Unwrap() []error - method
+	if baseError == nil {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w{...}-expression, but the error does not wrap a non-nil error")
+	}
+	errMulti, ok := baseError.(multiUnwrap)
+	if !ok {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w{...}-expression, but the base error has no Unwrap() []error - method")
+	}
+
+	// a.whichChild == -1 indicates we just want count the number of errors. This cannot fail.
+	if a.whichChild == -1 {
+		return nil
+	}
+	if a.whichChild <= 0 { // whichChild is 1-indexed into the result of Unwrap()
+		panic("Cannot happen")
+	}
+
+	// ensure the relevant child exists; we actually require it to support recursion now.
+	childErrors := errMulti.Unwrap()
+	if a.whichChild > len(childErrors) {
+		return fmt.Errorf(ErrorPrefix+"Interpolating string contains %%w{%v}-expression, but the base error wraps only %v errors", a.whichChild, len(childErrors))
+	}
+	if relevantChild, CanRecurse := childErrors[a.whichChild-1].(ErrorInterpolater); CanRecurse {
+		if relevantChild == nil { // should not happen unless the user uses a custom Join method.
+			return nil
+		}
+		if errFromChild := relevantChild.ValidateError_Base(); errFromChild != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromChild)
+		} else {
+			return nil
+		}
+	} else { // CanRecurse is false
+		return fmt.Errorf(ErrorPrefix+"Interpolation string contains $w{%v}-expression, but the referenced error does not support this", a.whichChild)
+	}
+}
+
+func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed ParamMap, baseError error) error {
+	// similar to the above, except that we call relevantChild.ValidateError_Params(params_passed) instead of relevantChild.ValidateError_Base()
+
+	// Check that the base error is non-nil has an Unwrap() []error - method
+	if baseError == nil {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w{...}-expression, but the error does not wrap a non-nil error")
+	}
+	errMulti, ok := baseError.(multiUnwrap)
+	if !ok {
+		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w{...}-expression, but the base error has no Unwrap() []error - method")
+	}
+
+	// a.whichChild == -1 indicates we just want count the number of errors. This cannot fail.
+	if a.whichChild == -1 {
+		return nil
+	}
+	if a.whichChild <= 0 { // whichChild is 1-indexed into the result of Unwrap()
+		panic("Cannot happen")
+	}
+
+	// ensure the relevant child exists; we actually require it to support recursion now.
+	childErrors := errMulti.Unwrap()
+	if a.whichChild > len(childErrors) {
+		return fmt.Errorf(ErrorPrefix+"Interpolating string contains %%w{%v}-expression, but the base error wraps only %v errors", a.whichChild, len(childErrors))
+	}
+	if relevantChild, CanRecurse := childErrors[a.whichChild-1].(ErrorInterpolater); CanRecurse {
+		if relevantChild == nil { // should not happen unless the user uses a custom Join method.
+			return nil
+		}
+		if errFromChild := relevantChild.ValidateError_Params(params_passed); errFromChild != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromChild)
+		} else {
+			return nil
+		}
+	} else { // CanRecurse is false
+		return fmt.Errorf(ErrorPrefix+"Interpolation string contains $w{%v}-expression, but the referenced error does not support this", a.whichChild)
+	}
 }
 
 // VerifyParameters_direct for %condition{Subtree} will conditionally check the subtree if the condition holds
@@ -810,6 +974,88 @@ func (a ast_parentDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, ba
 	} else if errInterpolatable, ok := baseError.(ErrorInterpolater); !ok {
 		s.WriteString(`<$w is not supported by base error!>`)
 		s.WriteString(baseError.Error()) // we still output the base error
+	} else {
+		s.WriteString(errInterpolatable.Error_interpolate(parameters_passed))
+	}
+}
+
+func (a ast_parentPercentMulti) Interpolate(_ ParamMap, _ ParamMap, baseError error, s *strings.Builder) {
+	if baseError == nil {
+		if a.whichChild == -1 {
+			s.WriteString(`%w{#}(<nil>)`)
+		} else {
+			fmt.Fprintf(s, `%%w{%v}(<nil>)`, a.whichChild)
+		}
+		return
+	}
+	baseUnwrappable, okUnwrap := baseError.(multiUnwrap)
+	if !okUnwrap {
+		if a.whichChild == -1 {
+			s.WriteString(`%w{#}(<Error without Unwrap() []error>)`)
+		} else {
+			fmt.Fprintf(s, `%%w{%v}(<Error without Unwrap() []error>)`, a.whichChild)
+		}
+		return
+	}
+	childErrors := baseUnwrappable.Unwrap()
+	if a.whichChild == -1 {
+		fmt.Fprintf(s, "%v", len(childErrors))
+		return
+	}
+	if a.whichChild <= 0 {
+		panic("Cannot happen")
+	}
+	if a.whichChild > len(childErrors) {
+		fmt.Fprintf(s, `%%w{%v}(<Index out of bounds>)`, a.whichChild)
+		return
+	}
+	relevantChild := childErrors[a.whichChild-1]
+	if relevantChild == nil { // cannot happen for errors created either by errors.Join or our own Join. We still handle it.
+		s.WriteString(`<nil>`)
+		return
+	}
+	s.WriteString(relevantChild.Error())
+}
+
+func (a ast_parentDollarMulti) Interpolate(_ ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
+	// almost the same as above
+	if baseError == nil {
+		if a.whichChild == -1 {
+			s.WriteString(`$w{#}(<nil>)`)
+		} else {
+			fmt.Fprintf(s, `$w{%v}(<nil>)`, a.whichChild)
+		}
+		return
+	}
+	baseUnwrappable, okUnwrap := baseError.(multiUnwrap)
+	if !okUnwrap {
+		if a.whichChild == -1 {
+			s.WriteString(`$w{#}(<Error without Unwrap() []error>)`)
+		} else {
+			fmt.Fprintf(s, `$w{%v}(<Error without Unwrap() []error>)`, a.whichChild)
+		}
+		return
+	}
+	childErrors := baseUnwrappable.Unwrap()
+	if a.whichChild == -1 {
+		fmt.Fprintf(s, "%v", len(childErrors))
+		return
+	}
+	if a.whichChild <= 0 {
+		panic("Cannot happen")
+	}
+	if a.whichChild > len(childErrors) {
+		fmt.Fprintf(s, `$w{%v}(<Index out of bounds>)`, a.whichChild)
+		return
+	}
+	relevantChild := childErrors[a.whichChild-1]
+	if relevantChild == nil { // cannot happen for errors created either by errors.Join or our own Join. We still handle it.
+		s.WriteString(`<nil>`)
+		return
+	}
+	if errInterpolatable, okInterpolate := relevantChild.(ErrorInterpolater); !okInterpolate {
+		fmt.Fprintf(s, `<$w{%v} not supported by referenced error>`, a.whichChild)
+		s.WriteString(relevantChild.Error()) // still output the relevant error
 	} else {
 		s.WriteString(errInterpolatable.Error_interpolate(parameters_passed))
 	}

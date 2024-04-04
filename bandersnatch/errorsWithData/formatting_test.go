@@ -185,10 +185,10 @@ func TestASTCond(t *testing.T) {
 		default:
 			t.Fatalf("Unexpected ast_cond type %T", ast)
 		}
-		ast.make_invalid(1)
+		ast.make_invalid(astConditionValidity_OUTPUT_CHILD)
 		testutils.FatalUnless(t, !ast.is_valid(), "")
 		testutils.FatalUnless(t, !astCopy.is_valid(), "")
-		ast.make_invalid(3)
+		ast.make_invalid(astConditionValidity_OUTPUT_CHILD | astConditionValidity_OUTPUT_CONDITION)
 		testutils.FatalUnless(t, !ast.is_valid(), "")
 		testutils.FatalUnless(t, !astCopy.is_valid(), "")
 	}

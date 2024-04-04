@@ -16,9 +16,9 @@ import (
 // This file contains the tokenizing code
 
 // We tokenize the input string in the following way:
-// We recognize %, $, {, }, %!, $!, %w and $w as special tokens.
-// Note that the Go regexp a|b prefers a over b. We use this to (greedily) prefer $! and $w over $ and similarly for %! and %w over %
-// Special-casing %w and %! (rather than viewing w and ! as part of the subsequent string) makes parsing easier.
+// We recognize %, $, {, }, %!, $!, %w, $w, %w{ and $w{ as special tokens.
+// Note that the Go regexp a|b prefers a over b. We use this to (greedily) prefer $! and $w over $ and similarly for %! and %w over %. Similarly for %w{ and $w{
+// Special-casing %w and %! (rather than viewing w and ! as part of the subsequent string) makes parsing easier. Similarly for %w{ and $w{.
 // We add a start and end token at the beginning / end. This simplifies the parsing code.
 // Consecutive string tokens get concatenated into a single string token. This includes string tokens that result from escape sequences for %,$,{,}
 
@@ -32,15 +32,15 @@ var re_escaper = strings.NewReplacer(`\`, `\\`, `$`, `\$`, `{`, `\{`, `}`, `\}`)
 
 // Regular expression to greedily subdivide the input string into non-overlapping instances of
 //   - all escape sequences \%, \$, \{, \}, \\, %%
-//   - all token sequences %!, $!, %, $, {, }, %w, $w
+//   - all token sequences %!, $!, %, $, {, }, %w, $w, %w{, $w{
 //   - strings without $, %, {, }, \
 //   - plain unescaped \ (not followed by %, $, {, } or another \) -- taken as literal \
 //
 // NOTE: (?s) turns off special handling of newlines within the string to be tokenized.
-// NOTE2: %%, %w, %!, must come before % etc, because | is greedy.
+// NOTE2: %w{, $w{ must come before %%, %w, %!, must come before % etc, because | is greedy.
 // NOTE3: We don't have a $$ - escape for $, because this makes $$$ ambiguous. For %%%, we parse as literal %, followed by token %, because the other
-// order is always invalid (format verbs cannot start with %). For $$$, both orders are potentially valid ($ is a legit format string verb)
-var re_tokenize = regexp.MustCompile(re_escaper.Replace(`(?s)(\%|\$|\{|\}|\\|%%|%!|$!|%w|$w|%|$|{|}|[^${}%\]+|\)`))
+// order is always invalid anyway (format verbs cannot start with %). For $$$, both orders are potentially valid ($ is a legit format string verb)
+var re_tokenize = regexp.MustCompile(re_escaper.Replace(`(?s)(\%|\$|\{|\}|\\|%%|%!|$!|%w{|$w{|%w|$w|%|$|{|}|[^${}%\]+|\)`))
 
 // token_I is the interface type holding a single token produced by the tokenizer.
 // We provide two implementations:
@@ -74,23 +74,25 @@ type tokenList []token_I
 
 // enum for all potential tokens of type [specialToken]
 const (
-	tokenInvalid       specialToken = iota // zero value intentionally invalid (to aid debugging -- this indicates that a variable has not been set), must never appear
-	tokenPercent                           // % - token (not followed by ! or w)
-	tokenDollar                            // $ - token (not followed by ! or w)
-	tokenPercentCond                       // %!
-	tokenDollarCond                        // $!
-	tokenOpenBracket                       // {
-	tokenCloseBracket                      // }
-	tokenParentPercent                     // %w
-	tokenParentDollar                      // $w
-	tokenStart                             // added to the start of the tokenized string; this simplifies things a bit
-	tokenEnd                               // added to the end of the tokenized string; this simplifies things a bit
+	tokenInvalid            specialToken = iota // zero value intentionally invalid (to aid debugging -- this indicates that a variable has not been set), must never appear
+	tokenPercent                                // % - token (not followed by ! or w)
+	tokenDollar                                 // $ - token (not followed by ! or w)
+	tokenPercentCond                            // %!
+	tokenDollarCond                             // $!
+	tokenOpenBracket                            // {
+	tokenCloseBracket                           // }
+	tokenParentPercent                          // %w (not followed by {)
+	tokenParentDollar                           // $w (not followed by {)
+	tokenParentPercentMulti                     // %w{
+	tokenParentDollarMulti                      // $w{
+	tokenStart                                  // added to the start of the tokenized string; this simplifies things a bit
+	tokenEnd                                    // added to the end of the tokenized string; this simplifies things a bit
 )
 
 // list of all tokens resp. all tokens that can be produced from strings. This is only used in testing.
 var (
-	allSpecialTokens                  = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd, tokenInvalid}
-	allStringExpressibleSpecialTokens = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar}
+	allSpecialTokens                  = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenStart, tokenEnd, tokenInvalid, tokenParentDollarMulti, tokenParentPercentMulti}
+	allStringExpressibleSpecialTokens = []specialToken{tokenPercent, tokenDollar, tokenPercentCond, tokenDollarCond, tokenOpenBracket, tokenCloseBracket, tokenParentPercent, tokenParentDollar, tokenParentDollarMulti, tokenParentPercentMulti}
 )
 
 // tokenizeInterpolationString takes a string and tokenizes it.
@@ -108,9 +110,9 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 		// panic(ErrorPrefix + "formatString not a valid UTF-8 string")
 	}
 	decomposition := re_tokenize.FindAllString(s, -1)
-	// We pre-allocate ret under the assumption that all elements of decomposition end up in its own token and set len(ret) accordingly.
+	// We allocate ret under the assumption that all elements of decomposition end up in its own token and set len(ret) accordingly.
 	// Due to merging consecutive string tokens, the final result might be a shorter list. We fix this at the end.
-	ret = make(tokenList, len(decomposition)+2) // +2 comes from tokenStart and tokenEnd.
+	ret = make(tokenList, len(decomposition)+2) // The +2 comes from tokenStart and tokenEnd.
 
 	ret[0] = tokenStart
 	i := 1 // index of the next token to be added. Because we merge consecutive strings (which modifies i), we don't use i, entry := range decomposition
@@ -142,14 +144,18 @@ func tokenizeInterpolationString(s string) (ret tokenList) {
 			ret[i] = tokenParentPercent
 		case `$w`:
 			ret[i] = tokenParentDollar
+		case `%w{`:
+			ret[i] = tokenParentPercentMulti
+		case `$w{`:
+			ret[i] = tokenParentDollarMulti
 		default:
 			ret[i] = stringToken(entry)
 		}
 
 		// merge consecutive entries of type stringToken.
 		// This is required for escaped %,$,{ or } that appear in identifiers such as format string verbs.
-		// It also makes writing the parser significantly(!) easier if we know that no consecutive stringTokens appear.
-		if i > 0 { // always true, actually.
+		// It makes writing the parser **significantly** easier if we know that no consecutive stringTokens appear.
+		if i > 0 { // always true, actually, due to ret[0]==tokenStart
 			newlyadded, ok1 := ret[i].(stringToken)
 			addedbefore, ok2 := ret[i-1].(stringToken)
 			if ok1 && ok2 {
@@ -194,6 +200,10 @@ func (token specialToken) String() string {
 		return `]`
 	case tokenStart:
 		return `[`
+	case tokenParentPercentMulti:
+		return `%w{`
+	case tokenParentDollarMulti:
+		return `$w{`
 	default:
 		panic(ErrorPrefix + "internal error: Unknown token encountered") // cannot happen
 	}
@@ -206,8 +216,8 @@ func (token specialToken) String() string {
 // (tokenStart and tokenEnd correspond to the [ ])
 // We use a space as separator.
 //
-// Note that this function is only used internally, for testing the package itself. This output format is not part of the API.
-// The user has no way of getting hold of an instance of tokenList, so this cannot be called.
+// Note that this function is only used internally, for testing the package itself. This output format is not part of the exported API.
+// The user has no way of getting hold of an instance of tokenList (outside of reflection shenaningans), so this we pretend this cannot be called.
 func (tokens tokenList) String() string {
 	var ret strings.Builder
 	for i, t := range tokens {

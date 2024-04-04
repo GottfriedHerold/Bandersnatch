@@ -2,6 +2,7 @@ package errorsWithData
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/stack"
@@ -28,6 +29,8 @@ import (
 //   - ast_fmtDollar:   $fmtString{VariableName}. No children. fmtString and VariableName stored directly
 //   - ast_parentPercent: %w. No children
 //   - ast_parentDollar:  $w. No children
+//   - ast_parentPercentMulti: %w{. No children (uint stored directly)
+//   - ast_parentDollarMulti: $w{. (uint stored directly)
 //   - ast_condPercent:   %!Cond{SubInterpolationString}. 1 child (typically of type ast_list). Condition stored directly.
 //   - ast_condDollar:    $!Cond{SubInterpolationString}. 1 child (typically of type ast_list). Condition stored directly.
 
@@ -52,7 +55,7 @@ import (
 // Of course, things work fine if STH is itself a pointer -- which is kind-of enforced by making *T satisfy the interface: Then the interface directly stores a value of type *T.
 // [2]: With usual production rules in (non-extended) BNF, a standard approach would not lead to ast_list storing n elements, but to a (binary) right/left-leaning tree.
 // We take "production rule" to allow List -> SequenceElement* rules.
-// This is in fact the only reason (apart from defaulting to 'v' for fmtString, which could be inserted by the tokenizer) why the language is not LL(0);
+// This is in fact the only reason (apart from defaulting to 'v' for fmtString, which could be inserted by a more complex tokenizer) why the language is not LL(0);
 
 // ast_I is an interface type that is satisfied by all nodes (and in particular by the root) of the abstract syntax tree that we
 // parse interpolation strings into.
@@ -69,7 +72,7 @@ type ast_I interface {
 	// parameters_passed == nil has the special meaning of not using this feature and behaves mostly like parameters_passed == parameters_direct.
 	// This is very different from parameters_passed being an empty map. parameters_direct should not not be nil (use an empty map instead)
 	//
-	// Appending to *s rather than returning a string is purely for efficiency reasons.
+	// Appending to *s rather than returning a string is purely done for efficiency reasons; this reduces memory allocations.
 	Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder)
 
 	// handleSyntaxConditions handles the following syntactic conditions on nodes:
@@ -78,19 +81,20 @@ type ast_I interface {
 	// - unrecognized conditions
 	//
 	// This checks for the presence of these errors in the subtree of the given node and returns the first error.
-	// This methods also actually *modifies* the tree to handle the error. In particular, if called on the root, it actually records the error.
+	// This methods also actually *modifies* the tree to handle the error. If called on the root, it memoizes the error.
+	// The latter is done because the modifications would interfere with retrieving the error.
 	// We assume that this method is called on the root node after [make_ast].
 	//
-	// NOTE: We could handle these errors during [make_ast], but it feels cleaner to separate that (as [make_ast] is already too complicated)
+	// NOTE: We could handle these errors during [make_ast], but it feels cleaner to separate that (as [make_ast] is already too complicated) and it makes testing easier.
 	handleSyntaxConditions() (err error)
 
 	// VerifyParameters_direct report syntax or interpolation errors from the subtree below that node.
-	// Note that we may cut corners here and only require this to be accurate for the root
+	// Note that we may cut corners here and only require this description to be accurate for the root (we assume that all calls to a non-root node must be a result from recursive calls).
 	// parameters_direct and baseError are used for the interpolation. We assume parameters_direct to be non-nil.
 	VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error)
 
-	// VerifyParameters_passed report syntax or interpolation errors from the subtree below that node
-	// note that we may cut corners here and only require this to be accurate for the root.
+	// VerifyParameters_passed report syntax or interpolation errors from the subtree below that node.
+	// Again, note that we may cut corners here and only require this description to be accurate for the root (we assume that all calls to a non-root node must be a result from recursive calls).
 	// parameters_direct, parameters_passed and baseError are used for the interpolation. We assume parameters_direct to be non-nil.
 	// parameters_passed == nil has the special meaning of not using this feature (and behaves like parameters_passed == parameters_direct)
 	// This is very different from parameters_passed being an empty map.
@@ -142,6 +146,11 @@ type (
 		is_valid() bool
 		simplify()
 		set_child_list(ast_list)
+	}
+	ast_parentMulti interface {
+		ast_I
+		set_childIndex(stringToken) error
+		token() string
 	}
 )
 
@@ -315,14 +324,14 @@ func new_ast_fmtDollar() ast_fmtDollar {
 
 // token returns a literal '%' for [ast_fmtPercent].
 //
-// This is provided to satisfy [initialTokenGetter] and unify cases in error reporting.
+// This is provided to satisfy [ast_fmt] and unify cases in error reporting.
 func (a ast_fmtPercent) token() string {
 	return `%`
 }
 
 // token returns a literal '$' for ast_fmtDollar.
 //
-// This is provided to satisfy [initialTokenGetter] and unify cases in error reporting.
+// This is provided to satisfy [ast_fmt] and unify cases in error reporting.
 func (a ast_fmtDollar) token() string {
 	return `$`
 }
@@ -350,6 +359,58 @@ func new_ast_parentPercent() ast_parentPercent {
 func new_ast_parentDollar() ast_parentDollar {
 	return ast_parentDollar{}
 }
+
+/*
+ * ast_parentPercentMulti
+ * ast_parentDollarMulti
+ */
+
+type (
+	base_ast_parentMult struct{ whichChild int } // Note: whichChild is guaranteed to be !=0.
+	// Not using uint because values that don't fit into an int wouldn't work anyway. Also allows to use -1 as special value for #
+	v_ast_parentPercentMult struct{ base_ast_parentMult }
+	v_ast_parentDollarMult  struct{ base_ast_parentMult }
+	ast_parentPercentMulti  = *v_ast_parentPercentMult
+	ast_parentDollarMulti   = *v_ast_parentDollarMult
+)
+
+func new_ast_parentPercentMult() ast_parentPercentMulti {
+	return new(v_ast_parentPercentMult)
+}
+
+func new_ast_parentDollarMult() ast_parentDollarMulti {
+	return new(v_ast_parentDollarMult)
+}
+
+// set_childIndex sets the actual child index from s.
+// For this, s is parsed as either a literal "#" or an uint using [strconv]'s [ParseUint]
+func (a *base_ast_parentMult) set_childIndex(s stringToken) (err error) {
+	sString := string(s)
+	if sString == "#" {
+		a.whichChild = -1
+		return
+	}
+	var result int64                              // needed beause ParseInt returns an int64 rather than an int.
+	result, err = strconv.ParseInt(sString, 0, 0) // 0,0 means "May use sign"
+	if err != nil && result <= 0 {
+		err = fmt.Errorf("Invalid index:%v", result)
+		return
+	}
+	if err != nil {
+		a.whichChild = int(result)
+	}
+	return
+}
+
+// token returns a literal '%w{' for [ast_parentPercentMult].
+//
+// This is provided to satisfy [ast_parentMult] and unify cases in error reporting.
+func (ast_parentPercentMulti) token() string { return `%w{` }
+
+// token returns a literal '$w{' for [ast_parentDollarMult].
+//
+// This is provided to satisfy [ast_parentMult] and unify cases in error reporting.
+func (ast_parentDollarMulti) token() string { return `$w{` }
 
 /*
  * ast_condPercent
@@ -479,15 +540,17 @@ func (a ast_condDollar) token() string {
 // This is mostly to ensure that other types (such as helper types like base_ast_condition) don't accidentially satisfy ast_I.
 // This helps to prevent errors when writing code.
 
-func (a ast_root) IsNode()          {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_list) IsNode()          {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_string) IsNode()        {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_fmtPercent) IsNode()    {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_fmtDollar) IsNode()     {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_parentPercent) IsNode() {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_parentDollar) IsNode()  {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_condPercent) IsNode()   {} // IsNode is a dummy method provided to satisfy [ast_I]
-func (a ast_condDollar) IsNode()    {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_root) IsNode()               {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_list) IsNode()               {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_string) IsNode()             {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_fmtPercent) IsNode()         {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_fmtDollar) IsNode()          {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_parentPercent) IsNode()      {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_parentDollar) IsNode()       {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_condPercent) IsNode()        {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_condDollar) IsNode()         {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_parentDollarMulti) IsNode()  {} // IsNode is a dummy method provided to satisfy [ast_I]
+func (ast_parentPercentMulti) IsNode() {} // IsNode is a dummy method provided to satisfy [ast_I]
 
 // We define String methods on each AST node type. These are exclusively used for debugging and testing.
 // (Notably, to write down test-cases compactly.)
@@ -571,6 +634,20 @@ func (a ast_parentDollar) String() string {
 // String is required for the [ast_I] interface.
 //
 // It is only used for debugging and testing.
+func (ast_parentPercentMulti) String() string {
+	return `%w{`
+}
+
+// String is required for the [ast_I] interface.
+//
+// It is only used for debugging and testing.
+func (ast_parentDollarMulti) String() string {
+	return `$w{`
+}
+
+// String is required for the [ast_I] interface.
+//
+// It is only used for debugging and testing.
 func (a ast_condPercent) String() string {
 	var b strings.Builder
 	b.WriteRune('%')
@@ -614,14 +691,16 @@ type parseMode int
 // possible states for the DFA
 
 const (
-	parseMode_Sequence      parseMode = iota // currently reading a sequence of list elements
-	parseMode_FmtString                      // expecting a format string (after % or $) or { for default format string
-	parseMode_Condition                      // expecting a condition (after %! or $!)
-	parseMode_VariableName                   // expecting a variable name
-	parseMode_OpenSequence                   // expecting a { to start a sequence (after %!COND or $!COND)
-	parseMode_OpenVariable                   // expecting a { to be followed by a variable name (after %fmtString or $fmtString)
-	parseMode_CloseVariable                  // expecting a } terminating a variable name
-	parseMode_Error                          // set after the first error
+	parseMode_Sequence        parseMode = iota // currently reading a sequence of list elements
+	parseMode_FmtString                        // expecting a format string (after % or $) or { for default format string
+	parseMode_Condition                        // expecting a condition (after %! or $!)
+	parseMode_VariableName                     // expecting a variable name
+	parseMode_ChildIndex                       // expecting a string encoding a number for the child index (or literal "#")
+	parseMode_OpenSequence                     // expecting a { to start a sequence (after %!COND or $!COND)
+	parseMode_OpenVariable                     // expecting a { to be followed by a variable name (after %fmtString or $fmtString)
+	parseMode_CloseVariable                    // expecting a } terminating a variable name
+	parseMode_CloseChildIndex                  // expecting a } terminating a child index
+	parseMode_Error                            // set after the first error
 
 	// NOTE: There is no parseMode_CloseSequence: The terminating '}' in %!COND{...} and $!COND{...} is handled by parseMode_Sequence
 )
@@ -633,8 +712,8 @@ const (
 // By doing that, the string returned from embeddedParseError is displayed whenever the tree is interpolated (i.e. whenever we call Error on the errors returned by the package).
 // This is done for diagnostics.
 //
-// Note that the main reason to use this function (over plain [fmt.Sprintf]) is that we may add some extra error string to designate parsing errors.
-// Using this function unifies this.
+// The actual reason to use this function (over plain [fmt.Sprintf]) is that we may add some extra error string to designate parsing errors.
+// Using this function unifies the extra error string.
 func embeddedParseError(s string, args ...any) ast_string {
 	return new_ast_string(stringToken(fmt.Sprintf(`<!PARSE-ERROR: `+s+`>`, args...)))
 }
@@ -643,7 +722,7 @@ func embeddedParseError(s string, args ...any) ast_string {
 //
 // IMPORTANT: Any ast_root (contained in a struct) that is returned by an exported function *must* have
 // been post-processed by [handleSyntaxConditions]. While this post-processing is triggered by anything that requires it,
-// it modifies the ast on its first call; consequently, forgetting this yields a potential thread-safety issue.
+// it modifies the ast on its first call without any kind of locking; consequently, forgetting this yields a potential thread-safety issue.
 //
 // On failure, reports the first error. Note that we do NOT stop on errors;
 // we rather process the input to the end and build a meaningful syntax tree.
@@ -768,8 +847,8 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			err = fmt.Errorf(ErrorPrefix+s, args...)
 			ret.parseError = err
 		} else {
-			// err is only set by set_error.
-			// we enter parseMode_Error at the end of set_error. In this parseMode, we can never encounter another error, because
+			// err is only set by set_parse_error.
+			// we enter parseMode_Error at the end of set_parse_error. In this parseMode, we can never encounter another error, because
 			// we just turn every token that we read from this point on into a string.
 			panic("Cannot happen")
 		}
@@ -795,7 +874,7 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 			if condition == "" {
 				panic("Cannot happen")
 			}
-			condNode.make_invalid(1)
+			condNode.make_invalid(astConditionValidity_OUTPUT_CHILD)
 			condNode.simplify()
 		}
 		mode = parseMode_Error
@@ -893,6 +972,16 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 				case tokenParentDollar: // create and add node for $w and continue with the list.
 					newNode := new_ast_parentDollar()
 					top.append_ast(newNode)
+				case tokenParentPercentMulti: // create and add node for %w{. Child index will be parsed next
+					newNode := new_ast_parentPercentMult()
+					top.append_ast(newNode)
+					stack.Push(newNode)
+					mode = parseMode_ChildIndex // read child index next
+				case tokenParentDollarMulti: // create and add node for $w{. Child index will be parsed next
+					newNode := new_ast_parentDollarMult()
+					top.append_ast(newNode)
+					stack.Push(newNode)
+					mode = parseMode_ChildIndex // read child index next
 				default:
 					panic(fmt.Errorf(ErrorPrefix+"Unhandled token: %v", token)) // cannot happen for tokenLists output by the tokenizer.
 				}
@@ -1001,6 +1090,91 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 				top.set_variableName(token_string)
 				// stack remains unchanged.
 				mode = parseMode_CloseVariable // expect to read } next
+			}
+		case parseMode_ChildIndex: // expect to read an encoding of a uint or literal "#"
+			// The stack is (from top to bottom) ast_parentMult - {ast_list - ast_cond -}* ast_list - ast_root
+			top := top.(ast_parentMulti) // ast_parentDollarMulti or ast_parentPercentMulti
+			token_string, ok := token.(stringToken)
+			if !ok {
+				// completely remove the currently read token and replace it by a literal %w{ or $w{
+				percentOrDollarBracket := top.token()
+
+				// remove %w{ or $w{ - node
+				_ = stack.Pop()
+				currentNode := (*stack.Top()).(ast_list)
+				currentNode.remove_last()
+				currentNode.append_ast(new_ast_string(stringToken(percentOrDollarBracket))) // add %w{ or $w{ as literal string
+
+				// Add diagnostic node and call set_error
+				if token == tokenEnd {
+					embeddedErrorNode := embeddedParseError(`Interpolation string ends where child index or "#" was expected`)
+					currentNode.append_ast(embeddedErrorNode)
+					set_parse_error(`Interpolation string ends where child index or "#" was expected`)
+				} else {
+					embeddedErrorNode := embeddedParseError(`Got "%v" where child index or "#" was expected`, token.String())
+					currentNode.append_ast(embeddedErrorNode)
+					set_parse_error(`Got "%v" where child index or "#" was expected`, token.String())
+				}
+				goto redo // re-read offening token in parseMode_Error
+			} else {
+				// ok == true. token is string token.
+				// We defer setting parsing it and setting top until we read the }.
+				// The reason is that if we parse it now, we lose the actual string (e.g. we could not distinguish "0x10" from "16")
+				// This would be bad for error reporting
+				stack.Push(new_ast_string(token_string))
+				mode = parseMode_CloseChildIndex
+			}
+
+		case parseMode_CloseChildIndex: // expect to read a literal }
+			// the stack is (from top to bottom) ast_string - ast parentMult - {ast_list - ast_cond -}* ast_list - ast_root
+			// the top of the stack is the stray (parse-delayed) child-index string
+			childIndexString_ast := stack.Pop().(ast_string) // retrieve the string (as an AST) indicating what child index should be
+			top := (*stack.Top()).(ast_parentMulti)          // get the actual $w{ or %w{ node
+			token := token.(specialToken)                    // Since consecutive string tokens are merged, this cannot fail
+
+			// handle error case first if we did not read the expected '}'
+			if token != tokenCloseBracket {
+				// We need to insert an error string and a %w{ or $w{ together with what we read as supposed childIndex.
+
+				percentOrDollarBracket := top.token() // "%w{" or "$w{"
+
+				// remove $w{ or $w{ node
+				_ = stack.Pop()
+				currentNode := (*stack.Top()).(ast_list)
+				currentNode.remove_last()
+
+				currentNode.append_ast(new_ast_string(stringToken(percentOrDollarBracket))) // replay the %w{ or $w{
+				currentNode.append_ast(childIndexString_ast)                                // replay the child index
+				// case distinction to improve error messages.
+				if token == tokenEnd {
+					embeddedErrorNode := embeddedParseError(`unexpected end of format string`)
+					currentNode.append_ast(embeddedErrorNode)
+				} else {
+					embeddedErrorNode := embeddedParseError(`child index not terminated by "}"`)
+					currentNode.append_ast(embeddedErrorNode)
+				}
+				set_parse_error(`Child index not terminated by "}"`)
+				goto redo // to actually handle the tokenEnd token as ending the parse.
+
+			} else { // token == tokenCloseBracket
+				intParseError := top.set_childIndex(stringToken(childIndexString_ast))
+				if intParseError != nil { // parsing as int or "#" has failed
+					percentOrDollarBracket := top.token() // "%w{" or "$w{"
+
+					// remove $w{ or $w{ node
+					_ = stack.Pop()
+					currentNode := (*stack.Top()).(ast_list)
+					currentNode.remove_last()
+					currentNode.append_ast(new_ast_string(stringToken(percentOrDollarBracket))) // replay the %w{ or $w{
+					currentNode.append_ast(childIndexString_ast)                                // replay the child index
+					embeddedErrorNode := embeddedParseError(`could not parse child index:%v`, intParseError)
+					currentNode.append_ast(embeddedErrorNode)
+					set_parse_error(`could not parse child index: %v`, intParseError)
+					goto redo // to re-read the "}"
+				}
+				// If we get here, everything worked out OK:
+				_ = stack.Pop() // remove the $w{ or %w{ node
+				mode = parseMode_Sequence
 			}
 
 		case parseMode_OpenSequence: // expect to read a { after %!COND or $!COND
