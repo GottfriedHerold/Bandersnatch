@@ -6,6 +6,8 @@ import (
 	"maps"
 	"reflect"
 	"strings"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 type joinedErrors_any struct {
@@ -187,30 +189,45 @@ func (e *joinedErrors_any) ValidateError_Params(params_passed ParamMap) error {
 	return errors.Join(foundErrors...)
 }
 
-// extractNonNilError will check whether x is an error, a slice or array containing errors and add either x or all elements of x to target, skipping any nils
-// If x has other type, returns a non-nil error. In this case, it is unspecified what happens to target. The error message does not include ErrorPrefix and is supposed to be modfied by the caller.
+// NOTE/minor rant: While convenient, the reason that we check the dynamic type of each array/slice entry rather than the static type is actually one of simplicity.
+// The reason is that taking []error (let alone [n]error for unknown n) does not work very well due to Go's lack of covariance. After all, the
+// user may have a slice of type []T, say []ErrorWithData_any; converting this to an []error requires knowing T / using generics or using reflection;
+// generics would require T to be passed explicitly as generic argument to Join_any.
+// Note that T cannot be inferred, because type inference is not dynamic and it does not work with the way we pass flags or mix argument types (Go lacks sum types).
+// So we have to use reflection here anyway, where looking at the dynamic type(s) is natural.
+
+// extractNonNilError will check whether x is an error, a slice or array containing errors and add either x or all elements of x to target, skipping any nils in the slice/array.
+// (Note: Anything added is Unboxed first.)
+// If x has type other than error, slice or array, returns a non-nil error. In this case, it is unspecified what happens to target. The error message does not include ErrorPrefix and is supposed to be modfied by the caller.
 // This must not be called with x==nil (this case needs to be handled by the caller)
 //
 // Note that the dynamic type of x may be []T, where T is an interface; in this case we check whether the *dynamic* type of each entry satisfies error.
+//
+// extractNonNilErrors does not recurse.
 func extractNonNilErrors(target *[]error, x any) (err error) {
 	if x == nil {
 		panic("Cannot happen.") // needs to be handled by the caller anyway, so we consider it a bug if this would happen.
 	}
 	if x, xIsError := x.(error); xIsError {
+		x = UnboxError(x)
 		*target = append(*target, x)
 		return
 	}
-	// x is not a nil interface, so everything is always a valid; typeOfX is a (non-interface) type.
-	// if x is a nil of type []T, the code below actually works as L will be 0.
+	// x is not a nil interface, so no reflection gotchas from reflect.ValueOf(nil) or reflect.TypeOf(nil). typeOfX is a valid (non-interface) type.
+	// if x is a nil of type []T, the code below actually works as L will be 0 and loop is never entered.
 	valueOfX := reflect.ValueOf(x)
 	typeOfX := valueOfX.Type()
-	kindOfX := typeOfX.Kind()
+	kindOfX := typeOfX.Kind() // cannot be invalid or interface
 	switch kindOfX {
 	case reflect.Array, reflect.Slice:
 		L := valueOfX.Len() // Note: x may be a nil slice.
 		for i := 0; i < L; i++ {
 			entry := valueOfX.Index(i).Interface()
+			if entry == nil {
+				continue
+			}
 			if entryError, entryIsError := entry.(error); entryIsError {
+				entryError = UnboxError(entryError)
 				*target = append(*target, entryError)
 			} else {
 				err = fmt.Errorf("the %v'th entry %v of the slice/array passed does not satisfy error", i, entry)
@@ -223,6 +240,8 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 
 	return
 }
+
+// NOTE: List of accepted flags here must exactly match the list from validFlags_JoinAny resp. validFlags_Join in flag_test.go
 
 // Join_any creates a new error that wraps all non-nil errors passed to it and merges their paramters.
 // This is intended to be used with the %w{Number} or $w{Number} syntax of interpolation string.
@@ -243,7 +262,7 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // The parameter map of the resulting ret is construced as the union of the individual errors. Duplicate parameter names are handled according to the past flags;
 // For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older".
 //
-// NOTE: When passing slices or arrays, Join_any supports (dynamic) argument covariance (as opposed to the Go language itself):
+// NOTE: When passing slices or arrays, Join_any supports a form of (dynamic) argument covariance (as opposed to the Go language itself):
 // It supports passing arguments x to it which may have (dynamic) type []T or [n]T for some T.
 // In this case, we require only that the dynamic(!) type of every x[i] must satisfy error; T itself might not satisfy it.
 // In particular, we support to pass []any - slices, provided each entry satisfies error.
@@ -251,9 +270,51 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 	returnedValue := new(joinedErrors_any)
 	ret = returnedValue // because it's a pointer, modifications to returnedValue will affect ret. We don't work with ret directly, because ret is an interface.
 
-	returnedValue.baseErrors = make([]error, 0, len(errorsOrFlags)) // pre-allocate
+	// baseErrors := make([]error, 0, len(errorsOrFlags)) // pre-allocate
+	returnedValue.baseErrors = make([]error, 0, len(errorsOrFlags))
 	returnedValue.params = make(map[string]any)
-	panic(0)
+	flagArgs := make([]flagArgument_JoinAny, 0, len(errorsOrFlags))
+
+	// parse the passed errorsOrFlags: flags go into flagArgs, errors into returnedValue.baseErrors
+	for _, argument := range errorsOrFlags {
+		if argument == nil {
+			continue // skip nils
+		}
+		switch argument := argument.(type) {
+		case flagArgument_JoinAny:
+			flagArgs = append(flagArgs, argument)
+		case flagArgument: // special case for better error messages
+			panic(fmt.Errorf(ErrorPrefix+"Join_Any called with flag %v that is not supported by Join_Any", argument))
+		default:
+			errArguments := extractNonNilErrors(&returnedValue.baseErrors, argument)
+			if errArguments != nil {
+				panic(fmt.Errorf(ErrorPrefix+"invalid argument to Join_Any:%w", errArguments))
+			}
+		}
+	}
+
+	// Actually process the collected flags into config
+	var config errorCreationConfig // Zero value is appropriate
+	parseFlagArgs(&config, flagArgs...)
+
+	var allDataErrors []error // collect all errors encountered from [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]
+
+	// create the new error's paramMap from the individual base errors.
+	for _, baseError := range returnedValue.baseErrors {
+		paramsFromBase := GetData_map(baseError)
+		newDataErrors := mergeMaps(&returnedValue.params, paramsFromBase, config.config_OldData)
+		if newDataErrors != nil {
+			allDataErrors = append(allDataErrors, newDataErrors...)
+			// We do not abort on first error.
+		}
+	}
+
+	if allDataErrors != nil {
+		err = fmt.Errorf(ErrorPrefix+"Join_any encountered a data inconsistency in the given errors:\n%w", errors.Join(allDataErrors...))
+	}
+	if err != nil && config.PanicOnAllErrors() {
+		panic(err)
+	}
 	return
 }
 
@@ -282,6 +343,66 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 // In this case, we require only that the dynamic(!) type of every x[i] must satisfy error; T itself might not satisfy it.
 // In particular, we support to pass []any - slices, provided each entry satisfies error.
 func Join[StructType any](errorsOrFlags ...any) (ret ErrorWithData[StructType], err error) {
-	panic(0)
+	// trigger early panic for invalid StructType
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
+		panic(errInvalidStruct)
+	}
+
+	returnedValue := new(joinedErrors[StructType])
+	ret = returnedValue // because it's a pointer, modifications to returnedValue will affect ret. We don't work with ret directly, because ret is an interface.
+
+	// baseErrors := make([]error, 0, len(errorsOrFlags)) // pre-allocate
+	returnedValue.baseErrors = make([]error, 0, len(errorsOrFlags))
+	returnedValue.params = make(map[string]any)
+	flagArgs := make([]flagArgument_Join, 0, len(errorsOrFlags))
+
+	// parse the passed errorsOrFlags: flags go into flagArgs, errors into returnedValue.baseErrors
+	for _, argument := range errorsOrFlags {
+		if argument == nil {
+			continue // skip nils
+		}
+		switch argument := argument.(type) {
+		case flagArgument_Join:
+			flagArgs = append(flagArgs, argument)
+		case flagArgument:
+			panic(fmt.Errorf(ErrorPrefix+"Join called with flag %v that is not supported by Join", argument))
+		default:
+			errJoining := extractNonNilErrors(&returnedValue.baseErrors, argument)
+			if errJoining != nil {
+				panic(fmt.Errorf(ErrorPrefix+"invalid argument to Join:%w", errJoining))
+			}
+		}
+	}
+
+	// Actually process the collected flags into config
+	var config errorCreationConfig // Zero value is appropriate
+	parseFlagArgs(&config, flagArgs...)
+
+	var allDataErrors []error // collect all errors encountered from [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]
+
+	// create the new error's paramMap from the individual base errors.
+	for _, baseError := range returnedValue.baseErrors {
+		paramsFromBase := GetData_map(baseError)
+		newDataErrors := mergeMaps(&returnedValue.params, paramsFromBase, config.config_OldData)
+		if newDataErrors != nil {
+			allDataErrors = append(allDataErrors, newDataErrors...)
+			// We do not abort on first error.
+		}
+	}
+
+	errMissingData := ensureCanMakeStructFromParameters[StructType](&returnedValue.params, config.config_ImplicitZero, config_SetZeros{setErrorsToZero: true})
+
+	if allDataErrors != nil && errMissingData != nil {
+		allDataErrors = append(allDataErrors, errMissingData)
+		err = fmt.Errorf(ErrorPrefix+"Join encountered a data inconsistency in the given errors and data was missing:\n%w", errors.Join(allDataErrors...))
+	} else if allDataErrors != nil && errMissingData == nil {
+		err = fmt.Errorf(ErrorPrefix+"Join encountered a data inconsistency in the given errors:\n%w", errors.Join(allDataErrors...))
+	} else if allDataErrors == nil && errMissingData != nil {
+		err = fmt.Errorf(ErrorPrefix+"Join called with errors whose parameters do not allow construct a %v:\n%w", utils.NameOfType[StructType](), errMissingData)
+	}
+
+	if err != nil && config.PanicOnAllErrors() {
+		panic(err)
+	}
 	return
 }

@@ -375,6 +375,7 @@ func newErrorWithData_struct[StructType any](baseError error, interpolationStrin
 func newErrorWithData_map[StructType any](baseError error, interpolationString string, params ParamMap, c_OldData config_OldData, c_ImplicitZero config_ImplicitZero, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], err error) {
 	ret = new(errorWithParameters_T[StructType])
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
+	panic("TODO: error handling")
 	mergeMaps(&ret.errorWithParameters_common.params, params, c_OldData)
 
 	// We want to maintain the invariant for the returned value even on error, so we zero out bad values.

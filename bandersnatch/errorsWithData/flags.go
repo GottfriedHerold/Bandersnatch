@@ -563,6 +563,16 @@ type flagArgument_NewErrorParams interface {
 
 type flagArgument_NewErrorAny = flagArgument_NewErrorStruct // same constraints.
 
+type flagArgument_JoinAny interface {
+	flagArgument
+	isFlag_JoinAny()
+}
+
+type flagArgument_Join interface {
+	flagArgument
+	isFlag_Join()
+}
+
 type flagArgument_Delete interface {
 	flagArgument
 	isFlag_Delete()
@@ -591,6 +601,13 @@ func (fArg_Panic) isFlag_NewErrorParams()       {}
 func (fArg_Validity) isFlag_NewErrorParams()    {}
 func (fArg_EmptyString) isFlag_NewErrorParams() {}
 func (fArg_MissingData) isFlag_NewErrorParams() {}
+
+func (fArg_OldData) isFlag_JoinAny() {}
+func (fArg_Panic) isFlag_JoinAny()   {}
+
+func (fArg_OldData) isFlag_Join()     {}
+func (fArg_Panic) isFlag_Join()       {}
+func (fArg_MissingData) isFlag_Join() {}
 
 func (fArg_Panic) isFlag_DeleteAny()       {}
 func (fArg_Validity) isFlag_DeleteAny()    {}
