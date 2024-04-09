@@ -224,6 +224,39 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 	return
 }
 
+// Join_any creates a new error that wraps all non-nil errors passed to it and merges their paramters.
+// This is intended to be used with the %w{Number} or $w{Number} syntax of interpolation string.
+// The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check that doc).
+// The resulting ret's error message will be the concatenation of the individual errors' messages, separated by "\n"
+//
+// Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour), an error or slice/array of errors (see note on covariance below).
+// Arguments of other types cause Join_any to panic.
+// We accept the following flags:
+//
+// - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
+// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
+// - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+//
+// Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
+//
+// Join_any will then process all errors that were passed to it (non-recursively iterating over slices/arrays, if needed) in order, skipping any nil errors.
+// The parameter map of the resulting ret is construced as the union of the individual errors. Duplicate parameter names are handled according to the past flags;
+// For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older".
+//
+// NOTE: When passing slices or arrays, Join_any supports (dynamic) argument covariance (as opposed to the Go language itself):
+// It supports passing arguments x to it which may have (dynamic) type []T or [n]T for some T.
+// In this case, we require only that the dynamic(!) type of every x[i] must satisfy error; T itself might not satisfy it.
+// In particular, we support to pass []any - slices, provided each entry satisfies error.
+func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
+	returnedValue := new(joinedErrors_any)
+	ret = returnedValue // because it's a pointer, modifications to returnedValue will affect ret. We don't work with ret directly, because ret is an interface.
+
+	returnedValue.baseErrors = make([]error, 0, len(errorsOrFlags)) // pre-allocate
+	returnedValue.params = make(map[string]any)
+	panic(0)
+	return
+}
+
 // Join creates a new error that wraps all non-nil errors passed to it and merges their paramters.
 // This is intended to be used with the %w{Number} or $w{Number} syntax of interpolation string.
 // The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check that doc).
@@ -236,6 +269,7 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
 // - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
 // - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+// - [MissingDataAsZero], [MissingDataIsError] (default): Controls whether data required for StructType that is missing is silently zero-initialized
 //
 // Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
@@ -247,12 +281,7 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // It supports passing arguments x to it which may have (dynamic) type []T or [n]T for some T.
 // In this case, we require only that the dynamic(!) type of every x[i] must satisfy error; T itself might not satisfy it.
 // In particular, we support to pass []any - slices, provided each entry satisfies error.
-func Join(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
-	returnedValue := new(joinedErrors_any)
-	ret = returnedValue // because it's a pointer, modifications to returnedValue will affect ret. We don't work with ret directly, because ret is an interface.
-
-	returnedValue.baseErrors = make([]error, 0, len(errorsOrFlags)) // pre-allocate
-	returnedValue.params = make(map[string]any)
+func Join[StructType any](errorsOrFlags ...any) (ret ErrorWithData[StructType], err error) {
 	panic(0)
 	return
 }

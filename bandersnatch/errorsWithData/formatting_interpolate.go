@@ -236,18 +236,25 @@ func (abase *base_ast_condition) handleSyntaxConditions() error {
 /**
  *
  * VerifyParameters_direct and VerifyParameters_passed defined here.
+ * NOTE: VerifyParameters_direct corresponds to VerifyParameters_passed with an UNKNOWN value for params_passed.
  *
  * VerifyParameters_direct checks whether
  *  - %w is only used if there is a parent baseError
  *  - $w is only used if there is a parent baseError that supports this
+ *  - %w{#} is only used if there is a parent baseError that supports this (i.e. has Unwrap() []error)
+ *  - %w{n} is only used if there is a parent baseError that Unwraps at least n errors.
+ *  - $w{#} is only used if there is a parent baseError that supports this (i.e. has Unwrap() []error)
+ *  - $w{n} is only used if there is a parent baseError that Unwraps at least n errors and that n'th error supports $
  *  - variable names referred to by %verb{variable} are actually present in the ParamMap
  *
  * VerifyParameters_passed checks whether
  *  - variable names referred to by $verb{variable} are actually present in the (passed through) ParamMap
  *
- * If a condition is known not be taken, the subtree is ignored.
+ * If a condition is known not to be taken, the subtree is ignored.
  * For VerifyParameters_passed, this means we evaluate all conditions and check whether they are taken.
  * For VerifyParameters_direct, we only do so for %cond{}, but not $cond{}. For the latter, we assume the branch is taken.
+ *
+ * If a base error is referenced by %w, $w, %w{n} or $w{n} and that error supports ErrorInterpolater, we recursively check the base as appropriate.
  *
  * We only report the first error encountered.
  * Note that both parse errors and syntax errors uncovered by [handleSyntaxConditions] take priority.
@@ -437,7 +444,7 @@ func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseE
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
 	} else {
 		if errValidatable, ok := baseError.(ErrorInterpolater); ok {
-			// ValidateError_Params(nil) checks whether the base error is valid with its own parameters.
+			// ValidateError_Params(nil) checks whether the base error is valid solely with its *own* parameters.
 			// This is the correct question here.
 			errFromBase := errValidatable.ValidateError_Params(nil)
 			if errFromBase != nil {

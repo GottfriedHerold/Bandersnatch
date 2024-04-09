@@ -3,6 +3,7 @@ package errorsWithData
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -11,6 +12,8 @@ import (
 )
 
 // validateTokenList checks for the validity conditions on [tokenList] (as described in its doc) and bails out with t.Fatal on error.
+//
+// This is a subroutine that is ran on outputs of tokenizeInterpolationString in our test cases.
 func validateTokenList(t *testing.T, tokenized tokenList) {
 	var previousTokenWasString bool
 	for i, token := range tokenized {
@@ -42,6 +45,8 @@ func validateTokenList(t *testing.T, tokenized tokenList) {
 
 func TestTokenizer(t *testing.T) {
 
+	// verifies that s gets tokenized into a tokenList whose String() output matches expected.
+	// Note that tokenList.String is defined solely for debugging and to allow to write this test concisely.
 	test_token_case := func(s string, expected string) {
 		tokenized := tokenizeInterpolationString(s)
 		validateTokenList(t, tokenized)
@@ -70,12 +75,15 @@ func TestTokenizer(t *testing.T) {
 	test_token_case(`${Foo\%}`, `[ $ { "Foo%" } ]`)
 	test_token_case(`%%%`, `[ "%" % ]`)
 	test_token_case("a\xc0\xffb", "[ \"a\uFFFDb\" ]") // unicode replacement character
+	test_token_case(`$w{`, `[ $w{ ]`)
+	test_token_case(`%w{`, `[ %w{ ]`)
+	test_token_case(`a%w%w{#}`, `[ "a" %w %w{ "#" } ]`)
 	// test_token_case("$%%x{%{")
 
 }
 
-// Check that String() outputs a string that, if tokenized, recovers the token.
-
+// Check that for special tokens in [allStringExpressibleSpecialTokens], String() outputs a string that, if tokenized, recovers the token.
+// [allStringExpressibleSpecialTokens] is a list defined solely for this purpose.
 func TestSpecialTokenToString(t *testing.T) {
 	for _, token := range allSpecialTokens {
 		_ = token.String()
@@ -109,6 +117,10 @@ func new_asts_fmt() [2]ast_fmt {
 
 func new_asts_cond() [2]ast_cond {
 	return [2]ast_cond{new_ast_condDollar(), new_ast_condPercent()}
+}
+
+func new_asts_mult() [2]ast_parentMulti {
+	return [2]ast_parentMulti{new_ast_parentDollarMult(), new_ast_parentPercentMult()}
 }
 
 // TestASTWithChildren tests that all ast types satisfying [ast_with_children] ([ast_root], [ast_condDollar], [ast_condPercent])
@@ -194,12 +206,73 @@ func TestASTCond(t *testing.T) {
 	}
 }
 
+// TestASTMult tests that all ast types satisfying [ast_parentMulti], i.e. [ast_parentDollarMulti] and [ast_parentPercentMulti]
+// satisfy the contracts of that interface beyond ast_I
+func TestASTMult(t *testing.T) {
+	L := new_asts_mult()
+	for _, ast := range L {
+		tok := ast.token()
+		switch ast.(type) {
+		case ast_parentDollarMulti:
+			testutils.FatalUnless(t, tok == `$w{`, "invalid output %v of token()", tok)
+		case ast_parentPercentMulti:
+			testutils.FatalUnless(t, tok == `%w{`, "invalid output %v of token()", tok)
+		default:
+			t.Fatalf("Unexpected ast_parentMulti type")
+		}
+		testutils.FatalUnless(t, ast.get_childIndex() == 0, "Unexpected output %v of get_childIndex for uninitialized AST", ast.get_childIndex())
+
+		var astCopy ast_parentMulti = ast
+		err := ast.set_childIndex(stringToken("5"))
+		testutils.FatalUnless(t, err == nil, "unexpected error %v", err)
+		testutils.FatalUnless(t, ast.get_childIndex() == 5, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == 5, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken(fmt.Sprint(math.MaxInt)))
+		testutils.FatalUnless(t, err == nil, "unexpected error %v", err)
+		testutils.FatalUnless(t, ast.get_childIndex() == math.MaxInt, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == math.MaxInt, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken(fmt.Sprint(uint(math.MaxInt + 1))))
+		testutils.FatalUnless(t, err != nil, "")
+		testutils.FatalUnless(t, ast.get_childIndex() == 0, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == 0, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken(`-0b10`))
+		testutils.FatalUnless(t, err != nil, "")
+		testutils.FatalUnless(t, ast.get_childIndex() == 0, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == 0, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken("#"))
+		testutils.FatalUnless(t, err == nil, "unexpected error %v", err)
+		testutils.FatalUnless(t, ast.get_childIndex() == -1, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == -1, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken("##"))
+		testutils.FatalUnless(t, err != nil, "")
+		testutils.FatalUnless(t, ast.get_childIndex() == 0, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == 0, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken("0x11"))
+		testutils.FatalUnless(t, err == nil, "unexpected error %v", err)
+		testutils.FatalUnless(t, ast.get_childIndex() == 17, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == 17, "copy not shallow")
+
+		err = ast.set_childIndex(stringToken("")) // NOTE: This cannot happen during actual parsing.
+		testutils.FatalUnless(t, err != nil, "")
+		testutils.FatalUnless(t, ast.get_childIndex() == 0, "Unexpected output %v of get_childIndex", ast.get_childIndex())
+		testutils.FatalUnless(t, astCopy.get_childIndex() == 0, "copy not shallow")
+
+	}
+}
+
 // Parser check for all valid(!) parse cases.
 // Note that this does not call handleSyntaxConditions, which would detect errors due to invalid conditions.
 
 func TestParserValidCases(t *testing.T) {
 	test_parse_case := func(s string, expected string) {
 		tokenized := tokenizeInterpolationString(s)
+		validateTokenList(t, tokenized)
 		parse_result, err := make_ast(tokenized)
 		ast_as_string := parse_result.String()
 		if err != nil {
@@ -224,6 +297,14 @@ func TestParserValidCases(t *testing.T) {
 	test_parse_case(`a$!C{DEF}`, `AST(["a",$!C{"DEF"}])`)
 	test_parse_case(`a%!C1{%!C2{a$w}}`, `AST(["a",%!C1{%!C2{["a",$w]}}])`)
 	test_parse_case(`$%%{!x}`, `AST($%{!x})`)
+	test_parse_case(`$w{#}`, `AST($w{#})`)
+	test_parse_case(`%w{#}`, `AST(%w{#})`)
+	test_parse_case(`$w{5}`, `AST($w{5})`)
+	test_parse_case(`%w{5}`, `AST(%w{5})`)
+	test_parse_case(`$w{+5}`, `AST($w{5})`)
+	test_parse_case(`%w{+5}`, `AST(%w{5})`)
+	test_parse_case(`$w{0b101}`, `AST($w{5})`)
+	test_parse_case(`%w{0b101}`, `AST(%w{5})`)
 }
 
 // TestMisparses tests all cases where a parse error occurs (i.e. all possible cases where an unexpected token was encountered at some point)
@@ -391,6 +472,63 @@ func TestMisparses(t *testing.T) {
 	test_misparse_case("b %w $!cond%!cond{}{}", false, false)
 	test_misparse_case("b %w $!cond$!cond{}{}", false, false)
 
+	// wrong token after %w{ or $w{
+	test_misparse_case("b %w{", false, false)
+	test_misparse_case("b %w{{", false, false)
+	test_misparse_case("b %w{}", false, false)
+	test_misparse_case("b %w{%", false, false)
+	test_misparse_case("b %w{%!", false, false)
+	test_misparse_case("b %w{$!", false, false)
+	test_misparse_case("b %w{ }", false, false)
+	test_misparse_case("b %w{ #}", false, false)
+	test_misparse_case("b %w{# }", false, false)
+	test_misparse_case("b %w{##}", false, false)
+	test_misparse_case("b %w{%w}", false, false)
+	test_misparse_case("b %w{%w", false, false)
+	test_misparse_case("b %w{$w", false, false)
+	test_misparse_case("b %w{$w}", false, false)
+	test_misparse_case("b %w{%{var}", false, false)
+	test_misparse_case("b %w{string}", false, false)
+	test_misparse_case("b %w{0}", false, false)
+	test_misparse_case("b %w{-1}", false, false)
+	test_misparse_case("b %w{1", false, false)
+	test_misparse_case("b %w{#", false, false)
+	test_misparse_case("b %w{1%", false, false)
+	test_misparse_case("b %w{#%", false, false)
+	test_misparse_case("b %w{1$}", false, false)
+	test_misparse_case("b %w{1%w}", false, false)
+	test_misparse_case("b %w{1$w}", false, false)
+	test_misparse_case("b %w{1%w{#}}", false, false)
+	test_misparse_case("b %w{1%!{}}", false, false)
+
+	test_misparse_case("b $w{", false, false)
+	test_misparse_case("b $w{{", false, false)
+	test_misparse_case("b $w{}", false, false)
+	test_misparse_case("b $w{%", false, false)
+	test_misparse_case("b $w{%!", false, false)
+	test_misparse_case("b $w{$!", false, false)
+	test_misparse_case("b $w{ }", false, false)
+	test_misparse_case("b $w{ #}", false, false)
+	test_misparse_case("b $w{# }", false, false)
+	test_misparse_case("b $w{##}", false, false)
+	test_misparse_case("b $w{%w}", false, false)
+	test_misparse_case("b $w{%w", false, false)
+	test_misparse_case("b $w{$w", false, false)
+	test_misparse_case("b $w{$w}", false, false)
+	test_misparse_case("b $w{%{var}", false, false)
+	test_misparse_case("b $w{string}", false, false)
+	test_misparse_case("b $w{0}", false, false)
+	test_misparse_case("b $w{-1}", false, false)
+	test_misparse_case("b $w{1", false, false)
+	test_misparse_case("b $w{#", false, false)
+	test_misparse_case("b $w{1%", false, false)
+	test_misparse_case("b $w{#%", false, false)
+	test_misparse_case("b $w{1$}", false, false)
+	test_misparse_case("b $w{1%w}", false, false)
+	test_misparse_case("b $w{1$w}", false, false)
+	test_misparse_case("b $w{1%w{#}}", false, false)
+	test_misparse_case("b $w{1%!{}}", false, false)
+
 	// check some case of invalid subtrees
 	test_misparse_case("c %w %cond{", false, false)       // unterminated
 	test_misparse_case("c %w %cond{string", false, false) // unterminated
@@ -461,10 +599,12 @@ var _ ErrorInterpolater = &dummy_interpolatableError{}
 
 func TestHandleSyntaxConditions(t *testing.T) {
 
+	// Note: testcase does not work if s causes a parse error.
 	testcase := func(s string, expectedOK bool) {
 		tokens := tokenizeInterpolationString(s)
 		parsed, errParsing := make_ast(tokens)
 		parseOK := errParsing == nil
+		testutils.FatalUnless(t, parseOK, "For %v, we got a parse error %v", s, errParsing)
 		errValidity := parsed.handleSyntaxConditions()
 		errValidity2 := parsed.handleSyntaxConditions()
 		testutils.FatalUnless(t, errValidity == errValidity2, "For %v, consecutive calls to HandleSyntaxCondtions gives differing results %v and %v", s, errValidity, errValidity2)
@@ -473,9 +613,9 @@ func TestHandleSyntaxConditions(t *testing.T) {
 		} else {
 			testutils.FatalUnless(t, errValidity != nil, "For %v, got no error from handleSyntaxConditions", s)
 		}
-		if !parseOK {
-			testutils.FatalUnless(t, errValidity == errParsing, "For %v, HandleSyntaxCondition did not reproduce parsing error: %v vs %v", s, errValidity, errParsing)
-		}
+		// if !parseOK {
+		//	testutils.FatalUnless(t, errValidity == errParsing, "For %v, HandleSyntaxCondition did not reproduce parsing error: %v vs %v", s, errValidity, errParsing)
+		//}
 	}
 	testcase("", true)
 	testcase("blah", true)
@@ -502,11 +642,19 @@ func TestHandleSyntaxConditions(t *testing.T) {
 	testcase("$v{!X}", false)
 	testcase("$v{!m}", true)
 	testcase("$v{!params}", true)
+
+	testcase(`$w{1}`, true)
+	testcase(`%w{1}`, true)
+	testcase(`$w{#}`, true)
+	testcase(`%w{#}`, true)
 }
 
 func TestVerifyParameters(t *testing.T) {
 	var baseError error = errors.New("some error")
 	var baseInterpolatableError ErrorInterpolater = &dummy_interpolatableError{error: baseError, f: nil}
+	var baseMulti2 error = errors.Join(baseError, baseInterpolatableError)
+	var baseMulti3 error = errors.Join(baseError, baseMulti2, baseInterpolatableError)
+	// _ = baseMulti3
 
 	var p_direct ParamMap = map[string]any{"Direct": 1}
 	var p_passed ParamMap = map[string]any{"Passed": 1}
@@ -585,7 +733,6 @@ func TestVerifyParameters(t *testing.T) {
 			testVerifyParametersDirect(s, emptyMap, baseInterpolatableError, false)
 			testVerifyParametersDirect(s, p_direct, baseInterpolatableError, false)
 		}
-
 	}
 
 	testVerifyParametersPassed("", emptyMap, emptyMap, nil, true)
@@ -677,10 +824,14 @@ func TestVerifyParameters(t *testing.T) {
 	testVerifyParametersPassed("$!m>0{%{NonExistent}}27", p_direct, p_passed, nil, false)
 	testVerifyParametersPassed("$!m>0{%{NonExistent}}28", p_direct, emptyMap, nil, true)
 
-	var wrongBase1 *dummy_interpolatableError = &dummy_interpolatableError{}
+	// wrongBase1 is an error satisfying ErrorInterpolater whose Validation routines always output an error
+	var wrongBase1 *dummy_interpolatableError = &dummy_interpolatableError{error: errors.New("Base1")}
 	wrongBase1.valBase = func() error { return errors.New("Some error (Base1)") }
 	wrongBase1.valParams = func(_ ParamMap) error { return errors.New("Some error (Base1,params)") }
-	var wrongBase2 *dummy_interpolatableError = &dummy_interpolatableError{}
+	// wrongBase1 is an error satisfying ErrorInterpolater whose
+	//  - ValidateError_base always succeeds and
+	//  - ValidateError_params(params) suceeds iff(!) params contains a key "PassVal"
+	var wrongBase2 *dummy_interpolatableError = &dummy_interpolatableError{error: errors.New("Base2")}
 	wrongBase2.valParams = func(params ParamMap) error {
 		if _, ok := params["PassVal"]; ok {
 			return nil
@@ -721,6 +872,85 @@ func TestVerifyParameters(t *testing.T) {
 	testVerifyParametersPassed("$!m=0{%w}", emptyMap, emptyMap, wrongBase1, false)
 	testVerifyParametersPassed("$!m>0{%w}", emptyMap, emptyMap, wrongBase1, true)
 
+	//
+
+	testVerifyParametersDirect("%w{#}", emptyMap, baseError, false)
+	testVerifyParametersDirect("%w{#}", emptyMap, nil, false)
+	testVerifyParametersDirect("%w{#}", emptyMap, baseMulti2, true)
+	testVerifyParametersDirect("%w{#}", emptyMap, baseMulti3, true)
+
+	testVerifyParametersDirect("%w{3}", emptyMap, baseError, false)
+	testVerifyParametersDirect("%w{3}", emptyMap, nil, false)
+	testVerifyParametersDirect("%w{3}", emptyMap, baseMulti2, false)
+	testVerifyParametersDirect("%w{3}", emptyMap, baseMulti3, true)
+
+	testVerifyParametersPassed("%w{#}", emptyMap, emptyMap, baseError, false)
+	testVerifyParametersPassed("%w{#}", emptyMap, emptyMap, nil, false)
+	testVerifyParametersPassed("%w{#}", emptyMap, emptyMap, baseMulti2, true)
+	testVerifyParametersPassed("%w{#}", emptyMap, emptyMap, baseMulti3, true)
+
+	testVerifyParametersPassed("%w{3}", emptyMap, emptyMap, baseError, false)
+	testVerifyParametersPassed("%w{3}", emptyMap, emptyMap, nil, false)
+	testVerifyParametersPassed("%w{3}", emptyMap, emptyMap, baseMulti2, false)
+	testVerifyParametersPassed("%w{3}", emptyMap, emptyMap, baseMulti3, true)
+
+	testVerifyParametersDirect("$w{#}", emptyMap, baseError, false)
+	testVerifyParametersDirect("$w{#}", emptyMap, nil, false)
+	testVerifyParametersDirect("$w{#}", emptyMap, baseMulti2, true)
+	testVerifyParametersDirect("$w{#}", emptyMap, baseMulti3, true)
+
+	testVerifyParametersDirect("$w{3}", emptyMap, baseError, false)
+	testVerifyParametersDirect("$w{3}", emptyMap, nil, false)
+	testVerifyParametersDirect("$w{3}", emptyMap, baseMulti2, false)
+	testVerifyParametersDirect("$w{3}", emptyMap, baseMulti3, true)
+
+	testVerifyParametersPassed("$w{#}", emptyMap, emptyMap, baseError, false)
+	testVerifyParametersPassed("$w{#}", emptyMap, emptyMap, nil, false)
+	testVerifyParametersPassed("$w{#}", emptyMap, emptyMap, baseMulti2, true)
+	testVerifyParametersPassed("$w{#}", emptyMap, emptyMap, baseMulti3, true)
+
+	testVerifyParametersPassed("$w{3}", emptyMap, emptyMap, baseError, false)
+	testVerifyParametersPassed("$w{3}", emptyMap, emptyMap, nil, false)
+	testVerifyParametersPassed("$w{3}", emptyMap, emptyMap, baseMulti2, false)
+	testVerifyParametersPassed("$w{3}", emptyMap, emptyMap, baseMulti3, true)
+
+	// check recursion:
+	errMultiWrong := errors.Join(baseError, wrongBase1, wrongBase2)
+
+	testVerifyParametersDirect("%w{1}", emptyMap, errMultiWrong, true)  // baseError is OK
+	testVerifyParametersDirect("%w{2}", emptyMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersDirect("%w{3}", emptyMap, errMultiWrong, false) // recursive validation fails
+
+	testVerifyParametersDirect("Good %w{1}", GoodMap, errMultiWrong, true)  // baseError is OK
+	testVerifyParametersDirect("Good %w{2}", GoodMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersDirect("Good %w{3}", GoodMap, errMultiWrong, false) // recursive validation fails (Note that ValidateError_Params(nil) is called recursively)
+
+	testVerifyParametersDirect("$w{1}", emptyMap, errMultiWrong, false) // baseError does not support $
+	testVerifyParametersDirect("$w{2}", emptyMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersDirect("$w{3}", emptyMap, errMultiWrong, true)  // recursive validation calls ValidateError_Base, which succeeds
+
+	testVerifyParametersDirect("Good $w{1}", GoodMap, errMultiWrong, false) // baseError does not support $
+	testVerifyParametersDirect("Good $w{2}", GoodMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersDirect("Good $w{3}", GoodMap, errMultiWrong, true)  // recursive validation succeeds (calls ValidateError_Base, which succeeds)
+
+	//
+
+	testVerifyParametersPassed("%w{1}", emptyMap, emptyMap, errMultiWrong, true)  // baseError is OK
+	testVerifyParametersPassed("%w{2}", emptyMap, emptyMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersPassed("%w{3}", emptyMap, emptyMap, errMultiWrong, false) // recursive validation fails
+
+	testVerifyParametersPassed("Good %w{1}", emptyMap, GoodMap, errMultiWrong, true)  // baseError is OK
+	testVerifyParametersPassed("Good %w{2}", emptyMap, GoodMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersPassed("Good %w{3}", emptyMap, GoodMap, errMultiWrong, false) // recursive validation fails (Note that ValidateError_Params(nil) is called recursively)
+
+	testVerifyParametersPassed("$w{1}", emptyMap, emptyMap, errMultiWrong, false) // baseError does not support $
+	testVerifyParametersPassed("$w{2}", emptyMap, emptyMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersPassed("$w{3}", emptyMap, emptyMap, errMultiWrong, false) // recursive validation calls ValidateError_Params(empty map), which fails
+
+	testVerifyParametersPassed("Good $w{1}", emptyMap, GoodMap, errMultiWrong, false) // baseError does not support $
+	testVerifyParametersPassed("Good $w{2}", emptyMap, GoodMap, errMultiWrong, false) // recursive validation fails
+	testVerifyParametersPassed("Good $w{3}", emptyMap, GoodMap, errMultiWrong, true)  // recursive validation succeeds (calls ValidateError_Params(GoodMap), which succeeds)
+
 }
 
 func TestInterpolation(t *testing.T) {
@@ -729,7 +959,7 @@ func TestInterpolation(t *testing.T) {
 	var emptyMap ParamMap = ParamMap{}
 
 	errPlain := errors.New("BASE")
-	errBase := &dummy_interpolatableError{error: errPlain, f: func(p ParamMap) string {
+	var errBase error = &dummy_interpolatableError{error: errPlain, f: func(p ParamMap) string {
 		r := p["StringDEF"]
 		if r == "def" {
 			return "OK"
@@ -740,9 +970,9 @@ func TestInterpolation(t *testing.T) {
 
 	// errBase is an error whose error message depends on parameters in the following way:
 	testutils.Assert(errBase.Error() == "BASE")
-	testutils.Assert(errBase.Error_interpolate(emptyMap) == "NOTOK")
-	testutils.Assert(errBase.Error_interpolate(p_direct) == "NOTOK")
-	testutils.Assert(errBase.Error_interpolate(p_passed) == "OK")
+	testutils.Assert(errBase.(ErrorInterpolater).Error_interpolate(emptyMap) == "NOTOK")
+	testutils.Assert(errBase.(ErrorInterpolater).Error_interpolate(p_direct) == "NOTOK")
+	testutils.Assert(errBase.(ErrorInterpolater).Error_interpolate(p_passed) == "OK")
 
 	// We now check input -> output pairs for fixed parameter map p_direct, p_passed and errBase as base error.
 	// This function performs the check for a given input/output pair.
@@ -787,6 +1017,19 @@ func TestInterpolation(t *testing.T) {
 	testInterpolation("%!m>0{Bar}", "Bar")
 	testInterpolation("$!m=0{%{ValHundreds}}", "")
 	testInterpolation("$!m>0{%{ValHundreds}}", "128")
+
+	// change the base error now!
+	errPlain2 := errors.New("BASE2")
+	errBaseOld := errBase
+	errBase = errors.Join(errBaseOld, errPlain2)
+
+	testInterpolation(s, s)
+	testInterpolation(`%w{#}`, `2`)
+	testInterpolation(`$w{#}`, `2`)
+	testInterpolation(`%w{1}`, `BASE`)
+	testInterpolation(`%w{2}`, `BASE2`)
+	testInterpolation(`$w{1}`, `OK`)
+	// testInterpolation(`$w{2}`, `BASE2`) -- fails (as expected) because errPlain2 does not support $
 }
 
 func TestPrintSomeOutput(t *testing.T) {
@@ -857,5 +1100,4 @@ func TestPrintSomeOutput(t *testing.T) {
 	printInterpolationWrong("Fine26 ${Var", true)
 
 	printInterpolationWrong("Fine27 %!m=0{Foo}}", true)
-
 }

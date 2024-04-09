@@ -29,8 +29,8 @@ import (
 //   - ast_fmtDollar:   $fmtString{VariableName}. No children. fmtString and VariableName stored directly
 //   - ast_parentPercent: %w. No children
 //   - ast_parentDollar:  $w. No children
-//   - ast_parentPercentMulti: %w{. No children (uint stored directly)
-//   - ast_parentDollarMulti: $w{. (uint stored directly)
+//   - ast_parentPercentMulti: %w{. No children (uint stored directly, with -1 having special meaning)
+//   - ast_parentDollarMulti:  $w{. No children (uint stored directly, with -1 having special meaning)
 //   - ast_condPercent:   %!Cond{SubInterpolationString}. 1 child (typically of type ast_list). Condition stored directly.
 //   - ast_condDollar:    $!Cond{SubInterpolationString}. 1 child (typically of type ast_list). Condition stored directly.
 
@@ -48,6 +48,7 @@ import (
 //  - modification of any ast_I should be done via type-assertion and calling an appropriate modifying method.
 //  - assignment is shallow (i.e. y = x; y.Change() should semantically change x)
 // Consequently, creating nodes needs to be done by new_ast_foo functions (there needs to be some kind of indirection, so zero values will likely be invalid nodes, depending on node type)
+// NOTE: In retrospect, the code would probalby be easier with reduction steps (mostly due to error handling) -- however, I'm not gonna touch this again unless I must.
 
 // [1]: The internal implementation of variable x of interfaces type uses a pair (type_info, STH), where STH is either a value of a pointer to it (depending on size of the type).
 // If the type changes, the memory for STH is reused.  Acquiring a pointer to a value-stored STH, then changing the values of x to something of a different type would result in a pointer of
@@ -60,9 +61,10 @@ import (
 // ast_I is an interface type that is satisfied by all nodes (and in particular by the root) of the abstract syntax tree that we
 // parse interpolation strings into.
 //
-// Note that all implementing types are prefixed with ast_.
-// These types may be aliases to pointer types and it's always the ast_foo type (not *ast_foo) that satisfies ast_I.
-// Assignment of any such ast_foo - type is always shallow. (i.e. y=x; y.modify(...) modifies x as well)
+// Note that all types implementing ast_I are prefixed with ast_.
+// These types may be aliases to pointer types and it's always the ast_foo type itself (and NOT *ast_foo) that satisfies ast_I.
+// Creating any instance must be performed by new_ast_<foo> functions. Modifying instance must be performed through designated methods.
+// Assignment of any mutable ast_foo - type is always shallow. (i.e. y=x; y.modify(...) modifies x as well).
 type ast_I interface {
 	IsNode()        // Only to "mark" relevant types
 	String() string // Only used for debugging and testing (some test-cases compare against an expected output of String())
@@ -101,56 +103,45 @@ type ast_I interface {
 	VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error)
 }
 
-/*
-Replaced by consolidated version below that is nicer for testing
-
-// We add interfaces for extra functionality that is shared by multiple node types:
-// This allows to cut down the state space that we need to (explicitly) track in our DFA.
-type (
-	childSetter        interface{ set_child_list(ast_list) }      // ast_root, ast_condPercent, ast_condDollar -- set child ast (only list)
-	variableNameSetter interface{ set_variableName(stringToken) } // ast_fmtPercent, ast_fmtDollar -- set variable name
-	fmtStringSetter    interface{ set_formatString(stringToken) } // ast_fmtPercent, ast_fmtDollar -- set format string
-	conditionSetter    interface{ set_condition(stringToken) }    // ast_condPercent, ast_condDollar -- set condition string
-	simplifier         interface{ simplify() }                    // ast_root, ast_condPercent, ast_condDollar -- simplify the tree (replace one-element child list by single ast)
-	invalidatable      interface{ make_invalid() }                // ast_condPercent, ast_condDollar -- invalidates the condition (indicates that there was a parse error in its subtree)
-	initialTokenGetter interface{ token() string }                // ast_fmtPercent, ast_fmtDollar, ast_condPercent, ast_condDollar [Only used for error reporting] -- returns '%', '$', '%!' or '$!' depending on node type.
-	conditionGetter    interface{ get_condition() string }        // ast_condPercent, ast_condDollar -- getter for the condition string
-	variableNameGetter interface{ get_variableName() string }     // ast_fmtPercent, ast_fmtDollar -- getter for variable name
-	fmtStringGetter    interface{ get_formatString() string }     // ast_fmtPercent, ast_fmtDollar -- getter for format string
-)
-*/
-
-// consolidated:
+// interfaces satisfied by a subset of the AST types. This is used to consolidate both the parsing code and testing.
 
 type (
+	// ast_with_children is satisfied by AST types that have other ASTs as children, namely [ast_root] and both types satisfying [ast_cond]
+	// Note that "children" (plural) is a bit of a misnomer, implementation-wise: each such AST actually only refers to a single other AST
+	// which is often of type [ast_list].
 	ast_with_children interface {
-		ast_I
-		set_child_list(ast_list)
-		get_children() ast_I
-		simplify()
+		ast_I                    // is an AST
+		set_child_list(ast_list) // sets the child. We always take an [ast_list] here to simplify matters.
+		get_children() ast_I     // gets the child ast. This is likely of type [ast_list].
+		simplify()               // asserts the type of child has type [ast_list] and, if that list has exactly 1 element, replaces it by this single element.
 	}
+	// ast_fmt is satisfied by AST types [ast_fmtPercent] and [ast_fmtDollar], i.e. formatting strings.
 	ast_fmt interface {
-		ast_I
-		set_variableName(stringToken)
-		get_variableName() string
-		set_formatString(stringToken)
-		get_formatString() string
-		token() string
+		ast_I                         // is an AST
+		set_variableName(stringToken) // setter for variable name
+		get_variableName() string     // getter for variable name
+		set_formatString(stringToken) // setter for format string. We take a stringToken rather than a string here to simplify the code
+		get_formatString() string     // getter for format string. We return a string as this is what's needed in the code.
+		token() string                // outputs either `%` or `$`
 	}
+	// ast_cond is satisfied by AST types [ast_condPercent] and [ast_condDollar]. i.e. conditional evaluation.
 	ast_cond interface {
-		ast_I
-		set_condition(stringToken)
-		get_condition() string
-		token() string
-		make_invalid(flags int)
-		is_valid() bool
-		simplify()
-		set_child_list(ast_list)
+		ast_I                      // is an AST
+		set_condition(stringToken) // sets the condition string. Taking a stringToken rather than string is for convenience.
+		get_condition() string     // gets the condition string. Returning a string rather than stringToken is for convenience.
+		token() string             // outputs either `%!` or `$!`
+		make_invalid(flags uint)   // flags the AST as invalid. This is called if we detect an error to improve error message.
+		is_valid() bool            // checks whether make_invalid has been called on the AST.
+		simplify()                 // see [ast_with_children] (Note: we could just embedd [ast_with_children], actually)
+		set_child_list(ast_list)   // see [ast_with_children] (Note: we could just embedd [ast_with_children], actually)
+		// Note: get_chilren is missing here, solely because we don't need it.
 	}
+	// ast_parentMulti is satisfied by AST types [ast_parentPercentMulti] and [ast_parentDollarMulti], i.e. %w{...} and $w{...} - related ASTs
 	ast_parentMulti interface {
-		ast_I
-		set_childIndex(stringToken) error
-		token() string
+		ast_I                             // is an AST
+		set_childIndex(stringToken) error // setter for child index argument. No getter needed.
+		get_childIndex() int              // getter for child index. Only used in testing.
+		token() string                    // outputs either `%w{` or $w{`
 	}
 )
 
@@ -383,23 +374,44 @@ func new_ast_parentDollarMult() ast_parentDollarMulti {
 }
 
 // set_childIndex sets the actual child index from s.
-// For this, s is parsed as either a literal "#" or an uint using [strconv]'s [ParseUint]
+// For this, s is parsed as either a literal "#" or a positive int using [strconv]'s [Parseint]
+// Returns a non-nil err on failure; in this case, the child index is set to 0 (which is an invalid value in this context)
 func (a *base_ast_parentMult) set_childIndex(s stringToken) (err error) {
 	sString := string(s)
 	if sString == "#" {
 		a.whichChild = -1
 		return
 	}
-	var result int64                              // needed beause ParseInt returns an int64 rather than an int.
-	result, err = strconv.ParseInt(sString, 0, 0) // 0,0 means "May use sign"
-	if err != nil && result <= 0 {
-		err = fmt.Errorf("Invalid index:%v", result)
+
+	// Note: sString == "" would cause ParseInt to fail rather than output result==0.
+	// This is the correct behaviour for us (although this cannot happen due to how the AST parser works: stringTokens are never empty)
+
+	var result int64                                       // needed beause ParseInt returns an int64 rather than an int.
+	result, errParseInt := strconv.ParseInt(sString, 0, 0) // 0,0 means "May use sign and prefix (such as 0x)", "Fit into int"
+	if errParseInt != nil {
+		err = errParseInt
+		a.whichChild = 0
+	}
+	if result <= 0 {
+		if err == nil {
+			err = fmt.Errorf("invalid index:%v", sString)
+		}
+		a.whichChild = 0
 		return
 	}
-	if err != nil {
+	if err == nil {
 		a.whichChild = int(result)
 	}
 	return
+}
+
+// get_childIndex returns the actual child index. This index is 1-based.
+// For uninitialized asts or after set_childIndex failed, this returns 0, which signals "invalid".
+// The special value -1 is returned if we parsed a literal "#" (indicating we want to output the number of children).
+//
+// NOTE: We do not use this function outside of testing.
+func (a *base_ast_parentMult) get_childIndex() int {
+	return a.whichChild
 }
 
 // token returns a literal '%w{' for [ast_parentPercentMult].
@@ -417,11 +429,13 @@ func (ast_parentDollarMulti) token() string { return `$w{` }
  * ast_condDollar
  */
 
-// potential values for base_ast_condition.invalidParse
+// potential values for [base_ast_condition.invalidParse] these may be bitwise-OR-ed.
+//
+// These affect error reporting as follows:
 const (
 	astConditionValidity_VALID            = 0
-	astConditionValidity_OUTPUT_CHILD     = 1
-	astConditionValidity_OUTPUT_CONDITION = 2
+	astConditionValidity_OUTPUT_CHILD     = 1 // Interpolate outputs children unconditionally, ignoring the condition.
+	astConditionValidity_OUTPUT_CONDITION = 2 // Interpolate outputs the condition string (typically followed by the children, if the above was set as well)
 )
 
 // base_ast_condition is a helper type for joint functionality of [ast_condPercent] and [ast_condDollar] (via struct embedding)
@@ -435,14 +449,10 @@ type base_ast_condition struct {
 	// we need to ensure that errors are not hidden by a condition that would not output the child.
 	//
 	// Note that not all errors need to set this flag.
-	// values are:
-	//
-	// 0: OK
-	// 1: Output child unconditionally
-	// 3: Output child unconditionally and make an error output with the condition
-	invalidParse int
+	// values are defined by astConditionValidity_<FOO> constants.
+	invalidParse uint
 
-	// Note: we store invalidParse rather than validParse, because this way, the zero value makes newly generated instances valid (it was originially a bool).
+	// Note: we store invalidParse rather than validParse, because this way, the zero value makes newly generated instances valid.
 }
 
 // set_condition sets the condition string for an [ast_condPercent] or [ast_condDollar].
@@ -465,13 +475,13 @@ func (a *base_ast_condition) get_condition() string {
 // This is provided to satisfy the [invalidatable] interface. It is called when certain errors during parsing (in particular errors in the child-subtree).
 // This is caught by [Interpolate] and causes special treatment of output; in particular, it causes unconditional interpolation of the child subtree in order
 // to ensure that the cause of parsing errors is actually displayed.
-func (a *base_ast_condition) make_invalid(flags int) {
+func (a *base_ast_condition) make_invalid(flags uint) {
 	a.invalidParse |= flags
 }
 
 // is_valid returns whether the node of type [ast_condPercent] or [ast_condDollar] is valid
 //
-// This returns true unless [make_invalid] has been called on the node, which happens on certain parse errors.
+// This returns true unless [make_invalid] has been called on the node with a non-zero flag, which happens on certain parse errors.
 // This method may potentially be unused outside of testing.
 func (a *base_ast_condition) is_valid() bool {
 	return (a.invalidParse == astConditionValidity_VALID)
@@ -634,15 +644,21 @@ func (a ast_parentDollar) String() string {
 // String is required for the [ast_I] interface.
 //
 // It is only used for debugging and testing.
-func (ast_parentPercentMulti) String() string {
-	return `%w{`
+func (a ast_parentPercentMulti) String() string {
+	if a.whichChild == -1 {
+		return `%w{#}`
+	}
+	return fmt.Sprintf("%%w{%v}", a.whichChild)
 }
 
 // String is required for the [ast_I] interface.
 //
 // It is only used for debugging and testing.
-func (ast_parentDollarMulti) String() string {
-	return `$w{`
+func (a ast_parentDollarMulti) String() string {
+	if a.whichChild == -1 {
+		return `$w{#}`
+	}
+	return fmt.Sprintf("$w{%v}", a.whichChild)
 }
 
 // String is required for the [ast_I] interface.
@@ -814,10 +830,10 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 
 	// we skip over the tokenStart (to avoid needing a parseMode_start) and expect a sequence
 	if len(tokens) == 0 {
-		panic(ErrorPrefix + "empty or nil token list (missing start/end markers)")
+		panic(ErrorPrefix + "internal error: empty or nil token list (missing start/end markers)") // unreachable for tokens output by tokenizeInterpolationString.
 	}
 	if tokens[0] != tokenStart {
-		panic(ErrorPrefix + "invalid token list (missing start marker)")
+		panic(ErrorPrefix + "internal error: invalid token list (missing start marker)") // unreachable for tokens outputs of tokenizeInterpolationString
 	}
 	tokens = tokens[1:]
 
@@ -983,10 +999,10 @@ func make_ast(tokens tokenList) (ret ast_root, err error) {
 					stack.Push(newNode)
 					mode = parseMode_ChildIndex // read child index next
 				default:
-					panic(fmt.Errorf(ErrorPrefix+"Unhandled token: %v", token)) // cannot happen for tokenLists output by the tokenizer.
+					panic(fmt.Errorf(ErrorPrefix+"Unhandled token: %v", token)) // cannot happen for tokenLists output by tokenizeInterpolationString.
 				}
 			default: // token not of type stringToken or specialToken
-				panic(ErrorPrefix + "Invalid entry in token list")
+				panic(ErrorPrefix + "Invalid entry in token list") // cannot happen
 			}
 
 		case parseMode_FmtString: // expect to read (optional) format string (which must be a string literal)

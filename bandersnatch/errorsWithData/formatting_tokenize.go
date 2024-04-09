@@ -45,7 +45,7 @@ var re_tokenize = regexp.MustCompile(re_escaper.Replace(`(?s)(\%|\$|\{|\}|\\|%%|
 // token_I is the interface type holding a single token produced by the tokenizer.
 // We provide two implementations:
 //   - [stringToken] for string tokens
-//   - [specialToken] for active tokens. This is an enum type; we don't need different types for different active tokens
+//   - [specialToken] for active tokens. This is a single enum type; we don't need different types for different active tokens
 type token_I interface {
 	IsToken()       // only used to mark the types as valid for token_I
 	String() string // returns a string representation of the token. For [specialToken], this gives the defining sequence. For [stringToken], gives the (unescaped) string.
@@ -85,8 +85,8 @@ const (
 	tokenParentDollar                           // $w (not followed by {)
 	tokenParentPercentMulti                     // %w{
 	tokenParentDollarMulti                      // $w{
-	tokenStart                                  // added to the start of the tokenized string; this simplifies things a bit
-	tokenEnd                                    // added to the end of the tokenized string; this simplifies things a bit
+	tokenStart                                  // added to the start of the tokenized string; this simplifies parsing a bit
+	tokenEnd                                    // added to the end of the tokenized string; this simplifies parsing a bit
 )
 
 // list of all tokens resp. all tokens that can be produced from strings. This is only used in testing.
