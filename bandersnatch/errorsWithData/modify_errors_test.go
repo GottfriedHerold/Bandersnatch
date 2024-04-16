@@ -322,3 +322,55 @@ func TestDeleteParamterFromError(t *testing.T) {
 
 	// _ = panicVal
 }
+
+func TestAsErrorWithData(t *testing.T) {
+	type invalid struct{ _ int } // unexported
+	type DataXY struct{ X, Y int }
+	type DataXZ struct{ X, Z int }
+	type DataX struct{ X uint } // note different type
+	type empty struct{}
+
+	baseError1, _ := NewErrorWithData_params[DataXY](nil, "${X} ${Z}", "X", 1, "Y", 2, "Z", 3, PanicOnAllErrors)
+	baseError2, _ := NewErrorWithData_params[DataXY](nil, "${X} ${Z}", "X", 1, "Y", 2, ErrorUnlessValidBase, PanicOnAllErrors)
+
+	didPanic, panicVal := testutils.CheckPanic2(func() { AsErrorWithData[invalid](nil) })
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	didPanic, panicVal = testutils.CheckPanic2(func() { AsErrorWithData[invalid](baseError1) })
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	error1, err := AsErrorWithData[DataXZ](nil)
+	testutils.FatalUnless(t, error1 == nil, "%v", error1)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+
+	error2, err := AsErrorWithData[empty](baseError1)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError(t, error2, "1 3", &empty{}, ParamMap{"X": 1, "Y": 2, "Z": 3}, []error{baseError1})
+
+	error3, err := AsErrorWithData[DataXZ](error2)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError(t, error3, "1 3", &DataXZ{X: 1, Z: 3}, ParamMap{"X": 1, "Y": 2, "Z": 3}, []error{baseError1, error2})
+
+	error4, err := AsErrorWithData[empty](baseError2)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testutils.FatalUnless(t, error4.ValidateError_Final() != nil, "")
+
+	error5, err := AsErrorWithData[DataXZ](baseError2) // Adds Z == 0, but considered an error
+	testutils.FatalUnless(t, err != nil, "")
+	testError(t, error5, "1 0", &DataXZ{X: 1, Z: 0}, ParamMap{"X": 1, "Y": 2, "Z": 0}, []error{baseError2})
+
+	error6, err := AsErrorWithData[DataXZ](baseError2, MissingDataAsZero) // Adds Z == 0, but NOT considered an error
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError(t, error6, "1 0", &DataXZ{X: 1, Z: 0}, ParamMap{"X": 1, "Y": 2, "Z": 0}, []error{baseError2})
+
+	error7, err := AsErrorWithData[DataX](baseError1, MissingDataAsZero) // Changes X to uint(0), because of int != uint type mismatch
+	testutils.FatalUnless(t, err != nil, "%v", err)
+	testError(t, error7, "0 3", &DataX{X: 0}, ParamMap{"X": uint(0), "Y": 2, "Z": 3}, []error{baseError1})
+
+	didPanic, panicVal = testutils.CheckPanic2(func() { AsErrorWithData[DataX](baseError1, MissingDataAsZero, PanicOnAllErrors) })
+	testutils.FatalUnless(t, didPanic == true, "")
+	testutils.FatalUnless(t, panicVal.(error).Error() == err.Error(), "")
+
+	_ = panicVal
+
+}
