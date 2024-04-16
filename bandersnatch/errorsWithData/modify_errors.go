@@ -303,7 +303,7 @@ func DeleteParameterFromError_any(inputError error, interpolationString string, 
 	return
 }
 
-// DeleteParameterFromError takes an error and returns a modified copy (wrapping the original) that has the given parameter removed.
+// DeleteParameterFromError takes an error and returns a modified copy (wrapping the original) that has the given parameter(s) removed.
 // Deletion has no effect (except for copying, wrapping and ensuring it safisfies ErrorWithData[StructType]) if the parameter was not present to start with.
 // It works even if the input error's parameter is due to something deep in the error chain.
 //
@@ -318,16 +318,37 @@ func DeleteParameterFromError_any(inputError error, interpolationString string, 
 // - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
 // - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".]
 //
+// Passing values that are neither strings nor among the above causes a panic.
+//
 // As opposed to [DeleteParameterFromError_any], this function returns an ErrorWithData[StructType] for some StructType.
 // If StructType does not satisfy the conditions explained in [StructSuitableForErrorsWithData], this function panics, irrespective of the [ReturnError] or [PanicOnAllErrors] flag.
 //
 // Error handling depends on the flags passed. The same considerations as laid out in [NewErrorWithData_params] apply.
 // Note that validation actually follows the error chain, so the validation flags are meaningful.
-func DeleteParameterFromError[StructType any](inputError error, interpolationString, parameterName string, flags ...flagArgument_Delete) (ret ErrorWithData[StructType], err error) {
+func DeleteParameterFromError[StructType any](inputError error, interpolationString string, parameterNamesAndFlags ...any) (ret ErrorWithData[StructType], err error) {
 
 	// trigger early panic for invalid StructType. This happens even for nil inputError.
 	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
 		panic(errInvalidStruct)
+	}
+
+	var flags []flagArgument_Delete = make([]flagArgument_Delete, 0, len(parameterNamesAndFlags))
+	var parameterNames []string = make([]string, 0, len(parameterNamesAndFlags))
+
+	for _, arg := range parameterNamesAndFlags {
+		if arg == nil {
+			panic(fmt.Errorf(ErrorPrefix + "DeleteParameterFromError was passed a nil among the parameters and flags"))
+		}
+		switch arg := arg.(type) {
+		case string:
+			parameterNames = append(parameterNames, arg)
+		case flagArgument_Delete:
+			flags = append(flags, arg)
+		case flagArgument:
+			panic(fmt.Errorf(ErrorPrefix+"DeleteParameterFromError was passed the flag %v that is invalid for this function", arg))
+		default:
+			panic(fmt.Errorf(ErrorPrefix+"DeleteParameterFromError was passed argument %v that is neither a string nor a valid flag", arg))
+		}
 	}
 
 	inputError = UnboxError(inputError)
@@ -343,7 +364,7 @@ func DeleteParameterFromError[StructType any](inputError error, interpolationStr
 		}
 	}
 
-	ret, errCreateError := deleteParameterFromError[StructType](inputError, interpolationString, parameterName, config.config_ImplicitZero, config.config_EmptyString)
+	ret, errCreateError := deleteParameterFromError[StructType](inputError, interpolationString, parameterNames, config.config_ImplicitZero, config.config_EmptyString)
 	errValidation := validateError(ret, config.config_Validation)
 
 	// merge the two errors
@@ -355,7 +376,7 @@ func DeleteParameterFromError[StructType any](inputError error, interpolationStr
 		}
 	} else {
 		// Note we do not wrap here, because the information that it was DeleteParameterFromError that failed is not useful.
-		// Validation errors are tied to ret rather the way we constructed it.
+		// Validation errors are tied to ret rather than the way we constructed it.
 		err = errValidation // possibly nil.
 	}
 

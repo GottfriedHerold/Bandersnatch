@@ -323,10 +323,12 @@ func deleteParameterFromError_any(baseError error, interpolationString string, p
 // This function may panic if called with invalid StructType.
 // The caller must make sure ensure that the combination interpolationString == "", c_EmptyString.AllowEmptyString() == false, baseError == nil never happens.
 // (The function would panic with an uninformative error message)
-func deleteParameterFromError[StructType any](baseError error, interpolationString string, parameterName string, c_ImplicitZero config_ImplicitZero, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], err error) {
+func deleteParameterFromError[StructType any](baseError error, interpolationString string, parameterNames []string, c_ImplicitZero config_ImplicitZero, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], err error) {
 	ret = new(errorWithParameters_T[StructType])
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
-	delete(ret.params, parameterName)
+	for _, parameterName := range parameterNames {
+		delete(ret.params, parameterName)
+	}
 	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
 	return
 }
