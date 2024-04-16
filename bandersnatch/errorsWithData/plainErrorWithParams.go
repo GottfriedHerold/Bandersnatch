@@ -1,6 +1,7 @@
 package errorsWithData
 
 import (
+	"errors"
 	"strings"
 )
 
@@ -297,10 +298,12 @@ func asErrorWithData[StructType any](baseError error, c_ImplicitZero config_Impl
 // If c_EmptyString.AllowEmptyString() is true, no special handling is performed.
 // If c_EmptyString.AllowEmptyString() is false (the default), we default to "%w" resp. to "$w" if interpolationString is empty.
 // In this case, this function panics if baseError == nil. This case must be caught at the call site rather than letting this function panic, because the error message is not right.
-func deleteParameterFromError_any(baseError error, interpolationString string, parameterName string, c_EmptyString config_EmptyString) (ret *errorWithParameters_common) {
+func deleteParameterFromError_any(baseError error, interpolationString string, parameterNames []string, c_EmptyString config_EmptyString) (ret *errorWithParameters_common) {
 	ret = new(errorWithParameters_common)
 	*ret = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
-	delete(ret.params, parameterName)
+	for _, parameterName := range parameterNames {
+		delete(ret.params, parameterName)
+	}
 	return
 }
 
@@ -375,10 +378,16 @@ func newErrorWithData_struct[StructType any](baseError error, interpolationStrin
 func newErrorWithData_map[StructType any](baseError error, interpolationString string, params ParamMap, c_OldData config_OldData, c_ImplicitZero config_ImplicitZero, c_EmptyString config_EmptyString) (ret *errorWithParameters_T[StructType], err error) {
 	ret = new(errorWithParameters_T[StructType])
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
-	panic("TODO: error handling")
-	mergeMaps(&ret.errorWithParameters_common.params, params, c_OldData)
+
+	paramsErrors := mergeMaps(&ret.errorWithParameters_common.params, params, c_OldData)
 
 	// We want to maintain the invariant for the returned value even on error, so we zero out bad values.
-	err = ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
+	errInvariant := ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
+
+	errs := NonNilUnion(paramsErrors, errInvariant)
+	if errs != nil {
+		err = errors.Join(errs...)
+	}
+
 	return
 }

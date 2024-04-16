@@ -10,6 +10,31 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// NonNilUnion is a utility function. It takes any errors or []errors and outputs a single slice that is the concatenation of these, with nils removed.
+// If the output lenght would be 0, it outputs nil rather than a 0-lenght slice.
+func NonNilUnion(errsOrSlices ...any) (union []error) {
+	for _, arg := range errsOrSlices {
+		if arg == nil {
+			continue
+		}
+		switch arg := arg.(type) {
+		case error:
+			union = append(union, arg) // non-nil
+		case []error:
+			// Note: arg may be []error(nil); this is fine.
+			for _, argElement := range arg {
+				if argElement != nil {
+					union = append(union, argElement)
+				}
+			}
+		default:
+			panic(fmt.Errorf(ErrorPrefix+"internal error: argument %v to NonNilUnion is neither error nor []error", arg))
+		}
+
+	}
+	return
+}
+
 type joinedErrors_any struct {
 	baseErrors []error
 	params     ParamMap
@@ -37,8 +62,8 @@ func (e *joinedErrors_any) Error_interpolate(params_passed ParamMap) string {
 	}
 	var s strings.Builder
 	for i, child := range e.baseErrors {
-		if child, ok := child.(ErrorInterpolater); ok {
-			s.WriteString(child.Error_interpolate(params_passed))
+		if childInterpolatable, ok := child.(ErrorInterpolater); ok {
+			s.WriteString(childInterpolatable.Error_interpolate(params_passed))
 		} else {
 			s.WriteString(child.Error())
 		}

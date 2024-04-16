@@ -90,7 +90,7 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 
 			// NOTE: Go 1.20+ (or 1.21+) supports multiple %w's in fmt.Errorf
 			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_struct failed to create error for the following %v reasons: %w."+
-				"\nAdditionally, validation or the result failed with the following error: %w", len(errsNewError), errors.Join(errsNewError...), errValidate)
+				"\nAdditionally, validation of the result failed with the following error: %w", len(errsNewError), errors.Join(errsNewError...), errValidate)
 		} else {
 			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_struct failed to create error for the following %v reasons: %w",
 				len(errsNewError), errors.Join(errsNewError...))
@@ -154,7 +154,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 		switch arg := paramsAndFlags[i].(type) {
 		case string:
 			if i == L-1 {
-				panic(fmt.Errorf(ErrorPrefix+"invalid arguments to NewErrorWithData_params: trailing parameter %v has no value", arg))
+				panic(fmt.Errorf(ErrorPrefix+"invalid arguments to NewErrorWithData_params: trailing parameter \"%v\", which is supposed to be part of a string-value pair, has no value", arg))
 			}
 			i++
 			params_map[arg] = paramsAndFlags[i]
@@ -202,6 +202,8 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 }
 
 // NewErrorWithData_map has the same meaning as [NewErrorWithData_params], but the parameters are passed as a map rather than (string, any) - pairs.
+//
+// Using a nil map for newParams is equivalent to using an empty map.
 func NewErrorWithData_map[StructType any](baseError error, interpolationString string, newParams ParamMap, flags ...flagArgument_NewErrorParams) (ret ErrorWithData[StructType], err error) {
 	baseError = UnboxError(baseError)
 
@@ -239,24 +241,46 @@ func NewErrorWithData_map[StructType any](baseError error, interpolationString s
 	return
 }
 
-// DeleteParameterFromError_any takes an error and returns a modified copy (wrapping the original) that has the given parameter removed.
-// Has no effect (except for copying, possibly unboxing [MakeIncomparable], and wrapping) if the parameter was not present to start with.
+// DeleteParameterFromError_any takes an error and returns a modified copy (wrapping the original) that has the given parameter(s) removed.
+// The parameter map is unchanged from input error's if the parameter was not present to start with.
 // It works even if the input error's parameter is due to something deep in the error chain.
 //
-// interpolationString is used to change the error message. If interpolationString == "" and [DefaultToWrapping], we refer to inputError.
+// interpolationString is used to change the error message. If interpolationString == "" and [DefaultToWrapping], we refer to inputError via %w or $w.
 //
-// if the input error is nil, interpolationString == nil and [DefaultToWrapping] is set, returns (nil,nil)
-// if the input error is nil, interpolationString == nil and [AllowEmptyString] is set, this function panics
+// if the input error is nil, interpolationString == "" and [DefaultToWrapping] is set, returns (nil,nil)
+// if the input error is nil, interpolationString == "" and [AllowEmptyString] is set, this function panics
 //
-// This function accepts the following optional flags:
+// This function accepts the following optional flags that may be interspersed with the parameter names to be deleted:
 //
 // - [ReturnError] (default), [PanicOnAllErrors],
 // - [NoValidation] (default), [ErrorUnlessValidSyntax], [ErrorUnlessValidBase], [ErrorUnlessValidFinal]
 // - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".]
 //
-// Note that validation actually follows the error chain, so the validation flags are meaningful. The returned err can only be non-nil if a validation flag is set.
-func DeleteParameterFromError_any(inputError error, interpolationString string, parameterName string, flags ...flagArgument_DeleteAny) (ret ErrorWithData_any, err error) {
+// Passing values that are neither strings nor among the above causes a panic.
+//
+// Note that validation actually follows the error chain (if supported by the wrapped errors), so the validation flags are meaningful.
+// The returned err can only be non-nil if a validation flag is explicitly set.
+func DeleteParameterFromError_any(inputError error, interpolationString string, parameterNamesAndFlags ...any) (ret ErrorWithData_any, err error) {
 	inputError = UnboxError(inputError)
+
+	var flags []flagArgument_DeleteAny = make([]flagArgument_DeleteAny, 0, len(parameterNamesAndFlags))
+	var parameterNames []string = make([]string, 0, len(parameterNamesAndFlags))
+
+	for _, arg := range parameterNamesAndFlags {
+		if arg == nil {
+			panic(fmt.Errorf(ErrorPrefix + "DeleteParameterFromError_any was passed a nil among the parameters and flags"))
+		}
+		switch arg := arg.(type) {
+		case string:
+			parameterNames = append(parameterNames, arg)
+		case flagArgument_DeleteAny:
+			flags = append(flags, arg)
+		case flagArgument:
+			panic(fmt.Errorf(ErrorPrefix+"DeleteParameterFromError_any was passed the flag %v that is invalid for this function", arg))
+		default:
+			panic(fmt.Errorf(ErrorPrefix+"DeleteParameterFromError_any was passed argument %v that is neither a string nor a valid flag", arg))
+		}
+	}
 
 	var config = errorCreationConfig{config_Validation: noValidation}
 	parseFlagArgs(&config, flags...)
@@ -269,7 +293,7 @@ func DeleteParameterFromError_any(inputError error, interpolationString string, 
 		}
 	}
 
-	ret = deleteParameterFromError_any(inputError, interpolationString, parameterName, config.config_EmptyString)
+	ret = deleteParameterFromError_any(inputError, interpolationString, parameterNames, config.config_EmptyString)
 	err = validateError(ret, config.config_Validation)
 
 	if err != nil && config.PanicOnAllErrors() {

@@ -490,6 +490,10 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_Im
 // Note that ArgType will typically be an interface type that refines flagArgument, which may restrict the set of allowed flags.
 func parseFlagArgs[ArgType flagArgument](p *errorCreationConfig, flags ...ArgType) {
 	for _, individualFlag := range flags {
+		// My code analysis tool thinks this condition is impossible to trigger. The tool is actually wrong here (because ArgType is an interface type itself).
+		if any(individualFlag) == nil {
+			panic(fmt.Errorf(ErrorPrefix + "Passed nil as a flag to a function taking a variadic number of flag arguments"))
+		}
 		switch v := individualFlag.getValue(); v {
 		case flagArg_Unset:
 			panic("Cannot happen") // unless the user tries hard

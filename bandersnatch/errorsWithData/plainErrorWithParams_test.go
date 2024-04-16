@@ -1,7 +1,10 @@
 package errorsWithData
 
-// NOTE: Tests for functions that are basically implementations of the exported functions from modify_errors.go
-// are NOT tested in this file. We instead only write tests for the exported API in modify_errors.go to avoid reduncancy.
+// NOTE: Tests for (internal) functions that are basically implementations of the exported functions from modify_errors.go
+// are NOT tested in this file. For those functions, we instead have tests in modify_errors_test.go for the actually exported API.
+//
+// So this test file is mostly concerned with errorWithParameters_common and errorWithParameters_T complying with the
+// ErrorWithData_any and ErrorWithData interfaces.
 
 import (
 	"errors"
