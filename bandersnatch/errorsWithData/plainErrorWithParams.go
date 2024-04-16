@@ -393,3 +393,21 @@ func newErrorWithData_map[StructType any](baseError error, interpolationString s
 
 	return
 }
+
+// newErrorWithData_any_map creates a errorWithParameter_common, taking the new data via a ParamMap.
+//
+// Notably, it creates a new errorWithParamter_common based on baseError with the given interpolation string.
+// c_OldData controls how pre-existing data should be handled.
+// c_EmptyString controls how an empty interpolationString is interpreted.
+//
+// The returned err (a concatenation of errors) does not have ErrorPrefix.
+func newErrorWithData_any_map(baseError error, interpolationString string, params ParamMap, c_OldData config_OldData, c_EmptyString config_EmptyString) (ret *errorWithParameters_common, err error) {
+	ret = new(errorWithParameters_common)
+	*ret = makeErrorWithParametersCommon_any(baseError, interpolationString, c_EmptyString)
+
+	mergeErrors := mergeMaps(&ret.params, params, c_OldData)
+	if mergeErrors != nil {
+		err = errors.Join(mergeErrors...)
+	}
+	return
+}

@@ -1,7 +1,6 @@
 package errorsWithData
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
@@ -243,7 +242,7 @@ func TestDeleteParameterFromError_any(t *testing.T) {
 	error4, err := DeleteParameterFromError_any(errBase, "", "X", "Y", ErrorUnlessValidFinal) // same as error3, but notice there is an error
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, error4, "$v!<missing value> 5", ParamMap{}, []error{errBase})
-	fmt.Println(err)
+	// fmt.Println(err)
 
 	error5, err := DeleteParameterFromError_any(errBase, "", "X", "Y", ErrorUnlessValidBase) // same as error3,error4, but we expect no err
 	testutils.FatalUnless(t, err == nil, "%v", err)

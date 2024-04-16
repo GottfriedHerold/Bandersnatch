@@ -115,7 +115,8 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 //
 //	NewErrorWIthData_params[StrucType](nil, "Some error with $v{Param1} and $s{Param2}", "Param1", 5, "Param2", `some_string`, PanicOnAllErrors)
 //
-// If parameter names are repeated, the last value takes precendence.
+// If parameter names are repeated, the last value takes precendence. Dito for flags.
+// Note that all flags are processed before any string-value pair, so [PreferPreviousData] affects string-value pairs preceding the flag.
 //
 // We support the following flags:
 // - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data already present in baseError with the same key.
@@ -189,6 +190,88 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_params failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
 		} else {
 			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_params failed with the following error: %w", errCreateError)
+		}
+	} else {
+		err = errValidation // possibly nil
+	}
+
+	if err != nil && config.PanicOnAllErrors() {
+		panic(err)
+	}
+
+	return
+}
+
+// NewErrorWithData_any_params is similar to [NewErrorWithData_parames].
+// It creates a new [ErrorWithData_any] wrapping the given baseError if non-nil.
+// interpolationString is used to create the new error message, where by default an empty string is
+// interpreted as a default interpolation string ("$w" or "%w") if baseError is non-nil
+// Parameters are supposed to be passed as string - value pairs. Flags can appear anywhere outside of these pair, e.g:
+//
+// NewErrorWIthData_any_params(nil, "Some error with $v{Param1} and $s{Param2}", "Param1", 5, "Param2", ErrorUnlessValidSyntax, `some_string`, PanicOnAllErrors)
+//
+// If parameter names are repeated, the last value takes precendence. Dito for flags.
+// Note that all flags are processed before any string-value pair, so [PreferPreviousData] affects string-value pairs preceding the flag.
+//
+// We support the following flags:
+// - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data already present in baseError with the same key.
+// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
+// - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+// - [NoValidation], [ErrorUnlessValidSyntax] (default), [ErrorUnlessValidBase], [ErrorUnlessValidFinal]: Controls validation of created errors
+// - [AllowEmptyString], [DefaultToWrappring] (default): Controls whether an empty interpolation string is interpreted as "$w" resp. "%w".
+//
+// The function panics under any of the following conditions:
+//   - paramsAndFlags is malformed
+//   - interpolationsString == "", baseError == nil, [AllowEmptyString] is not set
+//   - [PanicOnAllErrors] was set and there is an error
+//   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type)
+//
+// Note that even when comparing to previous data, we will honor the last previous PreferPreviousData/ReplacePreviousData choice.
+// Unless the function panics, we do not abort on first error with either of these comparisons nor with Validation, so ret may potentially be useful even in case of error.
+func NewErrorWithData_any_params(baseError error, interpolationString string, paramsAndFlags ...any) (ret ErrorWithData_any, err error) {
+	baseError = UnboxError(baseError)
+
+	// We parse the config and parameters first
+
+	L := len(paramsAndFlags)
+	params_map := make(ParamMap, L/2)                  // L/2 is given as lower bound for initial capacity .
+	flagArgs := make([]flagArgument_NewErrorAny, 0, L) // L given as capacity to avoid reallocation
+
+	// parse paramsAndFlags into flagArgs and params_map
+	for i := 0; i < L; i++ { // i modified in loop body
+		switch arg := paramsAndFlags[i].(type) {
+		case string:
+			if i == L-1 {
+				panic(fmt.Errorf(ErrorPrefix+"invalid arguments to NewErrorWithData_any_params: trailing parameter \"%v\", which is supposed to be part of a string-value pair, has no value", arg))
+			}
+			i++
+			params_map[arg] = paramsAndFlags[i]
+		case flagArgument_NewErrorAny: // must come before flagArgument below
+			flagArgs = append(flagArgs, arg)
+		case flagArgument: // -- general case of a flag. This catches flags not satisfying flagArgument_NewErrorParams for better error message.
+			panic(fmt.Errorf(ErrorPrefix + "NewErrorWithData_any_params called with a flag that is not supported by this function"))
+		default:
+			panic(fmt.Errorf(ErrorPrefix + "NewErrorWithData_any_params called with invalid parameters. Parameters must come as string-any pairs and valid flags"))
+		}
+	}
+	// parse the collected flags into config
+	var config errorCreationConfig // The zero value is the correct default value for the config entries
+	parseFlagArgs(&config, flagArgs...)
+
+	// We need to settle this case here rather than in newErrorWithData_map
+	if baseError == nil && interpolationString == "" && !config.AllowEmptyString() {
+		panic(ErrorPrefix + "called NewErrorWithData_any_params with nil base error and empty interpolation string without [AllowEmptyString] flag")
+	}
+
+	ret, errCreateError := newErrorWithData_any_map(baseError, interpolationString, params_map, config.config_OldData, config.config_EmptyString)
+	errValidation := validateError(ret, config.config_Validation)
+
+	// merge the two errors
+	if errCreateError != nil {
+		if errValidation != nil {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_params failed with the following errors: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
+		} else {
+			err = fmt.Errorf(ErrorPrefix+"NewErrorWithData_params failed with the following errors: %w", errCreateError)
 		}
 	} else {
 		err = errValidation // possibly nil
@@ -386,6 +469,9 @@ func DeleteParameterFromError[StructType any](inputError error, interpolationStr
 	return
 }
 
+// NOTE: This does not allow validation. We could add that, if we wanted.
+// It would actually not be completely meaningless, due to ${var} - statements in parent error.
+
 // AsErrorWithData[StructType](inputError) returns a copy of inputError with a data type that guarantees that a struct of type StructType is contained in the data.
 // This is intended to "cast" ErrorWithData_any to ErrorWithData[StructType] or to change StructType.
 //
@@ -423,7 +509,7 @@ func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsE
 		panic(err)
 	}
 
-	// NOTE: No validateError here; this would make little sense.
+	// NOTE: No validateError here for now.
 	return
 
 }
