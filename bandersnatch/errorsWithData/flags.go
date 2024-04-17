@@ -326,8 +326,12 @@ var (
 	ReplacePreviousData = fArg_OldData{fArg{val: flagArg_PreferNew}, nil}
 	// EnsureDataIsNotReplaced means that when replacing associated data in errors, we treat it as an error if a value was already present for a given key, unless the values are equal.
 	// [EnsureDataIsNotReplaced_fun] may be used to customize this with a custom equlity-comparison function.
-	// NOTE: by default, we recover from a panic in the comparison function (such as using == on values of the same incomparable type), treating it a "unequal" with a custom error message determined by the panic.
+	// NOTE1: We honor the last setting of [PreferPreviousData] vs. [ReplacePreviousData] (the default). So by default, we actually *do replace* data, contrary to what the flag's name suggests;
+	// We just also return an error, unless the values are considered equal.
+	// NOTE2: by default, we recover from a panic in the comparison function (such as using == on values of the same incomparable type), treating it a "unequal" with a custom error message determined by the panic value.
 	// Use [LetComparisonFunctionPanic] to change that behaviour.
+	// NOTE3: The default comparison function selected by this flag is not plain comparison with ==. Rather, we special case nil interfaces and treat them as equal to nils of non-interface type.
+	// This is done because our ParamMap API to Struct API does the same conversion.
 	EnsureDataIsNotReplaced = fArg_OldData{fArg{val: flagArg_AssertEqual}, nil}
 
 	// LetComparisonFunctionPanic is only useful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.

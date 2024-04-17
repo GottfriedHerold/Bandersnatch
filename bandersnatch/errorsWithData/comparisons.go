@@ -9,6 +9,12 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
+// EqualityComparisonFunction is a type alias to func(any,any) bool.
+// Functions of this type are used by this package to compare arbitrary values for equality (with true meaning "the values are equal").
+//
+// Such functions are used when [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] flags are used.
+//
+// We provide [Comparison_IsEqual]
 type EqualityComparisonFunction = func(any, any) (result bool)
 
 // withPanicResults takes an EqualityComparisonFunction f as input and returns a new function that cals f, but catches panics in f.
@@ -76,7 +82,7 @@ func comparison_handleNils(x, y any) (isEqual bool) {
 //     -- Note that when calling with a pointer receiver or argument, we actuall pass a pointer to a copy of x or y.
 //   - otherwise, if there is no method from the list of methodnames defined on x's type, we resort to plain == (which may panic for incomparable types)
 //
-// NOTE: Plain comparison takes precendence over methods from the list if either x or y are pointers.
+// NOTE: Plain comparison takes precendence over methods with pointer receiver from the list if either x or y are pointers.
 // This choice was made because using pointer arguments / receivers is often just done to avoid copying,
 // not necessarily because the pointers are the objects where we want to have custom equality semantics.
 // Unfortunately, the Go language has no way to differentiate these concepts.

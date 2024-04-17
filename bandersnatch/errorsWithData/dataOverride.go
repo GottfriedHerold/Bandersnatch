@@ -60,7 +60,7 @@ func mergeMaps_preferNew(target *ParamMap, source ParamMap) {
 // See the documentation of [mergeMaps] for its semantics.
 func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (errors []error) {
 	// This function is only called from [mergeMaps] and only if PerformEqualityCheck is true.
-	// For simplicity, we just forward config as-is, rather than stripping off the PerformEqualityCheck bool.
+	// For simplicity, we just forward config as-is, rather than strip off the PerformEqualityCheck bool.
 	if !config.PerformEqualityCheck() {
 		panic("Cannot happen")
 	}
@@ -122,7 +122,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 //
 // Note that the returned errors for this internal function do not have ErrorPrefix. We return errors==nil rather than an empty list in case of success.
 // In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
-// satisfies the [error] interface, the resulting error[i] wraps that argument.
+// satisfies the [error] interface, the resulting errors[i] wraps that argument.
 func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config config_OldData) (errors []error) {
 	if *m == nil {
 		*m = make(map[string]any)

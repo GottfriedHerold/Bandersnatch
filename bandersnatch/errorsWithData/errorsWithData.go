@@ -16,7 +16,7 @@
 // typically wrapping the old one.
 //
 // Errors are returned either as an interface of type [ErrorWithData_any] or through a generic interface [ErrorWithData][StructType].
-// The first option corresponds roughly to StructType = struct{}, but is special-cased.
+// The first option corresponds roughly to an empty StructType = struct{}, but is special-cased.
 //
 // StructType is used to communicate via the type system that certain parameters are neccessarily present.
 // Notably, [ErrorWithData_any] and [ErrorWithData] extend the builtin error interface and for a StructType = struct{A type1; B type2}, non-nil errors of type [ErrorWithData][StructType]
@@ -24,8 +24,8 @@
 // For [ErrorWithData_any], we make no such guarantee about what parameters are present.
 // Generally speaking, this (and retrievability as structs in general) exists purely as a way to get some partial type-safety.
 //
-// We recommend adding / retrieving via the struct rather than the map API to obtain better compile-time type-safety guarantees.
-// When using the map API, we recommend defining string constants for the map keys.
+// We recommend adding / retrieving via the struct rather than the map API to obtain better compile-time type-safety guarantees, if this is an option.
+// When using the map API, we recommend defining string constants for the map keys in case you ever need to refactor the names of fields.
 //
 // We assert that any errors that are contained in error chains are either nil *interfaces* or non-nil.
 // This library will not produce a nil error of concrete type (pointer-to-struct, usually) unless given as input (which is either a serious footgun or a bug to start with, client-side, anyway).
@@ -36,7 +36,7 @@
 // a new error e2 wrapping e with modified map m2 and then work with e2.
 // The reason is that e2 "inherits" its map from e and if we change e after creating e2, it is unclear whether we should track the changes or not, leading to confusion.
 //
-// The library allows using a plain error as the base of an error chain; the wrapping error then has parameters and satisfies [ErrorWithData_any].
+// The library allows using a plain error(s) as the base of an error chain/tree; the wrapping error then has parameters and satisfies [ErrorWithData_any].
 // The general semantics is that we associate to *every* error an immutable parameter map, where error wrapping defaults to copying the map.
 // (This default behaviour for errors outside our package means that for errors not satisfying [ErrorWithData_any], we follow the error chain until we hit nil or find an error that satisfied [ErrorWithData_any])
 //
@@ -94,25 +94,25 @@
 // after adding data from an instance of type Struct2, we can retrieve parameters (using the map interface) under the keys
 // "Data1" (yielding a bool) and "Data2" (yielding a string). There are no keys "Struct1" or "Struct1.Data1", "Struct1.Data2".
 // In particular, the shadowed int from Struct1.Data2 is completely ignored when adding data.
-// When retrieving data as an instance s of Struct2, s.Struct1.Data2 may or may not be zero-initialized.
+// When retrieving data as an instance s of Struct2, s.Struct1.Data2 is zero-initialized.
 // In particular, roundtrip fails for shadowed fields:
 // Creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are shadowed embedded fields.
 //
 // Another roundtrip failure issue is nil interfaces. When retrieving via struct API, these get converted to appropriate type (as specified by the types of the struct field) as needed.
-// This is similar to what assigning untyped nil to a variable of non-interface type does.
+// The reason is that the package treats nil interfaces in ParamMaps like *untyped* nil when performing assignment or comparison.
 // For example, let some error contain a nil interface as data: say the parameter map is ParamMap{"Foo": nil}.
 // Then using the struct API, with struct{Foo *int}, this gets retrieved as a struct, whose value of Foo is of appropriate type *int.
 //
 // To create errors, we provide functions [NewErrorWithData_params], [NewErrorWithData_map], [NewErrorWithData_struct], [NewErrorWithData_any_params], [NewErrorWithData_any_map].
 // These functions only differ in whether they return an [ErrorWithData] or [ErrorWithData_any] and how the data is passed.
-// Each of these takes a base error (possibly nil) that the new error should wrap, an interpolation string used to create an error message and newly added parameters.
+// Each of these takes a base error (possibly nil) that the new error should wrap, an interpolation string used to create an error message and newly added parameters (and optional flags to fine-tune the behaviour).
 // The newly created error wraps the base error, inherits its data and add some of its own.
 //
 // Interpolation strings:
 //
 // The main power of this package is in the ability to refer to the parameters' values in the error message, e.g.
 //
-//	err := NewErrorWithData_any_params(nil, "Something bad happended, the value of Foo is ${Foo}.", ReplacePreviousData, "Foo", 5)
+//	err := NewErrorWithData_any_params(nil, "Something bad happended, the value of Foo is ${Foo}.", "Foo", 5)
 //	fmt.Println(err)
 //
 // will print "Something bad happened, the value of Foo is 5." (without the quotation marks)
@@ -121,6 +121,9 @@
 //   - literal `%`, `$`, `{`, `}` and `\` have to be escaped as \%, \$, \{, \} and \\. Alternatively, %% also works for `%`.
 //     The backslash itself has no meaning beyond escaping and we recommend using `raw string`-syntax to avoid having to double-escape.
 //   - %w and $w insert the error message of the wrapped error (with special behaviour for $w).
+//   - %w{#} and $w{#} are only valid if the wrapped error has an Unwrap()[]error method. It inserts the number of grandchild errors.
+//   - %w{n} and $w{n} are only valid if the wrapped error has an Unwrap()[]error method. It parses n as a number and inserts the n'th grandchild's error message.
+//     (NOTE: We use grandchild rather than child here, because we have separate methods for Join'ing errors and that creates 1 extra layer.)
 //   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
 //     An empty FormatVerb defaults to v. FormatVerb must not start with w or !.
 //   - VariableName must either satisfy [ValidInterpolationName] or be one of the special strings '!m', '!map', '!parameters', '!params'.
@@ -138,10 +141,10 @@
 //
 //	errBase := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
 //
-// without actually setting the value of "Foo". Calling errBase.Error() will complain about a missing value for Foo.
+// without actually setting the value of "Foo". Calling errBase.Error() will return a string that contains a complaint about a missing value for Foo.
 // However, one can "derive" errors from errBase such as
 //
-//	errFinal := NewErrorWithData_any_params(errBase, "", ReplacePreviousData, "Foo", 5)
+//	errFinal := NewErrorWithData_any_params(errBase, "", "Foo", 5)
 //
 // (the empty interpolation string defaults to "$w" or "%w" depending on what the wrapped error supports). Then errFinal.Error() will output
 // "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is common.
@@ -155,7 +158,9 @@
 //   - parse errors
 //   - invalid conditions, invalid variable names, format verbs containing %
 //   - missing parameters
-//   - using $w or %w if there is no wrapped error or the wrapped error does not support $w
+//   - using $w / %w / $w{...} / %w{...} if there is no wrapped error or the wrapped error does not support this
+//
+// The methods provided by this package do NOT abort on the first such mistake encountered (except for parse errors); we rather collect and report all mistakes and try to make a best-effort for the actually created error.
 //
 // We provide methods ValidateSyntax, ValidateError_Base, ValidateError_Final to check whether an error was constructed OK.
 //   - ValidateSyntax only checks the syntax of the interpolation string.
@@ -231,8 +236,10 @@ const (
 // NOTE: ErrorsWithData is an interface that describes what functionality the errors created by this package provides to
 // users. As such, it is purely an *external* API.
 //
-// The library currently provides only a single implementation of the interface. The only real reason why we use an interface at
-// all is to properly handle nils. (The "correct thing" to do would be some-kind of Optional/Variant types for errors reporting
+// The library currently provides two implementation of the interface: The distinction is required because the result of Join is an error with
+// an Unwrap()[]error method, while the other (and "default") implementation has an Unwrap() error method. Always using an Unwrap() error - method would be an option,
+// but would not play nice with older packages that might not expect Unwrap()[]error - methods (which were added to the standard library later).
+// At any rate, the real reason why we use an interface is to properly handle nils. (The "correct thing" to do would be some-kind of Optional/Variant types for errors reporting
 // and not use various shades of nil to indicate "no value". This is really a problem with the Go language.)
 //
 // In principle, the library is at least supposed to work with user-defined implementations U of this interface.
@@ -252,7 +259,7 @@ const (
 // Note: When creating any ErrorWithData_any, we (by default) inherit data from wrapped errors.
 // This may be part of the job of the methods GetParameter, HasParameter and GetData_map, which are required to include inherited data
 // or be handled when creating the error.
-// Either way, we do NOT require the caller to follow the error chain.
+// Either way, we do NOT require the caller to follow the error chain/tree. This is done by the package.
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
@@ -264,7 +271,7 @@ type ErrorWithData_any interface {
 	// GetData_map returns a shallow copy of the parameter map. Note that this must never return a nil map.
 	GetData_map() map[string]any
 
-	// typically, any implementation of ErrorWithData_any also has an Unwrap() error method -- all errors created by this package do, but this is not part of the interface.
+	// typically, any implementation of ErrorWithData_any also has either an Unwrap() error method or an Unwrap() []error method -- all errors created by this package do, but this is not part of the interface.
 
 	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
 	ValidateError_Final() error                        // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
@@ -272,7 +279,7 @@ type ErrorWithData_any interface {
 	ValidateError_Params(params_passed ParamMap) error // same as ValidateError_Final, but use param_passed for any appearing $. Using params_passed == nil will use the error's own stored parameters (as opposed to an empty map).
 }
 
-// ErrorInterpolater is an extension of the error interface that allows the error output to depend on additional data.
+// ErrorInterpolater is an extension of the error interface that allows the error string to depend on additional data.
 //
 // In an error interpolation string, usage of $w works as intended if the wrapped error satisfies this interface.
 // It is a sub-interface of [ErrorWithData_any].
@@ -283,15 +290,21 @@ type ErrorInterpolater interface {
 	ValidateError_Base() error
 }
 
+// Should we export this?
+
+/*
+
 // DummyValidator is an empty struct that dummy-implements ValidateError_Base, ValidateError_Final, ValidateSyntax and ValidateError_Params (with value receivers).
 // These method all return nil (indicating that validation succeeded).
-// The usage scenario is struct-embedding in an implementation of the [ErrorWithData] interface to satisfy the validation-related parts of the interface if no validation is supported/needed.
+// The usage scenario is struct-embedding in a (custom/testing) implementation of the [ErrorWithData] interface to satisfy the validation-related parts of the interface if no validation is supported/needed.
 type DummyValidator struct{}
 
 func (DummyValidator) ValidateError_Base() error           { return nil }
 func (DummyValidator) ValidateError_Final() error          { return nil }
 func (DummyValidator) ValidateSyntax() error               { return nil }
 func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
+
+*/
 
 // ErrorWithData[StructType] is a generic interface extending [ErrorWithData_any].
 // Any non-nil error returned in such an interface is guaranteed to contain some additional data sufficient to create an instance of StructType.
@@ -313,11 +326,15 @@ type ErrorWithData[StructType any] interface {
 	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetData_Struct[StructType](e).
 }
 
+// No longer needed
+
+/*
 // unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
 // It's functionally equivalent to [ErrorWithData_any], but is NOT a sub-interface.
 type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
+*/
 
-// ErrorPrefix is a prefix added to internal error messages/panics that originate from this package.
+// ErrorPrefix is a prefix added to user-visible error messages/panics that originate from this package.
 //
 // Note: This does not apply to in-band error messages reported by err.Error() when there was a problem with err (such as mis-parsing an interpolation string).
 const ErrorPrefix = "bandersnatch / error handling: "
@@ -352,16 +369,35 @@ func isExportedIdentifier(s string) bool {
 // To get the correct semantics, we have to (mentally) associate to every error (including plain errors that know nothing about this package) an immutable parameter map, where error wrapping defaults to copying/inheriting the map.
 
 // GetData_map returns a map for all parameters stored in the error, where error wrapping defaults to keeping the parameters of the wrapped error.
-// For err==nil or if no error in err's error chain has any data, returns an empty map.
+// For err==nil or if no error in err's error chain/tree has any data, returns an non-nil empty map.
+//
+// If the error tree has branches with Unwrap()[]error methods, we take the union of the parameters from each sub-tree.
+// In the case that multiple branches of the tree have a parameter with the same name, the one with the larger index i (as in some_error.Unwrap()[i]) takes precendence.
 //
 // Note that the returned map is a (shallow) copy, so the caller may modify it without affecting err.
 // err itself does not need to have been created by this package and may be of plain error type.
 //
 // The implementations simply follows err's error chain until we find some error that we can work with.
-func GetData_map(err error) map[string]any {
+func GetData_map(err error) (ret map[string]any) {
+	// follow the error chain. Note that this does not handle error trees itself.
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+		// if the error itself or anything encountered supports ErrorWithData_any, we are done.
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.GetData_map()
+		}
+
+		// If we hit an error with multiple children, we abort following the error chain.
+		// Instead we recursively call GetData_map on *all* children and merge their maps.
+		if errChainMulti, ok := errorChain.(interface{ Unwrap() []error }); ok {
+			ret = make(ParamMap)
+			for _, child := range errChainMulti.Unwrap() {
+				// merge into ret. Note that the i'th child's Params take precendence over the j'th child's iff i>j
+				// With the default config_OldData{} setting, mergeMaps cannot fail, so issues is guaranteed to be nil.
+				issues := mergeMaps(&ret, GetData_map(child), config_OldData{})
+				if issues != nil {
+					panic(issues) // Cannot happen, actually.
+				}
+			}
 		}
 	}
 	return make(map[string]any) // return an empty (rather than a nil) map if no error in the chain supports ErrorWithData_any; this includes the err==nil case.
@@ -370,20 +406,25 @@ func GetData_map(err error) map[string]any {
 // HasParameter checks whether err contains a parameter keyed by parameterName.
 //
 // Note that err does not need to have been created by package.
-// Error wrapping defaults to retaining all parameters, so we follow the error chain.
+// Error wrapping defaults to retaining all parameters, so we follow the error chain/tree.
 //
 // HasParameter(nil, <anything>) returns false
 func HasParameter(err error, parameterName string) bool {
-	/*
-		if f := GetInvalidParameterNameHandler(); f != nil {
-			if !IsExportedIdentifier(parameterName) {
-				f(parameterName)
-			}
-		}
-	*/
+	// follow the error chain. Again, this does not handle error trees by itself.
 	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.HasParameter(parameterName)
+		}
+		// If errChain has an Unwrap() []error method, check all children. If at least one succeeds, return true.
+		if errChainMulti, ok := errorChain.(interface{ Unwrap() []error }); ok {
+			for _, child := range errChainMulti.Unwrap() {
+				if HasParameter(child, parameterName) {
+					return true
+				}
+			}
+			// None of the children has a parameter named parameterName, so we return false.
+			// This is technically not needed, because the outer loop would actually terminate here, but this is more clear.
+			return false
 		}
 	}
 	return false
@@ -402,7 +443,10 @@ func HasData[StructType any](err error, flags ...flagArgument_HasData) bool {
 	return ensureCanMakeStructFromParameters[StructType](&params, config, config_SetZeros{setErrorsToZero: false}) == nil
 }
 
-// GetParameter returns the value stored under the key parameterName, possibly following inputError's error chain (error wrapping defaults to inheriting the wrapped error's parameters).
+// GetParameter returns the value stored under the key parameterName, possibly following inputError's error chain/tree (error wrapping defaults to inheriting the wrapped error's parameters).
+//
+// If the error tree actually contains a branch with an Unwrap()[]error method, the child with larger index i (as in some_error.Unwrap()[i]) takes precendence.
+// This corresponds to a depth-first search of the tree, where we process at the rightmost children first.
 //
 // If no entry was found in the error chain or inputError==nil, returns (nil, false). Note that the inputError argument is of plain error type.
 func GetParameter(inputError error, parameterName string) (value any, wasPresent bool) {
@@ -410,6 +454,19 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.GetParameter(parameterName)
 		}
+		if errorChainMulti, ok := errorChain.(interface{ Unwrap() []error }); ok {
+			// process children in reverse order and recurse. This is precisely a depth-first search.
+			children := errorChainMulti.Unwrap()
+			L := len(children)
+			for i := 0; i < L; i++ {
+				value, wasPresent = GetParameter(children[L-1-i], parameterName)
+				if wasPresent {
+					return
+				}
+			}
+			return nil, false // Just for clarity; it's technically not needed, because the outer loop would terminate here.
+		}
+		// follow the non-branching error chain via the outer loop.
 	}
 	return nil, false
 }
@@ -425,15 +482,15 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 //   - if [ReturnError] is set (the default), we return errors via structConstructionError
 //   - if instead [PanicOnAllErrors] is set, we panic rather than returning a structConstructionError
 //
-// Calling this function with an StructType not satisfying [StructSuitableForErrorsWithData] will cause a panic.
+// Calling this function with an StructType not satisfying [StructSuitableForErrorsWithData] will always cause a panic.
 //
 // Note: The types of the parameters in inputError must match the types of the fields of StructType exactly, except that
-// - interface types in StructType only need assignability from the dynamic type of what's in inputError
+// - interface types in StructType's fields only need assignability from the dynamic type of what's in inputError
 // - a nil interface value in inputError's parameters is treated like an untyped nil (i.e. we perform ret.FieldName = nil, converting the nil to the appropriate type) if possible.
 //
 // On error, structConstructionError contains diagnostics for all fields of StructType for which an error occurred.
 // ret's fields are zero-initialized for those failing fields. All non-failing fields contain the values from inputError.
-// Note that if inputError satisfies ErrorWithData[StructType], then structConstructionError cannot be non-nil.
+// Note that if inputError satisfies ErrorWithData[StructType], then structConstructionError will always be nil.
 func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionError error) {
 	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
 	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)
