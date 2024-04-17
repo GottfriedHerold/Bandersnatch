@@ -9,7 +9,7 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-type EqualityComparisonFunction func(any, any) (result bool)
+type EqualityComparisonFunction = func(any, any) (result bool)
 
 // withPanicResults takes an EqualityComparisonFunction f as input and returns a new function that cals f, but catches panics in f.
 // If f panics, we return result == false, didPanic == true and panicValue is the panic value.
