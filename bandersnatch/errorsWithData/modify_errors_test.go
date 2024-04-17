@@ -274,6 +274,57 @@ func TestNewErrorWithDataMap(t *testing.T) {
 	_ = panicVal
 }
 
+func TestNewErrorWithDataAnyMap(t *testing.T) {
+
+	didPanic, _ := testutils.CheckPanic2(func() { NewErrorWithData_any_map(nil, "foo", nil, nil) })
+	testutils.FatalUnless(t, didPanic == true, "")
+	didPanic, _ = testutils.CheckPanic2(func() { NewErrorWithData_any_map(nil, "", nil) }) // empty error without AllowEmptyString
+	testutils.FatalUnless(t, didPanic == true, "")
+	var error0 ErrorWithData_any
+	didPanic, panicVal := testutils.CheckPanic2(func() { error0, _ = NewErrorWithData_any_map(nil, "foo", nil, nil...) })
+	testutils.FatalUnless(t, didPanic == false, "%v", panicVal)
+	testError_any(t, error0, "foo", nil, nil)
+
+	error1, err := NewErrorWithData_any_map(nil, "Error1", ParamMap{"X": 5})
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, error1, "Error1", ParamMap{"X": 5}, nil)
+
+	error2, err := NewErrorWithData_any_map(nil, "", nil, AllowEmptyString)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, error2, "", ParamMap{}, nil)
+
+	error3, err := NewErrorWithData_any_map(nil, "XOwn:%{X},X:${X}", ParamMap{"X": 1})
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, error3, "XOwn:1,X:1", ParamMap{"X": 1}, nil)
+
+	error4, err := NewErrorWithData_any_map(error3, "", ParamMap{"X": 2, "Y": 3})
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, error4, "XOwn:1,X:2", ParamMap{"X": 2, "Y": 3}, []error{error3})
+
+	error5, err := NewErrorWithData_any_map(error3, "", ParamMap{"X": 2, "Y": 3}, PreferPreviousData)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, error5, "XOwn:1,X:1", ParamMap{"X": 1, "Y": 3}, []error{error3})
+
+	error6, err := NewErrorWithData_any_map(error3, "", ParamMap{"X": 2, "Y": 3}, EnsureDataIsNotReplaced) // causes error, data is replaced nonetheless
+	testutils.FatalUnless(t, err != nil, "")
+	testError_any(t, error6, "XOwn:1,X:2", ParamMap{"X": 2, "Y": 3}, []error{error3})
+
+	error7, err := NewErrorWithData_any_map(error3, "%{Z}", ParamMap{"X": 2, "Y": 3}, EnsureDataIsNotReplaced, ErrorUnlessValidFinal) // validation and creation error
+	testutils.FatalUnless(t, err != nil, "")
+	testError_any(t, error7, "ignore", ParamMap{"X": 2, "Y": 3}, []error{error3})
+
+	error8, err := NewErrorWithData_any_map(nil, "%{", ParamMap{"X": nil}) // invalid syntax
+	testutils.FatalUnless(t, err != nil, "")
+	testError_any(t, error8, "ignore", ParamMap{"X": nil}, nil)
+
+	didPanic, panicVal = testutils.CheckPanic2(func() { NewErrorWithData_any_map(nil, "%{", ParamMap{"X": nil}, PanicOnAllErrors) })
+	testutils.FatalUnless(t, didPanic == true, "")
+	testutils.FatalUnless(t, panicVal.(error).Error() == err.Error(), "")
+
+	// fmt.Println(panicVal)
+	_ = panicVal
+}
+
 func TestDeleteParameterFromError_any(t *testing.T) {
 	type invalid struct{ _ int } // unexported
 	type DataXY struct{ X, Y int }

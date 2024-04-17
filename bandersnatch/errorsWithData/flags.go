@@ -173,7 +173,7 @@ func printFlagArg(f flagArgument) string {
 type config_OldData struct {
 	preferOld       bool
 	doEqualityCheck bool
-	checkFun        EqualityComparisonFunction // nil meaning "use default function"
+	checkFun        EqualityComparisonFunction // nil meaning "use default function". This is handled by GetCheckFun()
 	passPanic       bool
 }
 

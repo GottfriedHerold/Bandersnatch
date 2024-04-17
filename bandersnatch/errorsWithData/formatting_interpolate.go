@@ -54,7 +54,7 @@ var validMapSelectors [4]string = [4]string{"!m", "!map", "!parameters", "!param
 var specialVariableNameIndicator byte = '!' // must be first byte of each validMapSelectors - entry. Note type is byte, not rune.
 
 // $w{#} or %w{#} outputs the lenth of the list output of base_error.Unwrap(), where Unwrap returns []error.
-var outputChildNumber string = "#"
+const outputChildNumber string = "#"
 
 type multiUnwrap interface {
 	error

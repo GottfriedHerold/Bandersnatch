@@ -280,7 +280,7 @@ func makeErrorWithParameterCommon[StructType any](baseError error, interpolation
 // that in turn calls ensureCanMakeStructFromparameters, because the latter is not part of the ErrorWithData interface.
 func asErrorWithData[StructType any](baseError error, c_ImplicitZero config_ImplicitZero) (ret *errorWithParameters_T[StructType], err error) {
 	if baseError == nil {
-		panic("Must not happen")
+		panic("Internal error: This must not happen") // needs to be prevented by the caller.
 	}
 	ret = new(errorWithParameters_T[StructType])
 	ret.errorWithParameters_common = makeErrorWithParametersCommon_any(baseError, "", config_EmptyString{})

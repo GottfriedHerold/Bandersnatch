@@ -20,7 +20,7 @@ import (
 //     NOTE: In the latter case, we still honor the old value vs. new value choice.
 //     If old and new values do not coincide, we report errors. Note that we do not abort on first error, but rather continue and we report all errors.
 //
-// Note that the returned errors for this internal function do not have ErrorPrefix.
+// The returned errors for this internal function do not have ErrorPrefix.
 // In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
 // satisfies the [error] interface, the resulting error[i] wraps that argument.
 func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) (errors []error) {
@@ -59,7 +59,7 @@ func mergeMaps_preferNew(target *ParamMap, source ParamMap) {
 //
 // See the documentation of [mergeMaps] for its semantics.
 func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (errors []error) {
-	// This function is only called from [mergeMaps] if PerformEqualityCheck is true.
+	// This function is only called from [mergeMaps] and only if PerformEqualityCheck is true.
 	// For simplicity, we just forward config as-is, rather than stripping off the PerformEqualityCheck bool.
 	if !config.PerformEqualityCheck() {
 		panic("Cannot happen")
@@ -115,7 +115,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 //
 // StructType must be valid for use in this library (i.e. satisfy [StructSuitableForErrorsWithData]).
 // This functions panics otherwise.
-// If *m is a field inside *s (or similar shenanigans), the behaviour is undefined.
+// If *m is a field inside *s (or similar shenanigans), the behaviour is unspecified.
 // Preexisting entries of *m that do not correspond to a field of the struct are left unchanged.
 //
 // The meaning of config and error reporting is the same as [mergeMaps]

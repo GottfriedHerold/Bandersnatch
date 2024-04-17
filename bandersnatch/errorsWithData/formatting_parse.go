@@ -378,7 +378,7 @@ func new_ast_parentDollarMult() ast_parentDollarMulti {
 // Returns a non-nil err on failure; in this case, the child index is set to 0 (which is an invalid value in this context)
 func (a *base_ast_parentMult) set_childIndex(s stringToken) (err error) {
 	sString := string(s)
-	if sString == "#" {
+	if sString == outputChildNumber { // outputChildNumber == "#"
 		a.whichChild = -1
 		return
 	}

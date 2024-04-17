@@ -22,9 +22,9 @@ var (
 	validFlags_DeleteParameterFromError     []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
 	validFlags_AsErrorWithData              []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
 	validFlags_NewErrorWithData_params_any  []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
-	// validFlags_NewErrorWithData_map_any     []flagArgument = validFlags_NewErrorWithData_params_any
-	validFlags_JoinAny []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors}
-	validFlags_Join    []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, MissingDataAsZero, MissingDataIsError}
+	validFlags_NewErrorWithData_map_any     []flagArgument = validFlags_NewErrorWithData_params_any
+	validFlags_JoinAny                      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors}
+	validFlags_Join                         []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, MissingDataAsZero, MissingDataIsError}
 )
 
 var (
@@ -35,13 +35,13 @@ var (
 		&validFlags_NewErrorWithData_struct:      utils.TypeOfType[flagArgument_NewErrorStruct](),
 		&validFlags_NewErrorWithData_params:      utils.TypeOfType[flagArgument_NewErrorParams](), // Note: This is not part of the functions API, but checked at runtime via type-assertion
 		&validFlags_NewErrorWithData_map:         utils.TypeOfType[flagArgument_NewErrorParams](),
-		&validFlags_DeleteParameterFromError_any: utils.TypeOfType[flagArgument_DeleteAny](),
-		&validFlags_DeleteParameterFromError:     utils.TypeOfType[flagArgument_Delete](),
+		&validFlags_DeleteParameterFromError_any: utils.TypeOfType[flagArgument_DeleteAny](), // Checked at runtime
+		&validFlags_DeleteParameterFromError:     utils.TypeOfType[flagArgument_Delete](),    // Checked at runtime
 		&validFlags_AsErrorWithData:              utils.TypeOfType[flagArgument_AsErrorWithData](),
-		&validFlags_NewErrorWithData_params_any:  utils.TypeOfType[flagArgument_NewErrorAny](),
-		// &validFlags_NewErrorWithData_map_any:     utils.TypeOfType[flagArgument_NewErrorAny](),
-		&validFlags_JoinAny: utils.TypeOfType[flagArgument_JoinAny](),
-		&validFlags_Join:    utils.TypeOfType[flagArgument_Join](),
+		&validFlags_NewErrorWithData_params_any:  utils.TypeOfType[flagArgument_NewErrorAny](), // Checked at runtime
+		&validFlags_NewErrorWithData_map_any:     utils.TypeOfType[flagArgument_NewErrorAny](),
+		&validFlags_JoinAny:                      utils.TypeOfType[flagArgument_JoinAny](),
+		&validFlags_Join:                         utils.TypeOfType[flagArgument_Join](),
 	}
 )
 
