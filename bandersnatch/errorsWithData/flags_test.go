@@ -349,7 +349,7 @@ func TestParseFlagArgs_GetData(t *testing.T) {
 	testutils.FatalUnless(t, zf5.IsMissingDataError() == false, "")
 	testutils.FatalUnless(t, p5.PanicOnAllErrors() == true, "")
 
-	didPanic := testutils.CheckPanic(parseFlagArgs_GetData(nil))
+	didPanic := testutils.CheckPanic(func() { parseFlagArgs_GetData(nil) })
 	testutils.FatalUnless(t, didPanic == true, "")
 }
 
