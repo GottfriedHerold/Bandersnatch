@@ -133,7 +133,8 @@ func TestExtractNonNilErrors(t *testing.T) {
 	testutils.FatalUnless(t, didPanic == true, "")
 }
 
-/*
+// Note: We don't really test the intricacies of parameter passing here very much. We consider this covered by the tests for extractNonNilErrors.
+
 func TestJoinAny(t *testing.T) {
 	err1 := errors.New("A")
 	err2 := errors.New("B")
@@ -141,8 +142,8 @@ func TestJoinAny(t *testing.T) {
 	ewd2, e := NewErrorWithData_any_params(nil, "{", "X", 3) // syntax error
 	testutils.FatalUnless(t, e != nil, "")
 	ewd3, _ := NewErrorWithData_any_params(nil, "$v{X}", PanicOnAllErrors, ErrorUnlessValidBase)
-	testutils.FatalUnless(t, ewd.ValidateError_Final() != nil, "")
-	ewd4, _ := NewErrorWithData_any_params(nil, "%{Y}", "Y", "Y", "Z", "Z")
+	testutils.FatalUnless(t, ewd3.ValidateError_Final() != nil, "")
+	ewd4, _ := NewErrorWithData_any_params(nil, "%{Y}", "X", "X", "Y", "Y", "Z", "Z")
 
 	res, err := Join_any(err1, err2)
 	testutils.FatalUnless(t, err == nil, "%v", err)
@@ -156,5 +157,25 @@ func TestJoinAny(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError_any(t, res, "A\nB", nil, []error{err1, err2})
 
+	res, err = Join_any(ewd1, ewd4)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, res, "2\nY", ParamMap{"X": "X", "Y": "Y", "Z": "Z"}, []error{ewd1, ewd4})
+
+	res, err = Join_any(ewd3, ewd1)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, res, "ignore", ParamMap{"X": 2}, []error{ewd1, ewd3})
+	testutils.FatalUnless(t, res.Error() != "2\n2", "%v", res.Error())
+
+	// NOTE: Wrapping once changes the message!
+	wrappedRes, err := NewErrorWithData_any_params(res, "")
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, wrappedRes, "2\n2", ParamMap{"X": 2}, []error{ewd1, ewd3})
+
+	res, err = Join_any(ewd2)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError_any(t, res, "ignore", ParamMap{"X": 3}, []error{ewd2})
+	testutils.FatalUnless(t, res.ValidateSyntax() != nil, "")
+	testutils.FatalUnless(t, res.ValidateError_Base() != nil, "")
+	testutils.FatalUnless(t, res.ValidateError_Final() != nil, "")
+
 }
-*/

@@ -37,7 +37,7 @@ func nonNilUnion(errsOrSlices ...any) (union []error) {
 
 type joinedErrors_any struct {
 	baseErrors []error
-	params     ParamMap
+	params     ParamMap // This must never be nil.
 }
 
 type joinedErrors[StructType any] struct {
@@ -60,6 +60,10 @@ func (e *joinedErrors_any) Error_interpolate(params_passed ParamMap) string {
 	if e == nil {
 		panic(ErrorPrefix + "called Error_interpolate on nil error of concrete type joinedErrors_any. This is a library bug, as nil errors of this type should never appear")
 	}
+	// This is needed, because the meaning of nil ("use own parameters") would be forwarded with a different map to each child.
+	if params_passed == nil {
+		params_passed = e.params
+	}
 	var s strings.Builder
 	for i, child := range e.baseErrors {
 		if childInterpolatable, ok := child.(ErrorInterpolater); ok {
@@ -67,7 +71,7 @@ func (e *joinedErrors_any) Error_interpolate(params_passed ParamMap) string {
 		} else {
 			s.WriteString(child.Error())
 		}
-		if i != len(e.baseErrors) {
+		if i != len(e.baseErrors)-1 {
 			s.WriteRune('\n')
 		}
 	}
@@ -87,7 +91,7 @@ func (e *joinedErrors_any) Error() string {
 	var s strings.Builder
 	for i, child := range e.baseErrors {
 		s.WriteString(child.Error())
-		if i != len(e.baseErrors) {
+		if i != len(e.baseErrors)-1 {
 			s.WriteRune('\n')
 		}
 	}
@@ -298,10 +302,18 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // Join_any creates a new error that wraps all non-nil errors passed to it and merges their paramters.
 // This is intended to be used with the %w{Number} or $w{Number} syntax of interpolation string.
 // The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check that doc).
-// The resulting ret's error message will be the concatenation of the individual errors' messages, separated by "\n"
+// The resulting ret's error message will be the concatenation of the individual errors' messages, separated by "\n".
 //
-// Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour), an error or a slice/array of errors (see note on covariance below).
-// Arguments of other types cause Join_any to panic (even if [ReturnError] is set).
+// Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour) or its type must be one of
+//   - a type satifying error
+//   - a slice/array of errors (or a named type based on such)
+//   - a pointer-to-slice/array (or a named type based on such)
+//
+// Note that this function looks at the (dynamic) types of each element to provide a form of covariance (as opposed to the Go languange).
+// This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any).
+// Similarly for the array and pointer cases.
+//
+// Arguments of unsupported types cause Join_any to panic (even if [ReturnError] is set).
 // We accept the following flags:
 //
 // - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
@@ -310,17 +322,20 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 //
 // Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
-// Join_any will then process all errors that were passed to it (non-recursively iterating over slices/arrays, if needed) in order, skipping any nil errors.
-// The parameter map of the resulting ret is construced as the union of the individual errors. Duplicate parameter names are handled according to the passed flags;
-// For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older".
+// Join_any will process all errors that were passed to it (non-recursively iterating over slices/arrays and pointer-to-slice/array, if needed) in order, skipping any nil errors.
+// The parameter map of the resulting ret is constructed as the union of the individual errors. Duplicate parameter names are handled according to the passed flags;
+// For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older" as far as [PreferPreviousData]/[ReplacePreviousData] is concerned.
 //
-// NOTE: This function can only fail in a non-panicking way if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
+// NOTE: The result of Join_any is supposed to be used as a base error for e.g. [NewErrorWithData_any_params] and related functions.
+// A subtlety that arises here is the following: Suppose err1, err2 are errors with data that are passed to Join_any where err1 has a "${X}"-directive and X is overwritten/set by err2.
+// Then the error ret returned by Join_any will have a parameter X with value set by err2. Still, the output of ret.Error(), specified as concatenation, will contain err1's error message, which does *not* see this new value of X.
+// This differs from calling ret.Error_Interpolate(nil), where err1's contribution to the output will be affected by the new value of X.
+// Wrapping ret via NewErrorWithData_any_params (with a default "$w") and similar function will use Error_Interpolate, unless "%w" is explicitly used to refer to ret.
+//
+// NOTE2: This function can only fail in a non-panicking way if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
 // As [PanicOnAllErrors] only affects these kinds of errors, it is only meaningful if one of those two flags is set as well.
 //
-// NOTE: When passing slices or arrays, Join_any supports a form of (dynamic) argument covariance (as opposed to the Go language itself):
-// It supports passing arguments x to it which may have (dynamic) type []T or [n]T for some T.
-// In this case, we require only that the dynamic(!) type of every x[i] must satisfy error; T itself might not satisfy it.
-// In particular, we support to pass []any - slices, provided each entry satisfies error.
+// NOTE3: In the unlikely corner case where a named type based on an array/slice or pointer satifies the error interface, being an error takes precendence.
 func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 	returnedValue := new(joinedErrors_any)
 	ret = returnedValue // because it's a pointer, modifications to returnedValue will affect ret. We don't work with ret directly, because ret is an interface.
