@@ -440,6 +440,9 @@ var allFlagArgs []flagArgument = []flagArgument{
 func parseFlagArgs_HasData(flags ...flagArgument_HasData) (ret config_ImplicitZero) {
 	ret = config_ImplicitZero{implicitZero: false}
 	for _, flag := range flags {
+		if flag == nil {
+			panic(fmt.Errorf(ErrorPrefix + "nil passed as a flag to HasData"))
+		}
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
 			panic("cannot happen") // unless the user tries hard
@@ -469,6 +472,9 @@ func parseFlagArgs_GetData(flags ...flagArgument_GetData) (retZeroFill config_Im
 	retZeroFill = config_ImplicitZero{implicitZero: false}
 
 	for _, flag := range flags {
+		if flag == nil {
+			panic(fmt.Errorf(ErrorPrefix + "nil passed as flag to GetData"))
+		}
 		switch v := flag.getValue(); v {
 		case flagArg_Unset:
 			panic("Cannot happen") // unless the user tries hard

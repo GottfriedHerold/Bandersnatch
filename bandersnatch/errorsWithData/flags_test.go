@@ -316,6 +316,9 @@ func TestParseFlagArgs_HasData(t *testing.T) {
 
 	c4 := parseFlagArgs_HasData(IgnoreMissingData, EnsureDataIsPresent, IgnoreMissingData)
 	testutils.FatalUnless(t, c4.IsMissingDataError() == false, "")
+
+	didPanic := testutils.CheckPanic(func() { parseFlagArgs_HasData(nil) })
+	testutils.FatalUnless(t, didPanic == true, "")
 }
 
 func TestParseFlagArgs_GetData(t *testing.T) {
@@ -345,6 +348,9 @@ func TestParseFlagArgs_GetData(t *testing.T) {
 	zf5, p5 := parseFlagArgs_GetData(PanicOnAllErrors, MissingDataAsZero, MissingDataIsError, ReturnError, ReturnError, PanicOnAllErrors, MissingDataIsError, MissingDataAsZero)
 	testutils.FatalUnless(t, zf5.IsMissingDataError() == false, "")
 	testutils.FatalUnless(t, p5.PanicOnAllErrors() == true, "")
+
+	didPanic := testutils.CheckPanic(parseFlagArgs_GetData(nil))
+	testutils.FatalUnless(t, didPanic == true, "")
 }
 
 func TestEnsureDataIsNotReplaced_fun(t *testing.T) {
