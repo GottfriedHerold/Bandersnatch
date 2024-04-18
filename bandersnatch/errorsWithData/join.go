@@ -218,20 +218,21 @@ func (e *joinedErrors_any) ValidateError_Params(params_passed ParamMap) error {
 // The reason is that taking []error (let alone [n]error for unknown n) does not work very well due to Go's lack of covariance. After all, the
 // user may have a slice of type []T, say []ErrorWithData_any; converting this to an []error requires knowing T / using generics or using reflection;
 // generics would require T to be passed explicitly as generic argument to Join_any.
-// Note that T cannot be inferred, because type inference is not dynamic and it does not work with the way we pass flags or mix argument types (Go lacks sum types).
+// Note that T cannot be inferred, because type inference is not dynamic and it does not work with the way we pass flags or mix argument types via variadic arguments (Go lacks sum types).
 // So we have to use reflection here anyway, where looking at the dynamic type(s) is natural.
 
-// extractNonNilError will check whether x is an error, a slice or array containing errors and add either x or all elements of x to target, skipping any nils in the slice/array.
-// (Note: Anything added is Unboxed first.)
+// extractNonNilError will check whether x is an error, a slice or array (or pointer-to-slice or pointer-to-array) containing ~errors and add either x or all elements of x to target, skipping any nils in the slice/array.
+// (Note: Anything added is Unboxed first.) target must not be nil. (but *target may be nil, acting like append)
 // If x has type other than error, slice or array, returns a non-nil error. In this case, it is unspecified what happens to target. The error message does not include ErrorPrefix and is supposed to be modfied by the caller.
-// This must not be called with x==nil (this case needs to be handled by the caller)
+// This must not be called with x==any(nil) (this case needs to be handled by the caller anyway for unrelated reasons)
 //
 // Note that the dynamic type of x may be []T, where T is an interface; in this case we check whether the *dynamic* type of each entry satisfies error.
 //
-// extractNonNilErrors does not recurse.
+// extractNonNilErrors does not recurse. We abort on first error. Note that a named type based on a slice that also satisfies the error interface will be treated as an error rather than a slice.
 func extractNonNilErrors(target *[]error, x any) (err error) {
+	// needs to be handled by the caller anyway when separating flags from the rest of the arguments, so we consider it a bug if this would happen.
 	if x == nil {
-		panic("Cannot happen.") // needs to be handled by the caller anyway, so we consider it a bug if this would happen.
+		panic("Cannot happen.")
 	}
 	if x, xIsError := x.(error); xIsError {
 		x = UnboxError(x)
@@ -259,8 +260,34 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 				return
 			}
 		}
+	case reflect.Pointer:
+		typeOfElem := typeOfX.Elem()
+		kindOfElem := typeOfElem.Kind()
+		if kindOfElem != reflect.Array && kindOfElem != reflect.Slice {
+			err = fmt.Errorf("the entry %v of type %T passed is neither an error nor a slice/array nor a pointer-to-array/slice", x, x)
+			return
+		}
+		if valueOfX.IsNil() {
+			return
+		}
+		valueOfElem := valueOfX.Elem()
+		L := valueOfElem.Len() // *x may be a nil slice. This is fine; in this case L is 0.
+		for i := 0; i < L; i++ {
+			entry := valueOfElem.Index(i).Interface()
+			if entry == nil {
+				continue
+			}
+			if entryError, entryIsError := entry.(error); entryIsError {
+				entryError = UnboxError(entryError)
+				*target = append(*target, entryError)
+			} else {
+				err = fmt.Errorf("the %v'th entry %v of the pointer-to-array/slice passed does not satisfy error", i, entry)
+				return
+			}
+		}
+
 	default:
-		err = fmt.Errorf("the entry %v passed is neither an error nor a slice/array", x)
+		err = fmt.Errorf("the entry %v passed is neither an error nor a slice/array nor pointer-to-array/slice", x)
 	}
 
 	return
@@ -273,8 +300,8 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check that doc).
 // The resulting ret's error message will be the concatenation of the individual errors' messages, separated by "\n"
 //
-// Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour), an error or slice/array of errors (see note on covariance below).
-// Arguments of other types cause Join_any to panic.
+// Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour), an error or a slice/array of errors (see note on covariance below).
+// Arguments of other types cause Join_any to panic (even if [ReturnError] is set).
 // We accept the following flags:
 //
 // - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
@@ -284,8 +311,11 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
 // Join_any will then process all errors that were passed to it (non-recursively iterating over slices/arrays, if needed) in order, skipping any nil errors.
-// The parameter map of the resulting ret is construced as the union of the individual errors. Duplicate parameter names are handled according to the past flags;
+// The parameter map of the resulting ret is construced as the union of the individual errors. Duplicate parameter names are handled according to the passed flags;
 // For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older".
+//
+// NOTE: This function can only fail in a non-panicking way if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
+// As [PanicOnAllErrors] only affects these kinds of errors, it is only meaningful if one of those two flags is set as well.
 //
 // NOTE: When passing slices or arrays, Join_any supports a form of (dynamic) argument covariance (as opposed to the Go language itself):
 // It supports passing arguments x to it which may have (dynamic) type []T or [n]T for some T.
