@@ -386,7 +386,7 @@ func newErrorWithData_map[StructType any](baseError error, interpolationString s
 	// We want to maintain the invariant for the returned value even on error, so we zero out bad values.
 	errInvariant := ensureCanMakeStructFromParameters[StructType](&ret.errorWithParameters_common.params, c_ImplicitZero, config_SetZeros{setErrorsToZero: true})
 
-	errs := NonNilUnion(paramsErrors, errInvariant)
+	errs := nonNilUnion(paramsErrors, errInvariant)
 	if errs != nil {
 		err = errors.Join(errs...)
 	}

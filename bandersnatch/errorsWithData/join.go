@@ -10,9 +10,9 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// NonNilUnion is a utility function. It takes any errors or []errors and outputs a single slice that is the concatenation of these, with nils removed.
+// nonNilUnion is a utility function. It takes any errors or []errors and outputs a single slice that is the concatenation of these, with nils removed.
 // If the output lenght would be 0, it outputs nil rather than a 0-lenght slice.
-func NonNilUnion(errsOrSlices ...any) (union []error) {
+func nonNilUnion(errsOrSlices ...any) (union []error) {
 	for _, arg := range errsOrSlices {
 		if arg == nil {
 			continue
@@ -28,7 +28,7 @@ func NonNilUnion(errsOrSlices ...any) (union []error) {
 				}
 			}
 		default:
-			panic(fmt.Errorf(ErrorPrefix+"internal error: argument %v to NonNilUnion is neither error nor []error", arg))
+			panic(fmt.Errorf(ErrorPrefix+"internal error: argument %v of type %T to NonNilUnion has neither type error nor []error", arg, arg))
 		}
 
 	}
