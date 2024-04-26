@@ -164,6 +164,9 @@ func (e *errorWithParameters_common) ValidateError_Base() error {
 //
 // This method is required for [ValidateError_Base] or [ValidateError_Final] to recurse and part of the [ErrorInterpolater] interface.
 func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap) error {
+	if params_passed == nil {
+		params_passed = e.params
+	}
 	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
 }
 

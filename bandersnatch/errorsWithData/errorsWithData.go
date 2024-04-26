@@ -263,6 +263,8 @@ const (
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
+	// Using a nil map as paramters is equivalent to using the error's own parameters. So Error_interpolate(nil) is often equivalent to Error(), the only exception being results of
+	// Join.
 	Error_interpolate(ParamMap) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
 	GetParameter(parameterName string) (value any, wasPresent bool)
@@ -272,6 +274,7 @@ type ErrorWithData_any interface {
 	GetData_map() map[string]any
 
 	// typically, any implementation of ErrorWithData_any also has either an Unwrap() error method or an Unwrap() []error method -- all errors created by this package do, but this is not part of the interface.
+	// Note that ValidateError_Params(nil) and ValidateError_Final() are not equivalent for errors output by Join.
 
 	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
 	ValidateError_Final() error                        // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
