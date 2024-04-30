@@ -63,8 +63,10 @@ func testError_any(t *testing.T, e ErrorWithData_any, expectedString string, exp
 	}
 }
 
-// CallOnErrorSubtree calls the passed function/closure f on each error in e's error tree (but not on e itself)
-func CallOnErrorSubtree(e error, f func(error)) {
+// currently unused
+
+// callOnErrorSubtree calls the passed function/closure f on each error in e's error tree (but not on e itself)
+func callOnErrorSubtree(e error, f func(error)) {
 	if e == nil {
 		return
 	}
@@ -74,22 +76,22 @@ func CallOnErrorSubtree(e error, f func(error)) {
 		Unwrap() error
 	}:
 		unwrapped := e2.Unwrap()
-		CallOnErrorTree(unwrapped, f)
+		callOnErrorTree(unwrapped, f)
 	case interface {
 		error
 		Unwrap() []error
 	}:
 		unwrappedList := e2.Unwrap()
 		for _, unwrapped := range unwrappedList {
-			CallOnErrorTree(unwrapped, f)
+			callOnErrorTree(unwrapped, f)
 		}
 	default:
 		return
 	}
 }
 
-// CallOnErrorTree calls the passed function/closure f on each error in e's error tree (but not on e itself)
-func CallOnErrorTree(e error, f func(error)) {
+// callOnErrorTree calls the passed function/closure f on each error in e's error tree (but not on e itself)
+func callOnErrorTree(e error, f func(error)) {
 	f(e)
-	CallOnErrorSubtree(e, f)
+	callOnErrorSubtree(e, f)
 }

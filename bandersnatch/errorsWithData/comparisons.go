@@ -14,12 +14,16 @@ import (
 //
 // Such functions are used when [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] flags are used.
 //
-// We provide [Comparison_IsEqual]
+// We provide [Comparison_IsEqual] as an actual non-trivial comparison method suitable for most of our purposes.
+//
+// Note that this package (by default, unless overriden by flags) treats a panic'ing EqualityComparisonFunction as an "inequal" result,
+// but additionally takes the value provided in the panic as a reason for inequality.
 type EqualityComparisonFunction = func(any, any) (result bool)
 
-// withPanicResults takes an EqualityComparisonFunction f as input and returns a new function that cals f, but catches panics in f.
+// withPanicResults takes an EqualityComparisonFunction f as input and returns a new function that calls f, but catches panics in f.
 // If f panics, we return result == false, didPanic == true and panicValue is the panic value.
-// Otherwise, result is whatever f outputs, didPanic == false, panicValue == nil
+//
+// Otherwise, the result is whatever f outputs, didPanic == false, panicValue == nil
 func withPanicResults(f EqualityComparisonFunction) func(any, any) (result bool, didPanic bool, panicValue any) {
 	return func(x, y any) (result bool, didPanic bool, panicValue any) {
 		defer func() {
@@ -33,17 +37,10 @@ func withPanicResults(f EqualityComparisonFunction) func(any, any) (result bool,
 	}
 }
 
-/*
-// DEPRECATED
-func comparison_very_naive_old(x, y any) (equal bool, reason error) {
-	return x == y, nil
-}
-*/
-
 // comparison_handleNils compares x and y for equality with the following quirks:
 //
 //   - if either x or y are the nil interface, then the comparison result is true iff the other argument is either a nil interface or a nil of concrete type.
-//     (this behaviour is appropriate for usage with [errorsWithData] )
+//     (this behaviour is appropriate for usage with the [errorsWithData] package)
 //   - if both x and y have the same incomparable (dynamic) type, the function panics (the normal behaviour of x==y)
 //   - otherwise, we check whether x==y holds
 func comparison_handleNils(x, y any) (isEqual bool) {
@@ -73,21 +70,21 @@ func comparison_handleNils(x, y any) (isEqual bool) {
 // that is used to compare two values x and y for equality with the following quirks:
 //
 //   - if either x or y are the nil interface, then the comparison result f(x,y) is true iff the other argument is either a nil interface or a nil of concrete type
-//   - otherwise, if either x or y are pointer types, then the comparison will directly compare the pointers (which returns false for different types).
+//   - otherwise, if either x or y are pointer types, then the comparison will directly compare the pointers.
 //   - otherwise, we try each methodname in the list of methodnames in order:
 //     if x has a method (on either pointer or value receiver) named methodname, we will call x.methodname(y) resp. x.methodname(&y)
 //     -- Whether the method is called with &y or y is deduced from the method's signature. If both options are valid, we match the way x is passed.
 //     -- The method must return a bool (possibly inside an interface) as its first return value; further return values are discarded.
-//     -- If the method has a wrong signature, we panic
+//     -- If the method has a wrong signature, we panic.
 //     -- Note that when calling with a pointer receiver or argument, we actuall pass a pointer to a copy of x or y.
 //   - otherwise, if there is no method from the list of methodnames defined on x's type, we resort to plain == (which may panic for incomparable types)
 //
 // NOTE: Plain comparison takes precendence over methods with pointer receiver from the list if either x or y are pointers.
-// This choice was made because using pointer arguments / receivers is often just done to avoid copying,
+// Using pointer arguments / receivers is often just done to avoid copying,
 // not necessarily because the pointers are the objects where we want to have custom equality semantics.
-// Unfortunately, the Go language has no way to differentiate these concepts.
-// For the intended use case in the [errorsWithData] package, this choice is appropriate, as data accompanying errors should be the actual data rather than
-// a (possibly shared) pointer to it; this may be less efficient, but guarantees immutability, which is more important for diagnostics.
+// Unfortunately, the Go language has no way to either express or differentiate these concepts.
+// For the intended use case in the [errorsWithData] package, our choice is appropriate, as data accompanying errors should be the actual data rather than
+// a (possibly shared) pointer to it; this may seem less efficient (due to issues with escape analysis and Go interfaces, it often is not), but guarantees immutability, which is more important for diagnostics anyway.
 func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 	// Mostly Copy&Pasted from specialized function for (single) methodname  == "IsEqual" and adapted.
 	// TODO: Check in-code comments
@@ -138,9 +135,7 @@ func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 					panic(fmt.Errorf(ErrorPrefix+"during equality comparison, %T had an %v method with wrong number of arguments", x, methodname))
 				}
 
-				// The first argument is the receiver, i.e. xValue. We need to figure out if the second one should be yValue or or reflect.Value corresponding to a pointer.
-				// We will store the second argument in argVal
-				// var argVal reflect.Value // reflect value
+				// The first argument is the receiver, i.e. xValue. We need to figure out if the second one should be yValue or a reflect.Value corresponding to a pointer.
 				secondArgType := t.In(1)
 				var worksWithValueArg bool = yType.AssignableTo(secondArgType)
 				var worksWithPtrArg bool = reflect.PtrTo(yType).AssignableTo(secondArgType)
@@ -229,9 +224,12 @@ func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 //   - otherwise, if there is no IsEqual method, we resort to plain == (which may panic)
 //
 // NOTE: Plain comparison takes precendence over an IsEqual method if either x or y are pointers.
-// This choice was made because using pointer arguments / receivers is often just done to avoid copying,
-// not necessarily because the pointers are the objects where we want to have custom equality semantics.
-// Unfortunately, the Go language has no way to differentiate these concepts.
+//
+// This means that if an IsEqual method is defined on a pointer receiver (say, for efficiency of passing arguments),
+// you need to pass the non-pointer value to Comparison_IsEqual if you want to use the custom method.
+// Essentially, we assume that pointer receivers are chosen *solely* for argument passing efficiency and the custom equality semantics
+// are conceptually on the value-types, not the pointer type (notwithstanding that Go does not think of types that way to start with).
+// Since data stored in ErrorsWithData should be values, not pointers unless you are really interested in the memory address, this is the appropriate behaviour.
 //
 // Comparison_IsEqual is functionally equivalent to [CustomComparisonMethod]("IsEqual")
 func Comparison_IsEqual(x, y any) (isEqual bool) {

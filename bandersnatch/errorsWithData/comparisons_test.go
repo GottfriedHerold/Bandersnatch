@@ -277,6 +277,9 @@ func TestComparisonIsEqual(t *testing.T) {
 	intPtr := new(int)
 	checkPair(intPtr, intPtr, true)
 
+	someInt := 5
+	checkPair(&someInt, someInt, false)
+
 	incompValue := incomparableType{}
 
 	sVal := structIsEqual_Val{val: 4}
@@ -326,5 +329,99 @@ func TestComparisonIsEqual(t *testing.T) {
 
 	checkPair(ipVal, pVal, true, noFlip, pVal, 6)
 	checkPair(ipVal, sVal, false, noFlip, expectPanic)
+}
 
+// Cannot define locally in TestCustomComparisonMethodFailCases, because we need methods
+
+type invalidSigNoReturn struct{}
+
+func (invalidSigNoReturn) IsEqual(invalidSigNoReturn) {}
+
+type invalidSigNoReturn2 struct{}
+
+func (*invalidSigNoReturn2) IsEqual(*invalidSigNoReturn2) {}
+
+type invalidSigWrongArgNum struct{}
+
+func (invalidSigWrongArgNum) IsEqual(y, z invalidSigNoReturn) bool { return true }
+
+type invalidSigWrongArgNum2 struct{}
+
+func (*invalidSigWrongArgNum2) IsEqual(_, _ *invalidSigNoReturn2) bool { return true }
+
+type invalidSigOtherArg struct{}
+
+func (invalidSigOtherArg) IsEqual(y int) bool { return true }
+
+type invalidSigOtherArg2 struct{}
+
+func (*invalidSigOtherArg2) IsEqual(int) bool { return true }
+
+type bogusResultEquality struct{}
+
+func (bogusResultEquality) IsEqual(y bogusResultEquality) (res bool, reason string) {
+	return true, "Everything is Equal"
+}
+
+type bogusResultEquality2 struct{}
+
+func (*bogusResultEquality2) IsEqual(*bogusResultEquality2) (res bool, reason string) {
+	return true, "Everything is Equal"
+}
+
+type boolLike bool
+
+type boolLikeEquality struct{}
+
+func (boolLikeEquality) IsEqual(any) boolLike { return true }
+
+type boolLikeEquality2 struct{}
+
+func (*boolLikeEquality2) IsEqual(any) boolLike { return true }
+
+type goodComparison struct{}
+
+func (goodComparison) IsEqual(goodComparison) bool { return true }
+
+type goodComparison2 struct{}
+
+func (*goodComparison2) IsEqual(*goodComparison2) bool { return true }
+
+type mixedPtrValue1 struct{}
+
+func (mixedPtrValue1) IsEqual(*mixedPtrValue1) bool { return true }
+
+type mixedPtrValue2 struct{}
+
+func (*mixedPtrValue2) IsEqual(mixedPtrValue2) bool { return true }
+
+func TestCustomComparisonMethodFailCases(t *testing.T) {
+	comparer1 := withPanicResults(CustomComparisonMethod("IsEqual"))
+	comparer2 := withPanicResults(Comparison_IsEqual)
+	test_case := func(x any, y any, expectedEqual bool, expectedPanic bool) (panicValue1 any, panicValue2 any) {
+		res1, didPanic1, panicValue1 := comparer1(x, y)
+		res2, didPanic2, panicValue2 := comparer2(x, y)
+		testutils.FatalUnless(t, didPanic1 == expectedPanic, "Unexpected panic result for %v ?= %v\nExpected: %v\nGot: %v, panicValue: %v", x, y, expectedPanic, didPanic1, panicValue1)
+		testutils.FatalUnless(t, didPanic2 == expectedPanic, "Unexpected panic result for %v ?= %v\nExpected: %v\nGot: %v, panicValue: %v", x, y, expectedPanic, didPanic2, panicValue2)
+		testutils.FatalUnless(t, res1 == expectedEqual, "Unexpected equality results for %v ?= %v\nExpected: %v\nGot: %v", x, y, res1, expectedEqual)
+		testutils.FatalUnless(t, res2 == expectedEqual, "Unexpected equality results for %v ?= %v\nExpected: %v\nGot: %v", x, y, res2, expectedEqual)
+		return
+	}
+
+	test_case(invalidSigNoReturn{}, invalidSigNoReturn{}, false, true)
+	test_case(invalidSigNoReturn2{}, invalidSigNoReturn2{}, false, true)
+	test_case(invalidSigWrongArgNum{}, invalidSigWrongArgNum{}, false, true)
+	test_case(invalidSigWrongArgNum2{}, invalidSigWrongArgNum2{}, false, true)
+	test_case(invalidSigOtherArg{}, invalidSigOtherArg{}, false, true)
+	test_case(invalidSigOtherArg{}, int(5), true, false)
+	test_case(invalidSigOtherArg2{}, invalidSigOtherArg2{}, false, true)
+	test_case(invalidSigOtherArg2{}, int(5), true, false)
+	test_case(bogusResultEquality{}, bogusResultEquality{}, true, false)
+	test_case(bogusResultEquality2{}, bogusResultEquality2{}, true, false)
+	test_case(boolLikeEquality{}, boolLikeEquality{}, false, true)
+	test_case(boolLikeEquality2{}, boolLikeEquality2{}, false, true)
+	test_case(goodComparison{}, goodComparison{}, true, false)
+	test_case(goodComparison2{}, goodComparison2{}, true, false)
+	test_case(mixedPtrValue1{}, mixedPtrValue1{}, true, false)
+	test_case(mixedPtrValue2{}, mixedPtrValue2{}, true, false)
 }
