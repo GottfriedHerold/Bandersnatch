@@ -278,7 +278,6 @@ func Comparison_IsEqual(x, y any) (isEqual bool) {
 		}
 
 		// The first argument is the receiver, i.e. xValue. We need to figure out if the second one should be yValue or or reflect.Value corresponding to a pointer.
-		// We will store the second argument in argVal
 
 		secondArgType := t.In(1)
 		var worksWithValueArg bool = yType.AssignableTo(secondArgType)
@@ -322,8 +321,6 @@ func Comparison_IsEqual(x, y any) (isEqual bool) {
 
 		// first argument is the receiver. As above, we need to make a copy (this time of x)
 		xCopyPointer := utils.PointerToCopy(xValue)
-
-		// As above, we will store the second argument in argVal
 
 		secondArgType := t.In(1)
 		var worksWithValueArg bool = yType.AssignableTo(secondArgType)
