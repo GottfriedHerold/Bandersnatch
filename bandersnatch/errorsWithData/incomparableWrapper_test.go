@@ -1,5 +1,39 @@
 package errorsWithData
 
+import (
+	"errors"
+	"fmt"
+	"testing"
+)
+
+type test_err struct{ error }
+
+func (test_err) Is(target error) bool {
+	fmt.Println(target)
+	return true
+}
+
+func TestWrapper(t *testing.T) {
+	var e = errors.New("foo")
+	var e2 error = test_err{error: e}
+	_ = errors.Is(e, e2)
+	// _ = errors.Is(e2, e)
+}
+
+type DER[T any] interface{ f() T }
+
+type impl struct{}
+
+func (impl) f() bool { return true }
+
+var _ DER[bool] = impl{}
+
+func test_X[T any](DER[T]) {}
+
+func TestABC(t *testing.T) {
+	test_X[bool](impl{})
+}
+
 /*
 
 import (

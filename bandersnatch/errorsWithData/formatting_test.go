@@ -331,7 +331,7 @@ func TestMisparses(t *testing.T) {
 		parse_result, err := make_ast(tokenized)
 		ast_as_string := parse_result.String()
 		if printError || showall_err {
-			fmt.Printf("\terror given as \"%v\"\n", parse_result.parseError)
+			fmt.Printf("\terror given as \"%v\"\n", parse_result.parseMistake)
 		}
 		if printInBand || showall_inband {
 			var builder strings.Builder
@@ -340,8 +340,8 @@ func TestMisparses(t *testing.T) {
 
 		}
 		testutils.FatalUnless(t, err != nil, "Got nil error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
-		testutils.FatalUnless(t, parse_result.parseError != nil, "Got no error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
-		testutils.FatalUnless(t, err == parse_result.parseError, "error returned by make_ast and error stored in parse tree differ")
+		testutils.FatalUnless(t, parse_result.parseMistake != nil, "Got no error when misparse was expected.\nInput string was %v\nast is %v", s, ast_as_string)
+		testutils.FatalUnless(t, err == parse_result.parseMistake, "error returned by make_ast and error stored in parse tree differ")
 	}
 
 	// check correct tail handling

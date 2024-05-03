@@ -142,10 +142,10 @@ func TestExtractNonNilErrors(t *testing.T) {
 func TestJoinAny(t *testing.T) {
 	err1 := errors.New("A")
 	err2 := errors.New("B")
-	ewd1, _ := NewErrorWithData_any_params(nil, "%v{X}", "X", 2, PanicOnAllErrors, ErrorUnlessValidFinal)
+	ewd1, _ := NewErrorWithData_any_params(nil, "%v{X}", "X", 2, PanicOnAllMistakes, ErrorUnlessValidFinal)
 	ewd2, e := NewErrorWithData_any_params(nil, "{", "X", 3) // syntax error
 	testutils.FatalUnless(t, e != nil, "")
-	ewd3, _ := NewErrorWithData_any_params(nil, "$v{X}", PanicOnAllErrors, ErrorUnlessValidBase)
+	ewd3, _ := NewErrorWithData_any_params(nil, "$v{X}", PanicOnAllMistakes, ErrorUnlessValidBase)
 	testutils.FatalUnless(t, ewd3.ValidateError_Final() != nil, "")
 	ewd4, _ := NewErrorWithData_any_params(nil, "%{Y}", "X", "X", "Y", "Y", "Z", "Z")
 
@@ -189,15 +189,15 @@ func TestJoinAny(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testutils.FatalUnless(t, res == nil, "%v", res)
 
-	res, err = Join_any(ewd1, ewd4, EnsureDataIsNotReplaced)
+	res, err = Join_any(ewd1, ewd4, MistakeIfDataIsReplaced)
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, res, "2\nY", ParamMap{"X": "X", "Y": "Y", "Z": "Z"}, []error{ewd1, ewd4})
 
-	didPanic, panicValue := testutils.CheckPanic2(func() { Join_any(ewd1, ewd4, EnsureDataIsNotReplaced, PanicOnAllErrors) })
+	didPanic, panicValue := testutils.CheckPanic2(func() { Join_any(ewd1, ewd4, MistakeIfDataIsReplaced, PanicOnAllMistakes) })
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicValue.(error).Error() == err.Error(), "")
 
-	res, err = Join_any(ewd1, ewd4, PreferPreviousData, EnsureDataIsNotReplaced)
+	res, err = Join_any(ewd1, ewd4, PreferPreviousData, MistakeIfDataIsReplaced)
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, res, "2\nY", ParamMap{"X": 2, "Y": "Y", "Z": "Z"}, []error{ewd1, ewd4})
 
@@ -218,10 +218,10 @@ func TestJoin(t *testing.T) {
 
 	err1 := errors.New("A")
 	err2 := errors.New("B")
-	ewd1, _ := NewErrorWithData_any_params(nil, "%v{X}", "X", 2, PanicOnAllErrors, ErrorUnlessValidFinal)
+	ewd1, _ := NewErrorWithData_any_params(nil, "%v{X}", "X", 2, PanicOnAllMistakes, ErrorUnlessValidFinal)
 	ewd2, e := NewErrorWithData_any_params(nil, "{", "X", 3) // syntax error
 	testutils.FatalUnless(t, e != nil, "")
-	ewd3, _ := NewErrorWithData_any_params(nil, "$v{X}", PanicOnAllErrors, ErrorUnlessValidBase)
+	ewd3, _ := NewErrorWithData_any_params(nil, "$v{X}", PanicOnAllMistakes, ErrorUnlessValidBase)
 	testutils.FatalUnless(t, ewd3.ValidateError_Final() != nil, "")
 	ewd4, _ := NewErrorWithData_any_params(nil, "%{Y}", "X", "X", "Y", "Y", "Z", "Z")
 
@@ -267,15 +267,15 @@ func TestJoin(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testutils.FatalUnless(t, res == nil, "%v", res)
 
-	res, err = Join[WithX](ewd1, ewd4, EnsureDataIsNotReplaced)
+	res, err = Join[WithX](ewd1, ewd4, MistakeIfDataIsReplaced)
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, res, "2\nY", ParamMap{"X": 0, "Y": "Y", "Z": "Z"}, []error{ewd1, ewd4})
 
-	didPanic, panicValue := testutils.CheckPanic2(func() { Join[WithX](ewd1, ewd4, EnsureDataIsNotReplaced, PanicOnAllErrors) })
+	didPanic, panicValue := testutils.CheckPanic2(func() { Join[WithX](ewd1, ewd4, MistakeIfDataIsReplaced, PanicOnAllMistakes) })
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicValue.(error).Error() == err.Error(), "")
 
-	res, err = Join[empty](ewd1, ewd4, PreferPreviousData, EnsureDataIsNotReplaced)
+	res, err = Join[empty](ewd1, ewd4, PreferPreviousData, MistakeIfDataIsReplaced)
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, res, "2\nY", ParamMap{"X": 2, "Y": "Y", "Z": "Z"}, []error{ewd1, ewd4})
 

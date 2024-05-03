@@ -56,7 +56,7 @@ func TestMergeMapsPreferNew(t *testing.T) {
 
 func TestMergeMaps_EqualityCheck(t *testing.T) {
 	var configGeneral errorCreationConfig
-	parseFlagArgs(&configGeneral, ReplacePreviousData, EnsureDataIsNotReplaced) // Note: Flag order matters here.
+	parseFlagArgs(&configGeneral, ReplacePreviousData, MistakeIfDataIsReplaced) // Note: Flag order matters here.
 	config := configGeneral.config_OldData
 	type incomp struct{ utils.MakeIncomparable } // incomparable type
 
@@ -98,7 +98,7 @@ func TestMergeMaps_EqualityCheck(t *testing.T) {
 	testutils.FatalUnless(t, ret == nil, "")
 
 	// repeat the above with config.PreferNew() set to false
-	parseFlagArgs(&configGeneral, PreferPreviousData, EnsureDataIsNotReplaced)
+	parseFlagArgs(&configGeneral, PreferPreviousData, MistakeIfDataIsReplaced)
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 
@@ -129,7 +129,7 @@ func TestMergeMaps_EqualityCheck(t *testing.T) {
 	var expectedPanicValue any = errPanic
 	var numCalls int
 	panickingCompare := func(x, y any) bool { numCalls++; panic(expectedPanicValue) }
-	parseFlagArgs(&configGeneral, EnsureDataIsNotReplaced_fun(panickingCompare))
+	parseFlagArgs(&configGeneral, MistakeIfDataIsReplaced_fun(panickingCompare))
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 	ret = mergeMaps(&m, ParamMap{"New": 10, "Foo": 7, "Nil": nil}, config)
@@ -151,7 +151,7 @@ func TestMergeMaps_EqualityCheck(t *testing.T) {
 	testutils.FatalUnless(t, numCalls == 2, "")
 
 	//repeat with ReplacePreviousData
-	parseFlagArgs(&configGeneral, ReplacePreviousData, EnsureDataIsNotReplaced_fun(panickingCompare))
+	parseFlagArgs(&configGeneral, ReplacePreviousData, MistakeIfDataIsReplaced_fun(panickingCompare))
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 	numCalls = 0
@@ -186,7 +186,7 @@ func TestMergeMaps_EqualityCheck(t *testing.T) {
 	testutils.FatalUnless(t, numCalls == 1, "")
 
 	configGeneral = errorCreationConfig{}
-	parseFlagArgs(&configGeneral, LetComparisonFunctionPanic, EnsureDataIsNotReplaced)
+	parseFlagArgs(&configGeneral, LetComparisonFunctionPanic, MistakeIfDataIsReplaced)
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 	var nilslice []int
@@ -198,7 +198,7 @@ func TestMergeMaps_EqualityCheck(t *testing.T) {
 // mostly copy&pasted from the above test. The functions are very similar, after all.
 func TestFillMapFromStruct_EqualityTest(t *testing.T) {
 	var configGeneral errorCreationConfig
-	parseFlagArgs(&configGeneral, ReplacePreviousData, EnsureDataIsNotReplaced) // Note: Flag order matters here.
+	parseFlagArgs(&configGeneral, ReplacePreviousData, MistakeIfDataIsReplaced) // Note: Flag order matters here.
 	config := configGeneral.config_OldData
 	type incomp struct{ utils.MakeIncomparable } // incomparable type
 
@@ -260,7 +260,7 @@ func TestFillMapFromStruct_EqualityTest(t *testing.T) {
 	testutils.FatalUnless(t, ret == nil, "")
 
 	// repeat the above with config.PreferNew() set to false
-	parseFlagArgs(&configGeneral, PreferPreviousData, EnsureDataIsNotReplaced)
+	parseFlagArgs(&configGeneral, PreferPreviousData, MistakeIfDataIsReplaced)
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 
@@ -287,7 +287,7 @@ func TestFillMapFromStruct_EqualityTest(t *testing.T) {
 	var numCalls int
 	panickingCompare := func(x, y any) bool { numCalls++; panic(expectedPanicValue) }
 
-	parseFlagArgs(&configGeneral, EnsureDataIsNotReplaced_fun(panickingCompare))
+	parseFlagArgs(&configGeneral, MistakeIfDataIsReplaced_fun(panickingCompare))
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 	type SNew struct {
@@ -314,7 +314,7 @@ func TestFillMapFromStruct_EqualityTest(t *testing.T) {
 	testutils.FatalUnless(t, numCalls == 2, "")
 
 	//repeat with ReplacePreviousData
-	parseFlagArgs(&configGeneral, ReplacePreviousData, EnsureDataIsNotReplaced_fun(panickingCompare))
+	parseFlagArgs(&configGeneral, ReplacePreviousData, MistakeIfDataIsReplaced_fun(panickingCompare))
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 	numCalls = 0
@@ -349,7 +349,7 @@ func TestFillMapFromStruct_EqualityTest(t *testing.T) {
 	testutils.FatalUnless(t, numCalls == 1, "")
 
 	configGeneral = errorCreationConfig{}
-	parseFlagArgs(&configGeneral, LetComparisonFunctionPanic, EnsureDataIsNotReplaced)
+	parseFlagArgs(&configGeneral, LetComparisonFunctionPanic, MistakeIfDataIsReplaced)
 	config = configGeneral.config_OldData
 	m = maps.Clone(startMap)
 

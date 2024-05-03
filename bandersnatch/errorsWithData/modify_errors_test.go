@@ -22,7 +22,7 @@ func TestNewErrorWithData_struct(t *testing.T) {
 
 	didPanic = testutils.CheckPanic(func() { NewErrorWithData_struct(nil, "", &empty{}) })
 	testutils.FatalUnless(t, didPanic, "%v", err)
-	didPanic = testutils.CheckPanic(func() { NewErrorWithData_struct(nil, "", &empty{}, ReturnError) })
+	didPanic = testutils.CheckPanic(func() { NewErrorWithData_struct(nil, "", &empty{}, ReturnMistake) })
 	testutils.FatalUnless(t, didPanic, "%v", err)
 	error2, err := NewErrorWithData_struct(nil, "", &empty{}, AllowEmptyString)
 	testutils.FatalUnless(t, err == nil, "%v", err)
@@ -40,7 +40,9 @@ func TestNewErrorWithData_struct(t *testing.T) {
 	testutils.FatalUnless(t, err != nil, "")
 	testError(t, error5, "XOwn:1,X:0", &DataXY{X: 0, Y: 3}, ParamMap{"X": 0, "Y": 3}, []error{error3})
 
-	didPanic, err2 := testutils.CheckPanic2(func() { NewErrorWithData_struct(error3, "", &DataXY{X: 2, Y: 3}, PreferPreviousData, PanicOnAllErrors) })
+	didPanic, err2 := testutils.CheckPanic2(func() {
+		NewErrorWithData_struct(error3, "", &DataXY{X: 2, Y: 3}, PreferPreviousData, PanicOnAllMistakes)
+	})
 	testutils.FatalUnless(t, didPanic, "")
 	testutils.FatalUnless(t, err.Error() == err2.(error).Error(), "%v\n!=\n%v", err, err2) // check that panic value is the same as the returned error
 
@@ -57,7 +59,7 @@ func TestNewErrorWithData_struct(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError(t, error8, "X:1Z:4", &DataXZ{X: 3, Z: 4}, ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7})
 
-	error9, err := NewErrorWithData_struct(error7, "$w${U}", &DataXZ{X: 3, Z: 4}, EnsureDataIsNotReplaced, ErrorUnlessValidFinal) // 2 types of error
+	error9, err := NewErrorWithData_struct(error7, "$w${U}", &DataXZ{X: 3, Z: 4}, MistakeIfDataIsReplaced, ErrorUnlessValidFinal) // 2 types of error
 	testutils.FatalUnless(t, err != nil, "")
 	// fmt.Println(err) -- looks good
 	testError(t, error9, "ignore", &DataXZ{X: 3, Z: 4}, ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7}) // Note: X gets replaced.
@@ -116,7 +118,7 @@ func TestNewErrorWithData_params(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError(t, error8, "X:1Z:4", &DataXZ{X: 3, Z: 4}, ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7})
 
-	error9, err := NewErrorWithData_params[DataXZ](error7, "$w${U}", "X", 3, "Z", 4, EnsureDataIsNotReplaced, ErrorUnlessValidFinal) // 2 types of error
+	error9, err := NewErrorWithData_params[DataXZ](error7, "$w${U}", "X", 3, "Z", 4, MistakeIfDataIsReplaced, ErrorUnlessValidFinal) // 2 types of error
 	testutils.FatalUnless(t, err != nil, "")
 	// fmt.Println(err) -- looks good
 	testError(t, error9, "ignore", &DataXZ{X: 3, Z: 4}, ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7}) // Note: X gets replaced.
@@ -179,18 +181,18 @@ func TestNewErrorWithData_any_params(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError_any(t, error7, "X:1Z:4", ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7})
 
-	error8, err := NewErrorWithData_any_params(error7, "$w${U}", "X", 10, "Z", 4, EnsureDataIsNotReplaced, ErrorUnlessValidFinal) // 2 types of error
+	error8, err := NewErrorWithData_any_params(error7, "$w${U}", "X", 10, "Z", 4, MistakeIfDataIsReplaced, ErrorUnlessValidFinal) // 2 types of error
 	testutils.FatalUnless(t, err != nil, "")
 	// fmt.Println(err) -- looks good
 	testError_any(t, error8, "ignore", ParamMap{"X": 10, "Y": 2, "Z": 4}, []error{error7}) // Note: X gets replaced.
 
-	error9, err := NewErrorWithData_any_params(error7, "$w${U}", "X", 10, "Z", 4, EnsureDataIsNotReplaced) // 1 types of error
+	error9, err := NewErrorWithData_any_params(error7, "$w${U}", "X", 10, "Z", 4, MistakeIfDataIsReplaced) // 1 types of error
 	testutils.FatalUnless(t, err != nil, "")
 	// fmt.Println(err) -- looks good
 	testError_any(t, error9, "ignore", ParamMap{"X": 10, "Y": 2, "Z": 4}, []error{error7}) // Note: X gets replaced.
 
 	didPanic, panicValue := testutils.CheckPanic2(func() {
-		NewErrorWithData_any_params(error7, "$w${U}", "X", 10, "Z", 4, EnsureDataIsNotReplaced, PanicOnAllErrors)
+		NewErrorWithData_any_params(error7, "$w${U}", "X", 10, "Z", 4, MistakeIfDataIsReplaced, PanicOnAllMistakes)
 	}) // same as above})
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicValue.(error).Error() == err.Error(), "")
@@ -251,13 +253,13 @@ func TestNewErrorWithDataMap(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError(t, error8, "X:1Z:4", &DataXZ{X: 3, Z: 4}, ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7})
 
-	error9, err := NewErrorWithData_map[DataXZ](error7, "$w${U}", ParamMap{"X": 3, "Z": 4}, EnsureDataIsNotReplaced, ErrorUnlessValidFinal) // 2 types of error
+	error9, err := NewErrorWithData_map[DataXZ](error7, "$w${U}", ParamMap{"X": 3, "Z": 4}, MistakeIfDataIsReplaced, ErrorUnlessValidFinal) // 2 types of error
 	testutils.FatalUnless(t, err != nil, "")
 	// fmt.Println(err) -- looks good
 	testError(t, error9, "ignore", &DataXZ{X: 3, Z: 4}, ParamMap{"X": 3, "Y": 2, "Z": 4}, []error{error7}) // Note: X gets replaced.
 
 	didPanic, panicVal = testutils.CheckPanic2(func() {
-		NewErrorWithData_map[DataXZ](error7, "$w${U}", ParamMap{"X": 3, "Z": 4}, EnsureDataIsNotReplaced, ErrorUnlessValidFinal, PanicOnAllErrors) // same as above
+		NewErrorWithData_map[DataXZ](error7, "$w${U}", ParamMap{"X": 3, "Z": 4}, MistakeIfDataIsReplaced, ErrorUnlessValidFinal, PanicOnAllMistakes) // same as above
 	})
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicVal.(error).Error() == err.Error(), "")
@@ -305,11 +307,11 @@ func TestNewErrorWithDataAnyMap(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError_any(t, error5, "XOwn:1,X:1", ParamMap{"X": 1, "Y": 3}, []error{error3})
 
-	error6, err := NewErrorWithData_any_map(error3, "", ParamMap{"X": 2, "Y": 3}, EnsureDataIsNotReplaced) // causes error, data is replaced nonetheless
+	error6, err := NewErrorWithData_any_map(error3, "", ParamMap{"X": 2, "Y": 3}, MistakeIfDataIsReplaced) // causes error, data is replaced nonetheless
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, error6, "XOwn:1,X:2", ParamMap{"X": 2, "Y": 3}, []error{error3})
 
-	error7, err := NewErrorWithData_any_map(error3, "%{Z}", ParamMap{"X": 2, "Y": 3}, EnsureDataIsNotReplaced, ErrorUnlessValidFinal) // validation and creation error
+	error7, err := NewErrorWithData_any_map(error3, "%{Z}", ParamMap{"X": 2, "Y": 3}, MistakeIfDataIsReplaced, ErrorUnlessValidFinal) // validation and creation error
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, error7, "ignore", ParamMap{"X": 2, "Y": 3}, []error{error3})
 
@@ -317,7 +319,7 @@ func TestNewErrorWithDataAnyMap(t *testing.T) {
 	testutils.FatalUnless(t, err != nil, "")
 	testError_any(t, error8, "ignore", ParamMap{"X": nil}, nil)
 
-	didPanic, panicVal = testutils.CheckPanic2(func() { NewErrorWithData_any_map(nil, "%{", ParamMap{"X": nil}, PanicOnAllErrors) })
+	didPanic, panicVal = testutils.CheckPanic2(func() { NewErrorWithData_any_map(nil, "%{", ParamMap{"X": nil}, PanicOnAllMistakes) })
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicVal.(error).Error() == err.Error(), "")
 
@@ -349,7 +351,7 @@ func TestDeleteParameterFromError_any(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError_any(t, error2, "err", ParamMap{}, nil)
 
-	errBase, _ := NewErrorWithData_struct(nil, "${X} %{X}", &DataX{X: 5}, ErrorUnlessValidFinal, PanicOnAllErrors)
+	errBase, _ := NewErrorWithData_struct(nil, "${X} %{X}", &DataX{X: 5}, ErrorUnlessValidFinal, PanicOnAllMistakes)
 	testError(t, errBase, "5 5", &DataX{X: 5}, ParamMap{"X": uint(5)}, nil)
 
 	error3, err := DeleteParameterFromError_any(errBase, "", "X")
@@ -369,7 +371,7 @@ func TestDeleteParameterFromError_any(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError(t, errBase2, "1 2", &DataXY{X: 1, Y: 2}, ParamMap{"X": 1, "Y": 2}, []error{errBase})
 
-	error6, err := DeleteParameterFromError_any(errBase2, "${Y}", "X", ErrorUnlessValidFinal, PanicOnAllErrors)
+	error6, err := DeleteParameterFromError_any(errBase2, "${Y}", "X", ErrorUnlessValidFinal, PanicOnAllMistakes)
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError_any(t, error6, "2", ParamMap{"Y": 2}, []error{errBase2})
 
@@ -410,7 +412,7 @@ func TestDeleteParamterFromError(t *testing.T) {
 	testutils.FatalUnless(t, err != nil, "")
 	testError(t, error4, "err", &DataX{X: uint(0)}, ParamMap{"X": uint(0)}, nil)
 
-	errBase, _ := NewErrorWithData_struct(nil, "${X} %{X}", &DataX{X: 5}, ErrorUnlessValidFinal, PanicOnAllErrors)
+	errBase, _ := NewErrorWithData_struct(nil, "${X} %{X}", &DataX{X: 5}, ErrorUnlessValidFinal, PanicOnAllMistakes)
 	testError(t, errBase, "5 5", &DataX{X: 5}, ParamMap{"X": uint(5)}, nil)
 
 	errBase2, err := NewErrorWithData_struct(errBase, "${X} ${Y}", &DataXY{X: 1, Y: 2})
@@ -425,13 +427,13 @@ func TestDeleteParamterFromError(t *testing.T) {
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testError(t, error6, "0 2", &DataXZ{X: 0, Z: 0}, ParamMap{"X": 0, "Y": 2, "Z": 0}, []error{errBase2})
 
-	error7, err := DeleteParameterFromError[DataXZ](errBase2, "$w", "Y", MissingDataIsError, ErrorUnlessValidFinal) // 2 types of error: Z missing for DataXZ, ${Y} missing
+	error7, err := DeleteParameterFromError[DataXZ](errBase2, "$w", "Y", MissingDataIsMistake, ErrorUnlessValidFinal) // 2 types of error: Z missing for DataXZ, ${Y} missing
 	testutils.FatalUnless(t, err != nil, "%v", err)
 	testError(t, error7, "1 $v!<missing value>", &DataXZ{X: 1, Z: 0}, ParamMap{"X": 1, "Z": 0}, []error{errBase2})
 
 	// same, but panic this time
 	didPanic, panicVal = testutils.CheckPanic2(func() {
-		DeleteParameterFromError[DataXZ](errBase2, "$w", "Y", MissingDataIsError, ErrorUnlessValidFinal, PanicOnAllErrors)
+		DeleteParameterFromError[DataXZ](errBase2, "$w", "Y", MissingDataIsMistake, ErrorUnlessValidFinal, PanicOnAllMistakes)
 	})
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicVal.(error).Error() == err.Error(), "%v %v", panicVal, err)
@@ -446,8 +448,8 @@ func TestAsErrorWithData(t *testing.T) {
 	type DataX struct{ X uint } // note different type
 	type empty struct{}
 
-	baseError1, _ := NewErrorWithData_params[DataXY](nil, "${X} ${Z}", "X", 1, "Y", 2, "Z", 3, PanicOnAllErrors)
-	baseError2, _ := NewErrorWithData_params[DataXY](nil, "${X} ${Z}", "X", 1, "Y", 2, ErrorUnlessValidBase, PanicOnAllErrors)
+	baseError1, _ := NewErrorWithData_params[DataXY](nil, "${X} ${Z}", "X", 1, "Y", 2, "Z", 3, PanicOnAllMistakes)
+	baseError2, _ := NewErrorWithData_params[DataXY](nil, "${X} ${Z}", "X", 1, "Y", 2, ErrorUnlessValidBase, PanicOnAllMistakes)
 
 	didPanic, panicVal := testutils.CheckPanic2(func() { AsErrorWithData[invalid](nil) })
 	testutils.FatalUnless(t, didPanic == true, "")
@@ -483,7 +485,7 @@ func TestAsErrorWithData(t *testing.T) {
 	testutils.FatalUnless(t, err != nil, "%v", err)
 	testError(t, error7, "0 3", &DataX{X: 0}, ParamMap{"X": uint(0), "Y": 2, "Z": 3}, []error{baseError1})
 
-	didPanic, panicVal = testutils.CheckPanic2(func() { AsErrorWithData[DataX](baseError1, MissingDataAsZero, PanicOnAllErrors) })
+	didPanic, panicVal = testutils.CheckPanic2(func() { AsErrorWithData[DataX](baseError1, MissingDataAsZero, PanicOnAllMistakes) })
 	testutils.FatalUnless(t, didPanic == true, "")
 	testutils.FatalUnless(t, panicVal.(error).Error() == err.Error(), "")
 

@@ -12,11 +12,13 @@ import (
 // EqualityComparisonFunction is a type alias to func(any,any) bool.
 // Functions of this type are used by this package to compare arbitrary values for equality (with true meaning "the values are equal").
 //
-// Such functions are used when [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] flags are used.
+// Such functions are used when [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] flags are used.
 //
-// We provide [Comparison_IsEqual] as an actual non-trivial comparison method suitable for most of our purposes.
+// The default function we use is [Compare_CoerceNilInterface] rather than plain "==".
+// We also provide [Comparison_IsEqual] as a non-trivial comparison method suitable for most of our purposes, for cases
+// when a value of some type inherently allows multiple different internal representations.
 //
-// Note that this package (by default, unless overriden by flags) treats a panic'ing EqualityComparisonFunction as an "inequal" result,
+// Note that this package (by default, unless overriden by flags) treats a panick'ing EqualityComparisonFunction as an "inequal" result,
 // but additionally takes the value provided in the panic as a reason for inequality.
 type EqualityComparisonFunction = func(any, any) (result bool)
 
@@ -37,13 +39,16 @@ func withPanicResults(f EqualityComparisonFunction) func(any, any) (result bool,
 	}
 }
 
-// comparison_handleNils compares x and y for equality with the following quirks:
+// Compare_CoerceNilInterface compares x and y for equality with the following quirks:
 //
 //   - if either x or y are the nil interface, then the comparison result is true iff the other argument is either a nil interface or a nil of concrete type.
 //     (this behaviour is appropriate for usage with the [errorsWithData] package)
 //   - if both x and y have the same incomparable (dynamic) type, the function panics (the normal behaviour of x==y)
 //   - otherwise, we check whether x==y holds
-func comparison_handleNils(x, y any) (isEqual bool) {
+//
+// Stated differently, this comparison tries to type-cast a nil interface to whatever dynamic type the other argument has (if any). This is similar to comparison with untyped nil (except that we use dynamic type rather than static type).
+// This is the default comparison functions used if the [MistakeIfDataIsReplaced] flag is used.
+func Compare_CoerceNilInterface(x, y any) (isEqual bool) {
 	if x == nil {
 		if y == nil { // Note that yReflected:=reflect.ValueOf(nil) panics on yReflected.IsNil(), so we have to special-case y==nil
 			return true
@@ -84,7 +89,7 @@ func comparison_handleNils(x, y any) (isEqual bool) {
 // not necessarily because the pointers are the objects where we want to have custom equality semantics.
 // Unfortunately, the Go language has no way to either express or differentiate these concepts.
 // For the intended use case in the [errorsWithData] package, our choice is appropriate, as data accompanying errors should be the actual data rather than
-// a (possibly shared) pointer to it; this may seem less efficient (due to issues with escape analysis and Go interfaces, it often is not), but guarantees immutability, which is more important for diagnostics anyway.
+// a (possibly shared) pointer to it; this may seem less efficient (due to issues with escape analysis and Go interfaces, it actually often is not), but guarantees immutability, which is more important for diagnostics anyway.
 func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 	// Mostly Copy&Pasted from specialized function for (single) methodname  == "IsEqual" and adapted.
 	// TODO: Check in-code comments

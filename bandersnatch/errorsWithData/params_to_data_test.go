@@ -217,12 +217,12 @@ func TestMapToStructConversion(t *testing.T) {
 	var m map[string]any = make(map[string]any)
 	type Empty struct{}
 
-	configMissingDataIsError, _ := parseFlagArgs_GetData(MissingDataIsError)
+	configMissingDataIsMistake, _ := parseFlagArgs_GetData(MissingDataIsMistake)
 	configMissingDataAsZero, _ := parseFlagArgs_GetData(MissingDataAsZero)
 
-	_, err := makeStructFromMap[Empty](nil, configMissingDataIsError)
+	_, err := makeStructFromMap[Empty](nil, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err == nil, "Could not create empty struct from nil map")
-	_, err = makeStructFromMap[Empty](m, configMissingDataIsError)
+	_, err = makeStructFromMap[Empty](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err == nil, "Could not create empty struct from empty map")
 
 	type T0 struct {
@@ -245,13 +245,13 @@ func TestMapToStructConversion(t *testing.T) {
 	m["Name3"] = nil
 	m["Name4"] = byte(10)
 
-	somet0, err := makeStructFromMap[T0](m, configMissingDataIsError)
+	somet0, err := makeStructFromMap[T0](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err == nil, "Unexpected error : %v", err)
 
-	somet1, err := makeStructFromMap[T1](m, configMissingDataIsError)
+	somet1, err := makeStructFromMap[T1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err == nil, "Unexpected error : %v", err)
 
-	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsError)
+	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsMistake)
 	// We expect an error because of type mismatch uint vs int
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 
@@ -262,7 +262,7 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, somet1 == T1{5, "foo", nil}, "Unexpected value for somet1: %v", somet1)
 
 	delete(m, "Name3")
-	_, err = makeStructFromMap[T1](m, configMissingDataIsError)
+	_, err = makeStructFromMap[T1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err != nil, "No error, but expected one (parameter missing)")
 
 	somet1, err = makeStructFromMap[T1](m, configMissingDataAsZero)
@@ -274,19 +274,19 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, !present, "makeStructFromMap modified input map")
 
 	m["Name3"] = io.EOF
-	somet1, err = makeStructFromMap[T1](m, configMissingDataIsError)
+	somet1, err = makeStructFromMap[T1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 	testutils.FatalUnless(t, somet1.Name3 == io.EOF, "Unexpected value for somet1: %v", somet1)
 
 	m["Name3"] = "some string, which does not satisfy the error interface"
 	_, err = makeStructFromMap[T1](m, configMissingDataAsZero)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
-	_, err = makeStructFromMap[T1](m, configMissingDataIsError)
+	_, err = makeStructFromMap[T1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 
 	m["Name3"] = io.EOF
 	m["Name1"] = uint(6)
-	nested, err := makeStructFromMap[NestedT1](m, configMissingDataIsError)
+	nested, err := makeStructFromMap[NestedT1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)
 
 	testutils.FatalUnless(t, nested.Name1 == uint(6), "Unexpected value for nested %v", nested)
@@ -295,10 +295,10 @@ func TestMapToStructConversion(t *testing.T) {
 	testutils.FatalUnless(t, nested.T1.Name1 == int(0), "Unexpected value for shadowed values. Nested == %v", nested)
 
 	m["Name1"] = nil
-	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsError)
+	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 	delete(m, "Name1")
-	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsError)
+	_, err = makeStructFromMap[NestedT1](m, configMissingDataIsMistake)
 	testutils.FatalUnless(t, err != nil, "No error, but we expected one")
 	nested, err = makeStructFromMap[NestedT1](m, configMissingDataAsZero)
 	testutils.FatalUnless(t, err == nil, "Unexpected error: %v", err)

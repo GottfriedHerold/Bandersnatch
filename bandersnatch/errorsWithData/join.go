@@ -134,6 +134,13 @@ func (e *joinedErrors_any) GetData_map() ParamMap {
 	return maps.Clone(e.params)
 }
 
+func (e *joinedErrors_any) Is(target error) bool {
+	target = UnboxError(target)
+	return e == target
+}
+
+func (*joinedErrors_any) SupportsBoxingAsIncomparable() {}
+
 // ValidateSyntax is provided for joinedErrors_any and joinedErrors to satisfy the [ErrorWithData_any] interface.
 //
 // It calls ValidateSyntax for all child error that support this.
@@ -318,12 +325,12 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any).
 // Similarly for the array and pointer cases.
 //
-// Arguments of unsupported types cause Join_any to panic (even if [ReturnError] is set).
+// Arguments of unsupported types cause Join_any to panic (even if [ReturnMistake] is set).
 // We accept the following flags:
 //
-// - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
-// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
-// - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+// - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
+// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
+// - [ReturnMistake] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
 //
 // Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
@@ -339,8 +346,8 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 // This differs from calling ret.Error_Interpolate(nil), where err1's contribution to the output will be affected by the new value of X.
 // Wrapping ret via NewErrorWithData_any_params (with a default "$w") and similar function will use Error_Interpolate, unless "%w" is explicitly used to refer to ret.
 //
-// NOTE2: This function can only fail in a non-panicking way if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set.
-// As [PanicOnAllErrors] only affects these kinds of errors, it is only meaningful if one of those two flags is set as well.
+// NOTE2: This function can only fail in a non-panicking way if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set.
+// As [PanicOnAllMistakes] only affects these kinds of errors, it is only meaningful if one of those two flags is set as well.
 //
 // NOTE3: In the unlikely corner case where a named type based on an array/slice or pointer satifies the error interface, being an error takes precendence.
 func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
@@ -373,7 +380,7 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 	var config errorCreationConfig // Zero value is appropriate
 	parseFlagArgs(&config, flagArgs...)
 
-	var allDataErrors []error // collect all errors encountered from [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]
+	var allDataErrors []error // collect all errors encountered from [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]
 
 	if len(returnedValue.baseErrors) == 0 {
 		return nil, nil
@@ -392,7 +399,7 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 	if allDataErrors != nil {
 		err = fmt.Errorf(ErrorPrefix+"Join_any encountered a data inconsistency in the given errors:\n%w", errors.Join(allDataErrors...))
 	}
-	if err != nil && config.PanicOnAllErrors() {
+	if err != nil && config.panicOnAllMistakes() {
 		panic(err)
 	}
 
@@ -416,15 +423,15 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 // This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any).
 // Similarly for the array and pointer cases.
 //
-// Arguments of unsupported types cause Join_any to panic (even if [ReturnError] is set).
+// Arguments of unsupported types cause Join_any to panic (even if [ReturnMistake] is set).
 // If StructType does not satisfy [StructSuitableForErrorsWithData], this function panics.
 //
 // Join accepts the following flags:
 //
-// - [PreferPreviousData], [ReplacePreviousData] (default), [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
-// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [EnsureDataIsNotReplaced] or [EnsureDataIsNotReplaced_fun] is set. Controls how panics during comparisons are handled.
-// - [ReturnError] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
-// - [MissingDataAsZero], [MissingDataIsError] (default): Controls whether data required for StructType that is missing is silently zero-initialized
+// - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
+// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
+// - [ReturnMistake] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+// - [MissingDataAsZero], [MissingDataIsMistake] (default): Controls whether data required for StructType that is missing is silently zero-initialized
 //
 // Note that all flags are parsed (in order of appearance) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
@@ -477,7 +484,7 @@ func Join[StructType any](errorsOrFlags ...any) (ret ErrorWithData[StructType], 
 	var config errorCreationConfig // Zero value is appropriate
 	parseFlagArgs(&config, flagArgs...)
 
-	var allDataErrors []error // collect all errors encountered from [EnsureDataIsNotReplaced], [EnsureDataIsNotReplaced_fun]
+	var allDataErrors []error // collect all errors encountered from [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]
 
 	if len(returnedValue.baseErrors) == 0 {
 		return nil, nil
@@ -504,7 +511,7 @@ func Join[StructType any](errorsOrFlags ...any) (ret ErrorWithData[StructType], 
 		err = fmt.Errorf(ErrorPrefix+"Join called with errors whose parameters do not allow construct a %v:\n%w", utils.NameOfType[StructType](), errMissingData)
 	}
 
-	if err != nil && config.PanicOnAllErrors() {
+	if err != nil && config.panicOnAllMistakes() {
 		panic(err)
 	}
 

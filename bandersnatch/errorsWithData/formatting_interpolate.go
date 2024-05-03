@@ -12,8 +12,8 @@ import (
 //   - Tokenize the interpolation string
 //   - Parse the tokenized string into a syntax tree
 //   - Make some syntactic validity checks on the strings for conditions, variable names and format verbs.
-//   - [Optional] Perform some validity checks. (2 subchecks, actually.
-//     Those would be checked when actually producing output anyway, but sometime we want those checks early)
+//   - [Optional] Perform some validity checks.
+//     (2 subchecks, actually. Those would be checked when actually producing output anyway, but sometime we want those checks early)
 //     Those validity checks are related to whether data to be output is actually present, so it's not only a function of the interpolation string.
 //   - Actually produce the interpolated error string.
 
@@ -23,16 +23,16 @@ import (
 //   - format strings verbs cannot contain literal %
 //   - VariableNames must be exported Go identifiers (or denote the parameter map)
 //   - Conditions after %! or $! must be recognized by our language.
-// Calling handleSyntaxConditions is mandatory for the later steps; calling it modifies the syntax tree on error, records the first error in the root and flags that it was called.
+// Calling handleSyntaxConditions is mandatory for the later steps; calling it modifies the syntax tree on mistake, records the first mistake in the root and flags that it was called.
 // The later procesing steps such as Interpolate actually call [handleSyntaxConditions] to ensure it was called (it's a no-op to call it twice; the flag that was set ensures that).
 //
 // For optional validity checks, we have
 //
-//  - VerifyParameters_direct(parameters_direct paramMap, baseError error) error
-//  - VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) error
+//  - VerifyParameters_direct(parameters_direct paramMap, baseError error) mistake
+//  - VerifyParameters_passed(parameters_direct paramMap, parameters_passed paramMap, baseError error) mistake
 //
 // Each of these checks subsumes the checks above it and requires more "context".
-// If there was an error in make_ast or [handleSyntaxConditions], the error is just repeated
+// If there was a mistake in make_ast or [handleSyntaxConditions], that mistake is just reported again and no further checks are made.
 //
 //  - VerifyParameters_direct checks that:
 //     - %w or $w is only present if there is actually a non-nil wrapped error and, for $w, supports this.
@@ -43,10 +43,10 @@ import (
 //     - variables referred to by $fmtString{VariableName} actually exist in paramters_passed
 //     The conditions in both %!COND{...} and $!COND{...} are evaluated for this purpose. Failures are ignored in a non-taken sub-tree.
 //
-// Note that even VerifyParameters_passed does not guarantee that Interpolation works, because the format verb might be invalid for the given type.
+// Note that even VerifyParameters_passed does not guarantee that Interpolation works, because e.g. the format verb might be invalid for the given type.
 // Also, a custom String method or Format method might panic.
 // For the latter, note that the [fmt] package actually recovers from such panics and reports it in-band in the output string.
-// Generally, [fmt] does a good job with error handling, but detecting such errors beforehand is out of scope of this package.
+// Generally, [fmt] does a good job here, but detecting such mistakes beforehand is out of scope of this package.
 
 // valid entries for Condition strings
 var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
@@ -56,6 +56,7 @@ var specialVariableNameIndicator byte = '!' // must be first byte of each validM
 // $w{#} or %w{#} outputs the lenth of the list output of base_error.Unwrap(), where Unwrap returns []error.
 const outputChildNumber string = "#"
 
+// multiUnwrap is the interface satisfied by errors with an Unwrap() []error method.
 type multiUnwrap interface {
 	error
 	Unwrap() []error
@@ -75,31 +76,31 @@ type multiUnwrap interface {
  *  - Are conditions recognized
  *  - Are variable names valid
  *
- * If an error is found, returns the first found error as a non-nil return value.
- * The error is also recorded in a.(ast_root).argumentError for the root.
- * Note that we always process all nodes and do *not* abort on first error, because we actually modify the ast:
+ * If a mistake is found, returns the first found mistake as a non-nil return value.
+ * The mistake is also recorded in a.(ast_root).argumentError for the root.
+ * Note that we always process all nodes and do *not* abort on first mistake, because we actually modify the ast:
  * - ast_fmt - nodes with invalid format verbs or invalid variable names are flagged as erroneous and
- *   we record an error message inside them, to be displayed when calling Interpolate.
+ *   we record a diagnostic message inside them, to be displayed when calling Interpolate.
  * - Invalid condition strings are marked to trigger unconditional evaluation and special display behaviour.
  */
 
-// TODO: error reporting ([]error vs error?), thread-safety issues with the design.
+// TODO: mistake reporting ([]mistake vs mistake?), thread-safety issues with the design.
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 // This post-processing is mandatory; this is automatically triggered by the other relevant methods.
 //
-// It returns the first error encountered, but processes the whole tree.
-// This method must still be called even if [make_ast] returned an error.
-// The reason is that [make_ast]'s error handling works in a way that always produces an actual tree, whose guarantees are no different from the success case.
+// It returns the first mistake encountered, but processes the whole tree.
+// This method must still be called even if [make_ast] returned a mistake.
+// The reason is that [make_ast]'s mistake handling works in a way that always produces an actual tree, whose guarantees are no different from the success case.
 //
-// For such trees, handleSyntaxConditions might return a different error (or no error at all);
-// For user-facing methods, the error returned by [make_ast] needs to take precedence over the one by handleSyntaxConditions.
+// For such trees, handleSyntaxConditions might return a different mistake (or no mistake at all);
+// For user-facing methods, the mistake returned by [make_ast] needs to take precedence over the one by handleSyntaxConditions.
 //
 // Note that the code currently assumes that handleSyntaxConditions is always called through [ast_root], never directly on other nodes.
-func (a ast_root) handleSyntaxConditions() (err error) {
+func (a ast_root) handleSyntaxConditions() (err mistake) {
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen
 	}
@@ -107,27 +108,27 @@ func (a ast_root) handleSyntaxConditions() (err error) {
 	// No need to process the tree twice.
 	// NOTE: Some other node handlers currently assume that handleSyntaxConditions is never called twice on them, so this "optimization" is actually mandatory atm.
 	if a.syntaxHandled {
-		return a.argumentError
+		return a.argumentMistake // may be nil
 	}
 	// proceed with child (probably of type list).
-	// Note that we store the error inside a.argument error, to avoid processing everything multiple times.
-	a.argumentError = a.ast.handleSyntaxConditions()
+	// Note that we store the mistake inside a.argumentMistake, to avoid processing everything multiple times.
+	a.argumentMistake = a.ast.handleSyntaxConditions()
 	a.syntaxHandled = true
-	return a.argumentError
+	return a.argumentMistake
 }
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
-// For ast_list, we just call it on each child and report the first error. Note that we do not abort on first error.
-func (a ast_list) handleSyntaxConditions() (err error) {
+// For ast_list, we just call it on each child and report the first mistake. Note that we do not abort on first mistake.
+func (a ast_list) handleSyntaxConditions() (err mistake) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list") // cannot happen for ast's created by make_ast
 	}
 	for _, ast := range *a {
-		// We report the first error, but do process all nodes.
+		// We report the first mistake, but do process all nodes.
 		if err == nil {
 			err = ast.handleSyntaxConditions()
 		} else {
@@ -140,56 +141,56 @@ func (a ast_list) handleSyntaxConditions() (err error) {
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
 // For ast_string nodes, there are no failure cases
-func (a ast_string) handleSyntaxConditions() error {
+func (a ast_string) handleSyntaxConditions() mistake {
 	return nil
 }
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
 // For ast_parentPercent, there are no failure cases
-func (a ast_parentPercent) handleSyntaxConditions() error {
+func (a ast_parentPercent) handleSyntaxConditions() mistake {
 	return nil
 }
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
 // For ast_parentDollar, there are no failure cases
-func (a ast_parentDollar) handleSyntaxConditions() error {
+func (a ast_parentDollar) handleSyntaxConditions() mistake {
 	return nil
 }
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
 // For ast_parentDollarMulti or ast_parentPercentMulti, there are no failure cases
-func (*base_ast_parentMult) handleSyntaxConditions() error {
+func (*base_ast_parentMult) handleSyntaxConditions() mistake {
 	return nil
 }
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
 // For ast_fmt, we check the variable name and the format verb
-// On error, we flag the ast_fmt node by setting abase.errorString. If non-nil, this gets displayed by Interpolate instead of using [fmt].
-func (abase *base_ast_fmt) handleSyntaxConditions() error {
+// On mistake, we flag the ast_fmt node by setting abase.errorString. If non-nil, this gets displayed by Interpolate instead of using [fmt].
+func (abase *base_ast_fmt) handleSyntaxConditions() mistake {
 
 	// abase.errorString is supposed to be only set by this method, and we never call it twice.
 	// (because the root node detects that handleSyntaxConditions was already called)
 	// If we change code such that this assumption no longer is guaranteed, this needs to be reviewed here.
-	if abase.errorString != nil {
+	if abase.mistakeString != nil {
 		panic("Cannot happen")
 	}
 
@@ -198,7 +199,7 @@ func (abase *base_ast_fmt) handleSyntaxConditions() error {
 	}
 
 	if strings.ContainsRune(abase.formatString, '%') {
-		abase.errorString = fmt.Errorf(`<!Format Verb %s for %s contains %%>`+abase.formatString, abase.variableName)
+		abase.mistakeString = fmt.Errorf(`<!Format Verb %s for %s contains %%>`+abase.formatString, abase.variableName)
 		return fmt.Errorf(ErrorPrefix+`Interpolation string contains a format string verb %s, which contains  '%%'. This will not work with the fmt package`, abase.formatString)
 	}
 
@@ -206,11 +207,11 @@ func (abase *base_ast_fmt) handleSyntaxConditions() error {
 
 	if abase.variableName[0] == specialVariableNameIndicator {
 		if !utils.ElementInList(abase.variableName, validMapSelectors[:]) {
-			abase.errorString = fmt.Errorf(`<!Variable name %s in interpolation string starting with %s not recognized by the language>`, abase.variableName, string(specialVariableNameIndicator))
+			abase.mistakeString = fmt.Errorf(`<!Variable name %s in interpolation string starting with %s not recognized by the language>`, abase.variableName, string(specialVariableNameIndicator))
 			return fmt.Errorf(ErrorPrefix+"Variable name %s in interpolation string starting with %s is not recognized by the language", abase.variableName, string(specialVariableNameIndicator))
 		}
 	} else if !ValidInterpolationName(abase.variableName) {
-		abase.errorString = fmt.Errorf(`<!Variable name %s not allowed by the language`, abase.variableName)
+		abase.mistakeString = fmt.Errorf(`<!Variable name %s not allowed by the language`, abase.variableName)
 		return fmt.Errorf(ErrorPrefix+"Variable name %s is not allowed by the language", abase.variableName)
 	}
 
@@ -220,12 +221,12 @@ func (abase *base_ast_fmt) handleSyntaxConditions() error {
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
 //
 // It checks that the strings given as format verbs, conditions, variable names satisfy specific constraints
-// and ensures that errors are handled correctly later.
+// and ensures that mistakes are handled correctly later.
 //
 // For ast_cond, we just flag the conditional as invalid on failure.
-func (abase *base_ast_condition) handleSyntaxConditions() error {
+func (abase *base_ast_condition) handleSyntaxConditions() mistake {
 	if !validConditionString(abase.condition) {
-		// This causes Interpolate to display children unconditionally && display an error message containing the condition string.
+		// This causes Interpolate to display children unconditionally && display a diagnostic message containing the condition string.
 		abase.make_invalid(astConditionValidity_OUTPUT_CHILD | astConditionValidity_OUTPUT_CONDITION)
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", abase.condition)
 	} else {
@@ -256,38 +257,38 @@ func (abase *base_ast_condition) handleSyntaxConditions() error {
  *
  * If a base error is referenced by %w, $w, %w{n} or $w{n} and that error supports ErrorInterpolater, we recursively check the base as appropriate.
  *
- * We only report the first error encountered.
- * Note that both parse errors and syntax errors uncovered by [handleSyntaxConditions] take priority.
- * If there was an parse or syntax error, we always report it instead.
+ * We only report the first mistake encountered.
+ * Note that both parse mistakes and syntax mistakes uncovered by [handleSyntaxConditions] take priority.
+ * If there was an parse or syntax mistake, we always report it instead.
  */
 
 // NOTE: We assumes the ast was created by [make_ast] and we ensure [handleSyntaxConditions] was called for post-processing.
 // Furthermore, we assume that all calls go through ast_root.
-// In particular, we detect errors recorded by [make_ast] and [handleSyntaxConditions] at the root and never
+// In particular, we detect mistakes recorded by [make_ast] and [handleSyntaxConditions] at the root and never
 // process the tree.
 
 // For parameters_passed, note that is should never be nil.
 
-// VerifyParameters_direct checks whether the AST contains any parse or syntax errors that were recorded when creating it.
+// VerifyParameters_direct checks whether the AST contains any parse or syntax mistakes that were recorded when creating it.
 // If not, it checks whether parameters in %fmtVerb{VariableName} expressions are actually present and
 // %w and $w expressions refer to valid baseErrors.
 // It also recursively checks the baseError, if referred to via %w or $w.
-// Untaken conditional branches are not checked (but parse or syntax errors there will be reported)
-// Only the first error is reported.
+// Untaken conditional branches are not checked (but parse or syntax mistakes there will be reported)
+// Only the first mistake is reported.
 //
 // The method uses parameters_direct its for variables and baseError as the baseError.
 //
-// VerifyParameters_direct for the root node just checks for errors (those were recorded in the root node by [make_ast], and [handleSyntaxConditions] and hands off to the child)
-func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError error) error {
+// VerifyParameters_direct for the root node just checks for mistakes (those were recorded in the root node by [make_ast], and [handleSyntaxConditions] and hands off to the child)
+func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError error) mistake {
 
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen for ASTs created by make_ast
 	}
 
 	syntaxError := a.handleSyntaxConditions() // ensure this is called
-	// If [make_ast] detected a parse error, this overrides any further tests.
-	if a.parseError != nil {
-		return a.parseError
+	// If [make_ast] detected a parse mistake, this overrides any further tests.
+	if a.parseMistake != nil {
+		return a.parseMistake
 	}
 
 	if syntaxError != nil {
@@ -297,20 +298,20 @@ func (a ast_root) VerifyParameters_direct(parameters_direct ParamMap, baseError 
 	return a.ast.VerifyParameters_direct(parameters_direct, baseError)
 }
 
-// VerifyParameters_passed checks whether the AST contains any parse or syntax errors that were recorded when creating it.
+// VerifyParameters_passed checks whether the AST contains any parse or syntax mistakes that were recorded when creating it.
 // If not, it checks whether parameters in %fmtVerb{VariableName} or $fmtVerb{VariableName} expressions are actually present and
 // %w and $w expressions refer to valid baseErrors.
 // It also recursively checks the baseError, if referred to via %w or $w and the the base error supports this (via ValidateError_Params())
-// Untaken conditional branches are not checked (but parse or syntax errors there will be reported)
-// Only the first error is reported.
+// Untaken conditional branches are not checked (but parse or syntax mistakes there will be reported)
+// Only the first mistake is reported.
 //
 // The method uses parameters_direct resp. parameters_passed for its for variables and baseError as the baseError.
 // NOTE: parameters_passed must not be nil (an empty map is fine), to avoid confusion. We panic in this case.
 // The special-cased meaning of parameters_passed == nil in [ValidateError_Params] from the [ErrorWithData_any] or [ErrorInterpolater] interface
 // needs to be handled by [ValidateError_Params] rather than here.
 //
-// VerifyParameters_passed for the root node just checks for errors (those were recorded in the root node by [make_ast], and [handleSyntaxConditions] and hands off to the child)
-func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) error {
+// VerifyParameters_passed for the root node just checks for mistakes (those were recorded in the root node by [make_ast], and [handleSyntaxConditions] and hands off to the child)
+func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) mistake {
 
 	if a.ast == nil {
 		panic(ErrorPrefix + "invalid syntax tree: root has no child") // cannot happen for ASTs created by make_ast
@@ -321,9 +322,9 @@ func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters
 	}
 
 	syntaxError := a.handleSyntaxConditions() // ensure this is called
-	// If [make_ast] detected a parse error, this overrides any further tests.
-	if a.parseError != nil {
-		return a.parseError
+	// If [make_ast] detected a parse mistake, this overrides any further tests.
+	if a.parseMistake != nil {
+		return a.parseMistake
 	}
 
 	if syntaxError != nil {
@@ -333,8 +334,8 @@ func (a ast_root) VerifyParameters_passed(parameters_direct ParamMap, parameters
 
 }
 
-// VerifyParameters_direct for list nodes just reports the first error in a child
-func (a ast_list) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
+// VerifyParameters_direct for list nodes just reports the first mistake in a child
+func (a ast_list) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err mistake) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list") // cannot happen for ASTs created by make_ast
 	}
@@ -347,8 +348,8 @@ func (a ast_list) VerifyParameters_direct(parameters_direct ParamMap, baseError 
 	return nil
 }
 
-// VerifyParameters_passed for list nodes just reports the first error in a child
-func (a ast_list) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
+// VerifyParameters_passed for list nodes just reports the first mistake in a child
+func (a ast_list) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err mistake) {
 	if *a == nil { // Note: *a has type (based on) []ast_I
 		panic(ErrorPrefix + "invalid syntax tree: unitialized list") // cannot happen for ASTs created by make_ast
 	}
@@ -361,18 +362,18 @@ func (a ast_list) VerifyParameters_passed(parameters_direct ParamMap, parameters
 	return nil
 }
 
-// VerifyParameters_direct for string nodes never reports an error
-func (a ast_string) VerifyParameters_direct(ParamMap, error) error {
+// VerifyParameters_direct for string nodes never reports an mistake
+func (a ast_string) VerifyParameters_direct(ParamMap, error) mistake {
 	return nil
 }
 
-// VerifyParameters_passed for string nodes never reports an error
-func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) error {
+// VerifyParameters_passed for string nodes never reports an mistake
+func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) mistake {
 	return nil
 }
 
 // VerifyParameters_direct for %fmtVerb{variableName} checks whether the paramter is present.
-func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err error) {
+func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err mistake) {
 
 	_, ok := parameters_direct[a.variableName]
 	if !ok {
@@ -382,7 +383,7 @@ func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ er
 }
 
 // VerifyParameters_passed for %fmtVerb{variableName} checks whether the paramter is present.
-func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ ParamMap, _ error) (err error) {
+func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ ParamMap, _ error) (err mistake) {
 
 	// same as VerifyParameters_direct. We ignore the parameters_passed map
 	_, ok := parameters_direct[a.variableName]
@@ -392,15 +393,15 @@ func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ Pa
 	return nil
 }
 
-// VerifyParameters_direct for $fmtVerb{variableName} never reports an error (this is because the parameter might later be filled in)
-func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) error {
+// VerifyParameters_direct for $fmtVerb{variableName} never reports an mistake (this is so because the parameter might later be filled in)
+func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) mistake {
 	return nil
 }
 
 // VerifyParameters_passed for $fmtVerb{variableName} checks whether the variable is present in parameters_passed.
 //
 // NOTE: we assume that parameters_passed is not nil. This is checked/handled at the root node.
-func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, _ error) (err error) {
+func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, _ error) (err mistake) {
 
 	_, ok := parameters_passed[a.variableName]
 	if !ok {
@@ -415,7 +416,7 @@ func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed Par
 // NOTE: The latter is done by using ValidateError_Params, which will then call VerifyParameters_passed on the referred error.
 // This change to the *_passed - variant is actually correct: %w prevents arguments from being passed to it,
 // so we know what the passed parameters to the baseError are.
-func (a ast_parentPercent) VerifyParameters_direct(_ ParamMap, baseError error) error {
+func (a ast_parentPercent) VerifyParameters_direct(_ ParamMap, baseError error) mistake {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
 	} else {
@@ -438,7 +439,7 @@ func (a ast_parentPercent) VerifyParameters_direct(_ ParamMap, baseError error) 
 // If possible, we also actually check for problems in the referred baseError
 //
 // The same considerations as with VerifyParameters_direct apply here.
-func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
+func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) mistake {
 	// exactly the same as VerifyParamter_direct
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w, but the error does not wrap a non-nil error")
@@ -463,7 +464,7 @@ func (a ast_parentPercent) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseE
 // We also check for problems in the referred baseError via [ValidateError_Base]
 //
 // NOTE: ValidateError_Base() will call VerifyParameters_direct on the referred error.
-func (a ast_parentDollar) VerifyParameters_direct(_ ParamMap, baseError error) error {
+func (a ast_parentDollar) VerifyParameters_direct(_ ParamMap, baseError error) mistake {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
@@ -484,7 +485,7 @@ func (a ast_parentDollar) VerifyParameters_direct(_ ParamMap, baseError error) e
 // We also check for problems in the referred baseError via [ValidateError_Params]
 //
 // NOTE: ValidateError_Params(paramters_passed) will call VerifyParameters_passed on the referred error, with parameters_passed passed through.
-func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, baseError error) error {
+func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, baseError error) mistake {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
 	}
@@ -499,7 +500,7 @@ func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, parameters_passed 
 	return nil
 }
 
-func (a ast_parentPercentMulti) VerifyParameters_direct(_ ParamMap, baseError error) error {
+func (a ast_parentPercentMulti) VerifyParameters_direct(_ ParamMap, baseError error) mistake {
 	// Check that the base error is non-nil has an Unwrap() []error - method
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w{...}-expression, but the error does not wrap a non-nil error")
@@ -535,7 +536,7 @@ func (a ast_parentPercentMulti) VerifyParameters_direct(_ ParamMap, baseError er
 	return nil
 }
 
-func (a ast_parentPercentMulti) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) error {
+func (a ast_parentPercentMulti) VerifyParameters_passed(_ ParamMap, _ ParamMap, baseError error) mistake {
 	// exactly the same code as VerifyParameters_direct
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains %%w{...}-expression, but the error does not wrap a non-nil error")
@@ -567,7 +568,7 @@ func (a ast_parentPercentMulti) VerifyParameters_passed(_ ParamMap, _ ParamMap, 
 	return nil
 }
 
-func (a ast_parentDollarMulti) VerifyParameters_direct(_ ParamMap, baseError error) error {
+func (a ast_parentDollarMulti) VerifyParameters_direct(_ ParamMap, baseError error) mistake {
 	// similar to the above:
 
 	// Check that the base error is non-nil has an Unwrap() []error - method
@@ -606,7 +607,7 @@ func (a ast_parentDollarMulti) VerifyParameters_direct(_ ParamMap, baseError err
 	}
 }
 
-func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed ParamMap, baseError error) error {
+func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed ParamMap, baseError error) mistake {
 	// similar to the above, except that we call relevantChild.ValidateError_Params(params_passed) instead of relevantChild.ValidateError_Base()
 
 	// Check that the base error is non-nil has an Unwrap() []error - method
@@ -635,8 +636,8 @@ func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed
 		if relevantChild == nil { // should not happen unless the user uses a custom Join method.
 			return nil
 		}
-		if errFromChild := relevantChild.ValidateError_Params(params_passed); errFromChild != nil {
-			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", errFromChild)
+		if mistakeFromChild := relevantChild.ValidateError_Params(params_passed); mistakeFromChild != nil {
+			return fmt.Errorf(ErrorPrefix+"Problem in wrapped error: %w", mistakeFromChild)
 		} else {
 			return nil
 		}
@@ -646,9 +647,9 @@ func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed
 }
 
 // VerifyParameters_direct for %condition{Subtree} will conditionally check the subtree if the condition holds
-func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
+func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err mistake) {
 	if !a.is_valid() {
-		panic("Cannot happen") // caught by root node. Anything that would set this also sets an error in the root node.
+		panic("Cannot happen") // caught by root node. Anything that would set this also sets an mistake in the root node.
 	}
 
 	if !utils.ElementInList(a.condition, validConditions[:]) {
@@ -676,7 +677,7 @@ func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, bas
 }
 
 // VerifyParamters_passed for %condition{Subtree} will conditionally check the subtree if the condition holds.
-func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
+func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err mistake) {
 	// same as VerifyParameters_direct, except for calling the approprite VerifyParamters_passed on the subtree
 	if !a.is_valid() {
 		panic("Cannot happen") // caught by root node. Anything that would set this also sets an error in the root node.
@@ -708,16 +709,16 @@ func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, par
 // VerifyParameters_passed for $condition{Subtree} will always check the subtree.
 //
 // This is because using the error as a base may actually cause the condition to be true;
-// The errors potentially detected in the subtree are only those that would be errors for _any_ choice of passed parameters, so we want to
+// The mistakes potentially detected in the subtree are only those that would be mistakes for _any_ choice of passed parameters, so we want to
 // detect those.
-func (a ast_condDollar) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err error) {
+func (a ast_condDollar) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err mistake) {
 	return a.child.VerifyParameters_direct(parameters_direct, baseError)
 }
 
 // VerifyParamters_passed for $condition{Subtree} will conditionally check the subtree if the condition holds.
-func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err error) {
+func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err mistake) {
 	if !a.is_valid() {
-		panic("Cannot happen") // caught by root node. Anything that would set this also sets an error in the root node.
+		panic("Cannot happen") // caught by root node. Anything that would set this also sets an mistake in the root node.
 	}
 
 	if !utils.ElementInList(a.condition, validConditions[:]) {
@@ -757,10 +758,10 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 // (Note: We could also let the caller or each node do that, but doing it here is more convenient -- it allows us to make some diagnostics prettier)
 // paramters_direct should not be nil (use an empty map instead)
 //
-// Error handling: Note that [make_ast] always outputs a valid tree that contains a in-band error message.
+// Error handling: Note that [make_ast] always outputs a valid tree that contains a in-band diagnostic message.
 // We also ensure that [handleSyntaxConditions] has been called.
 // In either case, we just process it normally.
-// Note that on parse error, after the first error, [make_ast] has turned all special tokens inactive, so %w and $w
+// Note that on parse mistakes, after the first mistake, [make_ast] has turned all special tokens inactive, so %w and $w
 // and formatted parameter output might be suppressed.
 // [handleSyntaxConditions] has marked ast_fmt nodes and ast_cond nodes. These will be processed by Interpolate.
 // Since special tokens may have been rendered inactive and output not what the user expected,
@@ -771,21 +772,21 @@ func (a ast_root) Interpolate(parameters_direct ParamMap, parameters_passed Para
 		panic(ErrorPrefix + "invalid syntax tree: root has no child")
 	}
 
-	// Ensure handleSyntaxConditions is called at least once and check whether there is any parse or syntax error in the ast.
+	// Ensure handleSyntaxConditions is called at least once and check whether there is any parse or syntax mistake in the ast.
 	var hasError bool = a.handleSyntaxConditions() != nil
-	hasError = hasError || (a.parseError != nil)
+	hasError = hasError || (a.parseMistake != nil)
 
 	// NOTE: Even if hasError is true, we still process everything.
 
 	// parameters_passed == nil is (mostly) treated as if parameters_passed was equal to parameters_direct.
-	// Note that there is a minor difference in error handling below in that we don't output the parameters twice in that case.
+	// Note that there is a minor difference in mistake handling below in that we don't output the parameters twice in that case.
 	if parameters_passed == nil {
 		a.ast.Interpolate(parameters_direct, parameters_direct, baseError, s)
 	} else {
 		a.ast.Interpolate(parameters_direct, parameters_passed, baseError, s)
 	}
 
-	// Extended diagnostic in case of parse or syntax error.
+	// Extended diagnostic in case of parse or syntax mistake.
 	if hasError {
 		if baseError != nil {
 			s.WriteString("\nBase error:\n")
@@ -824,7 +825,7 @@ func (a ast_list) Interpolate(parameters_direct ParamMap, parameters_passed Para
 //
 // For string nodes, just output the string
 func (a ast_string) Interpolate(_ ParamMap, _ ParamMap, _ error, s *strings.Builder) {
-	s.WriteString(string(a)) // NOTE: need string(a), not a.String() here; the latter would add literal "-marks.
+	s.WriteString(string(a)) // NOTE: need string(a), not a.String() here; the latter would add literal "-marks. Also String() is a testing-only method.
 }
 
 // Interpolate is used to produce the actual output string by appending to *s.
@@ -844,11 +845,11 @@ func (a ast_fmtDollar) Interpolate(_ ParamMap, parameters_passed ParamMap, _ err
 // interpolate_helper is the actual implementation of Interpolate for both ast_fmtPercent and ast_fmtDollar.
 //
 // parameters_relevant is either parameters_direct (for %) or parameters_passed (for $).
-// PercentOrDollar is a literal '$' or '%', required for error handling
+// PercentOrDollar is a literal '$' or '%', required for diagnostic messages.
 func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strings.Builder, PercentOrDollar rune) {
-	// Check whether [handleSyntaxConditions] has detected an error. If so, output a replacement error message instead.
-	if a.errorString != nil {
-		s.WriteString(a.errorString.Error())
+	// Check whether [handleSyntaxConditions] has detected an mistake. If so, output a replacement diagnostic message instead.
+	if a.mistakeString != nil {
+		s.WriteString(a.mistakeString.Error())
 		return
 	}
 
@@ -874,7 +875,7 @@ func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strin
 		s.WriteString(`!<missing value>`)
 	} else {
 		// NOTE: a.formatString is guaranteed not to contain further %'s at this point.
-		// At any rate, fmt.Fprintf would handle it just fine (by printing an error).
+		// At any rate, fmt.Fprintf would handle it just fine (by printing an diagnostic message).
 		fmt.Fprintf(s, "%"+a.formatString, value)
 	}
 }
@@ -883,7 +884,7 @@ func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strin
 //
 // For %condition{subtree}, check the condition and (possibly) evaluate the subtree.
 //
-// NOTE: condition nodes flagged with errors and handled specially:
+// NOTE: condition nodes flagged as tainted due to mistakes and handled specially:
 // We have a flag for "always evaluate the subtree" and a flag for "display condition string"
 func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 
@@ -925,7 +926,7 @@ func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_pass
 //
 // For $condition{subtree}, check the condition and (possibly) evaluate the subtree.
 //
-// NOTE: condition nodes flagged with errors and handled specially:
+// NOTE: condition nodes flagged as tainted due to mistakes and handled specially:
 // We have a flag for "always evaluate the subtree" and a flag for "display condition string"
 func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passed ParamMap, baseError error, s *strings.Builder) {
 

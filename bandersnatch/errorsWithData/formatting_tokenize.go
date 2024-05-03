@@ -20,14 +20,14 @@ import (
 // Note that the Go regexp a|b prefers a over b. We use this to (greedily) prefer $! and $w over $ and similarly for %! and %w over %. Similarly for %w{ and $w{
 // Special-casing %w and %! (rather than viewing w and ! as part of the subsequent string) makes parsing easier. Similarly for %w{ and $w{.
 // We add a start and end token at the beginning / end. This simplifies the parsing code.
-// Consecutive string tokens get concatenated into a single string token. This includes string tokens that result from escape sequences for %,$,{,}
+// Consecutive string tokens get concatenated into a single string token. Such consecutive string token may originate from escape sequences for %,$,{,}
 
 // Literal `$`, `\`, `{` and `}` in a regexp string must be escaped as `\$`, `\\`, `\{` and `\}`.
 // This strings.Replaces performs these escapes.
 // This is just used to simplify readability of the definition of [re_tokenize].
 //
 // Note that re_escaper escapes all occurances, thereby precluding to use e.g. $ as its regexp-specific meaning (end of text/line)
-// We use `...`-string syntax rather than "", because with the latter we would have to additionally escape all \'s in another layer...
+// We use `...`-string syntax rather than "", because with the latter we would have to additionally escape all \'s in yet another layer (namely Go's syntax for string constants)...
 var re_escaper = strings.NewReplacer(`\`, `\\`, `$`, `\$`, `{`, `\{`, `}`, `\}`)
 
 // Regular expression to greedily subdivide the input string into non-overlapping instances of
@@ -103,7 +103,7 @@ var (
 //   - The first and last tokens are tokenStart and tokenEnd and those only appear at the start and the end
 //   - string tokens are non-empty
 //
-// Tokenizing cannot fail. Invalid utf-8 strings are handled by using the UTF-8 replacement character.
+// Tokenizing never fails. Invalid utf-8 strings are handled by using the UTF-8 replacement character.
 func tokenizeInterpolationString(s string) (ret tokenList) {
 	if !utf8.ValidString(s) {
 		s = strings.ToValidUTF8(s, string(utf8.RuneError)) // replace all invalid UTF-8 code points by replacement character

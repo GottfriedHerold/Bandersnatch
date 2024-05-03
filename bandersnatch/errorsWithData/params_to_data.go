@@ -238,11 +238,11 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 
 		mapEntry, exists := (*m)[expectedField.Name]
 		if !exists {
-			if c_SetZeros.ModifyData() {
+			if c_SetZeros.modifyData() {
 				(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 			}
 			// no else!
-			if c_ImplicitZero.IsMissingDataError() {
+			if c_ImplicitZero.isMissingDataMistake() {
 				returnedErrors = append(returnedErrors, fmt.Errorf("lacking a parameter named %v", expectedField.Name))
 			}
 			continue // no need to check the type
@@ -253,7 +253,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			if utils.IsNilable(expectedField.Type) {
 				continue // no further check neccessary.
 			} else {
-				if c_SetZeros.ModifyData() {
+				if c_SetZeros.modifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 				}
 				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is set to a nil interface. This cannot be used for the corresponding struct field of non-nilable type %v",
@@ -267,7 +267,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			if !mapEntryType.AssignableTo(expectedField.Type) {
 				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is set to the value %v; this value is not assignable to the intended field (which is of interface type) of the struct",
 					expectedField.Name, mapEntry))
-				if c_SetZeros.ModifyData() {
+				if c_SetZeros.modifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 				}
 				// typeError = true
@@ -277,7 +277,7 @@ func ensureCanMakeStructFromParameters[StructType any](m *ParamMap, c_ImplicitZe
 			if mapEntryType != expectedField.Type {
 				returnedErrors = append(returnedErrors, fmt.Errorf("parameter %v is of wrong type.\nValue is %v of type %v, but the expected type is %v",
 					expectedField.Name, mapEntry, utils.GetReflectName(mapEntryType), utils.GetReflectName(expectedField.Type)))
-				if c_SetZeros.ModifyData() {
+				if c_SetZeros.modifyData() {
 					(*m)[expectedField.Name] = reflect.Zero(expectedField.Type).Interface()
 				}
 				// typeError = true
@@ -341,7 +341,7 @@ func makeStructFromMap[StructType any](m map[string]any, c_ImplicitZero config_I
 			// missing value:
 			// We need to zero-initialize the appropriate field. This was already done automatically by the compiler when we declared ret, so we don't need to do anything.
 
-			if c_ImplicitZero.IsMissingDataError() {
+			if c_ImplicitZero.isMissingDataMistake() {
 				collectedErrors = append(collectedErrors, fmt.Errorf("for the field named %v, there is no entry in the parameter map",
 					structField.Name))
 			}

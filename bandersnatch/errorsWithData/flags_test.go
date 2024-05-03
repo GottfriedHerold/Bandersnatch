@@ -12,19 +12,19 @@ import (
 var (
 	// list of all exported functions that take flags and a full list of all flags taken for each.
 	// Note that validFlagRestrictions needs an entry for each variable here to specify restrictions.
-	// NOTE: customComparisonFlag must be used instead of [EnsureDataIsNotReplaced_fun].
+	// NOTE: customComparisonFlag must be used instead of [MistakeIfDataIsReplaced_fun].
 	validFlags_HasData                      []flagArgument = []flagArgument{EnsureDataIsPresent, IgnoreMissingData}
-	validFlags_GetData_struct               []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
-	validFlags_NewErrorWithData_struct      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
-	validFlags_NewErrorWithData_params      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping, MissingDataAsZero, MissingDataIsError}
+	validFlags_GetData_struct               []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsMistake, ReturnMistake, PanicOnAllMistakes}
+	validFlags_NewErrorWithData_struct      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_NewErrorWithData_params      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping, MissingDataAsZero, MissingDataIsMistake}
 	validFlags_NewErrorWithData_map                        = validFlags_NewErrorWithData_params
-	validFlags_DeleteParameterFromError_any []flagArgument = []flagArgument{ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
-	validFlags_DeleteParameterFromError     []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
-	validFlags_AsErrorWithData              []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsError, ReturnError, PanicOnAllErrors}
-	validFlags_NewErrorWithData_params_any  []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_DeleteParameterFromError_any []flagArgument = []flagArgument{ReturnMistake, PanicOnAllMistakes, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_DeleteParameterFromError     []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsMistake, ReturnMistake, PanicOnAllMistakes, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
+	validFlags_AsErrorWithData              []flagArgument = []flagArgument{MissingDataAsZero, MissingDataIsMistake, ReturnMistake, PanicOnAllMistakes}
+	validFlags_NewErrorWithData_params_any  []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal, AllowEmptyString, DefaultToWrapping}
 	validFlags_NewErrorWithData_map_any     []flagArgument = validFlags_NewErrorWithData_params_any
-	validFlags_JoinAny                      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors}
-	validFlags_Join                         []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, EnsureDataIsNotReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnError, PanicOnAllErrors, MissingDataAsZero, MissingDataIsError}
+	validFlags_JoinAny                      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes}
+	validFlags_Join                         []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes, MissingDataAsZero, MissingDataIsMistake}
 )
 
 var (
@@ -83,17 +83,17 @@ func TestPrintFlag(t *testing.T) {
 func TestConfigDefaults(t *testing.T) {
 	var configCreate errorCreationConfig
 	var configSetZero config_SetZeros
-	testutils.FatalUnless(t, configCreate.PreferOld() == false, "")
-	testutils.FatalUnless(t, configCreate.PreferNew() == true, "")
-	testutils.FatalUnless(t, configCreate.PerformEqualityCheck() == false, "")
+	testutils.FatalUnless(t, configCreate.preferOld() == false, "")
+	testutils.FatalUnless(t, configCreate.preferNew() == true, "")
+	testutils.FatalUnless(t, configCreate.performEqualityCheck() == false, "")
 	testutils.FatalUnless(t, configCreate.checkFun == nil, "") // NOTE: GetCheckFun returns a default function, which we cannot test.
-	testutils.FatalUnless(t, configCreate.CatchPanic() == true, "")
-	testutils.FatalUnless(t, configCreate.PanicOnAllErrors() == false, "")
-	testutils.FatalUnless(t, configCreate.WhatValidationIsRequested() == validationRequest_Syntax, "")
-	testutils.FatalUnless(t, configCreate.IsMissingDataError() == true, "")
-	testutils.FatalUnless(t, configCreate.AllowEmptyString() == false, "")
+	testutils.FatalUnless(t, configCreate.catchPanic() == true, "")
+	testutils.FatalUnless(t, configCreate.panicOnAllMistakes() == false, "")
+	testutils.FatalUnless(t, configCreate.whatValidationIsRequested() == validationRequest_Syntax, "")
+	testutils.FatalUnless(t, configCreate.isMissingDataMistake() == true, "")
+	testutils.FatalUnless(t, configCreate.allowEmptyString() == false, "")
 
-	testutils.FatalUnless(t, configSetZero.ModifyData() == false, "") // ModifyData is not defined on errorCreationConfig
+	testutils.FatalUnless(t, configSetZero.modifyData() == false, "") // ModifyData is not defined on errorCreationConfig
 }
 
 // helper function
@@ -142,23 +142,23 @@ func ensureConfigUnchangedExcept(t *testing.T, c1, c2 *errorCreationConfig, chan
 		}
 	}
 	if !xPreferOld {
-		b1 := c1.PreferOld()
-		b2 := c2.PreferOld()
+		b1 := c1.preferOld()
+		b2 := c2.preferOld()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.PreferOld() = %v, c2.PreferOld() = %v ", b1, b2)
 	}
 	if !xPreferNew {
-		b1 := c1.PreferNew()
-		b2 := c2.PreferNew()
+		b1 := c1.preferNew()
+		b2 := c2.preferNew()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.PreferNew() = %v, c2.PreferNew() = %v ", b1, b2)
 	}
 	if !xPerformEqualityCheck {
-		b1 := c1.PerformEqualityCheck()
-		b2 := c2.PerformEqualityCheck()
+		b1 := c1.performEqualityCheck()
+		b2 := c2.performEqualityCheck()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.PerformEqualityCheck() = %v, c2.PerformEqualityCheck() = %v ", b1, b2)
 	}
 	if !xCatchPanic {
-		b1 := c1.CatchPanic()
-		b2 := c2.CatchPanic()
+		b1 := c1.catchPanic()
+		b2 := c2.catchPanic()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.CatchPanic() = %v, c2.CatchPanic() = %v ", b1, b2)
 	}
 	if !xCheckFun {
@@ -167,23 +167,23 @@ func ensureConfigUnchangedExcept(t *testing.T, c1, c2 *errorCreationConfig, chan
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.checkFun is nil: %v, c2.checkFun is nil: %v ", b1, b2)
 	}
 	if !xPanicOnAllErrors {
-		b1 := c1.PanicOnAllErrors()
-		b2 := c2.PanicOnAllErrors()
+		b1 := c1.panicOnAllMistakes()
+		b2 := c2.panicOnAllMistakes()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.PanicOnAllErrors() = %v, c2.PanicOnAllErrors() = %v ", b1, b2)
 	}
 	if !xValidation {
-		b1 := c1.WhatValidationIsRequested() // type int
-		b2 := c2.WhatValidationIsRequested() // type int
+		b1 := c1.whatValidationIsRequested() // type int
+		b2 := c2.whatValidationIsRequested() // type int
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.WhatValidationIsRequested() = %v, c2.WhatValidationIsRequested() = %v ", b1, b2)
 	}
 	if !xIsMissingDataError {
-		b1 := c1.IsMissingDataError()
-		b2 := c2.IsMissingDataError()
+		b1 := c1.isMissingDataMistake()
+		b2 := c2.isMissingDataMistake()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.IsMissingDataError() = %v, c2.IsMissingDataError() = %v ", b1, b2)
 	}
 	if !xAllowEmptyString {
-		b1 := c1.AllowEmptyString()
-		b2 := c2.AllowEmptyString()
+		b1 := c1.allowEmptyString()
+		b2 := c2.allowEmptyString()
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.AllowEmptyString() = %v, c2.AllowEmptyString() = %v ", b1, b2)
 	}
 }
@@ -191,7 +191,7 @@ func ensureConfigUnchangedExcept(t *testing.T, c1, c2 *errorCreationConfig, chan
 func TestParseFlags(t *testing.T) {
 	var c1, c2 errorCreationConfig
 	ensureConfigUnchangedExcept(t, &c1, &c2) // sanity check
-	c2.preferOld = true
+	c2._preferOld = true
 	// ensureConfigUnchangedExcept(t, &c1, &c2) // does fail as expected
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PreferOld", "PreferNew")
 	c2 = errorCreationConfig{}
@@ -200,88 +200,88 @@ func TestParseFlags(t *testing.T) {
 	ensureConfigUnchangedExcept(t, &c1, &c2)
 
 	parseFlagArgs(&c1, PreferPreviousData)
-	testutils.FatalUnless(t, c1.PreferOld() == true && c1.PreferNew() == false, "")
+	testutils.FatalUnless(t, c1.preferOld() == true && c1.preferNew() == false, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PreferOld", "PreferNew")
 
 	parseFlagArgs(&c1, ReplacePreviousData)
-	testutils.FatalUnless(t, c1.PreferOld() == false && c1.PreferNew() == true, "")
+	testutils.FatalUnless(t, c1.preferOld() == false && c1.preferNew() == true, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2)
 
-	parseFlagArgs(&c1, EnsureDataIsNotReplaced)
-	testutils.FatalUnless(t, c1.PerformEqualityCheck() == true, "")
+	parseFlagArgs(&c1, MistakeIfDataIsReplaced)
+	testutils.FatalUnless(t, c1.performEqualityCheck() == true, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PerformEqualityCheck")
 
 	parseFlagArgs(&c1, PreferPreviousData)
 	parseFlagArgs(&c2, PreferPreviousData)
-	testutils.FatalUnless(t, c1.PreferOld() == true && c1.PreferNew() == false, "")
-	testutils.FatalUnless(t, c1.PerformEqualityCheck() == false, "") // setting PreferPreviousData unsets perform equality check
-	parseFlagArgs(&c1, EnsureDataIsNotReplaced)
-	testutils.FatalUnless(t, c1.PerformEqualityCheck() == true, "")
-	testutils.FatalUnless(t, c1.PreferOld() == true && c1.PreferNew() == false, "") // keep last setting
+	testutils.FatalUnless(t, c1.preferOld() == true && c1.preferNew() == false, "")
+	testutils.FatalUnless(t, c1.performEqualityCheck() == false, "") // setting PreferPreviousData unsets perform equality check
+	parseFlagArgs(&c1, MistakeIfDataIsReplaced)
+	testutils.FatalUnless(t, c1.performEqualityCheck() == true, "")
+	testutils.FatalUnless(t, c1.preferOld() == true && c1.preferNew() == false, "") // keep last setting
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PerformEqualityCheck")
 
 	parseFlagArgs(&c1, ReplacePreviousData)
 	parseFlagArgs(&c2, ReplacePreviousData)
-	testutils.FatalUnless(t, c1.PerformEqualityCheck() == false, "") // setting ReplacePreviousData unsets perform equality check
-	parseFlagArgs(&c1, EnsureDataIsNotReplaced)
-	testutils.FatalUnless(t, c1.PerformEqualityCheck() == true, "")
-	testutils.FatalUnless(t, c1.PreferOld() == false && c1.PreferNew() == true, "") // keep last setting
+	testutils.FatalUnless(t, c1.performEqualityCheck() == false, "") // setting ReplacePreviousData unsets perform equality check
+	parseFlagArgs(&c1, MistakeIfDataIsReplaced)
+	testutils.FatalUnless(t, c1.performEqualityCheck() == true, "")
+	testutils.FatalUnless(t, c1.preferOld() == false && c1.preferNew() == true, "") // keep last setting
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PerformEqualityCheck")
 
 	c1 = errorCreationConfig{}
 	c2 = errorCreationConfig{}
 
-	parseFlagArgs(&c1, EnsureDataIsNotReplaced_fun(Comparison_IsEqual))
-	testutils.FatalUnless(t, c1.PerformEqualityCheck() == true, "")
+	parseFlagArgs(&c1, MistakeIfDataIsReplaced_fun(Comparison_IsEqual))
+	testutils.FatalUnless(t, c1.performEqualityCheck() == true, "")
 	testutils.FatalUnless(t, c1.checkFun != nil, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PerformEqualityCheck", "checkFun")
 
 	parseFlagArgs(&c1, ReplacePreviousData, LetComparisonFunctionPanic)
-	testutils.FatalUnless(t, c1.CatchPanic() == false, "")
+	testutils.FatalUnless(t, c1.catchPanic() == false, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "CatchPanic")
 
 	parseFlagArgs(&c1, RecoverFromComparisonFunctionPanic)
-	testutils.FatalUnless(t, c1.CatchPanic() == true, "")
+	testutils.FatalUnless(t, c1.catchPanic() == true, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "CatchPanic")
 
 	parseFlagArgs(&c1, MissingDataAsZero)
-	testutils.FatalUnless(t, c1.IsMissingDataError() == false, "")
+	testutils.FatalUnless(t, c1.isMissingDataMistake() == false, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "IsMissingDataError")
 
-	parseFlagArgs(&c1, MissingDataIsError)
-	testutils.FatalUnless(t, c1.IsMissingDataError() == true, "")
+	parseFlagArgs(&c1, MissingDataIsMistake)
+	testutils.FatalUnless(t, c1.isMissingDataMistake() == true, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "IsMissingDataError")
 
-	parseFlagArgs(&c1, PanicOnAllErrors)
-	testutils.FatalUnless(t, c1.PanicOnAllErrors() == true, "")
+	parseFlagArgs(&c1, PanicOnAllMistakes)
+	testutils.FatalUnless(t, c1.panicOnAllMistakes() == true, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PanicOnAllErrors")
 
-	parseFlagArgs(&c1, ReturnError)
-	testutils.FatalUnless(t, c1.PanicOnAllErrors() == false, "")
+	parseFlagArgs(&c1, ReturnMistake)
+	testutils.FatalUnless(t, c1.panicOnAllMistakes() == false, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "PanicOnAllErrors")
 
 	parseFlagArgs(&c1, AllowEmptyString)
-	testutils.FatalUnless(t, c1.AllowEmptyString() == true, "")
+	testutils.FatalUnless(t, c1.allowEmptyString() == true, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "AllowEmptyString")
 
 	parseFlagArgs(&c1, DefaultToWrapping)
-	testutils.FatalUnless(t, c1.AllowEmptyString() == false, "")
+	testutils.FatalUnless(t, c1.allowEmptyString() == false, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "AllowEmptyString")
 
 	parseFlagArgs(&c1, NoValidation)
-	testutils.FatalUnless(t, c1.WhatValidationIsRequested() == validationRequest_NoValidation, "")
+	testutils.FatalUnless(t, c1.whatValidationIsRequested() == validationRequest_NoValidation, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "Validation")
 
 	parseFlagArgs(&c1, ErrorUnlessValidSyntax)
-	testutils.FatalUnless(t, c1.WhatValidationIsRequested() == validationRequest_Syntax, "")
+	testutils.FatalUnless(t, c1.whatValidationIsRequested() == validationRequest_Syntax, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "Validation")
 
 	parseFlagArgs(&c1, ErrorUnlessValidBase)
-	testutils.FatalUnless(t, c1.WhatValidationIsRequested() == validationRequest_Base, "")
+	testutils.FatalUnless(t, c1.whatValidationIsRequested() == validationRequest_Base, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "Validation")
 
 	parseFlagArgs(&c1, ErrorUnlessValidFinal)
-	testutils.FatalUnless(t, c1.WhatValidationIsRequested() == validationRequest_Final, "")
+	testutils.FatalUnless(t, c1.whatValidationIsRequested() == validationRequest_Final, "")
 	ensureConfigUnchangedExcept(t, &c1, &c2, "Validation")
 	c1 = errorCreationConfig{}
 
@@ -289,8 +289,8 @@ func TestParseFlags(t *testing.T) {
 	// Due to incomparability of function types, no true equality check seems possible.
 	var called bool = false
 	var dummyCheckFun EqualityComparisonFunction = func(x, y any) bool { called = true; return true }
-	parseFlagArgs(&c1, EnsureDataIsNotReplaced_fun(dummyCheckFun))
-	get_fun := c1.GetCheckFun()
+	parseFlagArgs(&c1, MistakeIfDataIsReplaced_fun(dummyCheckFun))
+	get_fun := c1.getCheckFun()
 	testutils.FatalUnless(t, called == false, "")
 	get_fun(0, 0)
 	testutils.FatalUnless(t, called == true, "")
@@ -304,18 +304,18 @@ func TestParseFlagArgs_HasData(t *testing.T) {
 		_ = parseFlagArgs_HasData(flag)        // The test is that this does not panic (i.e. the switch-statement in the function is exhaustive)
 	}
 	c1 := parseFlagArgs_HasData(IgnoreMissingData)
-	testutils.FatalUnless(t, c1.IsMissingDataError() == false, "")
+	testutils.FatalUnless(t, c1.isMissingDataMistake() == false, "")
 	c2 := parseFlagArgs_HasData(EnsureDataIsPresent)
-	testutils.FatalUnless(t, c2.IsMissingDataError() == true, "")
+	testutils.FatalUnless(t, c2.isMissingDataMistake() == true, "")
 
 	// test default
 	c3 := parseFlagArgs_HasData()
-	testutils.FatalUnless(t, c3.IsMissingDataError() == true, "")
+	testutils.FatalUnless(t, c3.isMissingDataMistake() == true, "")
 
 	// test multiple arguments
 
 	c4 := parseFlagArgs_HasData(IgnoreMissingData, EnsureDataIsPresent, IgnoreMissingData)
-	testutils.FatalUnless(t, c4.IsMissingDataError() == false, "")
+	testutils.FatalUnless(t, c4.isMissingDataMistake() == false, "")
 
 	didPanic := testutils.CheckPanic(func() { parseFlagArgs_HasData(nil) })
 	testutils.FatalUnless(t, didPanic == true, "")
@@ -327,41 +327,41 @@ func TestParseFlagArgs_GetData(t *testing.T) {
 		_, _ = parseFlagArgs_GetData(flag)         // The relevant test is that this does not panic (i.e. the switch-statement in the function is exhaustive)
 	}
 	zf1, p1 := parseFlagArgs_GetData(MissingDataAsZero)
-	testutils.FatalUnless(t, zf1.IsMissingDataError() == false, "")
-	testutils.FatalUnless(t, p1.PanicOnAllErrors() == false, "")
-	zf2, p2 := parseFlagArgs_GetData(MissingDataIsError)
-	testutils.FatalUnless(t, zf2.IsMissingDataError() == true, "")
-	testutils.FatalUnless(t, p2.PanicOnAllErrors() == false, "")
+	testutils.FatalUnless(t, zf1.isMissingDataMistake() == false, "")
+	testutils.FatalUnless(t, p1.panicOnAllMistakes() == false, "")
+	zf2, p2 := parseFlagArgs_GetData(MissingDataIsMistake)
+	testutils.FatalUnless(t, zf2.isMissingDataMistake() == true, "")
+	testutils.FatalUnless(t, p2.panicOnAllMistakes() == false, "")
 
-	zf3, p3 := parseFlagArgs_GetData(PanicOnAllErrors)
-	testutils.FatalUnless(t, zf3.IsMissingDataError() == true, "")
-	testutils.FatalUnless(t, p3.PanicOnAllErrors() == true, "")
+	zf3, p3 := parseFlagArgs_GetData(PanicOnAllMistakes)
+	testutils.FatalUnless(t, zf3.isMissingDataMistake() == true, "")
+	testutils.FatalUnless(t, p3.panicOnAllMistakes() == true, "")
 
-	zf4, p4 := parseFlagArgs_GetData(ReturnError)
-	testutils.FatalUnless(t, zf4.IsMissingDataError() == true, "")
-	testutils.FatalUnless(t, p4.PanicOnAllErrors() == false, "")
+	zf4, p4 := parseFlagArgs_GetData(ReturnMistake)
+	testutils.FatalUnless(t, zf4.isMissingDataMistake() == true, "")
+	testutils.FatalUnless(t, p4.panicOnAllMistakes() == false, "")
 
 	zfDefault, pDefault := parseFlagArgs_GetData()
-	testutils.FatalUnless(t, zfDefault.IsMissingDataError() == true, "")
-	testutils.FatalUnless(t, pDefault.PanicOnAllErrors() == false, "")
+	testutils.FatalUnless(t, zfDefault.isMissingDataMistake() == true, "")
+	testutils.FatalUnless(t, pDefault.panicOnAllMistakes() == false, "")
 
-	zf5, p5 := parseFlagArgs_GetData(PanicOnAllErrors, MissingDataAsZero, MissingDataIsError, ReturnError, ReturnError, PanicOnAllErrors, MissingDataIsError, MissingDataAsZero)
-	testutils.FatalUnless(t, zf5.IsMissingDataError() == false, "")
-	testutils.FatalUnless(t, p5.PanicOnAllErrors() == true, "")
+	zf5, p5 := parseFlagArgs_GetData(PanicOnAllMistakes, MissingDataAsZero, MissingDataIsMistake, ReturnMistake, ReturnMistake, PanicOnAllMistakes, MissingDataIsMistake, MissingDataAsZero)
+	testutils.FatalUnless(t, zf5.isMissingDataMistake() == false, "")
+	testutils.FatalUnless(t, p5.panicOnAllMistakes() == true, "")
 
 	didPanic := testutils.CheckPanic(func() { parseFlagArgs_GetData(nil) })
 	testutils.FatalUnless(t, didPanic == true, "")
 }
 
-func TestEnsureDataIsNotReplaced_fun(t *testing.T) {
-	testutils.FatalUnless(t, testutils.CheckPanic(EnsureDataIsNotReplaced_fun, nil) == true, "EnsureDataIsNotReplace_fun(nil) does not panic")
+func TestMistakeIfDataIsReplaced_fun(t *testing.T) {
+	testutils.FatalUnless(t, testutils.CheckPanic(MistakeIfDataIsReplaced_fun, nil) == true, "EnsureDataIsNotReplace_fun(nil) does not panic")
 
 	var state int
 	f := func(x, y any) bool {
 		state += 1
 		return true
 	}
-	flag := EnsureDataIsNotReplaced_fun(f)
+	flag := MistakeIfDataIsReplaced_fun(f)
 	(*flag.f)(nil, nil) // ensure that flag actually contains f
 	testutils.FatalUnless(t, state == 1, "")
 

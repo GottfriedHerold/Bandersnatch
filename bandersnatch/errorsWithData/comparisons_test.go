@@ -160,15 +160,15 @@ func (x *i2_Ptr) IsEqual(y any) bool {
 }
 
 func TestComparisonHandleNils(t *testing.T) {
-	testutils.FatalUnless(t, comparison_handleNils(5, 4) == false, "")
-	testutils.FatalUnless(t, comparison_handleNils(5, 5) == true, "")
-	testutils.FatalUnless(t, comparison_handleNils(int(5), uint(5)) == false, "")
-	testutils.FatalUnless(t, comparison_handleNils(nil, 4) == false, "")
-	testutils.FatalUnless(t, comparison_handleNils(4, nil) == false, "")
-	testutils.FatalUnless(t, comparison_handleNils(nil, (*int)(nil)) == true, "")
-	testutils.FatalUnless(t, comparison_handleNils((*int)(nil), nil) == true, "")
-	testutils.FatalUnless(t, comparison_handleNils(nil, nil) == true, "")
-	comparison_handleNilExt := withPanicResults(comparison_handleNils)
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(5, 4) == false, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(5, 5) == true, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(int(5), uint(5)) == false, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(nil, 4) == false, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(4, nil) == false, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(nil, (*int)(nil)) == true, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface((*int)(nil), nil) == true, "")
+	testutils.FatalUnless(t, Compare_CoerceNilInterface(nil, nil) == true, "")
+	comparison_handleNilExt := withPanicResults(Compare_CoerceNilInterface)
 	_, didPanic, _ := comparison_handleNilExt(incomparableType{}, incomparableType{})
 	testutils.FatalUnless(t, didPanic == true, "")
 }

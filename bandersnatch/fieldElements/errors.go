@@ -39,9 +39,9 @@ var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 // These are the errors that can occur during (de)serialization.
 var (
 	errPrefixDoesNotFit                   = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large", &errorconsts.NoWriteAttempt)
-	ErrPrefixDoesNotFit                   = errorsWithData.MakeErrorIncomparable(errPrefixDoesNotFit)
+	ErrPrefixDoesNotFit                   = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
 	errPrefixLengthInvalid                = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"in FieldElement deserializitation, an invalid prefix length > 8 was requested", &errorconsts.NoWriteAttempt)
-	ErrPrefixLengthInvalid                = errorsWithData.MakeErrorIncomparable(errPrefixLengthInvalid)
+	ErrPrefixLengthInvalid                = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
 	ErrPrefixMismatch               error = errors.New(ErrorPrefix + "during deserialization, the read prefix did not match the expected one")
 	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )

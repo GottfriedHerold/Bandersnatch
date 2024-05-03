@@ -185,6 +185,17 @@ import (
 // ParamMap is an alias to map[string]any. It is used to store arbitrary collections of data associated to a given error.
 type ParamMap = map[string]any
 
+// mistake is a type alias for error. We use this type to report **failure cases of the package itself** in the exported API and our documentation refers to these as
+// "mistakes" rather than errors.
+//
+// The sole purpose of this is that we want to distinguish the type of the objects that this package acts upon and returns (errors and errorsWithData) as part of its
+// intented purpose from the reporting done by the package itself if a call to an API function failed.
+// This is purely a documentation issue:
+// without this disambiguation, some parts of the package documentation would be rather confusing.
+//
+// Note that this type alias is not exported as it only serves for consistency between API and documentation. Users may just use error.
+type mistake = error
+
 // ConditionNonEmptyMap is the special string (together with %! or $!) that triggers conditional evaluation in our interpolation string grammar, depending on whether
 // the parameter map is empty or not.
 //
@@ -263,8 +274,8 @@ const (
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
-	// Using a nil map as paramters is equivalent to using the error's own parameters. So Error_interpolate(nil) is often equivalent to Error(), the only exception being results of
-	// Join.
+	// Using a nil map as paramters is equivalent to using the error's own parameters.
+	// So Error_interpolate(nil) is largely equivalent to Error(), the only possible exception being outputs of Join.
 	Error_interpolate(ParamMap) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
 	GetParameter(parameterName string) (value any, wasPresent bool)
@@ -273,13 +284,16 @@ type ErrorWithData_any interface {
 	// GetData_map returns a shallow copy of the parameter map. Note that this must never return a nil map.
 	GetData_map() map[string]any
 
-	// typically, any implementation of ErrorWithData_any also has either an Unwrap() error method or an Unwrap() []error method -- all errors created by this package do, but this is not part of the interface.
-	// Note that ValidateError_Params(nil) and ValidateError_Final() are not equivalent for errors output by Join.
+	// typically, any implementation of ErrorWithData_any also has either an Unwrap() error method or an Unwrap() []error method.
+	// indeed, all errors created by this package have one of those two, but this is not part of the interface (for a start, because there are two options).
 
+	// Note that ValidateError_Params(nil) and ValidateError_Final() are not equivalent for errors output by Join.
 	ValidateSyntax() error                             // reports a non-nil error if there was a syntax error in the interpolation string creating the error.
 	ValidateError_Final() error                        // reports a non-nil error if there is a (recursive) syntax or missing variable problem in the interpolation string creating this error.
 	ValidateError_Base() error                         // same as ValidateError_Final, but ignores missing variables for $-syntax.
 	ValidateError_Params(params_passed ParamMap) error // same as ValidateError_Final, but use param_passed for any appearing $. Using params_passed == nil will use the error's own stored parameters (as opposed to an empty map).
+	//
+	BoxableError // See its documentation for details. This is not really needed for the core functionality, but every implementation of ErrorWithData_any satisfies it anyway, so we just embed this interface to save some type assertions.
 }
 
 // ErrorInterpolater is an extension of the error interface that allows the error string to depend on additional data.
@@ -477,13 +491,13 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 // GetData_struct obtains the parameters contained in inputError in the form of a struct of type StructType.
 // Additional Parameters in inputError in excess of what is needed to create a struct are ignored.
 //
-// Supported optional flags are [MissingDataAsZero]/[MissingDataIsError] and [ReturnError]/[PanicOnAllErrors]
+// Supported optional flags are [MissingDataAsZero]/[MissingDataIsMistake] and [ReturnMistake]/[PanicOnAllMistakes]
 // If inputError does not contain enough parameters or paramters of wrong type to construct an instance of StructType, the behaviour depends on those flags:
 //
 //   - If [MissingDataAsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an error.
-//   - If instead [MissingDataIsError] is set (the default), we also zero-initialize for merely missing data, but treat this an an error returned in structConstructionError.
-//   - if [ReturnError] is set (the default), we return errors via structConstructionError
-//   - if instead [PanicOnAllErrors] is set, we panic rather than returning a structConstructionError
+//   - If instead [MissingDataIsMistake] is set (the default), we also zero-initialize for merely missing data, but treat this an an error returned in structConstructionError.
+//   - if [ReturnMistake] is set (the default), we return errors via structConstructionError
+//   - if instead [PanicOnAllMistakes] is set, we panic rather than returning a structConstructionError
 //
 // Calling this function with an StructType not satisfying [StructSuitableForErrorsWithData] will always cause a panic.
 //
@@ -498,7 +512,7 @@ func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetD
 	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
 	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)
 	ret, structConstructionError = makeStructFromMap[StructType](allParams, zeroFillConfig)
-	if structConstructionError != nil && errorHandlingConfig.PanicOnAllErrors() {
+	if structConstructionError != nil && errorHandlingConfig.panicOnAllMistakes() {
 		panic(structConstructionError)
 	}
 	return

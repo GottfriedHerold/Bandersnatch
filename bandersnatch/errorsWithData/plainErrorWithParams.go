@@ -140,8 +140,8 @@ func (e *errorWithParameters_common) GetData_map() (ret map[string]any) {
 // ValidateSyntax checks whether the created error has any syntax error in its interpolation string
 func (e *errorWithParameters_common) ValidateSyntax() error {
 	// Check for parse errors
-	if e.parsedInterpolationString.parseError != nil {
-		return e.parsedInterpolationString.parseError
+	if e.parsedInterpolationString.parseMistake != nil {
+		return e.parsedInterpolationString.parseMistake
 	}
 	// If no parse errors, check for syntax errors.
 	return e.parsedInterpolationString.handleSyntaxConditions()
@@ -169,6 +169,14 @@ func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap
 	}
 	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
 }
+
+func (e *errorWithParameters_common) Is(target error) bool {
+	target = UnboxError(target)
+	return e == target
+}
+
+// SupportsBoxingAsIncomparable is a tag function provided to satisfy the [BoxableError] interface
+func (*errorWithParameters_common) SupportsBoxingAsIncomparable() {}
 
 // precompute tokenizations. Note that we cannot precompute the creation of the ast as easily.
 // The reason for the latter is that for the current implementation, calling error validation on the AST
@@ -199,7 +207,7 @@ var (
 func makeErrorWithParametersCommon_any(baseError error, interpolationString string, config config_EmptyString) (ret errorWithParameters_common) {
 	var tokens tokenList
 	ret.wrapped_error = baseError
-	if !config.AllowEmptyString() && interpolationString == "" {
+	if !config.allowEmptyString() && interpolationString == "" {
 		if baseError == nil {
 			panic(ErrorPrefix + "makeErrorsWithParamtersCommon_any asked to create error with empty interpolation string and config forbidding this. This should be unreachable from the exported API") // needs to be caught at call site
 		}
@@ -376,7 +384,7 @@ func newErrorWithData_struct[StructType any](baseError error, interpolationStrin
 // This function may panic if called with an invalid Struct type.
 //
 // If the given params (together with any params from baseError) are unsuited to construct an instance of StructType
-// (such as params with wrong type or missing params with c_ImplitZero set via [MissingDataIsError]), we return an error in err.
+// (such as params with wrong type or missing params with c_ImplitZero set via [MissingDataIsMistake]), we return an error in err.
 //
 // Note that err contains information about all failing fields of StructType, not just the first failing one. The value returned in ret
 // has zeroed entries for all failing fields and the requested values for all other fields.
