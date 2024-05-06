@@ -425,7 +425,7 @@ func NewErrorWithData_any_map(baseError error, interpolationString string, newPa
 //
 // Note that validation actually follows the error chain (if supported by the wrapped errors), so the validation flags are meaningful.
 // The returned err can only be non-nil if a validation flag is explicitly set.
-func DeleteParameterFromError_any(inputError error, interpolationString string, parameterNamesAndFlags ...any) (ret ErrorWithData_any, err error) {
+func DeleteParameterFromError_any(inputError error, interpolationString string, parameterNamesAndFlags ...any) (ret ErrorWithData_any, err mistake) {
 	inputError = UnboxError(inputError)
 
 	var flags []flagArgument_DeleteAny = make([]flagArgument_DeleteAny, 0, len(parameterNamesAndFlags))

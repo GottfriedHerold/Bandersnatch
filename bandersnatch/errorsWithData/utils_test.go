@@ -90,7 +90,7 @@ func callOnErrorSubtree(e error, f func(error)) {
 	}
 }
 
-// callOnErrorTree calls the passed function/closure f on each error in e's error tree (but not on e itself)
+// callOnErrorTree calls the passed function/closure f on each error in e's error tree (including e itself)
 func callOnErrorTree(e error, f func(error)) {
 	f(e)
 	callOnErrorSubtree(e, f)

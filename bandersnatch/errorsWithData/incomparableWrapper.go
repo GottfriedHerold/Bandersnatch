@@ -90,14 +90,22 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 // BoxableError is a interface that errors must satisfy in order to be usable by [MakeErrorIncompatible] and its variants.
 //
 // In order to actually work as intended, we require a suitable Is - method, which is defined on the *unboxed* error.
-// So we only allow boxing errors if the unboxed error has one. We also ask for a tag type to explicitly opt-in.
+// So we only allow boxing errors if the unboxed error has one. We also ask for a tag method to explicitly opt-in.
 // (accidential interface satisfaction is actually a real possibility here)
 type BoxableError interface {
 	error
-	Is(target error) bool          // needs to unbox target. A valid implementation of e.Is(target) is e==UnboxError(target)
+	Is(target error) bool          // needs to unbox target. A valid implementation of e.Is(target) is `return e==UnboxError(target)`
 	SupportsBoxingAsIncomparable() // dummy tag function for opt-in: this serves to "mark" types as compatible with MakeErrorIncomparable. We never call this.
 }
 
+// COMMENTED OUT: We only support the "plain version now":
+// This means that boxing loses type information, but that is actually OK:
+// After all, the only thing that users are supposed to do with boxed error err are
+//    - comparing with errors.Is(sth, err)
+//    - using it as the base of an error chain/tree.
+// Both of the latter do not require any kind of extended interface.
+
+/*
 // boxableErrorWithData_any respectively boxableErrorWithData_any are
 // the union of [ErrorWithData_any] respectively [ErrorWithData] and [boxableError].
 // While we would prefer to just explicitly write interface{ErrorWithData_any;BoxableError},
@@ -120,22 +128,37 @@ type (
 	}
 )
 
-// UnboxableError is an internal interface satisfied by the incomparable errors.
+*/
+
+// unboxableError is an internal interface satisfied by the incomparable errors.
 //
 // It allows to access the boxed comparable error and "tags" boxed types made incomparable by this package.
-type UnboxableError interface {
+type unboxableError interface {
 	Unbox() BoxableError
 }
 
-type UnboxableError_any interface {
-	UnboxableError // subsume above
-	Unbox_any() boxableErrorWithData_any
+/*
+
+// unboxableErrorWithData_any is an internal interface satisfied by incomparable errors.
+//
+// It allows to access the boxed comparable error and "tags" boxed types made incomparable by this package.
+// As opposed to [unboxableError], this interface additionally requires a UnboxWithData_any() method that preserves the [ErrorWithData_any] interface.
+type unboxableErrorWithData_any interface {
+	unboxableError // subsume above
+	UnboxWithData_any() boxableErrorWithData_any
 }
 
-type UnboxableError_T[StructType any] interface {
-	UnboxableError_any // subsume above
-	Unbox_ErrorWithData() boxableErrorWithData[StructType]
+// unboxableErrorWithData is an internal interface satisfied by incomparable errors.
+//
+// It allows to access the boxed comparable error and "tags" boxed types made incomparable by this package.
+// As opposed to [unboxableError], this interface additionally requires UnboxWithData() and a UnboxWithData_any() methods
+// that preserves the [ErrorWithData] and [ErrorWithData_any] interfaces.
+type unboxableErrorWithData[StructType any] interface {
+	unboxableErrorWithData_any // subsume above
+	UnboxWithData() boxableErrorWithData[StructType]
 }
+
+*/
 
 // incomparableError, incomparableErrorWithData_any respectively incomparableErrorWithData
 // boxes an [error], [ErrorWithData_any] respectively [ErrorWithData], but is intentionally made to be incomparable.
@@ -151,26 +174,38 @@ type (
 	incomparableError struct {
 		// we just struct-embed Boxable error to promote Error, Is and SupportsBoxingAsIncomparable.
 		// Indeed, promoting the Error and Is methods just does The Right Thing(tm) here.
-		utils.MakeIncomparable // struct-embedded to make the type incomparable
+		utils.MakeIncomparable // struct-embedded to make the type incomparable.
 		BoxableError           // not error, because we want to promote Is(target error) bool and SupportsBoxingAsIncomparable().
 	}
 
-	// boxed [ErrorWithData_any], but intentionally made incomparable
-	incomparableErrorWithData_any struct {
-		// We struct-embedd the union of [ErrorWithData_any] and [BoxableError] to promote the methods of both interfaces:
-		utils.MakeIncomparable   // struct-embedded to make the type incomparable
-		boxableErrorWithData_any // union of [ErrorWithData_any] and [BoxableError] -- this interface type needs to have an (internal) name for struct-embedding to work.
-	}
+	/*
+		// boxed [ErrorWithData_any], but intentionally made incomparable
+		incomparableErrorWithData_any struct {
+			// We struct-embedd the union of [ErrorWithData_any] and [BoxableError] to promote the methods of both interfaces:
+			utils.MakeIncomparable   // struct-embedded to make the type incomparable
+			boxableErrorWithData_any // union of [ErrorWithData_any] and [BoxableError] -- this interface type needs to have an (internal) name for struct-embedding to work.
+		}
 
-	// boxed [ErrorWithData_any], but intentionally made incomparable
-	incomparableErrorWithData[StructType any] struct {
-		// We struct-embedd the union of [ErrorWithData] and [BoxableError] to promote the methods of both interfaces.
-		utils.MakeIncomparable           // struct-embedded to make the type incomparable
-		boxableErrorWithData[StructType] // union of [ErrorWithData] and [BoxableError] -- this interface type needs to have an (internal) name for struct-embedding to work.
-	}
+		// boxed [ErrorWithData_any], but intentionally made incomparable
+		incomparableErrorWithData[StructType any] struct {
+			// We struct-embedd the union of [ErrorWithData] and [BoxableError] to promote the methods of both interfaces.
+			utils.MakeIncomparable           // struct-embedded to make the type incomparable
+			boxableErrorWithData[StructType] // union of [ErrorWithData] and [BoxableError] -- this interface type needs to have an (internal) name for struct-embedding to work.
+		}
+	*/
 )
 
 func (incomp incomparableError) Unbox() BoxableError { return incomp.BoxableError }
+
+// IsEqual is not really needed.
+/*
+func (incomp incomparableError) IsEqual(incomp2 incomparableError) bool {
+	return incomp.BoxableError == incomp2.BoxableError
+}
+*/
+
+/*
+
 func (incomp incomparableErrorWithData_any) Unbox() BoxableError {
 	return incomp.boxableErrorWithData_any
 }
@@ -178,31 +213,44 @@ func (incomp incomparableErrorWithData[StructType]) Unbox() BoxableError {
 	return incomp.boxableErrorWithData
 }
 
-func (incomp incomparableErrorWithData_any) Unbox_any() boxableErrorWithData_any {
+func (incomp incomparableErrorWithData_any) UnboxWithData_any() boxableErrorWithData_any {
 	return incomp.boxableErrorWithData_any
 }
-func (incomp incomparableErrorWithData[StructType]) Unbox_any() boxableErrorWithData_any {
+func (incomp incomparableErrorWithData[StructType]) UnboxWithData_any() boxableErrorWithData_any {
 	return incomp.boxableErrorWithData
 }
 
-func (incomp incomparableErrorWithData[StructType]) Unbox_ErrorWithData() boxableErrorWithData[StructType] {
+func (incomp incomparableErrorWithData[StructType]) UnboxWithData() boxableErrorWithData[StructType] {
 	return incomp.boxableErrorWithData
 }
+
+
+func (incomp incomparableErrorWithData_any) IsEqual(incomp2 incomparableErrorWithData_any) bool {
+	return incomp.boxableErrorWithData_any == incomp2.boxableErrorWithData_any
+}
+
+func (incomp incomparableErrorWithData[StructType]) IsEqual(incomp2 incomparableErrorWithData[StructType]) bool {
+	return incomp.boxableErrorWithData == incomp2.boxableErrorWithData
+}
+
+*/
 
 // UnboxError unboxes an error made incomparable by MakeIncomparable, returning the contained error.
-// On non-unboxable errors, just returns e itself.
+//
+// On non-unboxable errors, just returns e itself. In particular, returns nil on nil input.
 func UnboxError(e error) error {
-	if errUnboxable, ok := e.(UnboxableError); ok {
+	if errUnboxable, ok := e.(unboxableError); ok {
 		return errUnboxable.Unbox()
 	} else {
 		return e
 	}
 }
 
+/*
 // UnboxErrorWithData_any does the same as [UnboxError], but preserves the [ErrorWithData_any] interface.
 func UnboxErrorWithData_any(e ErrorWithData_any) ErrorWithData_any {
-	if errUnboxable, ok := e.(UnboxableError_any); ok {
-		return errUnboxable.Unbox_any()
+	if errUnboxable, ok := e.(unboxableErrorWithData_any); ok {
+		return errUnboxable.UnboxWithData_any()
 	} else {
 		return e
 	}
@@ -210,12 +258,17 @@ func UnboxErrorWithData_any(e ErrorWithData_any) ErrorWithData_any {
 
 // UnboxErrorWithData does the same as [UnboxError], but preserves the [ErrorWithData] interface
 func UnboxErrorWithData[StructType any](e interface{ ErrorWithData[StructType] }) ErrorWithData[StructType] {
-	if errUnboxable, ok := e.(UnboxableError_T[StructType]); ok {
-		return errUnboxable.Unbox_ErrorWithData()
+	if errUnboxable, ok := e.(unboxableErrorWithData[StructType]); ok {
+		return errUnboxable.UnboxWithData()
 	} else {
 		return e
 	}
 }
+*/
+
+/*
+ NOTE: Design justification is outdated.
+*/
 
 // Note: We do not define a Box() SomeType *method* for boxable errors that should support this feature.
 // This would be the obvious and the "feels right" way to do it, but it does not work well:
@@ -266,6 +319,7 @@ func BoxErrorAsIncomparable(e BoxableError) incomparableError {
 	return incomparableError{BoxableError: e}
 }
 
+/*
 // BoxErrorWithDataAsIncomparable_any returns a boxed version of the given error which is not comparable.
 // Note that this function does not return an interface, but a struct containing an interface.
 // This means that == will fail at compile-time (unless the returned value is stored in an interface -- then this causes a run-time panic or may give the wrong result)
@@ -295,3 +349,5 @@ func BoxErrorWithDataAsIncomparable[StructType any](e ErrorWithData[StructType])
 	e = UnboxErrorWithData(e)
 	return incomparableErrorWithData[StructType]{boxableErrorWithData: e}
 }
+
+*/

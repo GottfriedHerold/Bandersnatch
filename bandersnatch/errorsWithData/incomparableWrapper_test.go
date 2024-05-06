@@ -2,36 +2,188 @@ package errorsWithData
 
 import (
 	"errors"
-	"fmt"
+	"maps"
+	"reflect"
 	"testing"
+
+	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
-type test_err struct{ error }
+// Check interface satisfaction
+var _ BoxableError = &errorWithParameters_T[struct{}]{}
+var _ BoxableError = &errorWithParameters_common{}
+var _ BoxableError = &joinedErrors_any{}
+var _ BoxableError = &joinedErrors[struct{}]{}
 
-func (test_err) Is(target error) bool {
-	fmt.Println(target)
-	return true
+var _ unboxableError = incomparableError{}
+
+// error type that can be boxed without satisfying error with data.
+type plainBoxableError struct {
+	error
 }
 
-func TestWrapper(t *testing.T) {
-	var e = errors.New("foo")
-	var e2 error = test_err{error: e}
-	_ = errors.Is(e, e2)
-	// _ = errors.Is(e2, e)
+func (e plainBoxableError) Is(target error) bool          { return e == UnboxError(target) }
+func (e plainBoxableError) SupportsBoxingAsIncomparable() {}
+
+// Check that the BoxErrorAsIncomparable actually returns incomparable errors.
+// Also check that double-boxing works as intended.
+// Also check that Unboxing works as intended
+func TestBoxingAsIncomparable(t *testing.T) {
+	e_plain := plainBoxableError{error: errors.New("foo")}
+	e_any, _ := NewErrorWithData_any_params(e_plain, "", PanicOnAllMistakes)
+	e_T, _ := NewErrorWithData_params[struct{}](e_plain, "", PanicOnAllMistakes)
+
+	boxed_plain := BoxErrorAsIncomparable(e_plain)
+	boxed_any := BoxErrorAsIncomparable(e_any)
+	boxed_T := BoxErrorAsIncomparable(e_T)
+
+	var boxed_errors__all []incomparableError = []incomparableError{
+		boxed_plain,
+		boxed_any,
+		boxed_T,
+	}
+
+	for _, e := range boxed_errors__all {
+		testutils.FatalUnless(t, reflect.TypeOf(e).Comparable() == false, "")
+
+		// Check that double-boxing is a no-op.
+		// Note that we cannot compare double_box == e, because they are incomparable.
+		// We need to reach into the boxed for that.
+		double_box := BoxErrorAsIncomparable(e)
+		testutils.FatalUnless(t, double_box.BoxableError == e.BoxableError, "")
+		testutils.FatalUnless(t, e.BoxableError == UnboxError(e), "")
+	}
+	// Check unboxing on "plain" errors:
+	testutils.FatalUnless(t, UnboxError(nil) == nil, "")
+	testutils.FatalUnless(t, UnboxError(e_plain) == e_plain, "")
+	testutils.FatalUnless(t, UnboxError(e_any) == e_any, "")
+	testutils.FatalUnless(t, UnboxError(e_T) == e_T, "")
 }
 
-type DER[T any] interface{ f() T }
+// returns true iff there is an incomparable error in e's error tree.
+//
+// This does not check e itself.
+func incomparableErrorsInSubtree(e error) (result bool) {
+	result = false // no-op, but added for clarity.
+	closure := func(child error) {
+		if child == nil {
+			panic("Cannot happen")
+		}
+		if reflect.TypeOf(child).Comparable() == false {
+			result = true
+		}
+	}
+	callOnErrorSubtree(e, closure)
+	return
+}
 
-type impl struct{}
+/*
+ * Unneeded: We only need the Subtree version.
+ */
 
-func (impl) f() bool { return true }
+/*
+// returns true iff there is an incomparable error in e's error tree (including e itself)
+func incomparableErrorsInTree(e error) (result bool) {
+	result = false // no-op, but added for clarity.
+	closure := func(child error) {
+		if child == nil {
+			panic("Cannot happen")
+		}
+		if reflect.TypeOf(child).Comparable() == false {
+			result = true
+		}
+	}
+	callOnErrorTree(e, closure)
+	return
+}
+*/
 
-var _ DER[bool] = impl{}
+// Ensures that the free functions provided by this package work for boxed errors, i.e. that
+// we can retrieve parameters.
+func TestBoxingPreservesParams(t *testing.T) {
+	type fooType struct{ Foo int }
 
-func test_X[T any](DER[T]) {}
+	err, _ := NewErrorWithData_any_params(nil, "some error", "Foo", 5, PanicOnAllMistakes)
+	boxedErr := BoxErrorAsIncomparable(err)
 
-func TestABC(t *testing.T) {
-	test_X[bool](impl{})
+	testutils.FatalUnless(t, maps.Equal(GetData_map(boxedErr), ParamMap{"Foo": 5}), "")
+	foo1, _ := GetData_struct[fooType](err, MissingDataIsMistake, PanicOnAllMistakes)
+	foo2, _ := GetData_struct[fooType](boxedErr, MissingDataIsMistake, PanicOnAllMistakes)
+	testutils.FatalUnless(t, foo1 == foo2, "")
+
+	testutils.FatalUnless(t, HasData[fooType](err) == HasData[fooType](boxedErr), "")
+	testutils.FatalUnless(t, HasParameter(err, "Foo") == HasParameter(boxedErr, "Foo"), "")
+	testutils.FatalUnless(t, HasParameter(err, "nonexistant") == HasParameter(boxedErr, "nonexistant"), "")
+
+	get1, ok1 := GetParameter(err, "Foo")
+	get2, ok2 := GetParameter(boxedErr, "Foo")
+
+	testutils.FatalUnless(t, get1 == get2, "")
+	testutils.FatalUnless(t, ok1 == ok2, "")
+
+	get1, ok1 = GetParameter(err, "nonexistant")
+	get2, ok2 = GetParameter(boxedErr, "nonexistant")
+
+	testutils.FatalUnless(t, get1 == get2, "")
+	testutils.FatalUnless(t, ok1 == ok2, "")
+}
+
+// This test checks that errors created by our API will not contain incomparable errors in the error tree.
+func TestMakeIncomparableErrorCreation(t *testing.T) {
+	err1 := errors.New("Some error")
+	err2, _ := NewErrorWithData_any_params(err1, "", "Foo", 5, "Bar", 10, PanicOnAllMistakes)
+	errBoxed := BoxErrorAsIncomparable(err2)
+
+	testfun := func(e error) {
+		testutils.FatalUnless(t, HasParameter(e, "Foo") == true, "") // sanity check
+		testutils.FatalUnless(t, incomparableErrorsInSubtree(e) == false, "%v contained incomparable error in subtree", e)
+		testutils.FatalUnless(t, errors.Is(e, errBoxed) == true, "%v is not a boxed error", e)
+		testutils.FatalUnless(t, errors.Is(errBoxed, e) == false, "errors.Is returns true the wrong way for %v", e)
+	}
+
+	type fooType struct{ Foo int }
+
+	// Check all ways to create errors with our API:
+	e_typed, _ := NewErrorWithData_struct(errBoxed, "", &fooType{Foo: 5}, PanicOnAllMistakes)
+	testfun(e_typed)
+	e_typed, _ = NewErrorWithData_params[fooType](errBoxed, "", PanicOnAllMistakes)
+	testfun(e_typed)
+	e_any, _ := NewErrorWithData_any_params(errBoxed, "", PanicOnAllMistakes)
+	testfun(e_any)
+	e_typed, _ = NewErrorWithData_map[fooType](errBoxed, "", ParamMap{}, PanicOnAllMistakes)
+	testfun(e_typed)
+	e_any, _ = NewErrorWithData_any_map(errBoxed, "", ParamMap{}, PanicOnAllMistakes)
+	testfun(e_any)
+	e_any, _ = DeleteParameterFromError_any(errBoxed, "", "Bar", PanicOnAllMistakes)
+	testfun(e_any)
+	e_typed, _ = DeleteParameterFromError[fooType](errBoxed, "", "Bar", PanicOnAllMistakes)
+	testfun(e_typed)
+	e_typed, _ = AsErrorWithData[fooType](errBoxed, PanicOnAllMistakes)
+	testfun(e_typed)
+	// Same tests for Join and Join_any.
+	// Note that we need to check all ways of passing args to Join and Join_any
+	e_any, _ = Join_any(errBoxed, PanicOnAllMistakes)
+	testfun(e_any)
+	e_any, _ = Join_any([]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_any)
+	e_any, _ = Join_any([1]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_any)
+	e_any, _ = Join_any(&[]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_any)
+	e_any, _ = Join_any(&[1]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_any)
+
+	e_typed, _ = Join[fooType](errBoxed, PanicOnAllMistakes)
+	testfun(e_typed)
+	e_typed, _ = Join[fooType]([]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_typed)
+	e_typed, _ = Join[fooType]([1]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_typed)
+	e_typed, _ = Join[fooType](&[]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_typed)
+	e_typed, _ = Join[fooType](&[1]error{errBoxed}, PanicOnAllMistakes)
+	testfun(e_typed)
+
 }
 
 /*

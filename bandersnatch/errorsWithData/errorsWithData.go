@@ -185,21 +185,23 @@ import (
 // ParamMap is an alias to map[string]any. It is used to store arbitrary collections of data associated to a given error.
 type ParamMap = map[string]any
 
-// mistake is a type alias for error. We use this type to report **failure cases of the package itself** in the exported API and our documentation refers to these as
+// mistake is a type alias for error, for lack of better wording.
+// We use this type to report **failure cases of the package itself** in the exported API and our documentation refers to these as
 // "mistakes" rather than errors.
 //
 // The sole purpose of this is that we want to distinguish the type of the objects that this package acts upon and returns (errors and errorsWithData) as part of its
 // intented purpose from the reporting done by the package itself if a call to an API function failed.
-// This is purely a documentation issue:
+// This distinction is made *solely* for documentation:
 // without this disambiguation, some parts of the package documentation would be rather confusing.
 //
-// Note that this type alias is not exported as it only serves for consistency between API and documentation. Users may just use error.
+// Note that this type alias is not exported as it only serves for consistency between API and documentation. Users may just use plain error.
 type mistake = error
 
-// ConditionNonEmptyMap is the special string (together with %! or $!) that triggers conditional evaluation in our interpolation string grammar, depending on whether
+// ConditionNonEmptyMap is the special string that (together with %! or $!) triggers conditional evaluation in our interpolation string grammar, depending on whether
 // the parameter map is empty or not.
 //
-// For example, %!m>0{Foo has value %x{Foo}} will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty
+// For example, %!m>0{Foo has value %x{Foo}} will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty, but display nothing for an
+// empty parameter map.
 const (
 	ConditionNonEmptyMap = "m>0" // using %!m>0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non-empty
 	ConditionEmptyMap    = "m=0" // using %!m=0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is empty
@@ -396,8 +398,15 @@ func isExportedIdentifier(s string) bool {
 //
 // The implementations simply follows err's error chain until we find some error that we can work with.
 func GetData_map(err error) (ret map[string]any) {
-	// follow the error chain. Note that this does not handle error trees itself.
-	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+	// linearly follow the error chain and recurse for branches.
+	//
+	// Note: Unboxing is not that important for anything but the input err.
+	// The reason is that this package will unbox errors when used as a base.
+	// So the trees will not contain any boxed errors outside the root.
+	// So the only way to create an error where errorChain=UnboxError(errors.Unwrap(...)) does anything if
+	// the user directly wraps a boxed error with a function not from this package.
+	// This is generally a bad idea, but we still handle it.
+	for errorChain := UnboxError(err); errorChain != nil; errorChain = UnboxError(errors.Unwrap(errorChain)) {
 		// if the error itself or anything encountered supports ErrorWithData_any, we are done.
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.GetData_map()
@@ -427,8 +436,15 @@ func GetData_map(err error) (ret map[string]any) {
 //
 // HasParameter(nil, <anything>) returns false
 func HasParameter(err error, parameterName string) bool {
-	// follow the error chain. Again, this does not handle error trees by itself.
-	for errorChain := err; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
+	// linearly follow the error chain and recurse for branches.
+	//
+	// Note: Unboxing is not that important for anything but the input err.
+	// The reason is that this package will unbox errors when used as a base.
+	// So the trees will not contain any boxed errors outside the root.
+	// So the only way to create an error where errorChain=UnboxError(errors.Unwrap(...)) does anything if
+	// the user directly wraps a boxed error with a function not from this package.
+	// This is generally a bad idea, but we still handle it.
+	for errorChain := UnboxError(err); errorChain != nil; errorChain = UnboxError(errors.Unwrap(errorChain)) {
 		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
 			return errChainGood.HasParameter(parameterName)
 		}
@@ -467,12 +483,21 @@ func HasData[StructType any](err error, flags ...flagArgument_HasData) bool {
 //
 // If no entry was found in the error chain or inputError==nil, returns (nil, false). Note that the inputError argument is of plain error type.
 func GetParameter(inputError error, parameterName string) (value any, wasPresent bool) {
-	for errorChain := inputError; errorChain != nil; errorChain = errors.Unwrap(errorChain) {
-		if errChainGood, ok := errorChain.(ErrorWithData_any); ok {
+	// linearly follow the error chain and recurse for branches.
+	//
+	// Note: Unboxing is not that important for anything but the input err.
+	// The reason is that this package will unbox errors when used as a base.
+	// So the trees will not contain any boxed errors outside the root.
+	// So the only way to create an error where errorChain=UnboxError(errors.Unwrap(...)) does anything if
+	// the user directly wraps a boxed error with a function not from this package.
+	// This is generally a bad idea, but we still handle it.
+	for errorChain := UnboxError(inputError); errorChain != nil; errorChain = UnboxError(errors.Unwrap(errorChain)) {
+		if errChainGood, ok := UnboxError(errorChain).(ErrorWithData_any); ok {
 			return errChainGood.GetParameter(parameterName)
 		}
 		if errorChainMulti, ok := errorChain.(interface{ Unwrap() []error }); ok {
 			// process children in reverse order and recurse. This is precisely a depth-first search.
+			// We reverse the order of children because later children take precendence.
 			children := errorChainMulti.Unwrap()
 			L := len(children)
 			for i := 0; i < L; i++ {
@@ -494,10 +519,10 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 // Supported optional flags are [MissingDataAsZero]/[MissingDataIsMistake] and [ReturnMistake]/[PanicOnAllMistakes]
 // If inputError does not contain enough parameters or paramters of wrong type to construct an instance of StructType, the behaviour depends on those flags:
 //
-//   - If [MissingDataAsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an error.
-//   - If instead [MissingDataIsMistake] is set (the default), we also zero-initialize for merely missing data, but treat this an an error returned in structConstructionError.
-//   - if [ReturnMistake] is set (the default), we return errors via structConstructionError
-//   - if instead [PanicOnAllMistakes] is set, we panic rather than returning a structConstructionError
+//   - If [MissingDataAsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an mistake.
+//   - If instead [MissingDataIsMistake] is set (the default), we also zero-initialize for merely missing data, but treat this an an mistake returned in structConstructionMistake.
+//   - if [ReturnMistake] is set (the default), we return mistakes via structConstructionMistake
+//   - if instead [PanicOnAllMistakes] is set, we panic rather than returning a structConstructionMistake
 //
 // Calling this function with an StructType not satisfying [StructSuitableForErrorsWithData] will always cause a panic.
 //
@@ -505,15 +530,15 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 // - interface types in StructType's fields only need assignability from the dynamic type of what's in inputError
 // - a nil interface value in inputError's parameters is treated like an untyped nil (i.e. we perform ret.FieldName = nil, converting the nil to the appropriate type) if possible.
 //
-// On error, structConstructionError contains diagnostics for all fields of StructType for which an error occurred.
+// On mistake, structConstructionMistake contains diagnostics for all fields of StructType for which a problem occurred.
 // ret's fields are zero-initialized for those failing fields. All non-failing fields contain the values from inputError.
-// Note that if inputError satisfies ErrorWithData[StructType], then structConstructionError will always be nil.
-func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionError error) {
+// Note that if inputError satisfies ErrorWithData[StructType], then structConstructionMistake will always be nil.
+func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionMistake mistake) {
 	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
 	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)
-	ret, structConstructionError = makeStructFromMap[StructType](allParams, zeroFillConfig)
-	if structConstructionError != nil && errorHandlingConfig.panicOnAllMistakes() {
-		panic(structConstructionError)
+	ret, structConstructionMistake = makeStructFromMap[StructType](allParams, zeroFillConfig)
+	if structConstructionMistake != nil && errorHandlingConfig.panicOnAllMistakes() {
+		panic(structConstructionMistake)
 	}
 	return
 }
