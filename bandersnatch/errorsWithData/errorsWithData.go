@@ -9,7 +9,7 @@
 // The map/struct interfaces can be mixed-and-matched (i.e. parameters can be added via the map API and then retrieved via the struct API and vice-versa).
 // When retrieving as a struct, the queried fields may be a strict subset of the parameters present.
 //
-// The free functions that are part of the public API operate on errors of plain type [error] and are compatible with error wrapping.
+// The free functions that are part of the public API operate on errors of plain type error and are compatible with error wrapping.
 //
 // This library treat errors as (shallowly) immutable objects.
 // This means that to (shallowly) modify the parameters of an error, you need create a new one,
@@ -30,15 +30,17 @@
 // We assert that any errors that are contained in error chains are either nil *interfaces* or non-nil.
 // This library will not produce a nil error of concrete type (pointer-to-struct, usually) unless given as input (which is either a serious footgun or a bug to start with, client-side, anyway).
 //
-// We further assume that all errors involved are immutable (and in particular, their associated data is).
+// # Immutability and Error Wrapping
+//
+// We assume that all errors involved are immutable (and in particular, their associated data is).
 // This is enforced by our own implementation at least for shallow modification.
 // In particular, when we have some error e with data m (in map form) with m["Foo"] == "Bar", then the supposed way to "modify" m is by creating
 // a new error e2 wrapping e with modified map m2 and then work with e2.
 // The reason is that e2 "inherits" its map from e and if we change e after creating e2, it is unclear whether we should track the changes or not, leading to confusion.
 //
-// The library allows using a plain error(s) as the base of an error chain/tree; the wrapping error then has parameters and satisfies [ErrorWithData_any].
+// The library allows using plain error(s) as the base of an error chain/tree; the wrapping error then has parameters and satisfies [ErrorWithData_any].
 // The general semantics is that we associate to *every* error an immutable parameter map, where error wrapping defaults to copying the map.
-// (This default behaviour for errors outside our package means that for errors not satisfying [ErrorWithData_any], we follow the error chain until we hit nil or find an error that satisfied [ErrorWithData_any])
+// (This default behaviour for errors outside our package means that for errors not satisfying [ErrorWithData_any], we follow the error chain/tree until we hit nil or find an error that satisfied [ErrorWithData_any])
 //
 // We generally ask that for any error e in the involved error chains, the output of e.Error() does not change over time.
 // The reason is that for the base error, we make no guarantee at what point(s) in time the base error's Error() method are called or the parameters are retrieved.
@@ -72,9 +74,11 @@
 // In general, the parameters passed to create errors with data should be created only in the failing branch;
 // doing otherwise may carry a large performance penalty (since Go's interfaces essentially break Go's escape analysis) due to allocation and garbage collection.
 //
+// # Restrictions on the Struct API
+//
 // There are restrictions on StructType that can be checked with the generic [StructSuitableForErrorsWithData] function. See its documentation for details.
 // Most importantly, all non-embedded field names must be exported.
-// Using any function of this package other than [StructSuitableForErrorsWithData] with an unsuitable StructType will generally cause a panic.
+// Using any function of this package other than [StructSuitableForErrorsWithData] with an unsuitable StructType as generic type parameter will generally cause a panic.
 //
 // The map API has less restrictions and works with arbitrary strings as keys, but some functionality may be limited, particularly interpolation strings.
 // For that reason it is recommended to only use keys that satisfy [IsExportedIdentifier].
@@ -85,30 +89,29 @@
 //
 // Shadowed fields:
 // When converting to a map, the promoted-field hierarchy get flattened. I.e. value-embededded structs act in the following way:
-// For structs
+// assume there are struct types
 //
 //	type Struct1 struct{Data1 bool; Data2 int}
 //	type Struct2 struct{Struct1; Data2 string}
 //
-// (Note: actually, neither Struct1 or Struct2 actually need to be exported, only their fields)
-// after adding data from an instance of type Struct2, we can retrieve parameters (using the map interface) under the keys
+// Then after adding data from an instance of type Struct2, we can retrieve parameters (using the map interface) under the keys
 // "Data1" (yielding a bool) and "Data2" (yielding a string). There are no keys "Struct1" or "Struct1.Data1", "Struct1.Data2".
 // In particular, the shadowed int from Struct1.Data2 is completely ignored when adding data.
 // When retrieving data as an instance s of Struct2, s.Struct1.Data2 is zero-initialized.
-// In particular, roundtrip fails for shadowed fields:
-// Creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are shadowed embedded fields.
+// In particular, roundtrip fails for shadowed fields and
+// creating an error with associated data struct s and retrieving it as a struct s' does NOT guarantee s == s' if there are shadowed embedded fields.
 //
 // Another roundtrip failure issue is nil interfaces. When retrieving via struct API, these get converted to appropriate type (as specified by the types of the struct field) as needed.
 // The reason is that the package treats nil interfaces in ParamMaps like *untyped* nil when performing assignment or comparison.
 // For example, let some error contain a nil interface as data: say the parameter map is ParamMap{"Foo": nil}.
-// Then using the struct API, with struct{Foo *int}, this gets retrieved as a struct, whose value of Foo is of appropriate type *int.
+// Then using the struct API, with struct{Foo *int}, this gets retrieved as a struct, whose value of Foo is nil of appropriate type *int.
 //
 // To create errors, we provide functions [NewErrorWithData_params], [NewErrorWithData_map], [NewErrorWithData_struct], [NewErrorWithData_any_params], [NewErrorWithData_any_map].
 // These functions only differ in whether they return an [ErrorWithData] or [ErrorWithData_any] and how the data is passed.
 // Each of these takes a base error (possibly nil) that the new error should wrap, an interpolation string used to create an error message and newly added parameters (and optional flags to fine-tune the behaviour).
 // The newly created error wraps the base error, inherits its data and add some of its own.
 //
-// Interpolation strings:
+// # Interpolation strings
 //
 // The main power of this package is in the ability to refer to the parameters' values in the error message, e.g.
 //
@@ -126,13 +129,13 @@
 //     (NOTE: We use grandchild rather than child here, because we have separate methods for Join'ing errors and that creates 1 extra layer.)
 //   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
 //     An empty FormatVerb defaults to v. FormatVerb must not start with w or !.
-//   - VariableName must either satisfy [ValidInterpolationName] or be one of the special strings '!m', '!map', '!parameters', '!params'.
+//     VariableName must either satisfy [IsExportedIdentifier] or be one of the (equivalent) special strings '!m', '!map', '!parameters', '!params'.
 //     For the latter, we print all parameters as a map[string]any.
 //   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar. We currently support the conditions
 //     "m=0" and "m>0" (without the quotation marks). These conditions mean that the parameter map is empty or non-empty, respectively.
 //     The set of supported condition strings may be expanded in the future.
 //   - The difference between $ and % is the following: % always refers to the parameters stored in the error itself to look up values or evaluate conditions. %w just calls a wrapped error's Error() method.
-//     By contrast, $ allows passing parameters through an error chain: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
+//     By contrast, $ allows passing parameters through an error tree: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
 //     this does not call errBase's Error() string, but rather errBase.Error_interpolate(passed_params) where passed_params are errFinal's parameters (or those of another wrapping error calling via $w).
 //     Error_interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for any %-expressions.
 //     Of course, this requires extra support from errBase beyond the error interface. Notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters.
@@ -149,9 +152,13 @@
 // (the empty interpolation string defaults to "$w" or "%w" depending on what the wrapped error supports). Then errFinal.Error() will output
 // "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is common.
 //
-// Of course, there is the possibility of making a mistake when writing interpolation strings.
+// # Error (or Mistake) Handling
 //
-// The package handles such mistakes by still creating an error with the desired error wrapping behaviour and contained parameters, but calling
+// There is the possibility of API calls into this package to fail, e.g. by using an interpolation strings that does not parse correctly.
+// To clarify our documentation and API, we use the terminologies error and mistake (we define [Mistake] as a type alias for error) for disambiguation:
+// This package operates on, creates and modfies errors. If an API call fails for some reason, this is reported a variable of type Mistake.
+//
+// The package handles mistakes by both reporting the mistake (if possible) and (by default) still creating an error with the desired error wrapping behaviour and contained parameters, but calling
 // its Error() method will return an error message telling about the mistake instead of the intended errror message.
 // (In case of parse errors, this error message is rather verbose and prints the whole parameter map)
 // The potential mistakes are
@@ -160,12 +167,16 @@
 //   - missing parameters
 //   - using $w / %w / $w{...} / %w{...} if there is no wrapped error or the wrapped error does not support this
 //
-// The methods provided by this package do NOT abort on the first such mistake encountered (except for parse errors); we rather collect and report all mistakes and try to make a best-effort for the actually created error.
+// Generally, the methods provided by this package do NOT abort on the first such mistake encountered (except for parse errors).
+// We rather collect and report all mistakes and try to make a best-effort for the actually created error.
 //
 // We provide methods ValidateSyntax, ValidateError_Base, ValidateError_Final to check whether an error was constructed OK.
 //   - ValidateSyntax only checks the syntax of the interpolation string.
 //   - ValidateError_Final additionally (recursively) checks whether rerefences to parameters or wrapped errors work OK.
 //   - ValidateError_Base (recursively) is similar to ValidateError_Final, but assumes that $FmtVerb{Var} is filled in later and does not report an error if Var is missing.
+//
+// Depening on optional flags, these methods may or may not be called when creating the error, in which case the mistake is reported upon creation already.
+// One issue is that missing variable for ${...}-expressions may be intentional, which is why we provide a separate API for it.
 //
 // ValidateError_Final and ValidateError_Base only syntax-check sub-interpolation strings in $!Cond{sub-interpolationstring}, unless
 // they can prove that the branch is taken, so missing variables in untaken branches are OK.
@@ -173,6 +184,37 @@
 // This package does not check or report errors from invalid format verbs that are not supported by the data type at hand.
 // This is handled solely by the [fmt] package, which just returns an error report (or panic recovery) where the formatted output should go;
 // This behaviour is quite similar to what we do for syntax errors in interpolation strings when calling Error() on the final output. However, our Validate-methods do not catch this.
+//
+// # Checking Errors and [BoxErrorAsIncomparable]
+//
+// Due to the fact that errors are treated as immutable objects by this package, there is a lot of error wrapping involved.
+// The suggested way to create and expose errors that users actually may act upon is to create an
+// exported error such as
+//
+//	ErrFooOutOfRange := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
+//
+// from above. An actual function should then return a error based on errBase with Foo filled in (possibly of type [ErrorWithData][struct{Foo <some_type>}]).
+// An issue that arises from this is that errors must be checked with errors.Is rather than ==. Indeed, in the following code pattern
+//
+//	  err := F(...)
+//	  if err != nil{ // check whether the call to F succeeded
+//			if err == ErrFooOutOfRange {
+//			  ... // handle specific case of ErrFooOutOfRange
+//			}
+//	     ... // handle other errors
+//		 }
+//
+// The err == ErrFooOutOfRange will always fail: This is because err will be an error based on ErrFooOutOfRange, not ErrFooOutOfRange itself.
+//
+// The standard library provides [errors.Is] for this purpose and it is almost always a bug to compare errors created by this package with ==.
+//
+// To avoid this footgun, we provide a way to turn exported errors such as ErrFooOutOfRange into incomparable objects (that should not be stored in an interface), thereby
+// making err == ErrFooOutOfRange outright not compile. Notably, it allows to use [BoxErrorAsIncomparable] to instead define
+//
+//	errFooOutOfRange_unexported error := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
+//	ErrFooOutOfRange := BoxErrorAsIncomparable(errFooOutOfRange) // Note: Type is some unexported struct.
+//
+// This works just as well, but forces users to use [errors.Is]. Note that all functions of this package will try to [UnboxError], so ErrFooOutOfRange acts just like errFooOutOfRange_unexported, except for comparability.
 package errorsWithData
 
 import (
@@ -185,7 +227,7 @@ import (
 // ParamMap is an alias to map[string]any. It is used to store arbitrary collections of data associated to a given error.
 type ParamMap = map[string]any
 
-// mistake is a type alias for error, for lack of better wording.
+// Mistake is a type alias for error, for lack of better wording.
 // We use this type to report **failure cases of the package itself** in the exported API and our documentation refers to these as
 // "mistakes" rather than errors.
 //
@@ -195,12 +237,12 @@ type ParamMap = map[string]any
 // without this disambiguation, some parts of the package documentation would be rather confusing.
 //
 // Note that this type alias is not exported as it only serves for consistency between API and documentation. Users may just use plain error.
-type mistake = error
+type Mistake = error
 
-// ConditionNonEmptyMap is the special string that (together with %! or $!) triggers conditional evaluation in our interpolation string grammar, depending on whether
+// ConditionNonEmptyMap resp. ConditionEmptyMap are the special strings that (together with %! or $!) triggers conditional evaluation in our interpolation string grammar, depending on whether
 // the parameter map is empty or not.
 //
-// For example, %!m>0{Foo has value %x{Foo}} will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty, but display nothing for an
+// For example, `%!m>0{Foo has value %x{Foo}}` will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty, but display nothing for an
 // empty parameter map.
 const (
 	ConditionNonEmptyMap = "m>0" // using %!m>0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non-empty
@@ -345,34 +387,19 @@ type ErrorWithData[StructType any] interface {
 	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetData_Struct[StructType](e).
 }
 
-// No longer needed
-
-/*
-// unconstrainedErrorWithGuaranteedParameters is the special case of ErrorWithParameters without any data guarantees.
-// It's functionally equivalent to [ErrorWithData_any], but is NOT a sub-interface.
-type unconstrainedErrorWithGuaranteedParameters = ErrorWithData[struct{}]
-*/
-
-// ErrorPrefix is a prefix added to user-visible error messages/panics that originate from this package.
+// ErrorPrefix is a prefix added to user-visible mistake messages/panics that originate from this package. This is purely informational to help users find the source.
 //
-// Note: This does not apply to in-band error messages reported by err.Error() when there was a problem with err (such as mis-parsing an interpolation string).
+// Note: This does not apply to any in-band error messages reported by err.Error() when there was a problem with err (such as mis-parsing an interpolation string).
 const ErrorPrefix = "bandersnatch / error handling: "
 
-// ValidInterpolationName returns true if the given string is a valid variable name for use in %fmtVerb{parameterName}
-// in our interpolation string language.
-// Note that this function returns false for the special arguments !m, !map, !params, !parameters that are used to interpolate the map itself.
-func ValidInterpolationName(parameterName string) bool {
-	return isExportedIdentifier(parameterName)
-}
-
-// validConditionString checks whether the given condition string (i.e. what follows after %! or $!) is actually recognized by our language.
-func validConditionString(conditionString string) bool {
+// ValidConditionString checks whether the given condition string (i.e. what follows after %! or $!) is actually recognized by our language.
+func ValidConditionString(conditionString string) bool {
 	return utils.ElementInList(conditionString, validConditions[:])
 }
 
-// isExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
+// IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.
 // (Meaning it starts with a capital letter, followed by letters, digits and underscores -- note that both letters and digits may be non-ASCII)
-func isExportedIdentifier(s string) bool {
+func IsExportedIdentifier(s string) bool {
 	// "token" here refers to the go/token standard library, not to tokens in our interpolation string grammar (possible unfortunate name collision in the package).
 	// We use the functions from the go/token standard library. It's surprisingly difficult to get this right otherwise, due to potential non-ASCII letters and digits.
 	return token.IsIdentifier(s) && token.IsExported(s)
@@ -533,7 +560,7 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 // On mistake, structConstructionMistake contains diagnostics for all fields of StructType for which a problem occurred.
 // ret's fields are zero-initialized for those failing fields. All non-failing fields contain the values from inputError.
 // Note that if inputError satisfies ErrorWithData[StructType], then structConstructionMistake will always be nil.
-func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionMistake mistake) {
+func GetData_struct[StructType any](inputError error, flags ...flagArgument_GetData) (ret StructType, structConstructionMistake Mistake) {
 	allParams := GetData_map(inputError) // TODO: Avoid copying the map somehow? This would require an extended (unexported) version of GetData_map that special-cases our implementation.
 	zeroFillConfig, errorHandlingConfig := parseFlagArgs_GetData(flags...)
 	ret, structConstructionMistake = makeStructFromMap[StructType](allParams, zeroFillConfig)

@@ -22,7 +22,7 @@ var noValidation = config_Validation{doValidation: validationRequest_NoValidatio
 // The result is returned as err, which err==nil meaning that validation succeeded.
 //
 // Note: This is a purely internal function used to unify code. We happen to only need it for inputError of type ErrorWithData_any.
-func validateError(inputError ErrorWithData_any, config config_Validation) (err error) {
+func validateError(inputError ErrorWithData_any, config config_Validation) (err Mistake) {
 	switch config.whatValidationIsRequested() {
 	case validationRequest_NoValidation:
 		// do nothing
@@ -425,7 +425,7 @@ func NewErrorWithData_any_map(baseError error, interpolationString string, newPa
 //
 // Note that validation actually follows the error chain (if supported by the wrapped errors), so the validation flags are meaningful.
 // The returned err can only be non-nil if a validation flag is explicitly set.
-func DeleteParameterFromError_any(inputError error, interpolationString string, parameterNamesAndFlags ...any) (ret ErrorWithData_any, err mistake) {
+func DeleteParameterFromError_any(inputError error, interpolationString string, parameterNamesAndFlags ...any) (ret ErrorWithData_any, err Mistake) {
 	inputError = UnboxError(inputError)
 
 	var flags []flagArgument_DeleteAny = make([]flagArgument_DeleteAny, 0, len(parameterNamesAndFlags))

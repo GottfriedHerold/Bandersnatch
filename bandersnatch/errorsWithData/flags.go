@@ -317,6 +317,12 @@ type errorCreationConfig struct {
 
 // Actually exported flags go here:
 
+// This is the list of optional flags that some functions of our API accept.
+// Each such function states the exact list of allowed flags (A subset of this list) in its documentation.
+// Flags are passed as variadic arguments, if possible as f(...flags_for_f) where flags_for_f is an interface that only allows the accepted flags.
+//
+// NOTE: We always parse and process all flags from left-to-right before processing any other arguments. This implies that later flags override earlier ones and
+// that flags affect the handling of earlier non-flag arguments, if applicable.
 var (
 	// PreferPreviousData means that when setting associated data in errors, we keep the old value if some value is already present for a given key. This unsets [MistakeIfDataIsReplaced].
 	PreferPreviousData = fArg_OldData{fArg{val: flagArg_PreferOld}, nil}

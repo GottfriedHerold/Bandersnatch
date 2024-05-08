@@ -530,15 +530,15 @@ func TestMisparses(t *testing.T) {
 	test_misparse_case("b $w{1%!{}}", false, false)
 
 	// check some case of invalid subtrees
-	test_misparse_case("c %w %cond{", false, false)       // unterminated
-	test_misparse_case("c %w %cond{string", false, false) // unterminated
-	test_misparse_case("c %w %cond{{}}", false, false)    // stray { in list mode
-	test_misparse_case("c %w %cond{}}", false, false)
+	test_misparse_case("c %w %!cond{", false, false)       // unterminated
+	test_misparse_case("c %w %!cond{string", false, false) // unterminated
+	test_misparse_case("c %w %!cond{{}}", false, false)    // stray { in list mode
+	test_misparse_case("c %w %!cond{}}", false, false)
 
-	test_misparse_case("c %w $cond{", false, false)       // unterminated
-	test_misparse_case("c %w $cond{string", false, false) // unterminated
-	test_misparse_case("c %w $cond{{}}", false, false)    // stray { in list mode
-	test_misparse_case("c %w $cond{}}", false, false)
+	test_misparse_case("c %w $!cond{", false, false)       // unterminated
+	test_misparse_case("c %w $!cond{string", false, false) // unterminated
+	test_misparse_case("c %w $!cond{{}}", false, false)    // stray { in list mode
+	test_misparse_case("c %w $!cond{}}", false, false)
 
 }
 
@@ -548,7 +548,7 @@ func TestMisparses(t *testing.T) {
 func TestValidVariableName(t *testing.T) {
 	for _, special := range validMapSelectors {
 		testutils.FatalUnless(t, len(special) > 0, "validMapSelectors contains empty string")
-		testutils.FatalUnless(t, ValidInterpolationName(special) == false, "special variable name %v considered a valid variable name (causing ambiguity)", special)
+		testutils.FatalUnless(t, IsExportedIdentifier(special) == false, "special variable name %v considered a valid variable name (causing ambiguity)", special)
 		testutils.FatalUnless(t, special[0] == specialVariableNameIndicator, "special variable name %v does not start with %v", special, string(specialVariableNameIndicator))
 	}
 }

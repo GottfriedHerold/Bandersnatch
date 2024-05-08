@@ -7,12 +7,13 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
-// This particular API (modifying *target) just happens to be convenient for our purpose.
+// This particular API (modifying an existing *target) just happens to be convenient for our purpose.
 
 // mergeMaps modifies *target, setting it to the union of *target and source.
 // source == nil is treated as an empty map.
 //
 // The behaviour when *target == nil is unspecified. Use an empty map for *target.
+// Using target == nil will cause a panic (unless possibly if len(source) == 0).
 //
 // The handling of duplicate map keys that appear in both maps depends on config:
 //   - Either old values take precendence or new values take precendence.
@@ -23,7 +24,7 @@ import (
 // The returned mistakes for this internal function do not have ErrorPrefix.
 // In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
 // satisfies the [error] interface, the returend i'th mistake wraps that argument.
-func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) []mistake {
+func mergeMaps(target *ParamMap, source ParamMap, config config_OldData) []Mistake {
 	// just dispatch to one of the mergeMaps_<foo> functions below.
 	if !config.performEqualityCheck() {
 		if config.preferOld() {
@@ -58,11 +59,12 @@ func mergeMaps_preferNew(target *ParamMap, source ParamMap) {
 // mergeMaps_EqualityCheck is the implementation of [mergeMaps] for the case EqualityCheck == true.
 //
 // See the documentation of [mergeMaps] for its semantics.
-func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (mistakes []mistake) {
+func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_OldData) (mistakes []Mistake) {
 	// This function is only called from [mergeMaps] and only if PerformEqualityCheck is true.
+
 	// For simplicity, we just forward config as-is, rather than strip off the PerformEqualityCheck bool.
 	if !config.performEqualityCheck() {
-		panic("Cannot happen")
+		panic("Cannot happen") // This internal function is only called from mergeMaps if that flag is set.
 	}
 
 	var checkFun EqualityComparisonFunction = config.getCheckFun()
@@ -71,7 +73,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 		if oldValue, alreadyPresent := (*target)[key]; alreadyPresent {
 
 			// If PreferNew is set, we always override the value, no matter what.
-			// The old value is still saved in oldValue
+			// The old value is still kept in oldValue
 			if config.preferNew() {
 				(*target)[key] = newValue
 			}
@@ -80,7 +82,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 				// Call checkFun with panic recovery. Note that if we get a panic, then comparisonResult is guaranteed to be false.
 				comparisonResult, didPanic, panicValue := checkFunWithPanicRecovery(oldValue, newValue)
 				if comparisonResult == false {
-					var newError mistake
+					var newError Mistake
 					if !didPanic {
 						// No ErrorPrefix here, no line break
 						newError = fmt.Errorf("for key %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)
@@ -111,7 +113,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 
 // fillMapFromStruct converts a struct of type StructType into a map[string]any.
 // This function adds an entry to the provided (existing) map *m for each visible field of StructType (including from embedded structs).
-// This modifies *m, converting a nil map to an empty map. This conversion happens even for empty StructType.
+// This modifies *m, converting a nil map to an empty map. This conversion happens even for empty StructType. m == nil will panic, of course.
 //
 // StructType must be valid for use in this library (i.e. satisfy [StructSuitableForErrorsWithData]).
 // This functions panics otherwise.
@@ -123,7 +125,7 @@ func mergeMaps_EqualityCheck(target *ParamMap, source ParamMap, config config_Ol
 // Note that the returned mistakes for this internal function do not have ErrorPrefix. We return mistakes==nil rather than an empty list in case of success.
 // In case a comparison function panics and we catch it (i.e. [RecoverFromComparisonFunctionPanic] is set, which is the default) and the argument given to panic()
 // satisfies the [error] interface, the corresponding errors[i] wraps that argument.
-func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config config_OldData) (mistakes []mistake) {
+func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config config_OldData) (mistakes []Mistake) {
 	if *m == nil {
 		*m = make(map[string]any)
 	}
@@ -170,7 +172,7 @@ func fillMapFromStruct[StructType any](m *map[string]any, s *StructType, config 
 			if config.catchPanic() {
 				comparisonResult, didPanic, panicValue := checkFunWithPanicRecovery(oldValue, newValue)
 				if comparisonResult == false {
-					var err mistake
+					var err Mistake
 					if !didPanic {
 						// No ErrorPrefix here, no line break
 						err = fmt.Errorf("for key/field name %v, there was already a value present that differs from the new one: old value: %v, new value: %v", key, oldValue, newValue)

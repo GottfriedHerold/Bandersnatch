@@ -92,19 +92,19 @@ type ast_I interface {
 	// NOTE: Since this method changes the ast, this function *must* be called before we return anything to the package user in order to prevent potential data races.
 	// The fact that this method is automatically called on demand is a leftover from before the author realized this issue.
 	// Refactoring to just unconditionally call it as part of [make_ast] would require refactoring tests.
-	handleSyntaxConditions() (err mistake)
+	handleSyntaxConditions() (err Mistake)
 
 	// VerifyParameters_direct report syntax or interpolation mistakes from the subtree below that node.
 	// Note that we may cut corners here and only require this description to be accurate for the root (we assume that all calls to a non-root node must be a result from recursive calls).
 	// parameters_direct and baseError are used for the interpolation. We assume parameters_direct to be non-nil.
-	VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err mistake)
+	VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err Mistake)
 
 	// VerifyParameters_passed report syntax or interpolation mistakes from the subtree below that node.
 	// Again, note that we may cut corners here and only require this description to be accurate for the root (we assume that all calls to a non-root node must be a result from recursive calls).
 	// parameters_direct, parameters_passed and baseError are used for the interpolation. We assume parameters_direct to be non-nil.
 	// parameters_passed == nil has the special meaning of not using this feature (and behaves like parameters_passed == parameters_direct)
 	// This is very different from parameters_passed being an empty map.
-	VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err mistake)
+	VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err Mistake)
 }
 
 // interfaces satisfied by a subset of the AST types. This is used to consolidate both the parsing code and testing.
@@ -143,7 +143,7 @@ type (
 	// ast_parentMulti is satisfied by AST types [ast_parentPercentMulti] and [ast_parentDollarMulti], i.e. %w{...} and $w{...} - related ASTs
 	ast_parentMulti interface {
 		ast_I                               // is an AST
-		set_childIndex(stringToken) mistake // setter for child index argument. No getter needed.
+		set_childIndex(stringToken) Mistake // setter for child index argument. No getter needed.
 		get_childIndex() int                // getter for child index. Only used in testing.
 		token() string                      // outputs either `%w{` or $w{`
 	}
@@ -166,7 +166,7 @@ type (
 		// This is needed to make any Verify - function fail early.
 		// It causes Interpolate to unconditionally output all the base error and all parameters
 		// parseMistake takes precendence over argumentMistake
-		parseMistake mistake
+		parseMistake Mistake
 		// argumentMistake is non-nil if there was a syntax mistake with the argument of a token.
 		// It is set by calling [handleSyntaxConditions] on the root, which needs to be done after [make_ast]
 		// Notably, it records if one of the following has occurred:
@@ -174,7 +174,7 @@ type (
 		// a condition string was not recognized
 		// a variable name was invalid
 		// Either of these causes Interpolate to unconditionally output all parameters.
-		argumentMistake mistake
+		argumentMistake Mistake
 
 		// Set to true if [handleSyntaxConditions] was called once.
 		syntaxHandled bool
@@ -272,7 +272,7 @@ func new_ast_string(s stringToken) ast_string {
 type base_ast_fmt struct {
 	formatString  string
 	variableName  string
-	mistakeString mistake // set by [handleSyntaxConditions] during post-processing if a mistake is detected. If non-nil, causes Interpolate to actually report an in-band diagnostic message.
+	mistakeString Mistake // set by [handleSyntaxConditions] during post-processing if a mistake is detected. If non-nil, causes Interpolate to actually report an in-band diagnostic message.
 }
 
 // ast_fmtPercent and ast_fmtDollar are nodes for %fmtString{VariableName} and $fmtString{VariableName} expressions.
@@ -380,7 +380,7 @@ func new_ast_parentDollarMult() ast_parentDollarMulti {
 // set_childIndex sets the actual child index from s.
 // For this, s is parsed as either a literal "#" or a positive int using [strconv]'s [Parseint]
 // Returns a non-nil err on failure; in this case, the child index is set to 0 (which is an invalid value in this context)
-func (a *base_ast_parentMult) set_childIndex(s stringToken) (err mistake) {
+func (a *base_ast_parentMult) set_childIndex(s stringToken) (err Mistake) {
 	sString := string(s)
 	if sString == outputChildNumber { // outputChildNumber == "#"
 		a.whichChild = -1
@@ -766,7 +766,7 @@ func embeddedParseMistake(s string, args ...any) ast_string {
 // Also note that make_ast only constructs the tree. It does not care whether the tokens "make sense".
 // In particular, formatVerbs can contain extra "%", Variable names could be unexported and not even valid Go identifiers, conditions not recognized etc.
 // These (optional) checks come later.
-func make_ast(tokens tokenList) (ret ast_root, err mistake) {
+func make_ast(tokens tokenList) (ret ast_root, err Mistake) {
 
 	// Our parser internally works as follows:
 	//

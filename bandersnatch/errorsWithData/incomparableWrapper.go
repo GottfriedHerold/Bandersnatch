@@ -90,7 +90,9 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 // BoxableError is a interface that errors must satisfy in order to be usable by [MakeErrorIncompatible] and its variants.
 //
 // In order to actually work as intended, we require a suitable Is - method, which is defined on the *unboxed* error.
-// So we only allow boxing errors if the unboxed error has one. We also ask for a tag method to explicitly opt-in.
+// The reason for this is that [errors.Is]
+// So we only allow boxing errors if the unboxed error has one.
+// We also ask for a tag method to explicitly opt-in.
 // (accidential interface satisfaction is actually a real possibility here)
 type BoxableError interface {
 	error
@@ -235,9 +237,9 @@ func (incomp incomparableErrorWithData[StructType]) IsEqual(incomp2 incomparable
 
 */
 
-// UnboxError unboxes an error made incomparable by MakeIncomparable, returning the contained error.
+// UnboxError unboxes an error made incomparable by [BoxErrorAsIncomparable], returning the contained error.
 //
-// On non-unboxable errors, just returns e itself. In particular, returns nil on nil input.
+// On non-unboxable errors, just returns e itself. In particular, this returns nil on nil input.
 func UnboxError(e error) error {
 	if errUnboxable, ok := e.(unboxableError); ok {
 		return errUnboxable.Unbox()
