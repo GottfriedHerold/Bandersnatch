@@ -5,7 +5,7 @@ import "fmt"
 const ErrorPrefix = "bandersnatch / stack "
 
 // Stack is a simple generic stack, parameterized by the element type.
-// Note that values put on the stack / returned are copied.
+// Note that values put on the stack / returned via Pop are copied.
 // The zero value of Stack is invalid. Use [MakeStack] or [NewStack].
 //
 // Values of type Stack should not be copied unless the source is no longer using it.
@@ -44,7 +44,7 @@ func (st *Stack[T]) Pop() (t T) {
 	return
 }
 
-// Push puts a (copy of) the given element on the stack
+// Push puts (a copy of) the given element on the stack
 func (st *Stack[T]) Push(t T) {
 	st.s = append(st.s, t)
 }

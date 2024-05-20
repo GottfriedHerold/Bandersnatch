@@ -33,11 +33,13 @@ type FieldElementInterface_common interface {
 	ToBigInt() *big.Int    // z.ToBigInt() returns a new [*big.Int] with a reprentation of z in [0, BaseFieldSize)
 	ToUint256(x *Uint256)  // z.ToUint256(x) modifies x, setting it to a representation of z in [0, BaseFieldSize). NOTE: The weird API (not returning Uint256) is for efficiency -- Go seems to have a hard time creating the returned value in the callers stack frame.
 
-	// If z is not in the allowed range, we return an error and the first returned value is meaningless not be used.
+	// If z is not in the allowed range, we return an error and the returned uint64 resp. int64 is meaningless and should not be used.
 	// The returned error wraps [ErrCannotRepresentFieldElement] and the actual failing field element can be retrieved from the error with errorWithData.GetParameterFromError(err, "FieldElement")
 	ToUint64() (uint64, error) // z.ToUint64() converts a field element in [0,2^64) to uint64.
 	ToInt64() (int64, error)   // z.ToInt64() converts a field element in [-2^64,2^63) to int64.
 
+	// We have a special-purpose hand-optimized multiply-by-five method.
+	// This is useful due to the fact that one of the Bandersnatch parameters is -5.
 	MulEqFive() // z.MulEqFive sets z = z * 5.
 	DoubleEq()  // z.DoubleEq() sets z = z + z == 2*z
 
@@ -47,7 +49,29 @@ type FieldElementInterface_common interface {
 	fmt.Stringer  // allows output as string. -- Note that fmt.Stringer (i.e interface{String() string}) should be defined on value receivers.
 	// TODO: fmt.Scanner
 
-	// NOTE: These are low-level conversions to []byte, mostly for internal usage to facilitate accessing the internal representation in tests. Users should rarely use those.
+	// NOTE: These are low-level conversions to []byte, mostly for internal usage to facilitate accessing the internal representation in tests.
+	// (Notably to write test that check that non-unique internal representation work as intended)
+	// Users should rarely need those, apart from one issue:
+	// We do not guarantee that implementations of FieldElement are comparable. Indeed, our main implementation is *not* a comparable type, to
+	// prevent users from shooting themselves in the foot due to non-uniqueness of the internal representation.
+	// This prevents certain usages of FieldElement (that would not work as intended anyway without a lot of extra care) such a using the as keys to a map.
+	// A workaround for this is the following:
+	//
+	//   What we really wanted is `const LEN = x.BytesLenght()`, but Go lacks a way to return consts (or what constexpr does in C++).
+	//   So we instead set the constant to 4 and check that 4 is right.
+	//   Verify that x.BytesLength() == 4 // needs to be done once. Unfortunately, we cannot just retrieve the value generically and use it, because it needs to be const.
+	//   var buf [4]uint64 // need to use an array rather than a slice, hence the need for a compile-time constant here.
+	//   x.Normalize(),
+	//   x.ToBytes(buf[:])
+	//
+	// buf can now be used as comparable replacement for x such as a key to a map (with key type [4]uint64).
+	// (We assume here that )
+	// Alternatively, you can use ToUint256 and use e.g. a map keyed by Uint256.
+	// The latter approach is simpler to use (hence preferable if performance is not important),
+	// but considerably less performant, due to the fact that conversion to Uint256 may need to undo a potential Montgomery representation.
+	// Also, the output of Uint256 is uniquely specified by the APi;
+	// in particular if you need to hash a field element, you should convert to Uint256, unless you know for sure that you can tolerate
+	// that the output of ToBytes() (and consequently its hash) is not stable across versions and implementations.
 	ToBytes(buf []byte)                    // z.ToBytes(buf) writes the internal representation of z to buf, using z.BytesLength() many bytes. This MUST NOT be used for portable serialization.
 	SetBytes(buf []byte)                   // z.FromBytes(buf) restores z's internal representation from buf, reading z.BytesLength() many bytes. Note: The stored internal format is not guaranteed to be stable across library versions, Go versions, architecture or anything. We only guarantee internal roundtrip.
 	BytesLength() int                      // z.BytesLength() returns the length of buffer needed for ToBytes or SetBytes. Can be called on nil receiver.
