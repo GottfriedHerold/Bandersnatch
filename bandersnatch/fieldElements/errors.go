@@ -19,7 +19,9 @@ import (
 const ErrorPrefix = "bandersnatch / field element: "
 
 var (
-	errNoWriteEOF           = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
+	errNoWriteEOF, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
+		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+		errorsWithData.PanicOnAllMistakes)
 	ErrEmptyByteSlice       = errNoWriteEOF
 	errNoWriteUnexpectedEOF = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
 	ErrTooSmallByteSlice    = errNoWriteUnexpectedEOF
