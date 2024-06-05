@@ -7,9 +7,9 @@
 // We allow both interchangably, identifying a struct{A: x, B: y} with a map[string]any{"A":x, "B":y}.
 // The map keys are the field names, which gives some minor restrictions on what struct types are allowed.
 // The map/struct interfaces can be mixed-and-matched (i.e. parameters can be added via the map API and then retrieved via the struct API and vice-versa).
-// When retrieving as a struct, the queried fields may be a strict subset of the parameters present.
+// When retrieving as a struct, the queried fields do not need to exactly match the set of the parameters present.
 //
-// The free functions that are part of the public API operate on errors of plain type error and are compatible with error wrapping.
+// The free functions such as [GetData_struct], [GetData_map], [HasData], [HasParameter], [GetParameter] that are part of the public API operate on errors of plain type error and are compatible with error wrapping.
 //
 // This library treat errors as (shallowly) immutable objects.
 // This means that to (shallowly) modify the parameters of an error, you need create a new one,
@@ -39,14 +39,14 @@
 // The reason is that e2 "inherits" its map from e and if we change e after creating e2, it is unclear whether we should track the changes or not, leading to confusion.
 //
 // The library allows using plain error(s) as the base of an error chain/tree; the wrapping error then has parameters and satisfies [ErrorWithData_any].
-// The general semantics is that we associate to *every* error an immutable parameter map, where error wrapping defaults to copying the map.
-// (This default behaviour for errors outside our package means that for errors not satisfying [ErrorWithData_any], we follow the error chain/tree until we hit nil or find an error that satisfied [ErrorWithData_any])
+// The general semantics is that we associate to *every* error, where created by this package or not, an immutable parameter map, where error wrapping defaults to copying the map.
+// The default behaviour for errors outside our package is that for errors not satisfying [ErrorWithData_any], we follow the error chain/tree until we hit nil or find an error that satisfied [ErrorWithData_any]
 //
 // We generally ask that for any error e in the involved error chains, the output of e.Error() does not change over time.
 // The reason is that for the base error, we make no guarantee at what point(s) in time the base error's Error() method are called or the parameters are retrieved.
 // Similarly, the actual associated data that is contained in the error should not be modified.
 // While we provide no way to modify the data (we only return copies), this also means that care should be taken
-// when using slices or pointers as associated data (because the contents of the backing array or the value pointed-to may change, potentially affecting the output of Error() ).
+// when using slices or pointers as associated data: because the contents of the backing array or the value that is pointed-to may change, potentially affecting the output of Error().
 // We recommend deep-copying slices.
 //
 // A second reason for the recommendation to deep-copy slices is that the pattern
@@ -56,15 +56,17 @@
 //		   if something_bad_has_happened{
 //				some_slice := make([]some_type, len(s))
 //		    	copy(some_slice, s[:])
-//		     	return NewErrorWithData_params(..., some_slice)
+//				err, _ = NewErrorWithData_params(..., some_slice)
+//		     	return err
 //		   }
 //
-// is often *faster* than
+// is often *faster* (on average, not neccessarily in the worst-case) than
 //
 //	    var [some_constant_number]T s
 //		   ...
 //		   if something_bad_has_happened{
-//				return NewErrorWithData_params(..., s[:])
+//				err, _ =  NewErrorWithData_params(..., s[:])
+//				return err
 //		   }
 //
 // The reason is that in the latter case, escape analyis will likely fail and s will become heap-allocated, causing significant overhead.
@@ -115,7 +117,7 @@
 //
 // The main power of this package is in the ability to refer to the parameters' values in the error message, e.g.
 //
-//	err := NewErrorWithData_any_params(nil, "Something bad happended, the value of Foo is ${Foo}.", "Foo", 5)
+//	err, _ := NewErrorWithData_any_params(nil, "Something bad happended, the value of Foo is ${Foo}.", "Foo", 5, PanicOnAllMistakes)
 //	fmt.Println(err)
 //
 // will print "Something bad happened, the value of Foo is 5." (without the quotation marks)
@@ -128,7 +130,7 @@
 //   - %w{n} and $w{n} are only valid if the wrapped error has an Unwrap()[]error method. It parses n as a number and inserts the n'th grandchild's error message.
 //     (NOTE: We use grandchild rather than child here, because we have separate methods for Join'ing errors and that creates 1 extra layer.)
 //   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
-//     An empty FormatVerb defaults to v. FormatVerb must not start with w or !.
+//     An empty FormatVerb defaults to v. FormatVerb must not start with "w" or "!".
 //     VariableName must either satisfy [IsExportedIdentifier] or be one of the (equivalent) special strings '!m', '!map', '!parameters', '!params'.
 //     For the latter, we print all parameters as a map[string]any.
 //   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar. We currently support the conditions
@@ -142,12 +144,12 @@
 //
 // The $-syntax allows to globally define errors such as
 //
-//	errBase := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
+//	errBase, _ := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range", PanicOnAllMistakes)
 //
 // without actually setting the value of "Foo". Calling errBase.Error() will return a string that contains a complaint about a missing value for Foo.
 // However, one can "derive" errors from errBase such as
 //
-//	errFinal := NewErrorWithData_any_params(errBase, "", "Foo", 5)
+//	errFinal, _ := NewErrorWithData_any_params(errBase, "", "Foo", 5)
 //
 // (the empty interpolation string defaults to "$w" or "%w" depending on what the wrapped error supports). Then errFinal.Error() will output
 // "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is common.
@@ -191,9 +193,9 @@
 // The suggested way to create and expose errors that users actually may act upon is to create an
 // exported error such as
 //
-//	ErrFooOutOfRange := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
+//	ErrFooOutOfRange, _ := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range", PanicOnAllMistakes)
 //
-// from above. An actual function should then return a error based on errBase with Foo filled in (possibly of type [ErrorWithData][struct{Foo <some_type>}]).
+// from above. An actual function should then return an error based on errBase with Foo filled in (possibly of type [ErrorWithData][struct{Foo <some_type>}]).
 // An issue that arises from this is that errors must be checked with errors.Is rather than ==. Indeed, in the following code pattern
 //
 //	  err := F(...)
@@ -208,10 +210,10 @@
 //
 // The standard library provides [errors.Is] for this purpose and it is almost always a bug to compare errors created by this package with ==.
 //
-// To avoid this footgun, we provide a way to turn exported errors such as ErrFooOutOfRange into incomparable objects (that should not be stored in an interface), thereby
-// making err == ErrFooOutOfRange outright not compile. Notably, it allows to use [BoxErrorAsIncomparable] to instead define
+// To avoid this footgun, we provide a way to turn exported (base) errors such as ErrFooOutOfRange into incomparable objects (that should not be stored in an interface), thereby
+// making err == ErrFooOutOfRange outright not compile. Notably, we use [BoxErrorAsIncomparable] to instead define
 //
-//	errFooOutOfRange_unexported error := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
+//	errFooOutOfRange_unexported error, _ := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
 //	ErrFooOutOfRange := BoxErrorAsIncomparable(errFooOutOfRange) // Note: Type is some unexported struct.
 //
 // This works just as well, but forces users to use [errors.Is]. Note that all functions of this package will try to [UnboxError], so ErrFooOutOfRange acts just like errFooOutOfRange_unexported, except for comparability.
@@ -373,10 +375,10 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 //
 // Obtaining the additional data can be done via the more general free functions
 // [GetData_map], [GetData_struct], [GetParameter], [HasData], [HasParameter]
-// but for [ErrorWithData][StructType], we can also call the GetData member function and
+// but for [ErrorWithData][StructType], we can also call the GetData_struct method and
 // we are guaranteed that the error actually contains appropriate parameters to create an instance of StructType.
 //
-// Note: When creating any ErrorWithData_any, we (by default) inherit data from wrapped errors.
+// Note: When creating any [ErrorWithData_any] or [ErrorWithData], we (by default) inherit data from wrapped errors.
 // This is part of the job of the methods GetParameter, HasParameter and GetData_map, GetData_struct, which are required to include inherited data.
 // (rather than require the caller to follow the error chain)
 //
@@ -389,7 +391,7 @@ type ErrorWithData[StructType any] interface {
 
 // ErrorPrefix is a prefix added to user-visible mistake messages/panics that originate from this package. This is purely informational to help users find the source.
 //
-// Note: This does not apply to any in-band error messages reported by err.Error() when there was a problem with err (such as mis-parsing an interpolation string).
+// Note: This does not apply to any in-band diagnistic messages reported by err.Error() when there was a problem with err (such as mis-parsing an interpolation string).
 const ErrorPrefix = "bandersnatch / error handling: "
 
 // ValidConditionString checks whether the given condition string (i.e. what follows after %! or $!) is actually recognized by our language.
@@ -423,7 +425,7 @@ func IsExportedIdentifier(s string) bool {
 // Note that the returned map is a (shallow) copy, so the caller may modify it without affecting err.
 // err itself does not need to have been created by this package and may be of plain error type.
 //
-// The implementations simply follows err's error chain until we find some error that we can work with.
+// The implementation simply follows err's error chain/tree until we find some error that we can work with.
 func GetData_map(err error) (ret map[string]any) {
 	// linearly follow the error chain and recurse for branches.
 	//
@@ -458,7 +460,7 @@ func GetData_map(err error) (ret map[string]any) {
 
 // HasParameter checks whether err contains a parameter keyed by parameterName.
 //
-// Note that err does not need to have been created by package.
+// Note that err does not need to have been created by this package.
 // Error wrapping defaults to retaining all parameters, so we follow the error chain/tree.
 //
 // HasParameter(nil, <anything>) returns false

@@ -340,16 +340,16 @@ var (
 	// LetComparisonFunctionPanic is only useful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set.
 	// If LetComparsionFunctionPanic is set, a panic in the comparison function is not recovered from and escapes whatever function the user called.
 	// In particular, setting of data is aborted at the point of panic (This differs from the usual behaviour of the package, which is to not abort on first mistake)
-	// The [ReturnError] or [PanicOnAllErrors] setting does not affect this.
+	// The [ReturnError] or [PanicOnAllMistakes] setting does not affect this.
 	//
 	// This is useful if the external caller needs to handle the actual panic value.
-	// Note that just instead setting [PanicOnAllErrors] would first recover(), turn the panic into an mistake, collect all mistakes and raise a new panic.
+	// Note that just instead setting [PanicOnAllMistakes] would first recover(), turn the panic into an mistake, collect all mistakes and raise a new panic.
 	LetComparisonFunctionPanic = fArg_OldData{fArg{val: flagArg_PassPanicFromEqualiltyTests}, nil}
 
 	// RecoverFromComparisonFunctionPanic is only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set.
 	// It causes any panic(X) in the comparsion function (such as using == to compare values of the same incomparable type) to be recover()ed from.
 	// We treat this then as a simple "unequal", with the panic value X entering the message contained in the returned mistake err (if X satisfies error, err will wrap X).
-	// NOTE: if [PanicOnAllErrors] is set, we will then ultimately call panic(err). However, observe that err's message just prints X using [fmt]; the actual value of X may be lost.
+	// NOTE: if [PanicOnAllMistakes] is set, we will then ultimately call panic(err). However, observe that err's message just prints X using [fmt]; the actual value of X may be lost.
 	//
 	// As this is the default behaviour, the [RecoverFromComparisonFunctionPanic] flag is never needed.
 	RecoverFromComparisonFunctionPanic = fArg_OldData{fArg{val: flagArg_RecoverPanicFromEqualityTests}, nil}

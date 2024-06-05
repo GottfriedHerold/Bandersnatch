@@ -330,7 +330,7 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 //
 // - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
 // - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
-// - [ReturnMistake] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+// - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on errors (useful when creating global errors on init)
 //
 // Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
@@ -430,7 +430,7 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 //
 // - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
 // - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
-// - [ReturnMistake] (default), [PanicOnAllErrors]: Controls whether the function should panic on errors (useful when creating global errors on init)
+// - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on errors (useful when creating global errors on init)
 // - [MissingDataAsZero], [MissingDataIsMistake] (default): Controls whether data required for StructType that is missing is silently zero-initialized
 //
 // Note that all flags are parsed (in order of appearance) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.

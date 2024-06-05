@@ -106,7 +106,7 @@ func TestConfigDefaults(t *testing.T) {
 //   - "PerformEqualityCheck"
 //   - "CatchPanic"
 //   - "checkFun" -- if not set, only checks that *c1 and *c2 are both non-nil or both nil
-//   - "PanicOnAllErrors"
+//   - "PanicOnAllMistakes"
 //   - "Validation"
 //   - "IsMissingDataError"
 //   - "AllowEmptyString"
@@ -115,7 +115,7 @@ func TestConfigDefaults(t *testing.T) {
 func ensureConfigUnchangedExcept(t *testing.T, c1, c2 *errorCreationConfig, changedArgs ...string) {
 
 	// could do a loop over []struct{string, func}, but I don't like that complexity in the test.
-	var xPreferOld, xPreferNew, xPerformEqualityCheck, xCatchPanic, xCheckFun, xPanicOnAllErrors, xValidation, xIsMissingDataError, xAllowEmptyString bool
+	var xPreferOld, xPreferNew, xPerformEqualityCheck, xCatchPanic, xCheckFun, xPanicOnAllMistakes, xValidation, xIsMissingDataError, xAllowEmptyString bool
 
 	for _, s := range changedArgs {
 		switch s {
@@ -129,8 +129,8 @@ func ensureConfigUnchangedExcept(t *testing.T, c1, c2 *errorCreationConfig, chan
 			xCatchPanic = true
 		case "checkFun":
 			xCheckFun = true
-		case "PanicOnAllErrors":
-			xPanicOnAllErrors = true
+		case "PanicOnAllMistakes":
+			xPanicOnAllMistakes = true
 		case "Validation":
 			xValidation = true
 		case "IsMissingDataError":
@@ -166,10 +166,10 @@ func ensureConfigUnchangedExcept(t *testing.T, c1, c2 *errorCreationConfig, chan
 		b2 := (c2.checkFun == nil)
 		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.checkFun is nil: %v, c2.checkFun is nil: %v ", b1, b2)
 	}
-	if !xPanicOnAllErrors {
+	if !xPanicOnAllMistakes {
 		b1 := c1.panicOnAllMistakes()
 		b2 := c2.panicOnAllMistakes()
-		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.PanicOnAllErrors() = %v, c2.PanicOnAllErrors() = %v ", b1, b2)
+		testutils.FatalUnless(t, b1 == b2, "Unexpected difference in configs: c1.PanicOnAllMistakes() = %v, c2.PanicOnAllMistakes() = %v ", b1, b2)
 	}
 	if !xValidation {
 		b1 := c1.whatValidationIsRequested() // type int
@@ -254,11 +254,11 @@ func TestParseFlags(t *testing.T) {
 
 	parseFlagArgs(&c1, PanicOnAllMistakes)
 	testutils.FatalUnless(t, c1.panicOnAllMistakes() == true, "")
-	ensureConfigUnchangedExcept(t, &c1, &c2, "PanicOnAllErrors")
+	ensureConfigUnchangedExcept(t, &c1, &c2, "PanicOnAllMistakes")
 
 	parseFlagArgs(&c1, ReturnMistake)
 	testutils.FatalUnless(t, c1.panicOnAllMistakes() == false, "")
-	ensureConfigUnchangedExcept(t, &c1, &c2, "PanicOnAllErrors")
+	ensureConfigUnchangedExcept(t, &c1, &c2, "PanicOnAllMistakes")
 
 	parseFlagArgs(&c1, AllowEmptyString)
 	testutils.FatalUnless(t, c1.allowEmptyString() == true, "")

@@ -2,6 +2,8 @@ package errorsWithData
 
 import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 
+// NOTE: This file was refactored A LOT OF TIMES with many changes to function names.
+
 // This file defines features needed to make errors into incomparable types.
 //
 // Notably, our errorWithData package can be used to create errors that are only
@@ -87,12 +89,12 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 //      implementations must match the signature exactly. This means that either the Unbox() methods throws away the information about what extended
 //      interface the unboxed error satisfied or we have multiple incompatible interfaces. We opt for the former.
 
-// BoxableError is a interface that errors must satisfy in order to be usable by [MakeErrorIncompatible] and its variants.
+// BoxableError is a interface that errors must satisfy in order to be usable by [BoxErrorAsIncomparable].
 //
 // In order to actually work as intended, we require a suitable Is - method, which is defined on the *unboxed* error.
-// The reason for this is that [errors.Is]
-// So we only allow boxing errors if the unboxed error has one.
-// We also ask for a tag method to explicitly opt-in.
+// The reason for this is that [errors.Is](err, target) has a hook in the form of such an Is - method, but this needs to be defined on err rather than target (which is not the way we would want).
+// So we only allow boxing errors if the unboxed error has an appropriate Is(target error) method.
+// We also ask for a specific tag method to explicitly opt-in.
 // (accidential interface satisfaction is actually a real possibility here)
 type BoxableError interface {
 	error
@@ -310,11 +312,11 @@ func UnboxErrorWithData[StructType any](e interface{ ErrorWithData[StructType] }
 //
 // This means that == will fail at compile-time (unless the returned value is stored in an interface -- then this causes a run-time panic or may give the wrong result)
 //
-// Comparisons using errors.Is() will still work as intended. If e is already boxed, we unbox beforehand to only get one layer.
+// Comparisons using errors.Is() will still work as intended. If e is already boxed, BoxErrorAsIncomparable(e) unboxes e beforehand to only get one layer.
 // Calling this function on nil will panic.
 func BoxErrorAsIncomparable(e BoxableError) incomparableError {
 	if e == nil {
-		panic(ErrorPrefix + "Called MakeErrorIncomparable_plain on nil error")
+		panic(ErrorPrefix + "Called BoxErrorAsIncomparable on nil error")
 	}
 	// unbox the input, if possible
 	e = UnboxError(e).(BoxableError)

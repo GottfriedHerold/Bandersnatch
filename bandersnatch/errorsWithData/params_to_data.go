@@ -31,7 +31,7 @@ var (
 )
 
 // StructSuitableForErrorsWithData is used to check whether a given StructType can be used as a generic parameter for various functions/methods/types in this package.
-// If StructType is suitable, this function returns nil; if unsuitable, returns an error describing a reason why StructType is unsuitable.
+// If StructType is suitable, this function returns nil; if unsuitable, returns an mistake describing a reason why StructType is unsuitable.
 //
 // Using an StructType that does not pass this generic function with any function/method/type of this package other than StructSuitableForErrorsWithData may generate a panic.
 //
@@ -57,7 +57,7 @@ var (
 // S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
 // If, in this example, S itself additionally defined its own field X, then S would satisfy our restrictions.
 // We do not expect such corner-cases to come up, really. Frankly speaking, the fact that the Go language allows S is questionable to start with.
-func StructSuitableForErrorsWithData[StructType any]() (err error) {
+func StructSuitableForErrorsWithData[StructType any]() (err Mistake) {
 	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	return
 }

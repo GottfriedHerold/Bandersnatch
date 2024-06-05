@@ -82,7 +82,7 @@ func CheckParameterForStruct[StructType any](fieldName string) {
 	panic(fmt.Errorf(ErrorPrefix+"The given struct does not contain an exported field named %v", fieldName))
 }
 
-// CheckIsSubtype checks that both StructType1 and StructType2 are satisfy the conditions of [StructSuitableForErrorsWithData] and
+// CheckIsSubtype checks that both StructType1 and StructType2 satisfy the conditions of [StructSuitableForErrorsWithData] and
 // that the exported fields of StructType1 are a subset of those of StructType2.
 //
 // CheckIsSubtype only cares about the names of the fields. It completely ignores the types.
@@ -106,6 +106,7 @@ func CheckIsSubtype[StructType1 any, StructType2 any]() {
 }
 
 // EnsureErrorsValid_Final runs ValidateError_Final on each of its arguments and panics if there is an issue.
+// This is a utility function intented tests during program initialization.
 func EnsureErrorsValid_Final(errs ...ErrorWithData_any) {
 	var allErrors []error
 	for _, err := range errs {
@@ -119,6 +120,7 @@ func EnsureErrorsValid_Final(errs ...ErrorWithData_any) {
 }
 
 // EnsureErrorsValid_Base runs ValidateError_Base on each of its arguments and panics if there is an issue.
+// This is a utility function intented tests during program initialization.
 func EnsureErrorsValid_Base(errs ...ErrorWithData_any) {
 	var allErrors []error
 	for _, err := range errs {
@@ -132,6 +134,7 @@ func EnsureErrorsValid_Base(errs ...ErrorWithData_any) {
 }
 
 // EnsureErrorsValid_Syntax runs ValidateSyntax on each of its arguments and panics if there is an issue.
+// This is a utility function intented tests during program initialization.
 func EnsureErrorsValid_Syntax(errs ...ErrorWithData_any) {
 	var allErrors []error
 

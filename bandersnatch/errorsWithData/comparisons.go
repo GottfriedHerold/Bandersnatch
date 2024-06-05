@@ -79,18 +79,22 @@ func Compare_CoerceNilInterface(x, y any) (isEqual bool) {
 //   - otherwise, if either x or y are pointer types, then the comparison will directly compare the pointers.
 //   - otherwise, we try each methodname in the list of methodnames in order:
 //     if x has a method (on either pointer or value receiver) named methodname, we will call x.methodname(y) resp. x.methodname(&y)
-//     -- Whether the method is called with &y or y is deduced from the method's signature. If both options are valid, we match the way x is passed.
-//     -- The method must return a bool (possibly inside an interface) as its first return value; further return values are discarded.
-//     -- If the method has a wrong signature, we panic. Note that the method may take a concrete type or an interface.
-//     -- When calling as &x or &y, we actually pass a pointer to a copy of x or y.
 //   - otherwise, if there is no method from the list of methodnames defined on x's type, we resort to plain == (which may panic for incomparable types)
+//
+// In case we call x.methodname(y) or x.methodname(&y), the calling conventions are as follows:
+//
+//   - Whether the method is called with &y or y is deduced from the method's signature. If both options are valid, we match the way x is passed.
+//   - The method must return a bool (possibly inside an interface) as its first return value; further return values are discarded.
+//   - If the method has a wrong signature, we panic. Note that the method may take a concrete type or an interface.
+//   - When calling as &x or &y, we actually pass a pointer to a copy of x or y.
 //
 // NOTE: Plain comparison takes precendence over methods with pointer receiver from the list if either x or y are pointers.
 // In particular, this choice means that we cannot just pass a pointer to avoid the copying of x made by f if we call x.methodname with a pointer receiver.
 //
-// The problem here is that the Go language conflates the type where we want the method to act on semantically
+// The reason why we prefer plain == on pointers is that the Go language conflates the type where we want the method to act on semantically
 // (this is usually the value type for us) and the way parameters are passed (which may be a pointer for efficiency to avoid copying).
 // There is just no way for us to know. Note that a user can instead opt to prefer a method call on a pointer type *T by using a struct type struct{*T} that embedds *T.
+// Passing a pointer to a copy (rather than a pointer to the value itself) is simply a consequence of Go's inability to take addresses of values inside an interface.
 //
 // For the intended use case in the [errorsWithData] package, our choice is appropriate, as data accompanying errors should be value types rather than
 // (possibly shared) pointers to it anyway; this may seem less efficient (due to issues with escape analysis and Go interfaces, it actually often is not), but guarantees immutability, which is more important for diagnostics anyway.
@@ -226,14 +230,15 @@ func CustomComparisonMethod(methodnames ...string) EqualityComparisonFunction {
 //   - if either x or y are the nil interface, then the comparison result is true iff the other argument is either a nil interface or a nil of concrete type
 //   - otherwise, if either x or y are pointer types, then the comparison will directly compare the pointers.
 //   - otherwise, if x has an IsEqual method (on either pointer or value receiver), we will call x.IsEqual(y) resp. x.IsEqual(&y)
-//     -- Whether IsEqual is called with &y or y is deducted from the function signature. If both options are valid, we match the way x is passed.
-//     -- The IsEqual method must return a bool (possibly inside an interface) as its first return value; further return values are discarded.
-//     -- If the IsEqual method has the wrong signature, we panic
-//     -- Note that when calling with a pointer receiver or argument, we actuall pass a pointer to a copy of x or y.
 //   - otherwise, if there is no IsEqual method, we resort to plain == (which may panic)
 //
-// NOTE: Plain comparison takes precendence over an IsEqual method if either x or y are pointers.
+// The calling convention for IsEqual are as following:
+//   - Whether IsEqual is called with &y or y is deduced from the function signature. If both options are valid, we match the way x is passed.
+//   - The IsEqual method must return a bool (possibly inside an interface) as its first return value; further return values are discarded.
+//   - If the IsEqual method has the wrong signature, we panic
+//   - Note that when calling with a pointer receiver or argument, we actuall pass a pointer to a copy of x or y.
 //
+// NOTE: Plain comparison takes precendence over an IsEqual method if either x or y are pointers.
 // This means that if an IsEqual method is defined on a pointer receiver (say, for efficiency of passing arguments),
 // you need to pass the non-pointer value to Comparison_IsEqual if you want to use the custom method.
 // Essentially, we assume that pointer receivers are chosen *solely* for argument passing efficiency and the custom equality semantics
