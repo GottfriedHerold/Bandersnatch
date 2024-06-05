@@ -309,9 +309,9 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 
 // NOTE: List of accepted flags here must exactly match the list from validFlags_JoinAny resp. validFlags_Join in flag_test.go
 
-// Join_any creates a new error that wraps all non-nil errors passed to it and merges their paramters.
+// Join_any creates a new error that wraps all non-nil errors passed to it and merges their parameters.
 // This is intended to be used with the %w{Number} or $w{Number} syntax of interpolation string.
-// The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check that doc).
+// The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check the latest documentation of [errors] for this).
 // The resulting ret's error message will be the concatenation of the individual errors' messages, separated by "\n".
 //
 // Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour) or its type must be one of
@@ -319,38 +319,38 @@ func extractNonNilErrors(target *[]error, x any) (err error) {
 //   - a slice/array of errors (or a named type based on such)
 //   - a pointer-to-slice/array (or a named type based on such)
 //
-// Join_any will skip any nil errors found. If no non-nil errors were found, we return (nil, nil)
+// Join_any will skip any nil interface found. If no non-nil errors were found, we return (nil, nil)
 //
 // Note that this function looks at the (dynamic) types of each element to provide a form of covariance (as opposed to the Go languange).
-// This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any).
+// This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any is allowed).
 // Similarly for the array and pointer cases.
 //
 // Arguments of unsupported types cause Join_any to panic (even if [ReturnMistake] is set).
 // We accept the following flags:
 //
-// - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
-// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
-// - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on errors (useful when creating global errors on init)
+//   - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
+//   - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
+//   - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on mistakes (useful when creating global errors on init)
 //
 // Note that all flags are parsed (in order of appearence) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
 // Join_any will process all errors that were passed to it (non-recursively iterating over slices/arrays and pointer-to-slice/array, if needed) in order, skipping any nil errors.
-// The parameter map of the resulting ret is constructed as the union of the individual errors. Duplicate parameter names are handled according to the passed flags;
+// The parameter map of the resulting ret is constructed as the union of the individual errors' parameter maps. Duplicate parameter names are handled according to the passed flags;
 // For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older" as far as [PreferPreviousData]/[ReplacePreviousData] is concerned.
 //
 // NOTE: The result of Join_any is supposed to be used as a base error for e.g. [NewErrorWithData_any_params] and related functions.
 // A subtlety that arises here is that for an error ret returned by Join_any, ret.Error() will call Error() on its children and not ErrorInterpolate,
-// whereas ret.ErrorInterpolate() will call ErrorInterpolate (if the children support it). A consequence is that Error and ErrorInterpolate(nil) are not equivalent:
+// whereas ret.ErrorInterpolate will call ErrorInterpolate (if the children support it). A consequence is that Error and ErrorInterpolate(nil) are not equivalent:
 // Suppose err1, err2 are errors with data that are passed to Join_any where err1 has a "${X}"-directive and X is overwritten/set by err2.
 // Then the error ret returned by Join_any will have a parameter X with value set by err2. Still, the output of ret.Error(), specified as concatenation, will contain err1's error message, which does *not* see this new value of X.
 // This differs from calling ret.Error_Interpolate(nil), where err1's contribution to the output will be affected by the new value of X.
-// Wrapping ret via NewErrorWithData_any_params (with a default "$w") and similar function will use Error_Interpolate, unless "%w" is explicitly used to refer to ret.
+// Wrapping ret via NewErrorWithData_any_params (with a default "$w") and similar functions will use Error_Interpolate, unless "%w" is explicitly used to refer to ret.
 //
 // NOTE2: This function can only fail in a non-panicking way if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set.
-// As [PanicOnAllMistakes] only affects these kinds of errors, it is only meaningful if one of those two flags is set as well.
+// As [PanicOnAllMistakes] only affects these kinds of mistakes, it is only meaningful if one of those two flags is set as well.
 //
-// NOTE3: In the unlikely corner case where a named type based on an array/slice or pointer satifies the error interface, being an error takes precendence.
-func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
+// NOTE3: In the unlikely corner case where a named type based on an array/slice (or pointer-to such a type) also satifies the error interface itself, being an error takes precendence.
+func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err Mistake) {
 	returnedValue := new(joinedErrors_any) // don't write to ret yet, because it might be nil
 
 	// baseErrors := make([]error, 0, len(errorsOrFlags)) // pre-allocate
@@ -407,20 +407,20 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 	return
 }
 
-// Join creates a new error that wraps all non-nil errors passed to it and merges their paramters.
+// Join creates a new error that wraps all non-nil errors passed to it and merges their parameters.
 // This is intended to be used with the %w{Number} or $w{Number} syntax of interpolation string.
-// The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check that doc).
+// The resulting ret will have an Unwrap() []error method to wrap multiple errors (for compatibility of *some functions* of the [errors] standard library -- please check the lastest documentation of [errors]).
 // The resulting ret's error message will be the concatenation of the individual errors' messages, separated by "\n".
 //
-// Each arguments passed to Join_any must either be a supported flag (which alters Join_any's behaviour) or its type must be one of
+// Each arguments passed to Join must either be a supported flag (which alters Join's behaviour) or its type must be one of
 //   - a type satifying error
 //   - a slice/array of errors (or a named type based on such)
 //   - a pointer-to-slice/array (or a named type based on such)
 //
-// Join will skip any nil errors found. If no non-nil errors were found, we return (nil, nil)
+// Join will skip any nil interfaces found. If no non-nil errors were found, we return (nil, nil)
 //
 // Note that this function looks at the (dynamic) types of each element to provide a form of covariance (as opposed to the Go languange).
-// This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any).
+// This means we accept variables x of type []T as long as each x[i] satisfies error; T itself does not need to satisfy error (e.g. T==any is allowed).
 // Similarly for the array and pointer cases.
 //
 // Arguments of unsupported types cause Join_any to panic (even if [ReturnMistake] is set).
@@ -428,28 +428,28 @@ func Join_any(errorsOrFlags ...any) (ret ErrorWithData_any, err error) {
 //
 // Join accepts the following flags:
 //
-// - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
-// - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
-// - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on errors (useful when creating global errors on init)
-// - [MissingDataAsZero], [MissingDataIsMistake] (default): Controls whether data required for StructType that is missing is silently zero-initialized
+//   - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data present in multiple passed errors with the same key.
+//   - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
+//   - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on mistakes (useful when creating global errors on init)
+//   - [MissingDataAsZero], [MissingDataIsMistake] (default): Controls whether data required for StructType that is missing is silently zero-initialized
 //
 // Note that all flags are parsed (in order of appearance) before any non-flag argument is processed, so flags coming after a non-flag affect previous non-flags.
 //
 // Join will process all errors that were passed to it (non-recursively iterating over slices/arrays and pointer-to-slice/array, if needed) in order, skipping any nil errors.
-// The parameter map of the resulting ret is constructed as the union of the individual errors. Duplicate parameter names are handled according to the passed flags;
+// The parameter map of the resulting ret is constructed as the union of the individual errors' parameter maps. Duplicate parameter names are handled according to the passed flags;
 // For the latter, the input errors are processed in order of appearance, so inputs earlier in appearance are considered "older" as far as [PreferPreviousData]/[ReplacePreviousData] is concerned.
 // After processing all input errors, we ensure that the parameters are suitable to construct an instance of StructType by zero-initializing / zeroing missing data or data with wrong type.
 //
 // NOTE: The result of Join is supposed to be used as a base error for e.g. [NewErrorWithData_any_params] and related functions.
-// A subtlety that arises here is that for an error ret returned by Join_any, ret.Error() will call Error() on its children and not ErrorInterpolate,
-// whereas ret.ErrorInterpolate() will call ErrorInterpolate (if the children support it). A consequence is that Error and ErrorInterpolate(nil) are not equivalent:
+// A subtlety that arises here is that for an error ret returned by Join, ret.Error() will call Error() on its children and not ErrorInterpolate,
+// whereas ret.ErrorInterpolate will call ErrorInterpolate (if the children support it). A consequence is that Error and ErrorInterpolate(nil) are not equivalent:
 // Suppose err1, err2 are errors with data that are passed to Join where err1 has a "${X}"-directive and X is overwritten/set by err2.
 // Then the error ret returned by Join will have a parameter X with value set by err2. Still, the output of ret.Error(), specified as concatenation, will contain err1's error message, which does *not* see this new value of X.
 // This differs from calling ret.Error_Interpolate(nil), where err1's contribution to the output will be affected by the new value of X.
-// Wrapping ret via NewErrorWithData_any_params (with a default "$w") and similar function will use Error_Interpolate, unless "%w" is explicitly used to refer to ret.
+// Wrapping ret via NewErrorWithData_any_params (with a default "$w") and similar functions will use Error_Interpolate, unless "%w" is explicitly used to refer to ret.
 //
-// NOTE2: In the unlikely corner case where a named type based on an array/slice or pointer satifies the error interface, being an error takes precendence.
-func Join[StructType any](errorsOrFlags ...any) (ret ErrorWithData[StructType], err error) {
+// NOTE2: In the unlikely corner case where a named type based on an array/slice (or a pointer to such a type) satifies the error interface itself, being an error takes precendence.
+func Join[StructType any](errorsOrFlags ...any) (ret ErrorWithData[StructType], err Mistake) {
 	// trigger early panic for invalid StructType
 	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
 		panic(errInvalidStruct)

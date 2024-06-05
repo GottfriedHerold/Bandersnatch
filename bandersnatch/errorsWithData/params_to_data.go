@@ -56,7 +56,8 @@ var (
 // we reject this construction, because the candidates get promoted via different pathways (WrappedT vs. T):
 // S.T.X cannot shadow S.WrappedT.T.X because the latter is defined in S.WrappedT.T, which is not in a subtree of S.T.
 // If, in this example, S itself additionally defined its own field X, then S would satisfy our restrictions.
-// We do not expect such corner-cases to come up, really. Frankly speaking, the fact that the Go language allows S is questionable to start with.
+// We do not expect such corner-cases to come up, really.
+// Frankly speaking, the fact that the Go language allows S is questionable to start with (it needlessly creates more cases where S and struct{S} have different obseverable behaviour).
 func StructSuitableForErrorsWithData[StructType any]() (err Mistake) {
 	_, err = getStructMapConversionLookup(utils.TypeOfType[StructType]())
 	return

@@ -133,7 +133,7 @@ func NewErrorWithData_struct[StructType any](baseError error, interpolationStrin
 //   - [PanicOnAllMistakes] was set and there is an mistake
 //   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type)
 //
-// Note that even if err != nil, ret will be a valid ErrorWithData[StructType].
+// Note that even if err != nil, ret will be a valid [ErrorWithData][StructType].
 // For each field of StructType where the provided/inherited parameter is missing or has the wrong type, we add or replace it by a zero value of appropriate type.
 // This implies that [MissingDataAsZero] or [MissingDataIsMistake] only affect whether adding zeros happens silently or is considered a mistake.
 // These zero values are actually added when creating the error, not when retrieving data. In particular, [HasParameter] will see those zero entries
@@ -228,7 +228,7 @@ func NewErrorWithData_params[StructType any](baseError error, interpolationStrin
 //   - [PanicOnAllMistakes] was set and there is an mistake
 //   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type)
 //
-// Note that even when comparing to previous data, we will honor the last previous PreferPreviousData/ReplacePreviousData choice.
+// Note that even when comparing to previous data, we will honor the last previous [PreferPreviousData]/[ReplacePreviousData] choice.
 // Unless the function panics, we do not abort on first mistake with either of these comparisons nor with Validation, so ret may potentially be useful even in case of a mistake.
 func NewErrorWithData_any_params(baseError error, interpolationString string, paramsAndFlags ...any) (ret ErrorWithData_any, err Mistake) {
 	baseError = UnboxError(baseError)
@@ -308,7 +308,7 @@ func NewErrorWithData_any_params(baseError error, interpolationString string, pa
 //   - [PanicOnAllMistakes] was set and there is a mistake
 //   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type with ==)
 //
-// Note that even if err != nil, ret will be a valid ErrorWithData[StructType].
+// Note that even if err != nil, ret will be a valid [ErrorWithData][StructType].
 // For each field of StructType where the provided/inherited parameter is missing or has the wrong type, we add or replace it by a zero value of appropriate type.
 // This implies that [MissingDataAsZero] or [MissingDataIsMistake] only affect whether adding zeros happens silently or is considered a mistake.
 // These zero values are actually added when creating the error, not when retrieving data. In particular, [HasParameter] will see those zero entries

@@ -91,11 +91,11 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 
 // BoxableError is a interface that errors must satisfy in order to be usable by [BoxErrorAsIncomparable].
 //
-// In order to actually work as intended, we require a suitable Is - method, which is defined on the *unboxed* error.
-// The reason for this is that [errors.Is](err, target) has a hook in the form of such an Is - method, but this needs to be defined on err rather than target (which is not the way we would want).
+// In order to actually work as intended, we require a suitable Is(target error) - method, which is defined on the *unboxed* error.
+// The reason for this is that [errors.Is](err, target) has a hook in the form of such an Is - method, but this method needs to be defined on err rather than target (which is not the way we would want).
 // So we only allow boxing errors if the unboxed error has an appropriate Is(target error) method.
 // We also ask for a specific tag method to explicitly opt-in.
-// (accidential interface satisfaction is actually a real possibility here)
+// The latter is because accidential interface satisfaction is actually a real possibility here.
 type BoxableError interface {
 	error
 	Is(target error) bool          // needs to unbox target. A valid implementation of e.Is(target) is `return e==UnboxError(target)`

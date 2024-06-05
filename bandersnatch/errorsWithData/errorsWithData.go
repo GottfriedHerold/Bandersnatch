@@ -236,9 +236,11 @@ type ParamMap = map[string]any
 // The sole purpose of this is that we want to distinguish the type of the objects that this package acts upon and returns (errors and errorsWithData) as part of its
 // intented purpose from the reporting done by the package itself if a call to an API function failed.
 // This distinction is made *solely* for documentation:
-// without this disambiguation, some parts of the package documentation would be rather confusing.
+// without this disambiguation, some parts of the package documentation would be rather confusing, as we would constantly just talk about errors.
 //
-// Note that this type alias is not exported as it only serves for consistency between API and documentation. Users may just use plain error.
+// Note that this type alias is only exported to have this explanation automatically appear in godoc.
+// This alias only serves for consistency between API and documentation.
+// Users may just use plain error.
 type Mistake = error
 
 // ConditionNonEmptyMap resp. ConditionEmptyMap are the special strings that (together with %! or $!) triggers conditional evaluation in our interpolation string grammar, depending on whether
@@ -313,14 +315,14 @@ const (
 // [GetData_map], [GetData_struct], [GetParameter], [HasData], [HasParameter]
 // as these work for arbitrary errors.
 //
-// Note: When creating any ErrorWithData_any, we (by default) inherit data from wrapped errors.
-// This may be part of the job of the methods GetParameter, HasParameter and GetData_map, which are required to include inherited data
-// or be handled when creating the error.
-// Either way, we do NOT require the caller to follow the error chain/tree. This is done by the package.
+// Note: All functions exported by this package that create any ErrorWithData_any inherit data from wrapped errors.
+// In case a user provides a custom implementation of ErrorWithData_any that interoperates with this package, this package assumes that the methods GetParameter, HasParameter and GetData_map (and GetData_struct for [ErrorWithData]) provide the source of truth for parameters.
+// (The free functions default to inheriting data by following the error chain/tree until something satisfying ErrorWithData_any is found).
+// In particular, this means that a custom implementation that wishes to support parameter inheritance needs to either collect that data upon creation of errors or follow the error chain within the implemtation of these methods.
 type ErrorWithData_any interface {
 	error // i.e. provides an Error() string method
 	// Error_interpolate is an extended version of Error() that additionally takes a map of parameters. This is required to make any $foo (as opposed to %foo) interpolation work.
-	// Using a nil map as paramters is equivalent to using the error's own parameters.
+	// Using a nil map as parameters is equivalent to using the error's own parameters.
 	// So Error_interpolate(nil) is largely equivalent to Error(), the only possible exception being outputs of Join.
 	Error_interpolate(ParamMap) string
 	// GetParameter obtains the value stored under the given parameterName and whether it was present. Returns (nil, false) if not.
@@ -383,7 +385,7 @@ func (DummyValidator) ValidateError_Params(ParamMap) error { return nil }
 // (rather than require the caller to follow the error chain)
 //
 // StructType must satisfy the constraints defined by [StructSuitableForErrorsWithData].
-// Otherwise, this type is useless and most functions will panic.
+// Otherwise, ErrorWithData[StructType] is useless and most functions using or returning it will panic.
 type ErrorWithData[StructType any] interface {
 	ErrorWithData_any
 	GetData_struct() StructType // Note: e.GetData() Is equivalent to calling GetData_Struct[StructType](e).
@@ -545,8 +547,8 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 // GetData_struct obtains the parameters contained in inputError in the form of a struct of type StructType.
 // Additional Parameters in inputError in excess of what is needed to create a struct are ignored.
 //
-// Supported optional flags are [MissingDataAsZero]/[MissingDataIsMistake] and [ReturnMistake]/[PanicOnAllMistakes]
-// If inputError does not contain enough parameters or paramters of wrong type to construct an instance of StructType, the behaviour depends on those flags:
+// Supported optional flags are [MissingDataAsZero]/[MissingDataIsMistake] and [ReturnMistake]/[PanicOnAllMistakes].
+// If inputError does not contain enough parameters or parameters of wrong type to construct an instance of StructType, the behaviour depends on those flags:
 //
 //   - If [MissingDataAsZero] is set, we zero-initialize fields in ret. where data is merely missing without treating this an mistake.
 //   - If instead [MissingDataIsMistake] is set (the default), we also zero-initialize for merely missing data, but treat this an an mistake returned in structConstructionMistake.
@@ -556,8 +558,8 @@ func GetParameter(inputError error, parameterName string) (value any, wasPresent
 // Calling this function with an StructType not satisfying [StructSuitableForErrorsWithData] will always cause a panic.
 //
 // Note: The types of the parameters in inputError must match the types of the fields of StructType exactly, except that
-// - interface types in StructType's fields only need assignability from the dynamic type of what's in inputError
-// - a nil interface value in inputError's parameters is treated like an untyped nil (i.e. we perform ret.FieldName = nil, converting the nil to the appropriate type) if possible.
+//   - interface types in StructType's fields only need assignability from the dynamic type of what's in inputError
+//   - a nil interface value in inputError's parameters is treated like an untyped nil (i.e. we perform ret.FieldName = nil, converting the nil to the appropriate type) if possible.
 //
 // On mistake, structConstructionMistake contains diagnostics for all fields of StructType for which a problem occurred.
 // ret's fields are zero-initialized for those failing fields. All non-failing fields contain the values from inputError.

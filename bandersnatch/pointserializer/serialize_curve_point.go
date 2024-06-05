@@ -396,7 +396,7 @@ func (md *multiDeserializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithP
 		panic(fmt.Errorf(ErrorPrefix+"Trying to set parameter %v that does not exist for this deserializer.\nValid parameters are %v", parameterName, md.RecognizedParameters()))
 	}
 
-	// Case distinction: If the paramter is present in the component, use WithParameter, otherwise Clone()
+	// Case distinction: If the parameter is present in the component, use WithParameter, otherwise Clone()
 	if foundBasic {
 		ret.basicDeserializer = md.basicDeserializer.WithParameter(parameterName, newParameter)
 	} else {
@@ -435,7 +435,7 @@ func (md *multiSerializer[BasicPtr, HeaderPtr, BasicValue, HeaderValue]) WithPar
 		panic(fmt.Errorf(ErrorPrefix+"Trying to set parameter %v that does not exist for this serializer.\nValid parameters are %v", parameterName, md.RecognizedParameters()))
 	}
 
-	// Case distinction: If the paramter is present in the component, use WithParameter, otherwise Clone()
+	// Case distinction: If the parameter is present in the component, use WithParameter, otherwise Clone()
 	if foundBasic {
 		ret.basicSerializer = md.basicSerializer.WithParameter(parameterName, newParameter)
 	} else {

@@ -40,7 +40,7 @@ import (
 //     The condition in %!COND{...} is evaluated for this purpose and failures are ignored in a non-taken sub-tree.
 //
 //  - VerifyParameters_passed furthermore checks that:
-//     - variables referred to by $fmtString{VariableName} actually exist in paramters_passed
+//     - variables referred to by $fmtString{VariableName} actually exist in parameters_passed
 //     The conditions in both %!COND{...} and $!COND{...} are evaluated for this purpose. Failures are ignored in a non-taken sub-tree.
 //
 // Note that even VerifyParameters_passed does not guarantee that Interpolation works, because e.g. the format verb might be invalid for the given type.
@@ -372,7 +372,7 @@ func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) Mistake {
 	return nil
 }
 
-// VerifyParameters_direct for %fmtVerb{variableName} checks whether the paramter is present.
+// VerifyParameters_direct for %fmtVerb{variableName} checks whether the parameter is present.
 func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err Mistake) {
 
 	_, ok := parameters_direct[a.variableName]
@@ -382,7 +382,7 @@ func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ er
 	return nil
 }
 
-// VerifyParameters_passed for %fmtVerb{variableName} checks whether the paramter is present.
+// VerifyParameters_passed for %fmtVerb{variableName} checks whether the parameter is present.
 func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ ParamMap, _ error) (err Mistake) {
 
 	// same as VerifyParameters_direct. We ignore the parameters_passed map
@@ -484,7 +484,7 @@ func (a ast_parentDollar) VerifyParameters_direct(_ ParamMap, baseError error) M
 //
 // We also check for problems in the referred baseError via [ValidateError_Params]
 //
-// NOTE: ValidateError_Params(paramters_passed) will call VerifyParameters_passed on the referred error, with parameters_passed passed through.
+// NOTE: ValidateError_Params(parameters_passed) will call VerifyParameters_passed on the referred error, with parameters_passed passed through.
 func (a ast_parentDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, baseError error) Mistake {
 	if baseError == nil {
 		return fmt.Errorf(ErrorPrefix + "Interpolation string contains $w, but the error does not wrap a non-nil error")
@@ -756,7 +756,7 @@ func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, para
 // parameters_passed == nil means parameters_passed are the same as parameters_direct.
 // We handle this special-case here, so other node types don't have to handle it.
 // (Note: We could also let the caller or each node do that, but doing it here is more convenient -- it allows us to make some diagnostics prettier)
-// paramters_direct should not be nil (use an empty map instead)
+// parameters_direct should not be nil (use an empty map instead)
 //
 // Error handling: Note that [make_ast] always outputs a valid tree that contains a in-band diagnostic message.
 // We also ensure that [handleSyntaxConditions] has been called.

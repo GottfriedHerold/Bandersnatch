@@ -120,7 +120,7 @@ func ensureDefaultSettersAndGettersWorkForSerializer(serializerType reflect.Type
 	nilSerializer := reflect.Zero(serializerType).Interface().(ParameterAware)
 
 	if nilSerializer.HasParameter("InvalidParameter") {
-		t.Fatalf("Serializer of type %v does recognize an invalid paramter as valid", utils.GetReflectName(serializerType))
+		t.Fatalf("Serializer of type %v does recognize an invalid parameter as valid", utils.GetReflectName(serializerType))
 	}
 
 	ok, reason := utils.DoesMethodExist(serializerType, "Clone", []reflect.Type{}, []reflect.Type{anyType})
