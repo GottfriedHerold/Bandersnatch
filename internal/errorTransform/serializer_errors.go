@@ -19,7 +19,7 @@ type WriteErrorData struct {
 // ReadErrorData is a struct holding additional information about Deserialization errors. This additional data can be accessed via the errorsWithData package.
 type ReadErrorData struct {
 	PartialRead  bool   // If PartialRead is true, this indicates that after the read error, the io.Reader is believed to be in an invalid state because what was read did not correspond to a complete blob of data that was expected.
-	BytesRead    int    // BytesRead indicates the number of bytes that were read by the operation that *caused* the error. NOTE: All Deserialization functions accurately return the number of read bytes directly. The value reported here may differ, because it is the numbe of bytes read in the function that *caused* the error (which may be a sub-call).
+	BytesRead    int    // BytesRead indicates the number of bytes that were read by the operation that *caused* the error. NOTE: All Deserialization functions accurately return the number of read bytes directly. The value reported here may differ, because it is the numbe of bytes read in the function that *caused* the error (which may be an internal sub-call).
 	ActuallyRead []byte // this may contain information about data that was read when the error occured. It may be nil, is not guaranteed to be present (even if meaningful) and may be from a sub-call. The reason is that we do not buffer the raw input data, so we cannot provide it in a lot of cases. It serves purely as a debugging aid.
 }
 
@@ -36,7 +36,7 @@ var NoWriteAttempt = WriteErrorData{
 	BytesWritten: 0,
 }
 
-// The errorsWithData package can access fields by name (using reflection internally). We export the field names as constants for IDE-friendliness and as a typo- and refactoring guard.
+// The errorsWithData package accesses fields by name (using reflection internally). We export the field names as constants for IDE-friendliness and as a typo- and refactoring guard.
 
 const FIELDNAME_PARTIAL_WRITE = "PartialWrite"
 const FIELDNAME_PARTIAL_READ = "PartialRead"
@@ -45,8 +45,14 @@ const FIELDNAME_ACTUALLY_READ = "ActuallyRead"
 const FIELDNAME_BYTES_READ = "BytesRead"
 const FIELDNAME_BYTES_WRITTEN = "BytesWritten"
 
-// Refactoring guard. This panics if the strings above don't correspond to the names of the exported field.
+// Refactoring guard. This panics if the strings above don't correspond to the (full set of) names of the exported field.
 func init() {
+	if err := errorsWithData.StructSuitableForErrorsWithData[WriteErrorData](); err != nil {
+		panic(err)
+	}
+	if err := errorsWithData.StructSuitableForErrorsWithData[ReadErrorData](); err != nil {
+		panic(err)
+	}
 	errorsWithData.CheckParametersForStruct_all[WriteErrorData]([]string{FIELDNAME_BYTES_WRITTEN, FIELDNAME_PARTIAL_WRITE})
 	errorsWithData.CheckParametersForStruct_all[ReadErrorData]([]string{FIELDNAME_BYTES_READ, FIELDNAME_PARTIAL_READ, FIELDNAME_ACTUALLY_READ})
 }
@@ -83,5 +89,5 @@ var (
 	ErrCannotSerializePointAtInfinity = errors.New("bandersnatch / point serialization: The selected serializer cannot serialize points at infinity")
 	ErrCannotSerializeNaP             = errors.New("bandersnatch / point serialization: cannot serialize NaP")
 	ErrCannotDeserializeNaP           = errors.New("bandersnatch / point deserialization: cannot deserialize coordinates corresponding to NaP")
-	ErrCannotDeserializeXYAllZero     = errorsWithData.NewErrorWithData_params[struct{}](ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0")
+	ErrCannotDeserializeXYAllZero, _  = errorsWithData.NewErrorWithData_any_params(ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates X==Y==0", errorsWithData.PanicOnAllMistakes)
 )

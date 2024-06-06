@@ -12,7 +12,7 @@ import (
 
 // This file contains common code that is often needed to modify errors. This will be moved to internal utils at some point, I guess.
 
-// UnexptectEOF turns an (error wrapping an) io.EOF error into an io.UnexpectedEOF or an error wrapping io.UnexpectedEOF.
+// UnexpectEOF turns an (error wrapping an) io.EOF error into an io.UnexpectedEOF or an error wrapping io.UnexpectedEOF.
 // io.UnexpectedEOF is commonly used by the standard library to indicate an EOF when reading multiple bytes from a stream and there was an EOF in the middle of reading.
 // By contrast, io.EOF is returned when there is an EOF at the beginning.
 //
@@ -23,7 +23,7 @@ func UnexpectEOF(errPtr *error) {
 	if errors.Is(*errPtr, io.EOF) {
 		m := errorsWithData.GetData_map(*errPtr)
 		if len(m) > 0 {
-			*errPtr = errorsWithData.NewErrorWithData_any_map(io.ErrUnexpectedEOF, "", m)
+			*errPtr, _ = errorsWithData.NewErrorWithData_any_map(io.ErrUnexpectedEOF, "", m, errorsWithData.PanicOnAllMistakes)
 		} else {
 			*errPtr = io.ErrUnexpectedEOF
 		}
@@ -34,6 +34,6 @@ func UnexpectEOF(errPtr *error) {
 func UnexpectEOF2[StructType any](errPtr *errorsWithData.ErrorWithData[StructType]) {
 	if errors.Is(*errPtr, io.EOF) {
 		m := errorsWithData.GetData_map(*errPtr)
-		*errPtr = errorsWithData.NewErrorWithData_map[StructType](io.ErrUnexpectedEOF, "", m)
+		*errPtr, _ = errorsWithData.NewErrorWithData_map[StructType](io.ErrUnexpectedEOF, "", m, errorsWithData.PanicOnAllMistakes)
 	}
 }
