@@ -429,7 +429,7 @@ func parseConditionString(conditionString string) (variable string, conditionTyp
 		}
 
 		// check if before equals one of `m`, `params`, `map`, `parameters`
-		if utils.ElementInList(before, conditionMapSelectors[:]) {
+		if utils.ElementInList(before, mapSelectors[:]) {
 			if equalFound {
 				conditionType = conditionType_EmptyMap
 			} else {

@@ -288,7 +288,7 @@ func TestJoin(t *testing.T) {
 
 func TestJoinedErrorValidation(t *testing.T) {
 	// test some subtleties of Join
-	err1, err := NewErrorWithData_any_params(nil, "BAR$!m>0{${X}}")
+	err1, err := NewErrorWithData_any_params(nil, "BAR$!m!=0{${X}}")
 	testutils.FatalUnless(t, err == nil, "%v", err)
 	testutils.FatalUnless(t, err1.Error() == "BAR", "%v", err1.Error())
 	testutils.FatalUnless(t, err1.ValidateError_Final() == nil, "%v", err1.ValidateError_Final())

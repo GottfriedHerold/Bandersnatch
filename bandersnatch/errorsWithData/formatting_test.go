@@ -346,7 +346,7 @@ func TestMisparses(t *testing.T) {
 
 	// check correct tail handling
 
-	test_misparse_case("%!m>0{DONT DISPLAY} $w $!cond{%w $%} TAIL %w $!m>0{%w}", false, false)
+	test_misparse_case("%! m!=0{DONT DISPLAY} $w $!cond{%w $%} TAIL %w $! m!=0{%w}", false, false)
 
 	// unexpected tokens in list mode
 	test_misparse_case("{", false, false)
@@ -546,10 +546,9 @@ func TestMisparses(t *testing.T) {
 // themselves, because that would lead to ambiguity.
 
 func TestValidVariableName(t *testing.T) {
-	for _, special := range validMapSelectors {
+	for _, special := range mapSelectors {
 		testutils.FatalUnless(t, len(special) > 0, "validMapSelectors contains empty string")
 		testutils.FatalUnless(t, IsExportedIdentifier(special) == false, "special variable name %v considered a valid variable name (causing ambiguity)", special)
-		testutils.FatalUnless(t, special[0] == specialVariableNameIndicator, "special variable name %v does not start with %v", special, string(specialVariableNameIndicator))
 	}
 }
 
@@ -634,14 +633,15 @@ func TestHandleSyntaxConditions(t *testing.T) {
 	testcase("%v{!Params}", false)
 	testcase("%v{!M}", false)
 	testcase("%v{!X}", false)
-	testcase("%v{!m}", true)
-	testcase("%v{!params}", true)
+	testcase("%v{m}", true)
+	testcase("%v{params}", true)
 
 	testcase("$v{!Params}", false)
 	testcase("$v{!M}", false)
 	testcase("$v{!X}", false)
-	testcase("$v{!m}", true)
-	testcase("$v{!params}", true)
+	testcase("$v{m}", true)
+	testcase("$v{params}", true)
+	testcase("$v{pa rams}", false)
 
 	testcase(`$w{1}`, true)
 	testcase(`%w{1}`, true)
@@ -651,6 +651,7 @@ func TestHandleSyntaxConditions(t *testing.T) {
 	testcase(`%! Name {}`, true)
 	testcase(`$!Name{}`, true)
 	testcase(`%!!Name{}`, true)
+	testcase(`%!!!Name{}`, false)
 	testcase(`$! ! Name {}`, true)
 	testcase(`%! Name != 0 {}`, true)
 	testcase(`$!Name!= 0{}`, true)
@@ -671,6 +672,7 @@ func TestHandleSyntaxConditions(t *testing.T) {
 	testcase(`%! =={}`, false)
 	testcase(`%! !={}`, false)
 	testcase(`%! {}`, false)
+
 }
 
 func TestVerifyParameters(t *testing.T) {
@@ -765,7 +767,7 @@ func TestVerifyParameters(t *testing.T) {
 	testSyntaxCheck("", true)
 
 	testSyntaxCheck("abc", true)
-	testSyntaxCheck("abc%w$w%!m=0{Foo}", true)
+	testSyntaxCheck("abc%w$w%! m==0{Foo}", true)
 	testSyntaxCheck("abc%w$w%!n=0{Foo}", false)
 
 	testSyntaxCheck(`abc%\%{V}`, false)
@@ -776,12 +778,12 @@ func TestVerifyParameters(t *testing.T) {
 	testSyntaxCheck(`abc%fmt{V}`, true)
 	testSyntaxCheck(`abc$fmt{v}`, false)
 	testSyntaxCheck(`abc%fmt{v}`, false)
-	testSyntaxCheck(`abc$fmt{!map}`, true)
-	testSyntaxCheck(`abc%fmt{!params}`, true)
+	testSyntaxCheck(`abc$fmt{map}`, true)
+	testSyntaxCheck(`abc%fmt{params}`, true)
 	testSyntaxCheck(`abc%v{Foo.Bar}`, false)
 
-	testSyntaxCheck("%!m>0{Foo}", true)
-	testSyntaxCheck("$!m>0{Foo}", true)
+	testSyntaxCheck("%!m!=0{Foo}", true)
+	testSyntaxCheck("$!m!=0{Foo}", true)
 
 	testVerifyParametersDirect("a%wb", emptyMap, nil, false)
 	testVerifyParametersDirect("a%wb", emptyMap, baseError, true)
@@ -811,42 +813,42 @@ func TestVerifyParameters(t *testing.T) {
 	testVerifyParametersDirect("${Direct}", p_direct, nil, true)
 	testVerifyParametersDirect("${Passed}", p_direct, nil, true)
 
-	testSyntaxCheck("%!m>0{%{NonExistent}}1", true)
-	testVerifyParametersDirect("%!m>0{%{NonExistent}}2", emptyMap, nil, true)
-	testVerifyParametersDirect("%!m>0{%{NonExistent}}3", p_direct, nil, false)
+	testSyntaxCheck("%! m!=0{%{NonExistent}}1", true)
+	testVerifyParametersDirect("%!m!=0{%{NonExistent}}2", emptyMap, nil, true)
+	testVerifyParametersDirect("%!m!=0{%{NonExistent}}3", p_direct, nil, false)
 
-	testSyntaxCheck("%!m=0{%{NonExistent}}4", true)
-	testVerifyParametersDirect("%!m=0{%{NonExistent}}5", emptyMap, nil, false)
-	testVerifyParametersDirect("%!m=0{%{NonExistent}}6", p_direct, nil, true)
+	testSyntaxCheck("%!m==0{%{NonExistent}}4", true)
+	testVerifyParametersDirect("%!m==0{%{NonExistent}}5", emptyMap, nil, false)
+	testVerifyParametersDirect("%!m==0{%{NonExistent}}6", p_direct, nil, true)
 
-	testSyntaxCheck("$!m>0{%{NonExistent}}7", true)
-	testVerifyParametersDirect("$!m>0{%{NonExistent}}8", emptyMap, nil, false)
-	testVerifyParametersDirect("$!m>0{%{NonExistent}}9", p_direct, nil, false)
+	testSyntaxCheck("$!m!=0{%{NonExistent}}7", true)
+	testVerifyParametersDirect("$!m!=0{%{NonExistent}}8", emptyMap, nil, false)
+	testVerifyParametersDirect("$!m!=0{%{NonExistent}}9", p_direct, nil, false)
 
-	testSyntaxCheck("$!m=0{%{NonExistent}}10", true)
-	testVerifyParametersDirect("$!m=0{%{NonExistent}}11", emptyMap, nil, false)
-	testVerifyParametersDirect("$!m=0{%{NonExistent}}12", p_direct, nil, false)
+	testSyntaxCheck("$! m==0{%{NonExistent}}10", true)
+	testVerifyParametersDirect("$! m==0{%{NonExistent}}11", emptyMap, nil, false)
+	testVerifyParametersDirect("$! m==0{%{NonExistent}}12", p_direct, nil, false)
 
-	testSyntaxCheck("%!m>0{%{Direct}}13", true)
-	testVerifyParametersDirect("%!m>0{%{Direct}}14", emptyMap, nil, true)
-	testVerifyParametersDirect("%!m>0{%{Direct}}15", p_direct, nil, true)
+	testSyntaxCheck("%! m!=0{%{Direct}}13", true)
+	testVerifyParametersDirect("%! m!=0{%{Direct}}14", emptyMap, nil, true)
+	testVerifyParametersDirect("%! m!=0{%{Direct}}15", p_direct, nil, true)
 
-	testSyntaxCheck("%!m=0{%{Direct}}16", true)
-	testVerifyParametersDirect("%!m=0{%{Direct}}17", emptyMap, nil, false)
-	testVerifyParametersDirect("%!m=0{%{Direct}}18", p_direct, nil, true)
+	testSyntaxCheck("%! m==0{%{Direct}}16", true)
+	testVerifyParametersDirect("%! m==0{%{Direct}}17", emptyMap, nil, false)
+	testVerifyParametersDirect("%! m==0{%{Direct}}18", p_direct, nil, true)
 
-	testSyntaxCheck("$!m>0{%{Direct}}19", true)
-	testVerifyParametersDirect("$!m>0{%{Direct}}20", emptyMap, nil, false)
-	testVerifyParametersDirect("$!m>0{%{Direct}}21", p_direct, nil, true)
+	testSyntaxCheck("$! m!=0{%{Direct}}19", true)
+	testVerifyParametersDirect("$! m!=0{%{Direct}}20", emptyMap, nil, false)
+	testVerifyParametersDirect("$! m!=0{%{Direct}}21", p_direct, nil, true)
 
-	testSyntaxCheck("$!m=0{%{Direct}}22", true)
-	testVerifyParametersDirect("$!m=0{%{Direct}}23", emptyMap, nil, false)
-	testVerifyParametersDirect("$!m=0{%{Direct}}24", p_direct, nil, true)
+	testSyntaxCheck("$! m==0{%{Direct}}22", true)
+	testVerifyParametersDirect("$! m==0{%{Direct}}23", emptyMap, nil, false)
+	testVerifyParametersDirect("$! m==0{%{Direct}}24", p_direct, nil, true)
 
-	testVerifyParametersPassed("$!m=0{%{NonExistent}}25", p_direct, p_passed, nil, true)
-	testVerifyParametersPassed("$!m=0{%{NonExistent}}26", p_direct, emptyMap, nil, false)
-	testVerifyParametersPassed("$!m>0{%{NonExistent}}27", p_direct, p_passed, nil, false)
-	testVerifyParametersPassed("$!m>0{%{NonExistent}}28", p_direct, emptyMap, nil, true)
+	testVerifyParametersPassed("$! m==0{%{NonExistent}}25", p_direct, p_passed, nil, true)
+	testVerifyParametersPassed("$! m==0{%{NonExistent}}26", p_direct, emptyMap, nil, false)
+	testVerifyParametersPassed("$! m!=0{%{NonExistent}}27", p_direct, p_passed, nil, false)
+	testVerifyParametersPassed("$! m!=0{%{NonExistent}}28", p_direct, emptyMap, nil, true)
 
 	// wrongBase1 is an error satisfying ErrorInterpolater whose Validation routines always output an error
 	var wrongBase1 *dummy_interpolatableError = &dummy_interpolatableError{error: errors.New("Base1")}
@@ -886,15 +888,15 @@ func TestVerifyParameters(t *testing.T) {
 	testVerifyParametersPassed("$w FOO7", emptyMap, emptyMap, wrongBase2, false)
 	testVerifyParametersPassed("$w FOO8", emptyMap, GoodMap, wrongBase2, true)
 
-	testVerifyParametersDirect("%!m=0{%w}", emptyMap, wrongBase1, false)
-	testVerifyParametersDirect("%!m>0{%w}", emptyMap, wrongBase1, true)
-	testVerifyParametersDirect("$!m=0{%w}", emptyMap, wrongBase1, false)
-	testVerifyParametersDirect("$!m>0{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("%! m==0{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("%! m!=0{%w}", emptyMap, wrongBase1, true)
+	testVerifyParametersDirect("$! m==0{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("$! m!=0{%w}", emptyMap, wrongBase1, false)
 
-	testVerifyParametersPassed("%!m=0{%w}", emptyMap, emptyMap, wrongBase1, false)
-	testVerifyParametersPassed("%!m>0{%w}", emptyMap, emptyMap, wrongBase1, true)
-	testVerifyParametersPassed("$!m=0{%w}", emptyMap, emptyMap, wrongBase1, false)
-	testVerifyParametersPassed("$!m>0{%w}", emptyMap, emptyMap, wrongBase1, true)
+	testVerifyParametersPassed("%! m==0{%w}", emptyMap, emptyMap, wrongBase1, false)
+	testVerifyParametersPassed("%! m!=0{%w}", emptyMap, emptyMap, wrongBase1, true)
+	testVerifyParametersPassed("$! m==0{%w}", emptyMap, emptyMap, wrongBase1, false)
+	testVerifyParametersPassed("$! m!=0{%w}", emptyMap, emptyMap, wrongBase1, true)
 
 	//
 
@@ -1037,10 +1039,10 @@ func TestInterpolation(t *testing.T) {
 	testInterpolation("0b$b{ValHundreds}", "0b100000000") // binary output
 	testInterpolation("Refer to base: %w", "Refer to base: BASE")
 	testInterpolation("Derived: $w", "Derived: OK")
-	testInterpolation("%!m=0{Foo}", "")
-	testInterpolation("%!m>0{Bar}", "Bar")
-	testInterpolation("$!m=0{%{ValHundreds}}", "")
-	testInterpolation("$!m>0{%{ValHundreds}}", "128")
+	testInterpolation("%! m==0{Foo}", "")
+	testInterpolation("%! m!=0{Bar}", "Bar")
+	testInterpolation("$! m==0{%{ValHundreds}}", "")
+	testInterpolation("$! m!=0{%{ValHundreds}}", "128")
 
 	// change the base error now!
 	errPlain2 := errors.New("BASE2")
@@ -1099,15 +1101,15 @@ func TestPrintSomeOutput(t *testing.T) {
 
 	printInterpolationWrong("Fine5 %!", true)
 	printInterpolationWrong("Fine6 %!{", true)
-	printInterpolationWrong("Fine7 %!m=0", true)
-	printInterpolationWrong("Fine8 %!m=0{", true)
-	printInterpolationWrong("Fine9 %!m=0{Bar", true)
+	printInterpolationWrong("Fine7 %! m==0", true)
+	printInterpolationWrong("Fine8 %! m==0{", true)
+	printInterpolationWrong("Fine9 %! m==0{Bar", true)
 
 	printInterpolationWrong("Fine10 $!", true)
 	printInterpolationWrong("Fine11 $!{", true)
-	printInterpolationWrong("Fine12 $!m=0", true)
-	printInterpolationWrong("Fine13 $!m=0{", true)
-	printInterpolationWrong("Fine14 $!m=0{Bar", true)
+	printInterpolationWrong("Fine12 $! m==0", true)
+	printInterpolationWrong("Fine13 $! m==0{", true)
+	printInterpolationWrong("Fine14 $! m==0{Bar", true)
 
 	printInterpolationWrong("Fine15 %", true)
 	printInterpolationWrong("Fine16 %fmt", true)
@@ -1123,5 +1125,5 @@ func TestPrintSomeOutput(t *testing.T) {
 	printInterpolationWrong("Fine25 $fmt{Var", true)
 	printInterpolationWrong("Fine26 ${Var", true)
 
-	printInterpolationWrong("Fine27 %!m=0{Foo}}", true)
+	printInterpolationWrong("Fine27 %! m==0{Foo}}", true)
 }

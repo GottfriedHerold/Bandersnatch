@@ -51,9 +51,14 @@ import (
 
 // valid entries for Condition strings
 // var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
-var validMapSelectors [4]string = [4]string{"!m", "!map", "!parameters", "!params"}
-var conditionMapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
-var specialVariableNameIndicator byte = '!' // must be first byte of each validMapSelectors - entry. Note type is byte, not rune.
+// var validMapSelectors [4]string = [4]string{"!m", "!map", "!parameters", "!params"}
+// var specialVariableNameIndicator byte = '!' // must be first byte of each validMapSelectors - entry. Note type is byte, not rune.
+
+// special Strings used in conditions/variable names to select the parameter map itself rather than any given parameters.
+// Note that these are not be valid exported identifiers, so there is no ambiguity.
+var mapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
+
+const uniqueMapSelector string = "map" // handleSyntaxConditions normalizes each of the above to this
 
 // $w{#} or %w{#} outputs the lenth of the list output of base_error.Unwrap(), where Unwrap returns []error.
 const outputChildNumber string = "#"
@@ -208,17 +213,18 @@ func (abase *base_ast_fmt) handleSyntaxConditions() Mistake {
 
 	// Note: if we detect an invalid variable name, the actual format verb does not affect or appear in the output. This is considered OK.
 
-	if abase.variableName[0] == specialVariableNameIndicator {
-		if !utils.ElementInList(abase.variableName, validMapSelectors[:]) {
-			abase.mistakeString = fmt.Errorf(`<!Variable name %s in interpolation string starting with %s not recognized by the language>`, abase.variableName, string(specialVariableNameIndicator))
-			return fmt.Errorf(ErrorPrefix+"Variable name %s in interpolation string starting with %s is not recognized by the language", abase.variableName, string(specialVariableNameIndicator))
-		}
-	} else if !IsExportedIdentifier(abase.variableName) {
-		abase.mistakeString = fmt.Errorf(`<!Variable name %s not allowed by the language`, abase.variableName)
-		return fmt.Errorf(ErrorPrefix+"Variable name %s is not allowed by the language", abase.variableName)
+	if IsExportedIdentifier(abase.variableName) {
+		return nil
 	}
 
-	return nil
+	if utils.ElementInList(abase.variableName, mapSelectors[:]) {
+		abase.variableName = uniqueMapSelector // normalize to "map" to simplify case-distinctions down the line.
+		return nil
+	} else {
+		abase.mistakeString = fmt.Errorf(`<!Variable name %s in interpolation string is not recognized by the language>`, abase.variableName)
+		return fmt.Errorf(ErrorPrefix+"Variable name %s in interpolation string is not recognized by the language", abase.variableName)
+	}
+
 }
 
 // handleSyntaxConditions is used to post-process the ast after calling [make_ast]
@@ -381,6 +387,10 @@ func (a ast_string) VerifyParameters_passed(ParamMap, ParamMap, error) Mistake {
 // VerifyParameters_direct for %fmtVerb{variableName} checks whether the parameter is present.
 func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ error) (err Mistake) {
 
+	if a.variableName == uniqueMapSelector {
+		return nil
+	}
+
 	_, ok := parameters_direct[a.variableName]
 	if !ok {
 		return fmt.Errorf(ErrorPrefix+"Interpolations string contains variable name %s, which is not present in the error", a.variableName)
@@ -390,6 +400,10 @@ func (a ast_fmtPercent) VerifyParameters_direct(parameters_direct ParamMap, _ er
 
 // VerifyParameters_passed for %fmtVerb{variableName} checks whether the parameter is present.
 func (a ast_fmtPercent) VerifyParameters_passed(parameters_direct ParamMap, _ ParamMap, _ error) (err Mistake) {
+
+	if a.variableName == uniqueMapSelector {
+		return nil
+	}
 
 	// same as VerifyParameters_direct. We ignore the parameters_passed map
 	_, ok := parameters_direct[a.variableName]
@@ -408,6 +422,10 @@ func (a ast_fmtDollar) VerifyParameters_direct(_ ParamMap, _ error) Mistake {
 //
 // NOTE: we assume that parameters_passed is not nil. This is checked/handled at the root node.
 func (a ast_fmtDollar) VerifyParameters_passed(_ ParamMap, parameters_passed ParamMap, _ error) (err Mistake) {
+
+	if a.variableName == uniqueMapSelector {
+		return nil
+	}
 
 	_, ok := parameters_passed[a.variableName]
 	if !ok {
@@ -658,7 +676,7 @@ func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed
 // params determines where parameters are looked up (for presence, zero-ness or just checking their number).
 // variableName is the option variableName argument required for some types.
 //
-// If conditionType is conditionType_invalid, this function panics.
+// If conditionType is conditionType_Invalid, this function panics.
 func checkWhetherBranchIsTaken(conditionType int, params ParamMap, variableName string) (takeBranch bool) {
 	if conditionType == conditionType_Invalid {
 		panic("Cannot happen")
@@ -672,7 +690,7 @@ func checkWhetherBranchIsTaken(conditionType int, params ParamMap, variableName 
 	case conditionType_ParameterZero, conditionType_ParameterNonZero:
 		value, found := params[variableName]
 		if !found {
-			break
+			return false
 		}
 		var valueIsZero bool
 		if value == nil {
@@ -864,17 +882,14 @@ func (a *base_ast_fmt) interpolate_helper(parameters_relevant ParamMap, s *strin
 
 	var value any
 	var ok bool
-	if utils.ElementInList(a.variableName, validMapSelectors[:]) {
+	if a.variableName == uniqueMapSelector {
 		if parameters_relevant == nil {
 			value = make(ParamMap) // nil -> empty map. This should not happen, but better safe than sorry.
 		} else {
 			value = parameters_relevant
 		}
 		ok = true
-
 	} else {
-		// NOTE: [handleSyntaxConditions] has checked whether the variable name is a valid name for our language.
-		// This means that an invalid name can never be looked up in the parameters_relevant map.
 		value, ok = parameters_relevant[a.variableName]
 	}
 
