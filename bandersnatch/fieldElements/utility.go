@@ -34,13 +34,15 @@ func InitFieldElementFromString[FE any, FEPtr interface {
 	return
 }
 
+// Move to internal packages?
+
 // CreateRandomFieldElement_Unsafe creates a random field element
 //
 // NOTE: The randomness quality is *NOT* sufficient for cryptographic purposes, hence the "unsafe". This function is merely used for unit tests.
 // We do not even guarantee that it is close to uniform, reasonably random, or that the output sequence is preserved across library releases.
 // In fact, this function is only exported to facilitate cross-package tests and may be removed/made internal in future releases.
 //
-// NOTE2: Neither the value of the created field element nor the amount of randomness consumed depend on the field element type.
+// NOTE2: Neither the value of the created field element nor the amount of randomness consumed depend on the field element type passed as a generic parameter.
 // This is intentional and relied on in differential testing.
 func CreateRandomFieldElement_Unsafe[FE any, FEPtr interface {
 	*FE
@@ -53,7 +55,7 @@ func CreateRandomFieldElement_Unsafe[FE any, FEPtr interface {
 }
 
 // CreateNonZeroRandomFieldElement_Unsafe creates a random field element (that is non-zero)
-// Note that there is not really much difference in practice between this and CreateRandomFieldElement_Unsafe, since a random element is only
+// Note that there is not really much difference in practice between this and [CreateRandomFieldElement_Unsafe], since a random element is only
 // negligibly likely to be zero -- however, we do not really guarantee that the distribution is close to uniform, so this argument is not 100% valid.
 //
 // NOTE: The randomness quality is *NOT* sufficient for cryptographic purposes, hence the "unsafe". This function is merely used for unit tests.

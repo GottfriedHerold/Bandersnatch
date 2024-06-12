@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"math/bits"
+	"reflect"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
@@ -24,7 +25,7 @@ import (
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
 //
 // There are special-case methods [Serialize_Buffer] and [Serialize_Bytes] for the same functionality for writing to a [bytes.Buffer] and []byte.
-// (These are orders of magnitude faster because of the way interfaces in Go work and how they interact with escape analysis)
+// (These are orders of magnitude faster because of the way interfaces in Go work and how they interact with escape analysis.)
 func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
 	var errPlain error
@@ -33,36 +34,42 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 	bytesWritten, errPlain = output.Write(buf[:]) // Note: because output is an interface, this causes escape analysis to fail, so buf is heap-allocated.
 	if errPlain != nil {
-		err = errorsWithData.AddDataToError_struct(errPlain, errorconsts.NewIntermediateWriteErrorData(bytesWritten, 32))
+		// NOTE: These two calls to NewErrorWithData_struct could be consolidated for efficiency.
+		// The downside is that we would need to select %w vs. $w manually by checking errPlain's type and
+		// we could not use the NewIntermediateWriteErrorData convenience function.
+
+		err, _ = errorsWithData.NewErrorWithData_struct(errPlain, "", errorconsts.NewIntermediateWriteErrorData(bytesWritten, 32), errorsWithData.PanicOnAllMistakes)
+		// Note: We do not use %T{Writer} and put "Writer", output as parameter in the returned error.
+		// The reason is that output is not immutable and we cannot easily copy it. So we only provide information about the type.
+		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err,
+			ErrorPrefix+"call to Serialize with receiver Uint256 with value %v{Value} and io.Writer of type %v{WriterType} failed with error $w after writing %v{BytesWritten} bytes",
+			errorsWithData.PanicOnAllMistakes, "Value", *z, "WriterType", reflect.TypeOf(output))
 	}
 	return
 }
 
-// Serialize_Buffer performs the same functionality as Serialize, but with output of concrete type [*bytes.Buffer].
+// Serialize_Buffer performs the same functionality as [Serialize], but with output of concrete type [*bytes.Buffer].
 //
-// Due to known issues with Go's function API, this is an order of magnitude more efficient than the general version.
-// On failure, this method panics (because that's what [bytes.Buffer] does), so the return value is always (32, nil)
+// Due to known issues with Go's escape analysis, this is an order of magnitude more efficient than the general [Serialize].
+// On failure, this method panics (because that is what [bytes.Buffer] does), so the return value is always (32, nil)
 func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 
 	// bytes.Buffer's Write method is guaranteed to never return an error. It panics instead (if out-of-memory, e.g.)
 	// So we don't need to handle errors here.
-	// var errPlain error
 	bytesWritten, _ = output.Write(buf[:])
-	/*
-		if errPlain != nil {
-			err = errorsWithData.IncludeDataInError(errPlain, &bandersnatchErrors.WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != 32, BytesWritten: bytesWritten})
-		}
-	*/
 	return
 }
 
-// Serialize(output, byteOrder) serializes the receiver to output, which must hold enough space for at least 32 bytes.
+// TODO: Re-think panic on nil slice.
+
+// Serialize_Bytes performs the same functionality as [Serialize], but is special-cased for writing to a []byte.
+// Given (output, byteOrder), it serializes the receiver to output, which must have len(output) >= 32; note that we check output's length, not capacity.
 // byteOrder should be [BigEndian] or [LittleEndian] and refers to the ordering of bytes in the output.
 //
 // The return values are the actual number of bytes written (alywas 32 or 0) and a potential error.
-// This method panics if output==nil. If output does not have sufficient length, returns errors (possibly wrapping) [ErrEmptyByteSlice] or [ErrTooSmallByteSlice].
+// This method panics if output==nil. If output does not have sufficient length, returns errors wrapping [ErrEmptyByteSlice] or [ErrTooSmallByteSlice].
 // For consistency reasons with [Serialize], these errors wrap [io.EOF] respectively [io.UnexpectedEOF]
 func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
@@ -73,11 +80,11 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 			panic(ErrorPrefix + "called Serialize_Bytes with nil value for output slice")
 		}
 		if len(output) == 0 {
-			err = errNoWriteEOF
+			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errEmptyBytesSlice,
+				ErrorPrefix+"")
 
 		} else {
 			err = errNoWriteUnexpectedEOF
-
 		}
 		return
 	}

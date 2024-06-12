@@ -99,7 +99,7 @@ func (fb *FaultyBuffer) Reset() {
 	fb.alreadyWritten = 0
 }
 
-// NewFaultyBuffer creates a new (pointer to) a [FaultyBuffer] with the given fault threshold and non-nil designated error.
+// NewFaultyBuffer creates a new (pointer to a) [FaultyBuffer] with the given fault threshold and non-nil designated error.
 //
 // The result behaves similar to a [bytes.Buffer], but after *either* reading or writing faultThreshold many bytes (separate counters)
 // we return the designated error as an IO error. This is intended to test error handling.

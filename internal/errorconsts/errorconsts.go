@@ -19,17 +19,27 @@ type ReadErrorData struct {
 	BytesRead   int  // BytesRead indicates the number of bytes that were read by the operation that *caused* the error.
 	// NOTE: All Deserialization functions accurately return the number of read bytes directly.
 	// The value BytesRead reported in the error may differ, because it is the numbe of bytes read in the function that *caused* the error (which may be a sub-call).
-	ActuallyRead []byte // this may contain information about data that was read when the error occured.
-	// It may be nil, is not guaranteed to be present (even if it would be meaningful) and may be from a sub-call.
+	ActuallyRead []byte // this *may* contain information about data that was read when the error occured.
+	// It may be nil even if we actually read data (so it would be meaningful) and may be from a sub-call.
 	// The reason is that we do not buffer the raw input data, so we cannot provide it in a lot of cases.
 	// It serves purely as a debugging aid.
 	IoError bool // IoError indicates whether the error comes from math or from io.
 }
 
+// NewIntermediateWriteErrorData returns a (newly allocated) *WriteErrorData that is appropriate for an IO error
+// where bytesWritten out of expectedToWrite many bytes were actually written in the failing operation.
+//
+// The returned [*WriteErrorData] has its PartialWriteFlag set iff 0 < bytesWritten < expectedToWrite. The IOError flag is always set to true.
+// We assert (but do not test) that bytesWritten and expectedToWrite are non-negative.
 func NewIntermediateWriteErrorData(bytesWritten int, expectedToWrite int) *WriteErrorData {
 	return &WriteErrorData{PartialWrite: bytesWritten != 0 && bytesWritten != expectedToWrite, BytesWritten: bytesWritten, IoError: true}
 }
 
+// NewIntermediateReadErrorData returns a (newly allocated) *ReadErrorData that is appropriate for an IO error
+// where bytesRead out of expectedToRead many bytes were read. actuallyRead is supposed to hold the actually read bytes or nil (see [ReadErrorData] for limitations)
+//
+// The returned [*ReadErrorData] has its ParialRead flag set iff bytesRead is neither 0 nor expectedToRead. The IOError flag is always true.
+// The ActuallyRead field is directly set to the passed actuallyRead (without deep-copying). The limitation of this data field still apply.
 func NewIntermediateReadErrorData(bytesRead int, expectedToRead int, actuallyRead []byte) *ReadErrorData {
 	return &ReadErrorData{PartialRead: bytesRead != 0 && bytesRead != expectedToRead, BytesRead: bytesRead, ActuallyRead: actuallyRead, IoError: true}
 }

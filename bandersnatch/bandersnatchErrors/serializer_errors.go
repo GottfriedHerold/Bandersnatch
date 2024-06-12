@@ -94,5 +94,5 @@ var (
 	ErrCannotSerializePointAtInfinity = errors.New("bandersnatch / point serialization: The selected serializer cannot serialize points at infinity")
 	ErrCannotSerializeNaP             = errors.New("bandersnatch / point serialization: cannot serialize NaP")
 	ErrCannotDeserializeNaP           = errors.New("bandersnatch / point deserialization: cannot deserialize coordinates corresponding to NaP")
-	ErrCannotDeserializeXYAllZero     = errorsWithData.NewErrorWithData_params[struct{}](ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0")
+	ErrCannotDeserializeXYAllZero, _  = errorsWithData.NewErrorWithData_any_params(ErrCannotDeserializeNaP, "bandersnatch / point deserialization: trying to deserialize a point with coordinates x==y==0", errorsWithData.PanicOnAllMistakes)
 )

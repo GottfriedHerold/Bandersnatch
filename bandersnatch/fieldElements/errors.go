@@ -18,15 +18,24 @@ import (
 // ErrorPrefix is the prefix used by all error message strings originating from this package.
 const ErrorPrefix = "bandersnatch / field element: "
 
+/*
+var errNoWriteEOF, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
+	&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+	errorsWithData.PanicOnAllMistakes)
+*/
+
 var (
-	errNoWriteEOF, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
+	errNoWriteUnexpectedEOF, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true}, errorsWithData.PanicOnAllMistakes)
+	emptySliceForByteSer, _    = errorsWithData.NewErrorWithData_struct(io.EOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
+	tooSmallSliceForByteSer, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
+)
+
+var (
+	errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
 		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
 		errorsWithData.PanicOnAllMistakes)
-	ErrEmptyByteSlice       = errNoWriteEOF
-	errNoWriteUnexpectedEOF = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true})
-	ErrTooSmallByteSlice    = errNoWriteUnexpectedEOF
-	emptySliceForByteSer    = errorsWithData.AddDataToError_struct(io.EOF, &errorconsts.NoWriteAttempt)
-	tooSmallSliceForByteSer = errorsWithData.AddDataToError_struct(io.ErrUnexpectedEOF, &errorconsts.NoWriteAttempt)
+	ErrEmptyByteSlice                                   = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
+	ErrTooSmallByteSlice errorconsts.SerializationError = errNoWriteUnexpectedEOF // TODO: Doc
 )
 
 func init() {
@@ -40,9 +49,9 @@ var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
 // These are the errors that can occur during (de)serialization.
 var (
-	errPrefixDoesNotFit                   = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large", &errorconsts.NoWriteAttempt)
+	errPrefixDoesNotFit, _                = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 	ErrPrefixDoesNotFit                   = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
-	errPrefixLengthInvalid                = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"in FieldElement deserializitation, an invalid prefix length > 8 was requested", &errorconsts.NoWriteAttempt)
+	errPrefixLengthInvalid, _             = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"in FieldElement deserializitation, an invalid prefix length > 8 was requested", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 	ErrPrefixLengthInvalid                = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
 	ErrPrefixMismatch               error = errors.New(ErrorPrefix + "during deserialization, the read prefix did not match the expected one")
 	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
@@ -102,5 +111,7 @@ func GenerateMultiDivisionByZeroError(fieldElements []*bsFieldElement_Montgomery
 		errorString = fmt.Sprintf("%v\nThere were %%v{NumberOfZeroIndices} many arguments that were zero. The first ten were at indices (starting from 0) %v", prefixForError, errorData.ZeroIndices[0:10])
 	}
 
-	return errorsWithData.NewErrorWithData_struct(ErrDivisionByZero, errorString, &errorData)
+	ret, _ := errorsWithData.NewErrorWithData_struct(ErrDivisionByZero, errorString, &errorData)
+
+	return ret
 }

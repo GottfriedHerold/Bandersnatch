@@ -55,17 +55,18 @@ type FieldElementInterface_common interface {
 	// We do not guarantee that implementations of FieldElement are comparable. Indeed, our main implementation is *not* a comparable type, to
 	// prevent users from shooting themselves in the foot due to non-uniqueness of the internal representation.
 	// This prevents certain usages of FieldElement (that would not work as intended anyway without a lot of extra care) such a using the as keys to a map.
-	// A workaround for this is the following:
+	// Two workarounds for this are the following: firstly, you can use ToBytes as follows:
 	//
-	//   What we really wanted is `const LEN = x.BytesLenght()`, but Go lacks a way to return consts (or what constexpr does in C++).
-	//   So we instead set the constant to 4 and check that 4 is right.
+	//   // What we really wanted is `const LEN = x.BytesLenght()`, but Go lacks a way to return consts (or what constexpr does in C++).
+	//   // So we instead set the constant to 4 and check that 4 is right.
 	//   Verify that x.BytesLength() == 4 // needs to be done once. Unfortunately, we cannot just retrieve the value generically and use it, because it needs to be const.
 	//   var buf [4]uint64 // need to use an array rather than a slice, hence the need for a compile-time constant here.
 	//   x.Normalize(),
 	//   x.ToBytes(buf[:])
 	//
 	// buf can now be used as comparable replacement for x such as a key to a map (with key type [4]uint64).
-	// (We assume here that )
+	// (Care still needs to be taken to account for the fact that the output of ToBytes is not guaranteed to be stable across version, e.g. when serializing such a map)
+	//
 	// Alternatively, you can use ToUint256 and use e.g. a map keyed by Uint256.
 	// The latter approach is simpler to use (hence preferable if performance is not important),
 	// but considerably less performant, due to the fact that conversion to Uint256 may need to undo a potential Montgomery representation.
@@ -137,9 +138,9 @@ type FieldElementInterface[FieldElementPointer any] interface {
 // temporary interface, may be changed.
 // NOTE: We have free functions as well that do essentially the same.
 type FieldElementSerializeMethods interface {
-	Serialize(io.Writer, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
-	Deserialize(io.Reader, FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
-	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
-	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (int, common.PrefixBits, bandersnatchErrors.DeserializationError)
-	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+	Serialize(io.Writer, FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	Deserialize(io.Reader, FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError)
+	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError)
 }

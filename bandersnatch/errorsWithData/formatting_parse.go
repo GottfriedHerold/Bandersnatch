@@ -442,6 +442,17 @@ const (
 	astConditionValidity_OUTPUT_CONDITION = 2 // Interpolate outputs the condition string (typically followed by the children, if the above was set as well)
 )
 
+// potential values for [base_ast_condition.conditionType]
+const (
+	conditionType_Invalid          int = iota // invalid condition
+	conditionType_EmptyMap                    // m == 0 condition
+	conditionType_NonEmptyMap                 // m != 0 condition
+	conditionType_ParameterZero               // Variable == 0 conditon
+	conditionType_ParameterNonZero            // Variable != 0 condition
+	conditionType_ParameterPresent            // Variable present
+	conditionType_ParameterMissing            // Variable not present
+)
+
 // base_ast_condition is a helper type for joint functionality of [ast_condPercent] and [ast_condDollar] (via struct embedding)
 type base_ast_condition struct {
 	condition string // condition string that controls under what condition child is interpolated.
@@ -457,6 +468,10 @@ type base_ast_condition struct {
 	invalidParse uint
 
 	// Note: we store invalidParse rather than validParse, because this way, the zero value makes newly generated instances valid.
+
+	// These are set by post-processing via handleSyntaxCondition
+	conditionType int    // type of condition (one of the conditionType_Foo constants)
+	variableName  string // for some condition types that refer to a parameter name
 }
 
 // set_condition sets the condition string for an [ast_condPercent] or [ast_condDollar].
@@ -481,6 +496,7 @@ func (a *base_ast_condition) get_condition() string {
 // to ensure that the cause of parsing mistakes is actually displayed.
 func (a *base_ast_condition) make_invalid(flags uint) {
 	a.invalidParse |= flags
+	a.conditionType = conditionType_Invalid
 }
 
 // is_valid returns whether the node of type [ast_condPercent] or [ast_condDollar] is valid

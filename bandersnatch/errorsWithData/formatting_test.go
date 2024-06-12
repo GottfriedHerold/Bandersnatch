@@ -624,10 +624,10 @@ func TestHandleSyntaxConditions(t *testing.T) {
 	testcase("foo %{bar},$x{baz}", false)
 	testcase("foo %{A.B}", false)
 	testcase("%!cond{}", false)
-	testcase("%!m=0{%!m>0{}}", true)
+	testcase("%!m==0{%! m !=0 {}}", true)
 	testcase("%x%%t{Bar}", false)
 	testcase("$!cond{}", false)
-	testcase("$!m=0{$!m>0{}}", true)
+	testcase("$! m == 0 {$!m!=0{}}", true)
 	testcase("$x%%t{Bar}", false)
 	testcase("sad %w $w %v{X}", true)
 
@@ -647,6 +647,30 @@ func TestHandleSyntaxConditions(t *testing.T) {
 	testcase(`%w{1}`, true)
 	testcase(`$w{#}`, true)
 	testcase(`%w{#}`, true)
+
+	testcase(`%! Name {}`, true)
+	testcase(`$!Name{}`, true)
+	testcase(`%!!Name{}`, true)
+	testcase(`$! ! Name {}`, true)
+	testcase(`%! Name != 0 {}`, true)
+	testcase(`$!Name!= 0{}`, true)
+	testcase(`%!Name==0{}`, true)
+	testcase(`$! Name  ==  0  {}`, true)
+
+	testcase(`%!name{}`, false)
+	testcase(`%!!name{}`, false)
+	testcase(`$!name{}`, false)
+	testcase(`$!!name{}`, false)
+	testcase(`%!name==0{}`, false)
+	testcase(`%!name!=0{}`, false)
+	testcase(`$!name==0{}`, false)
+	testcase(`$!name!=0{}`, false)
+
+	testcase(`%! Name == == {}`, false)
+	testcase(`%! Name == 1{}`, false)
+	testcase(`%! =={}`, false)
+	testcase(`%! !={}`, false)
+	testcase(`%! {}`, false)
 }
 
 func TestVerifyParameters(t *testing.T) {

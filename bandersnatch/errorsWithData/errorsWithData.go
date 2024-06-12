@@ -222,6 +222,7 @@ package errorsWithData
 import (
 	"errors"
 	"go/token"
+	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
@@ -244,13 +245,13 @@ type ParamMap = map[string]any
 type Mistake = error
 
 // ConditionNonEmptyMap resp. ConditionEmptyMap are the special strings that (together with %! or $!) triggers conditional evaluation in our interpolation string grammar, depending on whether
-// the parameter map is empty or not.
+// the parameter map is empty or not. Note that conditional evaluation strings ignore whitespace.
 //
-// For example, `%!m>0{Foo has value %x{Foo}}` will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty, but display nothing for an
+// For example, `%! m != 0{Foo has value %x{Foo}}` will evaluate to "Foo has value "+<some hex string representation of Foo> if the parameter map is non-empty, but display nothing for an
 // empty parameter map.
 const (
-	ConditionNonEmptyMap = "m>0" // using %!m>0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non-empty
-	ConditionEmptyMap    = "m=0" // using %!m=0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is empty
+	ConditionNonEmptyMap = "m!=0" // using %!m!=0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is non-empty
+	ConditionEmptyMap    = "m==0" // using %!m==0{sth} in an interpolation string will only evaluate 'sth' if the parameter map is empty
 )
 
 /////////////
@@ -398,7 +399,75 @@ const ErrorPrefix = "bandersnatch / error handling: "
 
 // ValidConditionString checks whether the given condition string (i.e. what follows after %! or $!) is actually recognized by our language.
 func ValidConditionString(conditionString string) bool {
-	return utils.ElementInList(conditionString, validConditions[:])
+	_, condType := parseConditionString(conditionString)
+	return condType != conditionType_Invalid
+}
+
+func parseConditionString(conditionString string) (variable string, conditionType int) {
+	var before, after string
+	var equalFound bool
+	var inequalFound bool
+
+	// split conditionString according to either `==` or `!=`
+	before, after, equalFound = strings.Cut(conditionString, `==`)
+	if !equalFound {
+		before, after, inequalFound = strings.Cut(conditionString, `!=`)
+	}
+
+	if equalFound || inequalFound {
+		// ignore whitespace
+		//  - at the beginning,
+		//  - before == or !=
+		//  - after == or !=
+		//  - at the end
+		before = strings.TrimSpace(before)
+		after = strings.TrimSpace(after)
+
+		if after != `0` {
+			conditionType = conditionType_Invalid // No-Op, but included for explicitness
+			return
+		}
+
+		// check if before equals one of `m`, `params`, `map`, `parameters`
+		if utils.ElementInList(before, conditionMapSelectors[:]) {
+			if equalFound {
+				conditionType = conditionType_EmptyMap
+			} else {
+				conditionType = conditionType_NonEmptyMap
+			}
+			return
+		}
+
+		if !IsExportedIdentifier(before) {
+			conditionType = conditionType_Invalid
+			return
+		}
+
+		variable = before
+		if equalFound {
+			conditionType = conditionType_ParameterZero
+		} else {
+			conditionType = conditionType_ParameterNonZero
+		}
+		return
+	} else {
+		conditionString = strings.TrimSpace(conditionString)
+		conditionString, negate := strings.CutPrefix(conditionString, `!`)
+		if negate {
+			conditionString = strings.TrimSpace(conditionString)
+		}
+		if !IsExportedIdentifier(conditionString) {
+			conditionType = conditionType_Invalid
+			return
+		}
+		variable = conditionString
+		if negate {
+			conditionType = conditionType_ParameterMissing
+		} else {
+			conditionType = conditionType_ParameterPresent
+		}
+		return
+	}
 }
 
 // IsExportedIdentifier returns whether the given string (assumed to be valid utf8) denotes a valid name of an exported Go identifier.

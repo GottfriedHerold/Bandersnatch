@@ -2,6 +2,7 @@ package errorsWithData
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
@@ -49,8 +50,9 @@ import (
 // Generally, [fmt] does a good job here, but detecting such mistakes beforehand is out of scope of this package.
 
 // valid entries for Condition strings
-var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
+// var validConditions [2]string = [2]string{ConditionEmptyMap, ConditionNonEmptyMap}
 var validMapSelectors [4]string = [4]string{"!m", "!map", "!parameters", "!params"}
+var conditionMapSelectors [4]string = [4]string{"m", "map", "parameters", "params"}
 var specialVariableNameIndicator byte = '!' // must be first byte of each validMapSelectors - entry. Note type is byte, not rune.
 
 // $w{#} or %w{#} outputs the lenth of the list output of base_error.Unwrap(), where Unwrap returns []error.
@@ -194,8 +196,9 @@ func (abase *base_ast_fmt) handleSyntaxConditions() Mistake {
 		panic("Cannot happen")
 	}
 
+	// Cannot happen: This is caught by the parser and replaced by `v`
 	if abase.variableName == "" {
-		panic(ErrorPrefix + "Uninitialized variable name") // ought to have been caught by the parser and replaced by `v`
+		panic(ErrorPrefix + "Uninitialized variable name")
 	}
 
 	if strings.ContainsRune(abase.formatString, '%') {
@@ -224,8 +227,11 @@ func (abase *base_ast_fmt) handleSyntaxConditions() Mistake {
 // and ensures that mistakes are handled correctly later.
 //
 // For ast_cond, we just flag the conditional as invalid on failure.
+// We also drop all whitespace if there is no error.
 func (abase *base_ast_condition) handleSyntaxConditions() Mistake {
-	if !ValidConditionString(abase.condition) {
+	abase.variableName, abase.conditionType = parseConditionString(abase.condition)
+
+	if abase.conditionType == conditionType_Invalid {
 		// This causes Interpolate to display children unconditionally && display a diagnostic message containing the condition string.
 		abase.make_invalid(astConditionValidity_OUTPUT_CHILD | astConditionValidity_OUTPUT_CONDITION)
 		return fmt.Errorf(ErrorPrefix+"invalid condition string: %s", abase.condition)
@@ -646,101 +652,104 @@ func (a ast_parentDollarMulti) VerifyParameters_passed(_ ParamMap, params_passed
 	}
 }
 
+// checkWhetherBranchIsTaken checks the condition determined by conditionType, params and variableName is taken.
+//
+// conditionType must be one of the enum-style constants conditionType_Foo other than conditionType_Invalid.
+// params determines where parameters are looked up (for presence, zero-ness or just checking their number).
+// variableName is the option variableName argument required for some types.
+//
+// If conditionType is conditionType_invalid, this function panics.
+func checkWhetherBranchIsTaken(conditionType int, params ParamMap, variableName string) (takeBranch bool) {
+	if conditionType == conditionType_Invalid {
+		panic("Cannot happen")
+	}
+
+	switch conditionType {
+	case conditionType_EmptyMap:
+		takeBranch = len(params) == 0
+	case conditionType_NonEmptyMap:
+		takeBranch = len(params) != 0
+	case conditionType_ParameterZero, conditionType_ParameterNonZero:
+		value, found := params[variableName]
+		if !found {
+			break
+		}
+		var valueIsZero bool
+		if value == nil {
+			valueIsZero = true
+		} else {
+			valueIsZero = reflect.ValueOf(value).IsZero()
+		}
+		takeBranch = valueIsZero == (conditionType == conditionType_ParameterZero)
+	case conditionType_ParameterPresent:
+		_, takeBranch = params[variableName]
+	case conditionType_ParameterMissing:
+		_, takeBranch = params[variableName]
+		takeBranch = !takeBranch
+
+	default: // including conditionType_Invalid
+		panic("Cannot happen")
+	}
+	return
+}
+
 // VerifyParameters_direct for %condition{Subtree} will conditionally check the subtree if the condition holds
 func (a ast_condPercent) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err Mistake) {
 	if !a.is_valid() {
 		panic("Cannot happen") // caught by root node. Anything that would set this also sets an mistake in the root node.
 	}
 
-	if !utils.ElementInList(a.condition, validConditions[:]) {
-		panic(fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)) // cannot happen, because it was caught by handleSyntaxConditions
+	// For condPercent, we have all information that we need, so we can actually evaluate the condtion.
+	// We only check the subtree if the condition holds.
+	var takeBranch bool = checkWhetherBranchIsTaken(a.conditionType, parameters_direct, a.variableName)
+
+	if takeBranch {
+		return a.child.VerifyParameters_direct(parameters_direct, baseError)
+	} else {
+		return nil
 	}
 
-	// We actually evalutate the condition here and only check the subtree if the condition holds.
-	switch a.condition {
-	case ConditionEmptyMap:
-		if len(parameters_direct) == 0 {
-			return a.child.VerifyParameters_direct(parameters_direct, baseError)
-		} else {
-			return nil
-		}
-
-	case ConditionNonEmptyMap:
-		if len(parameters_direct) == 0 {
-			return nil
-		} else {
-			return a.child.VerifyParameters_direct(parameters_direct, baseError)
-		}
-	default:
-		panic(ErrorPrefix + "Unsupported condition") // cannot happen
-	}
 }
 
 // VerifyParamters_passed for %condition{Subtree} will conditionally check the subtree if the condition holds.
 func (a ast_condPercent) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err Mistake) {
 	// same as VerifyParameters_direct, except for calling the approprite VerifyParamters_passed on the subtree
+
 	if !a.is_valid() {
-		panic("Cannot happen") // caught by root node. Anything that would set this also sets an error in the root node.
+		panic("Cannot happen") // caught by root node. Anything that would set this also sets an mistake in the root node.
 	}
 
-	if !utils.ElementInList(a.condition, validConditions[:]) {
-		panic(fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)) // cannot happen, because it was caught by handleSyntaxConditions
-	}
+	// For condPercent, we have all information that we need, so we can actually evaluate the condtion.
+	// We only check the subtree if the condition holds.
+	var takeBranch bool = checkWhetherBranchIsTaken(a.conditionType, parameters_direct, a.variableName)
 
-	// We actually evalutate the condition here and only check the subtree if the condition holds.
-	switch a.condition {
-	case ConditionEmptyMap:
-		if len(parameters_direct) == 0 {
-			return a.child.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
-		} else {
-			return nil
-		}
-	case ConditionNonEmptyMap:
-		if len(parameters_direct) == 0 {
-			return nil
-		} else {
-			return a.child.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
-		}
-	default:
-		panic(ErrorPrefix + "Unsupported condition")
+	if takeBranch {
+		return a.child.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
+	} else {
+		return nil
 	}
 }
 
-// VerifyParameters_passed for $condition{Subtree} will always check the subtree.
+// VerifyParameters_direct for $condition{Subtree} will always check the subtree.
 //
 // This is because using the error as a base may actually cause the condition to be true;
 // The mistakes potentially detected in the subtree are only those that would be mistakes for _any_ choice of passed parameters, so we want to
-// detect those.
+// detect those. Recall that VerifiyParameters_direct corresponds to an *unknown* value for parameters_passed.
 func (a ast_condDollar) VerifyParameters_direct(parameters_direct ParamMap, baseError error) (err Mistake) {
 	return a.child.VerifyParameters_direct(parameters_direct, baseError)
 }
 
-// VerifyParamters_passed for $condition{Subtree} will conditionally check the subtree if the condition holds.
+// VerifyParameters_passed for $condition{Subtree} will conditionally check the subtree if the condition holds.
 func (a ast_condDollar) VerifyParameters_passed(parameters_direct ParamMap, parameters_passed ParamMap, baseError error) (err Mistake) {
 	if !a.is_valid() {
 		panic("Cannot happen") // caught by root node. Anything that would set this also sets an mistake in the root node.
 	}
 
-	if !utils.ElementInList(a.condition, validConditions[:]) {
-		panic(fmt.Errorf(ErrorPrefix+"invalid condition string: %s", a.condition)) // cannot happen, because it would have been caught by handleSyntaxConditions
-	}
-
-	// We actually evalutate the condition here. If the condition is false, we weaken the child-check to syntax only
-	switch a.condition {
-	case ConditionEmptyMap:
-		if len(parameters_passed) == 0 {
-			return a.child.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
-		} else {
-			return nil
-		}
-	case ConditionNonEmptyMap:
-		if len(parameters_passed) == 0 {
-			return nil
-		} else {
-			return a.child.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
-		}
-	default:
-		panic(ErrorPrefix + "Unsupported condition")
+	takeBranch := checkWhetherBranchIsTaken(a.conditionType, parameters_passed, a.variableName)
+	if takeBranch {
+		return a.child.VerifyParameters_passed(parameters_direct, parameters_passed, baseError)
+	} else {
+		return nil
 	}
 }
 
@@ -907,18 +916,9 @@ func (a ast_condPercent) Interpolate(parameters_direct ParamMap, parameters_pass
 		return
 	}
 
-	switch a.condition {
-	case ConditionEmptyMap:
-		if len(parameters_direct) == 0 {
-			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		}
-	case ConditionNonEmptyMap:
-		if len(parameters_direct) != 0 {
-			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		}
-	default:
-		// cannot happen, because handleSyntaxConditions would have set a.invalidParse
-		panic(ErrorPrefix + "Unsupported condition")
+	takeBranch := checkWhetherBranchIsTaken(a.conditionType, parameters_direct, a.variableName)
+	if takeBranch {
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 	}
 }
 
@@ -946,19 +946,11 @@ func (a ast_condDollar) Interpolate(parameters_direct ParamMap, parameters_passe
 		return
 	}
 
-	switch a.condition {
-	case ConditionEmptyMap:
-		if len(parameters_passed) == 0 {
-			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		}
-	case ConditionNonEmptyMap:
-		if len(parameters_passed) != 0 {
-			a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
-		}
-	default:
-		// cannot happen, because handleSyntaxConditions would have set a.invalidParse
-		panic(ErrorPrefix + "Unsupported condition")
+	takeBranch := checkWhetherBranchIsTaken(a.conditionType, parameters_passed, a.variableName)
+	if takeBranch {
+		a.child.Interpolate(parameters_direct, parameters_passed, baseError, s)
 	}
+
 }
 
 // Interpolate is used to produce the actual output string by appending to *s.

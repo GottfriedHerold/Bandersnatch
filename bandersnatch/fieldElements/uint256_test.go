@@ -478,8 +478,6 @@ func TestUint256_SlidingWindowDecomposition(t *testing.T) {
 		for _, x := range xs {
 			var acc Uint256
 			decomp := x.SlidingWindowDecomposition(windowSize)
-			// fmt.Printf("%b\n", x)
-			// fmt.Println(decomp)
 			testutils.FatalUnless(t, sort.SliceIsSorted(decomp, func(i, j int) bool { return decomp[i].pos > decomp[j].pos }), "SlidingWindowDecomposition does not return descendingly sorted positions")
 			for _, contrib := range decomp {
 				testutils.FatalUnless(t, contrib.exp < (1<<windowSize), "exponent too large")
