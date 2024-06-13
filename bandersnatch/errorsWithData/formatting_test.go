@@ -177,6 +177,35 @@ func TestASTFmt(t *testing.T) {
 	}
 }
 
+func TestParseConditionString(t *testing.T) {
+	testcase := func(conditionString string, expectedVariableName string, expectedConditionType int) {
+		variableName, conditionType := parseConditionString(conditionString)
+		testutils.FatalUnless(t, conditionType == expectedConditionType, "parseConditionString failed for input %v.\nExpected: (%v, %v)\nGot: (%v, %v)", conditionString, expectedVariableName, expectedConditionType, variableName, conditionType)
+		if conditionType == conditionType_Invalid {
+			return
+		}
+		testutils.FatalUnless(t, variableName == expectedVariableName, "parseConditionString failed for input %v.\nExpected: (%v, %v)\nGot: (%v, %v)", conditionString, expectedVariableName, expectedConditionType, variableName, conditionType)
+	}
+
+	testcase("", "", conditionType_Invalid)
+	testcase("==", "", conditionType_Invalid)
+	testcase("!=", "", conditionType_Invalid)
+	testcase("V == 0", "V", conditionType_ParameterZero)
+	testcase(" V!=0 ", "V", conditionType_ParameterNonZero)
+	testcase("v==0", "V", conditionType_Invalid)
+	testcase("v!=0", "V", conditionType_Invalid)
+	testcase("V==V==0", "", conditionType_Invalid)
+	testcase("V", "V", conditionType_ParameterPresent)
+	testcase(" V ", "V", conditionType_ParameterPresent)
+	testcase(" ! V", "V", conditionType_ParameterMissing)
+	testcase("!v", "V", conditionType_Invalid)
+	testcase("!m", "", conditionType_Invalid)
+	testcase("m", "", conditionType_Invalid)
+	testcase("m==0", "", conditionType_EmptyMap)
+	testcase("m!=0", "", conditionType_NonEmptyMap)
+
+}
+
 // TestASTCond test that all ast types satisfying [ast_cond], i.e. [ast_condPercent] and [ast_condDollar]
 // satisfy the contracts of that interface (beyond ast_I)
 func TestASTCond(t *testing.T) {
@@ -854,7 +883,7 @@ func TestVerifyParameters(t *testing.T) {
 	var wrongBase1 *dummy_interpolatableError = &dummy_interpolatableError{error: errors.New("Base1")}
 	wrongBase1.valBase = func() error { return errors.New("Some error (Base1)") }
 	wrongBase1.valParams = func(_ ParamMap) error { return errors.New("Some error (Base1,params)") }
-	// wrongBase1 is an error satisfying ErrorInterpolater whose
+	// wrongBase2 is an error satisfying ErrorInterpolater whose
 	//  - ValidateError_base always succeeds and
 	//  - ValidateError_params(params) suceeds iff(!) params contains a key "PassVal"
 	var wrongBase2 *dummy_interpolatableError = &dummy_interpolatableError{error: errors.New("Base2")}
@@ -897,6 +926,29 @@ func TestVerifyParameters(t *testing.T) {
 	testVerifyParametersPassed("%! m!=0{%w}", emptyMap, emptyMap, wrongBase1, true)
 	testVerifyParametersPassed("$! m==0{%w}", emptyMap, emptyMap, wrongBase1, false)
 	testVerifyParametersPassed("$! m!=0{%w}", emptyMap, emptyMap, wrongBase1, true)
+
+	testVerifyParametersDirect("%! Missing{%w}", emptyMap, wrongBase1, true)
+	testVerifyParametersDirect("%! Direct{%w}", p_direct, wrongBase1, false)
+	testVerifyParametersDirect("%! !Missing{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("%! !Direct{%w}", p_direct, wrongBase1, true)
+	testVerifyParametersDirect("%! PassVal==0{%w}", GoodMap, wrongBase1, false) // PassVal == 0 holds
+	testVerifyParametersDirect("%! Direct==0{%w}", p_direct, wrongBase1, true)  // Direct == 0 does not hold
+	testVerifyParametersDirect("%! PassVal!=0{%w}", GoodMap, wrongBase1, true)
+	testVerifyParametersDirect("%! Direct!=0{%w}", p_direct, wrongBase1, false)
+
+	testVerifyParametersDirect("$! Missing{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("$! Direct{%w}", p_direct, wrongBase1, false)
+	testVerifyParametersDirect("$! !Missing{%w}", emptyMap, wrongBase1, false)
+	testVerifyParametersDirect("$! !Direct{%w}", p_direct, wrongBase1, false)
+	testVerifyParametersDirect("$! PassVal==0{%w}", GoodMap, wrongBase1, false)
+	testVerifyParametersDirect("$! Direct==0{%w}", p_direct, wrongBase1, false)
+	testVerifyParametersDirect("$! PassVal!=0{%w}", GoodMap, wrongBase1, false)
+	testVerifyParametersDirect("$! Direct!=0{%w}", p_direct, wrongBase1, false)
+
+	testVerifyParametersDirect("$! Missing{%w}", emptyMap, baseError, true)
+	testVerifyParametersDirect("$! !Missing{%w}", emptyMap, baseError, true)
+	testVerifyParametersDirect("$! PassVal==0{%w}", GoodMap, baseError, true)
+	testVerifyParametersDirect("$! PassVal!=0{%w}", GoodMap, baseError, true)
 
 	//
 
@@ -980,8 +1032,8 @@ func TestVerifyParameters(t *testing.T) {
 }
 
 func TestInterpolation(t *testing.T) {
-	var p_direct ParamMap = ParamMap{"ValHundreds": 128, "StringABC": "abc"}
-	var p_passed ParamMap = ParamMap{"ValHundreds": 256, "StringDEF": "def"}
+	var p_direct ParamMap = ParamMap{"ValHundreds": 128, "StringABC": "abc", "ZeroDirect": 0, "NilDirect": 0}
+	var p_passed ParamMap = ParamMap{"ValHundreds": 256, "StringDEF": "def", "ZeroPassed": 0, "NilPassed": 0}
 	var emptyMap ParamMap = ParamMap{}
 
 	errPlain := errors.New("BASE")
@@ -1021,7 +1073,7 @@ func TestInterpolation(t *testing.T) {
 		tree.Interpolate(p_direct, p_passed, errBase, &builder)
 		interpolatedString := builder.String()
 		if interpolatedString != expectedOutput {
-			t.Fatalf("Unexpected output from string interpolation. Expected\n%s\nGot\n%s", expectedOutput, interpolatedString)
+			t.Fatalf("Unexpected output from string interpolation for testcase %s. Expected\n%s\nGot\n%s", inputString, expectedOutput, interpolatedString)
 		}
 	}
 
@@ -1043,6 +1095,79 @@ func TestInterpolation(t *testing.T) {
 	testInterpolation("%! m!=0{Bar}", "Bar")
 	testInterpolation("$! m==0{%{ValHundreds}}", "")
 	testInterpolation("$! m!=0{%{ValHundreds}}", "128")
+
+	testInterpolation("%! Missing {x}", "")
+	testInterpolation("%! StringABC{x}", "x")
+	testInterpolation("%! StringDEF{x}", "")
+	testInterpolation("%! ZeroDirect{x}", "x")
+	testInterpolation("%! NilDirect{x}", "x")
+	testInterpolation("%! ZeroPassed{x}", "")
+	testInterpolation("%! NilPassed{x}", "")
+
+	testInterpolation("%! !Missing {x}", "x")
+	testInterpolation("%! !StringABC{x}", "")
+	testInterpolation("%! !StringDEF{x}", "x")
+	testInterpolation("%! !ZeroDirect{x}", "")
+	testInterpolation("%! !NilDirect{x}", "")
+	testInterpolation("%! !ZeroPassed{x}", "x")
+	testInterpolation("%! !NilPassed{x}", "x")
+
+	testInterpolation("%! Missing == 0{x}", "")
+	testInterpolation("%! StringABC == 0 {x}", "")
+	testInterpolation("%! StringDEF == 0{x}", "")
+	testInterpolation("%! ZeroDirect == 0{x}", "x")
+	testInterpolation("%! NilDirect == 0{x}", "x")
+	testInterpolation("%! ZeroPassed == 0{x}", "")
+	testInterpolation("%! NilPassed == 0{x}", "")
+
+	testInterpolation("%! Missing != 0{x}", "")
+	testInterpolation("%! StringABC != 0 {x}", "x")
+	testInterpolation("%! StringDEF != 0{x}", "")
+	testInterpolation("%! ZeroDirect != 0{x}", "")
+	testInterpolation("%! NilDirect != 0{x}", "")
+	testInterpolation("%! ZeroPassed != 0{x}", "")
+	testInterpolation("%! NilPassed != 0{x}", "")
+
+	testInterpolation("$! Missing {x}", "")
+	testInterpolation("$! StringABC{x}", "")
+	testInterpolation("$! StringDEF{x}", "x")
+	testInterpolation("$! ZeroDirect{x}", "")
+	testInterpolation("$! NilDirect{x}", "")
+	testInterpolation("$! ZeroPassed{x}", "x")
+	testInterpolation("$! NilPassed{x}", "x")
+
+	testInterpolation("$! !Missing {x}", "x")
+	testInterpolation("$! !StringABC{x}", "x")
+	testInterpolation("$! !StringDEF{x}", "")
+	testInterpolation("$! !ZeroDirect{x}", "x")
+	testInterpolation("$! !NilDirect{x}", "x")
+	testInterpolation("$! !ZeroPassed{x}", "")
+	testInterpolation("$! !NilPassed{x}", "")
+
+	testInterpolation("$! Missing == 0{x}", "")
+	testInterpolation("$! StringABC == 0 {x}", "")
+	testInterpolation("$! StringDEF == 0{x}", "")
+	testInterpolation("$! ZeroDirect == 0{x}", "")
+	testInterpolation("$! NilDirect == 0{x}", "")
+	testInterpolation("$! ZeroPassed == 0{x}", "x")
+	testInterpolation("$! NilPassed == 0{x}", "x")
+
+	testInterpolation("$! Missing != 0{x}", "")
+	testInterpolation("$! StringABC != 0 {x}", "")
+	testInterpolation("$! StringDEF != 0{x}", "x")
+	testInterpolation("$! ZeroDirect != 0{x}", "")
+	testInterpolation("$! NilDirect != 0{x}", "")
+	testInterpolation("$! ZeroPassed != 0{x}", "")
+	testInterpolation("$! NilPassed != 0{x}", "")
+
+	testInterpolation("%v{m}1", "map[NilDirect:0 StringABC:abc ValHundreds:128 ZeroDirect:0]1")
+	testInterpolation("%v{params}2", "map[NilDirect:0 StringABC:abc ValHundreds:128 ZeroDirect:0]2")
+	testInterpolation("%v{map}3", "map[NilDirect:0 StringABC:abc ValHundreds:128 ZeroDirect:0]3")
+	testInterpolation("%v{parameters}4", "map[NilDirect:0 StringABC:abc ValHundreds:128 ZeroDirect:0]4")
+	testInterpolation("$v{m}5", "map[NilPassed:0 StringDEF:def ValHundreds:256 ZeroPassed:0]5")
+	testInterpolation("$v{map}6", "map[NilPassed:0 StringDEF:def ValHundreds:256 ZeroPassed:0]6")
+	testInterpolation("$v{params}7", "map[NilPassed:0 StringDEF:def ValHundreds:256 ZeroPassed:0]7")
+	testInterpolation("$v{parameters}8", "map[NilPassed:0 StringDEF:def ValHundreds:256 ZeroPassed:0]8")
 
 	// change the base error now!
 	errPlain2 := errors.New("BASE2")
