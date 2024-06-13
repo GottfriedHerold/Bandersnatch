@@ -123,24 +123,43 @@
 // will print "Something bad happened, the value of Foo is 5." (without the quotation marks)
 //
 // The language for interpolation strings is as follows:
+//
 //   - literal `%`, `$`, `{`, `}` and `\` have to be escaped as \%, \$, \{, \} and \\. Alternatively, %% also works for `%`.
 //     The backslash itself has no meaning beyond escaping and we recommend using `raw string`-syntax to avoid having to double-escape.
+//
 //   - %w and $w insert the error message of the wrapped error (with special behaviour for $w).
+//
 //   - %w{#} and $w{#} are only valid if the wrapped error has an Unwrap()[]error method. It inserts the number of grandchild errors.
+//
 //   - %w{n} and $w{n} are only valid if the wrapped error has an Unwrap()[]error method. It parses n as a number and inserts the n'th grandchild's error message.
 //     (NOTE: We use grandchild rather than child here, because we have separate methods for Join'ing errors and that creates 1 extra layer.)
+//
 //   - %FormatVerb{VariableName} and $FormatVerb{VariableName} read the value of the associated data under the key VariableName and formats it via the [fmt] package with fmt.Printf("%FormatVerb", value).
 //     An empty FormatVerb defaults to v. FormatVerb must not start with "w" or "!".
-//     VariableName must either satisfy [IsExportedIdentifier] or be one of the (equivalent) special strings '!m', '!map', '!parameters', '!params'.
+//     VariableName must either satisfy [IsExportedIdentifier] or be one of the (equivalent) special strings 'm', 'map', 'parameters', 'params'.
 //     For the latter, we print all parameters as a map[string]any.
-//   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar. We currently support the conditions
-//     "m=0" and "m>0" (without the quotation marks). These conditions mean that the parameter map is empty or non-empty, respectively.
-//     The set of supported condition strings may be expanded in the future.
+//
+//   - %!Condition{Sub-InterpolationString} and $!Condition{Sub-InterpolationString} conditionally evaluate Sub-InterpolationString according to our grammar.
+//
 //   - The difference between $ and % is the following: % always refers to the parameters stored in the error itself to look up values or evaluate conditions. %w just calls a wrapped error's Error() method.
 //     By contrast, $ allows passing parameters through an error tree: If errFinal wraps errBase and errFinal's interpolation string contains a "$w", then
 //     this does not call errBase's Error() string, but rather errBase.Error_interpolate(passed_params) where passed_params are errFinal's parameters (or those of another wrapping error calling via $w).
 //     Error_interpolate() will evaluate all $ in errBase with passed_params rather than errBase's own parameters. It still uses its own for any %-expressions.
 //     Of course, this requires extra support from errBase beyond the error interface. Notably errBase must satisfy the [ErrorInterpolater] interface to pass the parameters.
+//
+// For conditional evaluation, we currently support the following conditions
+//
+//   - "m==0", "map==0", "params==0", "parameters==0": evaluate if the parameter map is empty.
+//   - "m!=0", "map!=0", "params!=0", "parameters!=0": evaluate if the parameter map is not empty.
+//   - "VariableName": evalutate if VariableName exists in the parameter map.
+//   - "!VariableName": evalutate if VariableName is NOT in the parameter map
+//   - "VariableName == 0": evalutate if VariableName exists and is either a nil interface or the zero value of its dynamic type.
+//   - "VariableName != 0": evalutate if VariableName exists, is not a nil interface and not the zero value of its dynamic type.
+//
+// Depending on whether `%!` or `$!` is used, we look at only the paramters of the error or the passed-through parameters.
+// In each of the cases above, VariableName must be the name of an exported identifier; note that the special strings `m`, `map`, `params`, `parameters` are not.
+// Also, be aware that if VariableName is not in the parameter map, then neither %!VariableName==0{...} nor %!VariableName!=0{} will cause evaluation of the sub-interpolation-string.
+// All of these conditions ignore whitespace the same way as the Go language would do; however, you must not separate the initial `%!` resp. `$!` nor the `==` resp. `!=`.
 //
 // The $-syntax allows to globally define errors such as
 //
