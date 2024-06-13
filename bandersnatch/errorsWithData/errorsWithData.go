@@ -156,12 +156,12 @@
 //   - "VariableName == 0": evalutate if VariableName exists and is either a nil interface or the zero value of its dynamic type.
 //   - "VariableName != 0": evalutate if VariableName exists, is not a nil interface and not the zero value of its dynamic type.
 //
-// Depending on whether `%!` or `$!` is used, we look at only the paramters of the error or the passed-through parameters.
+// Depending on whether `%!` or `$!` is used, we look at only the parameters of the error or the passed-through parameters.
 // In each of the cases above, VariableName must be the name of an exported identifier; note that the special strings `m`, `map`, `params`, `parameters` are not.
 // Also, be aware that if VariableName is not in the parameter map, then neither %!VariableName==0{...} nor %!VariableName!=0{} will cause evaluation of the sub-interpolation-string.
 // All of these conditions ignore whitespace the same way as the Go language would do; however, you must not separate the initial `%!` resp. `$!` nor the `==` resp. `!=`.
 //
-// The $-syntax allows to globally define errors such as
+// The general purpose of the $-syntax in refering to errors, conditional evaluation and printing variables is to globally define errors such as
 //
 //	errBase, _ := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range", PanicOnAllMistakes)
 //
@@ -171,7 +171,7 @@
 //	errFinal, _ := NewErrorWithData_any_params(errBase, "", "Foo", 5)
 //
 // (the empty interpolation string defaults to "$w" or "%w" depending on what the wrapped error supports). Then errFinal.Error() will output
-// "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is common.
+// "The value of Foo was 5, which is out of range". Due to the fact that errors and their parameters are immutable, this pattern is the intended way to set such values.
 //
 // # Error (or Mistake) Handling
 //
