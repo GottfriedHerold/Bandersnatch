@@ -222,10 +222,10 @@
 //			if err == ErrFooOutOfRange {
 //			  ... // handle specific case of ErrFooOutOfRange
 //			}
-//	     ... // handle other errors
+//	        ... // handle other errors
 //		 }
 //
-// The err == ErrFooOutOfRange will always fail: This is because err will be an error based on ErrFooOutOfRange, not ErrFooOutOfRange itself.
+// The err == ErrFooOutOfRange check will always fail: this is because err will be an error based on ErrFooOutOfRange, but not ErrFooOutOfRange itself.
 //
 // The standard library provides [errors.Is] for this purpose and it is almost always a bug to compare errors created by this package with ==.
 //
@@ -233,7 +233,7 @@
 // making err == ErrFooOutOfRange outright not compile. Notably, we use [BoxErrorAsIncomparable] to instead define
 //
 //	errFooOutOfRange_unexported error, _ := NewErrorWithData_any_params(nil, "The value of Foo was ${Foo}, which is out of range")
-//	ErrFooOutOfRange := BoxErrorAsIncomparable(errFooOutOfRange) // Note: Type is some unexported struct.
+//	ErrFooOutOfRange := BoxErrorAsIncomparable(errFooOutOfRange) // Note: the type of ErrFooOutOfRange is some unexported struct.
 //
 // This works just as well, but forces users to use [errors.Is]. Note that all functions of this package will try to [UnboxError], so ErrFooOutOfRange acts just like errFooOutOfRange_unexported, except for comparability.
 package errorsWithData

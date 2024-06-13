@@ -39,10 +39,10 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 		// we could not use the NewIntermediateWriteErrorData convenience function.
 
 		err, _ = errorsWithData.NewErrorWithData_struct(errPlain, "", errorconsts.NewIntermediateWriteErrorData(bytesWritten, 32), errorsWithData.PanicOnAllMistakes)
-		// Note: We do not use %T{Writer} and put "Writer", output as parameter in the returned error.
-		// The reason is that output is not immutable and we cannot easily copy it. So we only provide information about the type.
+		// Note: We do not use %T{Writer} and put "Writer" as parameter of type io.Writer in the returned error.
+		// The reason is that output is not immutable and we cannot easily clone it. So we only provide information about the type.
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err,
-			ErrorPrefix+"call to Serialize with receiver Uint256 with value %v{Value} and io.Writer of type %v{WriterType} failed with error $w after writing %v{BytesWritten} bytes",
+			ErrorPrefix+"call to Serialize with receiver Uint256 with value %v{Value} and io.Writer of type %v{WriterType} failed after writing %v{BytesWritten} bytes with the following error:\n$w",
 			errorsWithData.PanicOnAllMistakes, "Value", *z, "WriterType", reflect.TypeOf(output))
 	}
 	return
@@ -62,31 +62,25 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 	return
 }
 
-// TODO: Re-think panic on nil slice.
-
 // Serialize_Bytes performs the same functionality as [Serialize], but is special-cased for writing to a []byte.
 // Given (output, byteOrder), it serializes the receiver to output, which must have len(output) >= 32; note that we check output's length, not capacity.
 // byteOrder should be [BigEndian] or [LittleEndian] and refers to the ordering of bytes in the output.
 //
 // The return values are the actual number of bytes written (alywas 32 or 0) and a potential error.
-// This method panics if output==nil. If output does not have sufficient length, returns errors wrapping [ErrEmptyByteSlice] or [ErrTooSmallByteSlice].
+// If output does not have sufficient length, returns errors wrapping [ErrEmptyByteSlice] (if len(output)==0) or [ErrTooSmallByteSlice] (if 0<len(output)<32).
 // For consistency reasons with [Serialize], these errors wrap [io.EOF] respectively [io.UnexpectedEOF]
 func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 
-	// handle error cases: PutUint256_ptr panics on insufficent slice length (for consistency reasons with binary.ByteOrder's interface)
+	// handle error cases before writing anything: PutUint256_ptr panics on insufficent slice length (for consistency reasons with binary.ByteOrder's interface)
 	// We want Serialize_Bytes to be consistent with the other Serialize methods, so we catch this.
 	if len(output) < 32 {
-		if output == nil {
-			panic(ErrorPrefix + "called Serialize_Bytes with nil value for output slice")
-		}
 		if len(output) == 0 {
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errEmptyBytesSlice,
-				ErrorPrefix+"")
-
-		} else {
-			err = errNoWriteUnexpectedEOF
+			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrEmptyByteSlice, "", "Value", *z, "NilSlice", output == nil, errorsWithData.ErrorUnlessValidFinal, errorsWithData.PanicOnAllMistakes)
+		} else { // 0 < len(output) < 32
+			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errTooSmallByteSlice, "", "Value", *z, "SliceSize", len(output), "RequiredSize", 32,
+				errorsWithData.ErrorUnlessValidFinal, errorsWithData.PanicOnAllMistakes)
 		}
-		return
+		return 0, err
 	}
 
 	byteOrder.PutUint256_ptr(output, (*[4]uint64)(z))
@@ -95,23 +89,25 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 }
 
 // SerializeWithPrefix is used to serialize the given Uint256 with some extra prefix bits squeezed into the most significant byte.
-// This function is needed for "compressed" serialization of curve points, where we often need to write an extra sign bit.
+// This function is needed for "compressed" serialization of curve points, where we would need to write an extra sign bit.
 //
 // Usage example: z.SerializeWithPrefix(output, common.MakeBitHeader(PrefixBits(0b01), 2), LittleEndian)
 //
 // Notably, it performs the following operation:
 // Ensure the prefix.prefixLen many most significant bits of z are zero.
-// If so, then temporarily replace those bits with prefix.prefixBits and write the resulting 256 bits=32 bytes to output in byte order determined by byteOrder.
+// If so, then temporarily replace those bits with prefix.prefixBits and write the resulting 256 bits == 32 bytes to output in byte order determined by byteOrder.
 //
 // prefix is a [common.BitHeader], meaning it consists of prefixBits and prefixLen. Note that if e.g. prefixLen==3, then prefixBits has at most 3 bits;
 // those 3 bits are in lsb position inside prefixBits (e.g. prefixBits = 0b101), even though they end up in higher-order bits during serialization.
 // Note that the fields of BitHeader are non-exported (to ensure invariants). Use [common.MakeBitHeader] to generate a [common.BitHeader].
 //
-// output is an [io.Writer]. Use e.g. the standard library [bytes.Buffer] type to wrap an existing byte-slice.
+// output is an [io.Writer].
+// To write to a [bytes.Buffer] or a byte slice, you can use the special-cased [SerializeWithPrefix_Buffer] or [SerializeWithPrefix_Bytes] methods.
+// (These are much faster than using plain SerializeWithPrefix with a [bytes.Buffer])
 //
 // byteOrder has type [FieldElementEndianness] and wraps either [binary.BigEndian] or [binary.LittleEndian] from the standard library.
-// We provide a BigEndian, LittleEndian, DefaultEndian constant for this.
-// The endiannness choice only affects the order in which the bytes are written to output, NOT the inclusion of a prefix, which always happens inside the most signifant byte.
+// We provide a [BigEndian], [LittleEndian], [DefaultEndian] constant for this.
+// The endiannness choice only affects the order in which the bytes are written to output, NOT the inclusion of a prefix, which always happens inside the most significant byte.
 //
 // It returns the number of actually written bytes and an error (nil if ok).
 // If the prefix.prefixLen bits of z are not all zero, we report an error wrapping [ErrPrefixDoesNotFit] and do not write anything to output.

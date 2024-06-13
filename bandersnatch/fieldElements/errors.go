@@ -26,21 +26,35 @@ var errNoWriteEOF, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
 
 var (
 	errNoWriteUnexpectedEOF, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true}, errorsWithData.PanicOnAllMistakes)
-	emptySliceForByteSer, _    = errorsWithData.NewErrorWithData_struct(io.EOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
-	tooSmallSliceForByteSer, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
+	// emptySliceForByteSer, _    = errorsWithData.NewErrorWithData_struct(io.EOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
+	// tooSmallSliceForByteSer, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 )
+
+// TODO: Doc
 
 var (
-	errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
+	errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_struct(io.EOF,
+		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into $!NilSlice!=0{a nil}$!NilSlice==0{an empty} slice",
 		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
-		errorsWithData.PanicOnAllMistakes)
-	ErrEmptyByteSlice                                   = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
-	ErrTooSmallByteSlice errorconsts.SerializationError = errNoWriteUnexpectedEOF // TODO: Doc
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_struct(io.EOF,
+		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	errPrefixDoesNotFit, _ = errorsWithData.NewErrorWithData_struct(nil,
+		ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large",
+		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
+
+	ErrEmptyByteSlice    = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
+	ErrTooSmallByteSlice = errorsWithData.BoxErrorAsIncomparable(errTooSmallByteSlice)
+	ErrPrefixDoesNotFit  = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
 )
 
+/*
 func init() {
 	errorsWithData.EnsureErrorsValid_Final(errPrefixDoesNotFit, errNoWriteEOF, errNoWriteUnexpectedEOF)
 }
+*/
 
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
 var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
@@ -49,8 +63,6 @@ var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
 // These are the errors that can occur during (de)serialization.
 var (
-	errPrefixDoesNotFit, _                = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
-	ErrPrefixDoesNotFit                   = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
 	errPrefixLengthInvalid, _             = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"in FieldElement deserializitation, an invalid prefix length > 8 was requested", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 	ErrPrefixLengthInvalid                = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
 	ErrPrefixMismatch               error = errors.New(ErrorPrefix + "during deserialization, the read prefix did not match the expected one")
