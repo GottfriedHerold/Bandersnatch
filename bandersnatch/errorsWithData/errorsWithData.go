@@ -149,17 +149,18 @@
 //
 // For conditional evaluation, we currently support the following conditions
 //
-//   - "m==0", "map==0", "params==0", "parameters==0": evaluate if the parameter map is empty.
-//   - "m!=0", "map!=0", "params!=0", "parameters!=0": evaluate if the parameter map is not empty.
-//   - "VariableName": evalutate if VariableName exists in the parameter map.
-//   - "!VariableName": evalutate if VariableName is NOT in the parameter map
-//   - "VariableName == 0": evalutate if VariableName exists and is either a nil interface or the zero value of its dynamic type.
-//   - "VariableName != 0": evalutate if VariableName exists, is not a nil interface and not the zero value of its dynamic type.
+//   - "m==0", "map==0", "params==0", "parameters==0": check if the parameter map is empty.
+//   - "m!=0", "map!=0", "params!=0", "parameters!=0": check if the parameter map is not empty.
+//   - "VariableName": check if VariableName exists in the parameter map.
+//   - "!VariableName": check if VariableName is NOT in the parameter map. [NOTE: This means $! or %! is followed by another !; we allow whitespace between these !'s]
+//   - "VariableName == 0": check if VariableName exists and is either a nil interface or the zero value of its dynamic type.
+//   - "VariableName != 0": check if VariableName exists, is not a nil interface and not the zero value of its dynamic type.
 //
 // Depending on whether `%!` or `$!` is used, we look at only the parameters of the error or the passed-through parameters.
 // In each of the cases above, VariableName must be the name of an exported identifier; note that the special strings `m`, `map`, `params`, `parameters` are not.
-// Also, be aware that if VariableName is not in the parameter map, then neither %!VariableName==0{...} nor %!VariableName!=0{} will cause evaluation of the sub-interpolation-string.
-// All of these conditions ignore whitespace the same way as the Go language would do; however, you must not separate the initial `%!` resp. `$!` nor the `==` resp. `!=`.
+// Also, be aware that if VariableName is not in the parameter map, then neither %!VariableName==0{...} nor %!VariableName!=0{..} will cause evaluation of the sub-interpolation-string.
+// All of these conditions ignore whitespace the same way as the Go language would do; however, the `%!` resp. `$!` and `==` resp. `!=` are one single token and must not be written as
+// `% !` etc.
 //
 // The general purpose of the $-syntax in refering to errors, conditional evaluation and printing variables is to globally define errors such as
 //

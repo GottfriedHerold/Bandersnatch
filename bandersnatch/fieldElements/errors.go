@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
 )
@@ -32,18 +33,39 @@ var (
 
 // TODO: Doc
 
+// NOTE: $v{ValueType} may be a reflect.Type or a string -- we actually use both.
+
 var (
-	errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_struct(io.EOF,
-		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into $!NilSlice!=0{a nil}$!NilSlice==0{an empty} slice",
+	errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_any_params(io.EOF,
+		"Called (de)serializion method or function on empty or nil slice", // NOTE: This is never used for ouput. We use either the serialization or the deserialization version below.
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	errEmptyByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
+		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into $! NilSlice != 0{a nil}$! NilSlice == 0{an empty} slice",
 		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_struct(io.EOF,
+	errEmptyByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
+		ErrorPrefix+"Trying to deserialize a $v{ValueType} from $! NilSlice != 0{a nil}$! NilSlice == 0 {an empty} slice}",
+		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.EOF,
+		ErrorPrefix+"Called (de)serializion method or function on too small slice", // NOTE: This is never used for ouput. We use either the serialization or the deserialization version below.
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	errTooSmallByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
 		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
 		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	errTooSmallByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
+		ErrorPrefix+"Tryting to deserialize a $v{ValueType} from a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
 	errPrefixDoesNotFit, _ = errorsWithData.NewErrorWithData_struct(nil,
-		ErrorPrefix+"while trying to serialize a field element with a prefix, the prefix did not fit, because the number was too large",
-		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
+		ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLenght} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeros",
+		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
 	ErrEmptyByteSlice    = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
 	ErrTooSmallByteSlice = errorsWithData.BoxErrorAsIncomparable(errTooSmallByteSlice)
@@ -61,11 +83,29 @@ var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not
 
 var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
+// The error strings below assert common.MaxLengthPrefixBits == 8. This is a refactoring guard.
+var _ = func() int {
+	if common.MaxLengthPrefixBits != 8 {
+		panic("Need to change errors below")
+	}
+	return 0
+}()
+
 // These are the errors that can occur during (de)serialization.
 var (
-	errPrefixLengthInvalid, _             = errorsWithData.NewErrorWithData_struct(nil, ErrorPrefix+"in FieldElement deserializitation, an invalid prefix length > 8 was requested", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
-	ErrPrefixLengthInvalid                = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
-	ErrPrefixMismatch               error = errors.New(ErrorPrefix + "during deserialization, the read prefix did not match the expected one")
+	errPrefixLengthInvalid, _ = errorsWithData.NewErrorWithData_any_params(nil,
+		ErrorPrefix+"in FieldElement (de)serializitation, an invalid prefix length ${PrefixLength} > 8 was requested",
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	errPrefixLengthInvalid_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errPrefixLengthInvalid,
+		ErrorPrefix+"When deserializing a $v{ValueType}, an invalid prefix length ${PrefixLength} > 8 was requested",
+		&errorconsts.NoReadAttempt,
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	ErrPrefixLengthInvalid = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
+
+	errPrefixMismatch, _ error = errorsWithData.NewErrorWithData_any_params(nil,
+		ErrorPrefix+"during deserialization, the read prefix 0b$b{Prefix} did not match the expected one 0b$b{ExpectedPrefix}",
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
 	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 )
 

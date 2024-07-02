@@ -19,15 +19,18 @@ import "encoding/binary"
 //
 // The issue is that with an interface, there is an order of magnitude of performance loss, due to the fact that
 // with var x FieldElementEndianness, calling x.PutUint256(arg) through an interface forces heap-allocation of arg.
+// (unless we wrap that call in a function (not method) that would need to be defined in assembly)
 
 // For consistency with binary.ByteOrder, the methods provided here all panic if the provided input resp. output does not
 // have sufficient length.
-// Note that we have to explicitly check that, because the condition is on length, not capacity (by design).
+// Note that we have to explicitly check that condition, because the condition is on length, not capacity (by design).
 
-// The implementation assumes that s.byteOrder == binary.LittleEndian or == binary.BigEndian.
+// DEPRECATED -- this is not applied consistently. Just remove.
+//
+// The current implementation assumes that s.byteOrder == binary.LittleEndian or == binary.BigEndian.
 // There is no reason to make this assumption from an API point of view, so we just don't
 // and regard this fact as an implementation detail.
-// We use this to mark places where we make that assumption.
+// We use this to mark places where we make that assumption to aid refactoring.
 const onlyLittleAndBigEndianByteOrder = true
 
 // FieldElementEndianness is a struct or interface (users should account for the option to change this) that satisfies/extends the
@@ -35,6 +38,8 @@ const onlyLittleAndBigEndianByteOrder = true
 type FieldElementEndianness struct {
 	v bool // value indicating whether we are little Endian or big Endian
 }
+
+// NOTE: Code must account for the option to flip this definition around.
 
 // The bool stored inside FieldElementEndianness is compared against these constants (essentially an enum-type based on bool)
 // The choice is such that the zero-value of bool (i.e. false) corresponds to the default endianness.
@@ -49,8 +54,10 @@ const (
 func (s *FieldElementEndianness) Validate() {}
 
 // SetEndianness sets FieldElementEndianess by wrapping e.
+//
 // We only accept (literal) e==binary.LittleEndian or e==binary.BigEndian or any FieldElementEndianness e.
 // Other values for e will cause a panic.
+// It is possible that this restriction might be lifted in the future.
 func (s *FieldElementEndianness) SetEndianness(e binary.ByteOrder) {
 	if e_fe, ok := e.(FieldElementEndianness); ok {
 		*s = e_fe
@@ -95,9 +102,13 @@ func (s FieldElementEndianness) PutUint256(out []byte, little_endian_words [4]ui
 
 	if len(out) < 32 {
 		if cap(out) < 32 {
-			panic(ErrorPrefix + "PutUint256 called on a slice of insufficient capacity")
+			panic(ErrorPrefix + "FieldElementEndianness.PutUint256 called on a slice of insufficient capacity")
 		}
-		panic(ErrorPrefix + "PutUint256 called on a slice of insufficient length (but sufficient capacity)")
+		panic(ErrorPrefix + "FieldElementEndianness.PutUint256 called on a slice of insufficient length (but sufficient capacity)")
+	}
+
+	if !onlyLittleAndBigEndianByteOrder {
+		panic("Needs to change")
 	}
 
 	if s.v == v_littleEndian {
@@ -122,12 +133,15 @@ func (s FieldElementEndianness) PutUint256(out []byte, little_endian_words [4]ui
 //
 // This method is similar to [PutUint256], but more efficient.
 func (s FieldElementEndianness) PutUint256_ptr(out []byte, little_endian_words *[4]uint64) {
+	if !onlyLittleAndBigEndianByteOrder {
+		panic("Needs to change")
+	}
 
 	if len(out) < 32 {
 		if cap(out) < 32 {
-			panic(ErrorPrefix + "PutUint256 called on a slice of insufficient capacity")
+			panic(ErrorPrefix + "FieldElementEndianness.PutUint256 called on a slice of insufficient capacity")
 		}
-		panic(ErrorPrefix + "PutUint256 called on a slice of insufficient length (but sufficient capacity)")
+		panic(ErrorPrefix + "FieldElementEndianness.PutUint256 called on a slice of insufficient length (but sufficient capacity)")
 	}
 
 	if s.v == v_littleEndian {
@@ -150,6 +164,10 @@ func (s FieldElementEndianness) PutUint256_ptr(out []byte, little_endian_words *
 //
 // This method is similar to [PutUint256] or [PutUint256_ptr], but more efficient.
 func (s FieldElementEndianness) PutUint256_array(out *[32]byte, little_endian_words *[4]uint64) {
+	if !onlyLittleAndBigEndianByteOrder {
+		panic("Needs to change")
+	}
+
 	if s.v == v_littleEndian {
 		binary.LittleEndian.PutUint64(out[0:8], little_endian_words[0])
 		binary.LittleEndian.PutUint64(out[8:16], little_endian_words[1])
@@ -169,8 +187,12 @@ func (s FieldElementEndianness) PutUint256_array(out *[32]byte, little_endian_wo
 // Note that the endianness choice of s only affects the input stream, not the output.
 // This method panics if the length of the input is not at least 32.
 func (s FieldElementEndianness) Uint256(in []byte) (little_endian_ret [4]uint64) {
+	if !onlyLittleAndBigEndianByteOrder {
+		panic("Needs to change")
+	}
+
 	if len(in) < 32 {
-		panic(ErrorPrefix + "Uint256 called on a slice of insufficient length")
+		panic(ErrorPrefix + "FieldElementEndianness.Uint256 called on a slice of insufficient length")
 	}
 	if s.v == v_littleEndian {
 		little_endian_ret[0] = binary.LittleEndian.Uint64(in[0:8])
@@ -190,8 +212,12 @@ func (s FieldElementEndianness) Uint256(in []byte) (little_endian_ret [4]uint64)
 
 // Uint256_indirect is similar to [Uint256], but writes to a given [4]uint64 rather than returnig it.
 func (s FieldElementEndianness) Uint256_indirect(in []byte, little_endian_ret *[4]uint64) {
+	if !onlyLittleAndBigEndianByteOrder {
+		panic("Needs to change")
+	}
+
 	if len(in) < 32 {
-		panic(ErrorPrefix + "Uint256 called on a slice of insufficient length")
+		panic(ErrorPrefix + "FieldElementEndianness.Uint256_indirect called on a slice of insufficient length")
 	}
 	if s.v == v_littleEndian {
 		little_endian_ret[0] = binary.LittleEndian.Uint64(in[0:8])
