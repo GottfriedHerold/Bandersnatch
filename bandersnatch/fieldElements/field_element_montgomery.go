@@ -248,19 +248,21 @@ func (z *bsFieldElement_MontgomeryNonUnique) _fromBigInt(v *big.Int) {
 
 // ToUint64 returns z with err==nil if z can be represented by a uint64.
 //
-// If z cannot be represented by a uint64, returns <something, should not be used>, ErrCannotRepresentAsUInt64
+// If z cannot be represented by a uint64, returns 0 and some error wrapping [ErrCannotRepresentFieldElement].
 func (z *bsFieldElement_MontgomeryNonUnique) ToUint64() (result uint64, err error) {
 	temp := z.words.ToNonMontgomery_fc()
 	result = temp[0]
 	if (temp[1] | temp[2] | temp[3]) != 0 {
 		// err = ErrCannotRepresentAsUint64
-		err = errorsWithData.NewErrorWithData_any_params(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as a uint64", "FieldElement", *z)
+		err, _ = errorsWithData.NewErrorWithData_any_params(errCannotRepresentFieldElement, "",
+			"Value", *z,
+			"DataType", "uint64")
 		result = 0
 	}
 	return
 }
 
-// TODO: Make more efficient
+// TODO: SetUint64 may be made more efficient.
 
 // SetUint64 sets z to the given value of type uint64.
 func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
@@ -273,7 +275,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetUint64(value uint64) {
 	z.words.ConvertToMontgomeryRepresentation_c(&z.words)
 }
 
-// TODO: Make more efficient
+// TODO: SetInt64 may be made more efficient.
 
 // SetInt64 sets z to the given value of type int64
 func (z *bsFieldElement_MontgomeryNonUnique) SetInt64(value int64) {
@@ -295,7 +297,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetInt64(value int64) {
 
 // ToInt64 converts the given field element to an int64.
 //
-// If z does not fit into an int64, returns an error wrapping [ErrCannotRepresentFieldElement] and result should not be used.
+// If z does not fit into an int64, returns an error wrapping [ErrCannotRepresentFieldElement]. result should not be used on error.
 func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error) {
 
 	// convert to non-Montgomery - representation:
@@ -316,10 +318,14 @@ func (z *bsFieldElement_MontgomeryNonUnique) ToInt64() (result int64, err error)
 		result = int64(-temp[0])
 		return
 	}
-	zCopy := *z // to avoid z escaping to the heap. Now only zCopy escapes, but this is only allocated conditionally in the first place.
-	err = errorsWithData.NewErrorWithData_any_params(ErrCannotRepresentFieldElement, ErrorPrefix+"the field Element %v{FieldElement} cannot be represented as an int64", "FieldElement", zCopy)
 
-	result = 0 // no-op, but stated for clarity.
+	// Otherwise, z does not fit into an int64:
+
+	err, _ = errorsWithData.NewErrorWithData_any_params(errCannotRepresentFieldElement, "",
+		"Value", *z,
+		"DataType", "int64")
+
+	result = 0 // no-op, but stated for explicitness. Note that the spec does not guarantee result == 0.
 	return
 }
 
@@ -350,6 +356,9 @@ func (z *bsFieldElement_MontgomeryNonUnique) SetUint256(x *Uint256) {
 //
 // NOTE: Having the caller provide a pointer to x (rather than returning a Uint256) is done for effiency during internal usage.
 func (z *bsFieldElement_MontgomeryNonUnique) ToUint256(x *Uint256) {
+	// The case-distinction is made solely for efficiency: The x.FromMontgomeryRepresentation_fc(nil) will actually panic.
+	// The thing is that both branches actually compile to the same instructions; Without the case-distinction,
+	// solely doing x.FromMontgomeryRepresentation_fc(&z.words) would incur a non-nil check on z.
 	if z == nil {
 		x.FromMontgomeryRepresentation_fc(nil)
 	} else {
@@ -501,7 +510,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 
 // TODO: error or bool? Specify what happens with z on error?
 
-// TODO: Should we make the guarantee that the square root is deterinistic? It is currently the case
+// TODO: Should we make the guarantee that the square root is deterministic? It is currently the case
 // and will likely stay this way for any optimized algorithm with FieldSize-dependent precomputations.
 
 // SquareRoot computes a SquareRoot in the field.
@@ -512,7 +521,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) IsEqual(x *bsFieldElement_Montgomer
 //
 // If x is not a square, the return value is false and z is untouched.
 // NOTE: For non-zero squares x, there are two possible square roots.
-// We do not guarantee that the choice is deterministic. We reserve the option that multiple calls with the same x may give different z's
+// We do not guarantee that the choice is deterministic. We reserve the option that multiple calls with the same x may give different z's.
 func (z *bsFieldElement_MontgomeryNonUnique) SquareRoot(x *bsFieldElement_MontgomeryNonUnique) (ok bool) {
 	IncrementCallCounter("SqrtFe")
 	if x.IsZero() {
@@ -524,7 +533,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SquareRoot(x *bsFieldElement_Montgo
 	xCopy.sqrtAlg_ComputeRelevantPowers(&candidate, &rootOfUnity)
 	ok = rootOfUnity.invSqrtEqDyadic()
 	if !ok {
-		return
+		return false
 	}
 	z.Mul(&candidate, &rootOfUnity)
 	return true

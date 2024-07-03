@@ -11,7 +11,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
-	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
@@ -43,9 +42,10 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 		// Note: We do not use %T{Writer} and put "Writer" as parameter of type io.Writer in the returned error.
 		// The reason is that output is not immutable and we cannot easily clone it. So we only provide information about the type.
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err,
-			ErrorPrefix+"call to Serialize with receiver Uint256 with value %v{Value} and io.Writer of type %v{WriterType} failed after writing %v{BytesWritten} bytes with the following error:\n$w",
+			ErrorPrefix+"call to Serialize with receiver ${ValueType} with value ${Value} and io.Writer of type ${WriterType} failed after writing %{BytesWritten} bytes with the following error:\n$w",
 			errorsWithData.PanicOnAllMistakes,
 			"Value", *z,
+			"ValueType", "Uint256",
 			"WriterType", reflect.TypeOf(output))
 	}
 	return
@@ -81,12 +81,14 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 			// NilSlice == true resp. NilSlice == false changes the error message to refer to an nil resp. empty slice.
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errEmptyByteSlice_Serialize, "",
 				"Value", *z,
+				"ValueType", "Uint256",
 				"NilSlice", output == nil,
 				errorsWithData.ErrorUnlessValidFinal, errorsWithData.PanicOnAllMistakes)
 		} else { // 0 < len(output) < 32
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errTooSmallByteSlice_Serialize, "",
 				"Value", *z,
 				"SliceSize", len(output),
+				"ValueType", "Uint256",
 				"RequiredSize", 32,
 				errorsWithData.ErrorUnlessValidFinal, errorsWithData.PanicOnAllMistakes)
 		}
@@ -134,7 +136,8 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", leadingZeroes)
+			"LeadingZeroes", leadingZeroes,
+			"ValueType", "Uint256")
 		return
 	}
 
@@ -168,7 +171,8 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", leadingZeroes)
+			"LeadingZeroes", leadingZeroes,
+			"ValueType", "Uint256")
 		return
 	}
 
@@ -202,6 +206,7 @@ func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byt
 	if leadingZeroes := bits.LeadingZeros64(z[3]); leadingZeroes < int(prefix_length) {
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
+			"ValueType", "Uint256",
 			"PrefixLength", prefix_length,
 			"LeadingZeroes", leadingZeroes)
 		return
@@ -236,12 +241,14 @@ func (z *Uint256) Deserialize(input io.Reader, byteOrder FieldElementEndianness)
 	bytesRead, errPlain = io.ReadFull(input, buf[:])
 	if errPlain != nil {
 		bufCopy := buf // to avoid allocating buf on the heap in the happy case.
-		err, _ = errorsWithData.NewErrorWithData_struct(errPlain, "", &bandersnatchErrors.ReadErrorData{
-			PartialRead:  bytesRead != 0 && bytesRead != 32,
-			BytesRead:    bytesRead,
-			ActuallyRead: bufCopy[0:bytesRead],
-			IoError:      true,
-		})
+		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPlain, "",
+			"PartialRead", bytesRead != 0 && bytesRead != 32,
+			"BytesRead", bytesRead,
+			"ActuallyRead", bufCopy[0:bytesRead],
+			"IoError", true,
+			"ValueType", "Uint256",
+			errorsWithData.ErrorUnlessValidFinal,
+		)
 		return
 	}
 
@@ -278,14 +285,14 @@ func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianne
 	if len(input) < 32 {
 		if len(input) == 0 {
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errEmptyByteSlice_Deserialize, "",
-				"ValueType", uint256Type,
+				"ValueType", "Uint256",
 				"NilSlice", input == nil, // NilSlice == true resp. NilSlice == false changes the error message to refer to an nil resp. empty slice.
 				"SliceSize", 0,
 				"RequiredSize", 32,
 				errorsWithData.ErrorUnlessValidFinal)
 		} else { // 0 < len(input) < 32
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errTooSmallByteSlice_Deserialize, "",
-				"ValueType", uint256Type,
+				"ValueType", "Uint256",
 				"SliceSize", len(input),
 				"RequiredSize", 32,
 				errorsWithData.ErrorUnlessValidFinal)
@@ -299,7 +306,7 @@ func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianne
 	return
 }
 
-var uint256Type = utils.TypeOfType[Uint256]()
+// var uint256Type = utils.TypeOfType[Uint256]()
 
 // DeserializeAndGetPrefix is an inverse to [SerializeWithPrefix]. It reads a 32*8 bit number from input in byte order determined by byteOrder;
 // The prefixLength many most significant bits of the resulting number are returned in prefix, the remaining bits are interpreted and stored into the Uint256 z.
@@ -318,7 +325,7 @@ var uint256Type = utils.TypeOfType[Uint256]()
 func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
-			"ValueType", uint256Type,
+			"ValueType", "Uint256",
 			"PrefixLength", prefixLength,
 		)
 		// Should we panic(err) ???
@@ -332,13 +339,13 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 	if errPlain != nil {
 		bufCopy := buf // copy to avoid buf escaping to the heap here.
 		// NOTE: May escape to heap nonetheless for other reasons
-		err, _ = errorsWithData.NewErrorWithData_struct(errPlain, "",
-			&bandersnatchErrors.ReadErrorData{
-				PartialRead:  bytesRead != 0 && bytesRead != 32,
-				BytesRead:    bytesRead,
-				ActuallyRead: bufCopy[0:bytesRead],
-				IoError:      true,
-			})
+		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPlain, "",
+			"PartialRead", bytesRead != 0 && bytesRead != 32,
+			"BytesRead", bytesRead,
+			"ActuallyRead", bufCopy[0:bytesRead],
+			"IoError", true,
+			"ValueType", "Uint256",
+		)
 		return
 	}
 
@@ -361,7 +368,7 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
-			"ValueType", uint256Type,
+			"ValueType", "Uint256",
 			"PrefixLength", prefixLength,
 		)
 		return
@@ -458,12 +465,13 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		if errIO != nil { // ioError (most likely EOF)
 			bufCopy := buf
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
-				&bandersnatchErrors.ReadErrorData{
-					PartialRead:  bytesRead != 0 && bytesRead != 32,
-					BytesRead:    bytesRead,
-					ActuallyRead: bufCopy[0:bytesRead],
-					IoError:      true,
-				})
+				"PartialRead", bytesRead != 0 && bytesRead != 32,
+				"BytesRead", bytesRead,
+				"ActuallyRead", bufCopy[0:bytesRead],
+				"IoError", true,
+				"ValueType", "Uint256",
+				"ExpectedPrefix", byte(expectedPrefixBits),
+			)
 			return
 		}
 
@@ -477,7 +485,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 				"IoError", false,
 				"Prefix", readPrefix,
 				"ExpectedPrefix", byte(expectedPrefixBits),
-				"ValueType", uint256Type,
+				"ValueType", "Uint256",
 			)
 			return
 		}
@@ -490,12 +498,14 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 			errorTransform.UnexpectEOF(&errIO) // Replace io.EOF -> io.ErrUnexpectedEOF
 			bufCopy := buf
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
-				&bandersnatchErrors.ReadErrorData{
-					PartialRead:  bytesRead != 0 && bytesRead != 32,
-					BytesRead:    bytesRead,
-					ActuallyRead: bufCopy[0:bytesRead],
-					IoError:      true,
-				})
+				"PartialRead", bytesRead != 0 && bytesRead != 32,
+				"BytesRead", bytesRead,
+				"ActuallyRead", bufCopy[0:bytesRead],
+				"IoError", true,
+				"ValueType", "Uint256",
+				"ExpectedPrefix", byte(expectedPrefixBits),
+				"Prefix", buf[0]>>(8-expectedPrefixLength),
+			)
 			return
 		}
 	} else { // not starting with MSB.
@@ -505,12 +515,13 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		if errIO != nil {
 			bufCopy := buf
 			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
-				&bandersnatchErrors.ReadErrorData{
-					PartialRead:  bytesRead != 0 && bytesRead != 32,
-					BytesRead:    bytesRead,
-					ActuallyRead: bufCopy[0:bytesRead],
-					IoError:      true,
-				})
+				"PartialRead", bytesRead != 0 && bytesRead != 32,
+				"BytesRead", bytesRead,
+				"ActuallyRead", bufCopy[0:bytesRead],
+				"IoError", true,
+				"ValueType", "Uint256",
+				"ExpectedPrefix", byte(expectedPrefixBits),
+			)
 			return
 		}
 	}
@@ -527,13 +538,13 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		}
 		bufCopy := buf
 		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
-			"PartialRead", true,
+			"PartialRead", false,
 			"BytesRead", bytesRead,
 			"ActuallyRead", bufCopy[0:bytesRead],
 			"IoError", false,
 			"Prefix", byte(readPrefixBits),
 			"ExpectedPrefix", byte(expectedPrefixBits),
-			"ValueType", uint256Type,
+			"ValueType", "Uint256",
 		)
 		return
 	}

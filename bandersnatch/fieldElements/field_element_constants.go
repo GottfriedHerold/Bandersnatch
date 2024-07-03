@@ -35,7 +35,7 @@ import (
 
 // BaseFieldSize_untyped is the prime modulus (i.e. size) of the field of definition of Bandersnatch as untyped int.
 // Due to overflowing all standard types, this is only useful in constant expressions.
-// In most case, you want to use BaseFieldSize_Int of type big.Int instead
+// In most case, you want to use BaseFieldSize_Int of type [*big.Int] instead
 //
 // The actual value is given (in different format) as
 //   - 0b111001111101101101001110101001100101001100111010111110101001000001100110011100111011000000010000000100110100001110110000000010101010011101111011010010000000010111111111111111001011011111111101111111111111111111111111111111100000000000000000000000000000001
@@ -47,16 +47,16 @@ const (
 )
 
 // BaseFieldSize_Int is the prime modulus (i.e. size) of the field of definition of the Bandersnatch curve as a [*big.Int]
-var BaseFieldSize_Int *big.Int = common.BaseFieldSize_Int
+var BaseFieldSize_Int *big.Int = common.BaseFieldSize_Int // == 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
 
 // baseFieldSize_Int is an internal unexported deep-copy of BaseFieldSize_int.
 // This is not exported to prevent accidential modifications.
 //
 // NOTE: We probably won't internally use this anyway outside of testing.
-var baseFieldSize_Int *big.Int = new(big.Int).Set(BaseFieldSize_Int)
+var baseFieldSize_Int *big.Int = new(big.Int).Set(BaseFieldSize_Int) // == 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
 
-// baseFieldSize_uint256 is the size of the field of definition of the Bandersnatch curve as an uint256
-var baseFieldSize_uint256 Uint256 = BaseFieldSize_64
+// baseFieldSize_uint256 is the size of the field of definition of the Bandersnatch curve as an [Uint256]
+var baseFieldSize_uint256 Uint256 = BaseFieldSize_64 // == 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff_00000001
 
 // baseFieldSize_i_j are (typed) constants derived from BaseFieldSize_untyped at the end of this file. These give the j'th (low-endian) i-bit words.
 
@@ -93,7 +93,7 @@ const BaseFieldByteLength = common.BaseFieldByteLength // == 32
 // BaseFieldSize - 1  == 2^BaseField2Adicity * BaseFieldMultiplicativeOddOrder
 //
 // with the latter being odd.
-// This decomposition matters for some Square root algorithms.
+// This decomposition matters for some square root algorithms and we precompute those constants.
 const (
 	BaseField2Adicity               = 32
 	BaseFieldMultiplicativeOddOrder = 0x73eda753_299d7d48_3339d808_09a1d805_53bda402_fffe5bfe_ffffffff
@@ -109,7 +109,7 @@ var (
  	uint 256 - related constants
 *****************************/
 
-// not writing 1<<256 - 1 due to portability (intermediate result has 257 bits)
+// not writing 1<<256 - 1 due to portability (intermediate result has 257 bits, this is not guaranteed to work by the Go spec)
 
 // uint256Max_untyped is 2**256 - 1
 const uint256Max_untyped = 2*((1<<255)-1) + 1 // == (1 << 256) - 1 == 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFF
@@ -227,7 +227,7 @@ const negativeInverseModulus_uint64 = 18446744069414584319 // == (0xFFFFFFFF_FFF
 type FieldElement = bsFieldElement_MontgomeryNonUnique
 
 // DyadicRootOfUnity is a (fixed) 2^32th primitive root of unity in the field.
-// NOTE: This is actually the smallest such root of unity and fits into 7 uint32's.
+// NOTE: This is actually the smallest (when represented as a Uint256) such root of unity and fits into 7 uint32's.
 const (
 	DyadicRootOfUnity_untyped = 0xF32C26F7_82044B66_7336B3F4_7B2464A8_E4FC91B6_3DF3E369_81960EC4 // 25609050042867742175647027564004846496793091465619562978882159513284
 	DyadicRootOfUnity_string  = "25609050042867742175647027564004846496793091465619562978882159513284"

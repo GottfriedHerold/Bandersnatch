@@ -83,7 +83,7 @@ import "github.com/GottfriedHerold/Bandersnatch/internal/utils"
 // Unfortunately, Go cannot do this.
 // The issue with the actual code below is that
 //   a) our type for boxed errors only promotes the methods of (and hence satisfies) the concrete (interface) type that we actually embed, not
-//      the dynamic type that the embedded error actually satisfies. Go has no way to this except for defining a separate type for every possible option,
+//      the dynamic type that the embedded error actually satisfies. Go has no way to do this except for defining a separate type for every possible option,
 //      essentially copy&pasting the above for every value of T.
 //   b) The UnboxableError interface has an Unbox() method that needs to return some type. Due to lack of contravariance of interface type,
 //      implementations must match the signature exactly. This means that either the Unbox() methods throws away the information about what extended

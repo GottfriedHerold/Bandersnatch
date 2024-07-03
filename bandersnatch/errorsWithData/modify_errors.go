@@ -598,8 +598,114 @@ func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsE
 
 	// NOTE: No validateError here for now.
 	return
-
 }
+
+/*
+
+// AddDataToError takes an existing [ErrorWithData][StructType] and returns a new error wrapping it with modified data.
+//
+// This is a convenience function that is mostly equivalent to calling [NewErrorWithData_params], but does not allow changing the interpolation string,
+// automatically deduces the StructType and preserves nil baseError. We also accept fewer flags (because they would be meaningless).
+//
+// If baseError is nil, the returned ret and err are nil (unless one of the panic cases below is also satisfied; in this case, it is unspecified whether we panic or return nil, nil).
+//
+// As with [NewErrorWithData_params], Parameters are supposed to be passed as string - value pairs. Flags can be mixed into those pairs.
+//
+// If parameter names are repeated, the last value takes precendence. Dito for flags.
+// Note that all flags are processed before any string-value pair, so e.g. [PreferPreviousData] affects string-value pairs preceding the flag.
+//
+// We support the following flags:
+//   - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data already present in baseError with the same key.
+//   - [RecoverFromComparisonFunctionPanic] (default), [LetComparisonFunctionPanic]: Only meaningful if [MistakeIfDataIsReplaced] or [MistakeIfDataIsReplaced_fun] is set. Controls how panics during comparisons are handled.
+//   - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on mistakes (useful when creating global errors on init)
+//   - [NoValidation], [ErrorUnlessValidSyntax] (default), [ErrorUnlessValidBase], [ErrorUnlessValidFinal]: Controls validation of created errors
+//
+// The function panics under any of the following conditions:
+//   - StructType is unsuited, i.e. does not satisfy [StructSuitableForErrorsWithData]
+//   - paramsAndFlags is malformed
+//   - [PanicOnAllMistakes] was set and there is an mistake
+//   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type)
+//
+// Note that even if err != nil, ret will be a valid [ErrorWithData][StructType].
+// For each field of StructType where the provided/inherited parameter has the wrong type, we replace it by a zero value of appropriate type.
+//
+// A nil interface value among the params is converted to a nil of appropriate type if the corresponding field can be nil.
+// So this case is not treated as "has the wrong type" above if the field can be nil.
+// However, this conversion happens when *retrieving* data via the struct API (and only via the struct API).
+// The parameter stored in the error remains any(nil) and is not converted.
+//
+// NOTE: It may be preferable to check whether baseError == nil in the caller and not call this function in this case. The reason is that even though
+// this function is a no-op for baseError == nil, passing the params still involves copying and allocating a slice. Also, due to issues with escape analysis,
+// it may be better to pass pointers to (heap-allocated) *copies* of data and those expensive copies and allocations can be skipped for baseError == nil.
+func AddDataToError[StructType any](baseError ErrorWithData[StructType], paramsAndFlags ...any) (ret ErrorWithData[StructType], err Mistake) {
+
+	if baseError == nil {
+		return
+	}
+	if _, ok := baseError.(unboxableError); ok {
+		panic("Cannot happen") // unless we are given a user-defined type that happens to satisfy our unexported interface.
+	}
+
+	// implementation is alomst identical to NewErrorWithData_params
+
+	// trigger early panic for invalid StructType
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
+		panic(errInvalidStruct)
+	}
+
+	// Parse the config and parameters
+	L := len(paramsAndFlags)
+	params_map := make(ParamMap, L/2)                     // L/2 is given as lower bound for initial capacity .
+	flagArgs := make([]flagArgument_AddErrorToData, 0, L) // L given as capacity to avoid reallocation
+
+	// parse paramsAndFlags into flagArgs and params_map
+	for i := 0; i < L; i++ { // i modified in loop body
+		switch arg := paramsAndFlags[i].(type) {
+		case string:
+			if i == L-1 {
+				panic(fmt.Errorf(ErrorPrefix+"invalid arguments to AddDataToError: trailing parameter \"%v\", which is supposed to be part of a string-value pair, has no value", arg))
+			}
+			i++
+			params_map[arg] = paramsAndFlags[i]
+		case flagArgument_AddErrorToData: // must come before flagArgument below
+			flagArgs = append(flagArgs, arg)
+		case flagArgument: // -- general case of a flag. This catches flags not satisfying flagArgument_NewErrorParams for better error message.
+			panic(fmt.Errorf(ErrorPrefix + "AddDataToError called with a flag that is not supported by this function"))
+		default:
+			panic(fmt.Errorf(ErrorPrefix + "AddDataToError called with invalid parameters. Parameters must come as string-any pairs and valid flags"))
+		}
+	}
+	// parse the collected flags into config
+	var config errorCreationConfig // The zero value is the correct default value for the config entries
+	parseFlagArgs(&config, flagArgs...)
+
+	// trigger early panic for invalid StructType
+	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
+		panic(errInvalidStruct)
+	}
+
+	ret, errCreateError := newErrorWithData_map[StructType](baseError, "", params_map, config.config_OldData, config_ImplicitZero{}, config_EmptyString{})
+	errValidation := validateError(ret, config.config_Validation)
+
+	// merge the two errors
+	if errCreateError != nil {
+		if errValidation != nil {
+			err = fmt.Errorf(ErrorPrefix+"AddDataToError failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
+		} else {
+			err = fmt.Errorf(ErrorPrefix+"AddDataToError failed with the following error: %w", errCreateError)
+		}
+	} else {
+		err = errValidation // possibly nil
+	}
+
+	if err != nil && config.panicOnAllMistakes() {
+		panic(err)
+	}
+
+	return
+}
+
+*/
 
 // TEMPORARILY COMMENTED OUT -- DO WE NEED THOSE???
 

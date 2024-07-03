@@ -64,7 +64,7 @@ var (
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
 	errPrefixDoesNotFit, _ = errorsWithData.NewErrorWithData_struct(nil,
-		ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLenght} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeros",
+		ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLength} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeros",
 		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
 	ErrEmptyByteSlice    = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
@@ -79,7 +79,14 @@ func init() {
 */
 
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
-var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
+// var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
+var (
+	errCannotRepresentFieldElement, _ = errorsWithData.NewErrorWithData_any_params(nil,
+		ErrorPrefix+"field element ${Value} not representable by the given data Type ${DataType}",
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	// ErrCannotRepresentFieldElement = errorsWithData.BoxErrorAsIncomparable(errCannotRepresentFieldElement)
+)
 
 var ErrDivisionByZero = errors.New(ErrorPrefix + "division by zero")
 
@@ -103,10 +110,13 @@ var (
 	ErrPrefixLengthInvalid = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
 
 	errPrefixMismatch, _ error = errorsWithData.NewErrorWithData_any_params(nil,
-		ErrorPrefix+"during deserialization, the read prefix 0b$b{Prefix} did not match the expected one 0b$b{ExpectedPrefix}",
+		ErrorPrefix+"during deserialization, the read prefix 0b$b{Prefix} did not match the expected 0b$b{ExpectedPrefix}",
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
-	ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
+	// ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
+	errNonNormalizedDeserialization, _ = errorsWithData.NewErrorWithData_any_params(nil,
+		ErrorPrefix+"during field element deserialization, the read number ${ReadNumber} was not the minimal representative modulo BaseFieldSize. Reducing modulo BaseFieldSize gives ${ReducedNumber}",
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 )
 
 // MultiInversionErrorData is the struct type that holds the additional information

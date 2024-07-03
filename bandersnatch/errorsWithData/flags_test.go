@@ -25,6 +25,7 @@ var (
 	validFlags_NewErrorWithData_map_any     []flagArgument = validFlags_NewErrorWithData_params_any
 	validFlags_JoinAny                      []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes}
 	validFlags_Join                         []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes, MissingDataAsZero, MissingDataIsMistake}
+	validFlags_AddErrorToData               []flagArgument = []flagArgument{PreferPreviousData, ReplacePreviousData, MistakeIfDataIsReplaced, customComparisonFlag, RecoverFromComparisonFunctionPanic, LetComparisonFunctionPanic, ReturnMistake, PanicOnAllMistakes, NoValidation, ErrorUnlessValidSyntax, ErrorUnlessValidBase, ErrorUnlessValidFinal}
 )
 
 var (
@@ -42,6 +43,7 @@ var (
 		&validFlags_NewErrorWithData_map_any:     utils.TypeOfType[flagArgument_NewErrorAny](),
 		&validFlags_JoinAny:                      utils.TypeOfType[flagArgument_JoinAny](),
 		&validFlags_Join:                         utils.TypeOfType[flagArgument_Join](),
+		&validFlags_AddErrorToData:               utils.TypeOfType[flagArgument_AddErrorToData](),
 	}
 )
 

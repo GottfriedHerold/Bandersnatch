@@ -622,6 +622,11 @@ type flagArgument_AsErrorWithData interface {
 	isFlag_AsErrorWithData()
 }
 
+type flagArgument_AddErrorToData interface {
+	flagArgument
+	isFlag_AddErrorToData()
+}
+
 func (fArg_MissingData) isFlag_GetData() {}
 func (fArg_Panic) isFlag_GetData()       {}
 
@@ -635,6 +640,10 @@ func (fArg_Panic) isFlag_NewErrorParams()       {}
 func (fArg_Validity) isFlag_NewErrorParams()    {}
 func (fArg_EmptyString) isFlag_NewErrorParams() {}
 func (fArg_MissingData) isFlag_NewErrorParams() {}
+
+func (fArg_OldData) isFlag_AddErrorToData()  {}
+func (fArg_Panic) isFlag_AddErrorToData()    {}
+func (fArg_Validity) isFlag_AddErrorToData() {}
 
 func (fArg_OldData) isFlag_JoinAny() {}
 func (fArg_Panic) isFlag_JoinAny()   {}
