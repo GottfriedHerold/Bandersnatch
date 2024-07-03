@@ -135,6 +135,78 @@ func TestNewErrorWithData_params(t *testing.T) {
 	_ = panicVal
 }
 
+func TestAddDataToError(t *testing.T) {
+	type invalid struct{ _ int } // unexported
+	type DataXY struct{ X, Y int }
+	type DataXZ struct{ X, Z int }
+	type DataX struct{ X uint } // note different type
+	type empty struct{}
+
+	errBase1, _ := NewErrorWithData_params[DataX](nil, "Err ${X} %{X}", "X", uint(5), PanicOnAllMistakes)
+	for _, flag := range validFlags_AddErrorToData {
+		e, mistake := AddDataToError(errBase1, flag)
+		testutils.FatalUnless(t, e.Error() == "Err 5 5", "%v", e.Error())
+		testutils.FatalUnless(t, mistake == nil, "%v", mistake)
+
+		e, mistake = AddDataToError[DataX](nil, flag)
+		testutils.FatalUnless(t, e == nil, "")
+		testutils.FatalUnless(t, mistake == nil, "%v", mistake)
+	}
+
+	didPanic := testutils.CheckPanic(func() {
+		var e ErrorWithData[invalid] = &errorWithParameters_T[invalid]{}
+		AddDataToError(e)
+	})
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	didPanic = testutils.CheckPanic(func() {
+		AddDataToError(errBase1, MissingDataAsZero) // invalid parameter
+	})
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	didPanic = testutils.CheckPanic(func() {
+		AddDataToError(errBase1, "Arg") // missing value
+	})
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	didPanic = testutils.CheckPanic(func() {
+		AddDataToError(errBase1, "Arg", 5, 5) // non-string
+	})
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	error1, err := AddDataToError(errBase1)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError(t, error1, "Err 5 5", &DataX{X: 5}, ParamMap{"X": uint(5)}, []error{errBase1})
+
+	error2, err := AddDataToError(errBase1, "X", uint(6), "Y", 7)
+	testutils.FatalUnless(t, err == nil, "%v", err)
+	testError(t, error2, "Err 6 5", &DataX{X: 6}, ParamMap{"X": uint(6), "Y": 7}, []error{errBase1})
+
+	error3, err := AddDataToError(errBase1, "X", 5, "Y", 8) // 5 is int, not uint
+	testutils.FatalUnless(t, err != nil, "")                // expect error
+	testError(t, error3, "ignore", &DataX{X: 0}, ParamMap{"X": uint(0), "Y": int(8)}, []error{errBase1})
+
+	errBase2, _ := NewErrorWithData_struct(nil, "${X} ${Y}", &DataXZ{}, PanicOnAllMistakes)
+
+	error4, err := AddDataToError(errBase2, "Y", 5)
+	testutils.FatalUnless(t, err == nil, "")
+	testError(t, error4, "0 5", &DataXZ{}, ParamMap{"X": 0, "Y": 5, "Z": 0}, []error{errBase2})
+
+	error5, err := AddDataToError(errBase2, "Z", 5, ErrorUnlessValidFinal)
+	testutils.FatalUnless(t, err != nil, "") // missing data
+	testError(t, error5, "ignore", &DataXZ{Z: 5}, ParamMap{"X": 0, "Z": 5}, []error{errBase2})
+
+	didPanic = testutils.CheckPanic(func() {
+		AddDataToError(errBase2, "Z", 5, ErrorUnlessValidFinal, PanicOnAllMistakes)
+	})
+	testutils.FatalUnless(t, didPanic == true, "")
+
+	error6, err := AddDataToError(errBase2, "Z", "Z", ErrorUnlessValidFinal) // wrong type (string) AND missing data
+	testutils.FatalUnless(t, err != nil, "")
+	testError(t, error6, "ignore", &DataXZ{Z: 0}, ParamMap{"X": 0, "Z": 0}, []error{errBase2})
+
+}
+
 func TestNewErrorWithData_any_params(t *testing.T) {
 	type invalid struct{ _ int } // unexported
 	type DataXY struct{ X, Y int }

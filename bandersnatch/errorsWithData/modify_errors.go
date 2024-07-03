@@ -600,19 +600,17 @@ func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsE
 	return
 }
 
-/*
-
 // AddDataToError takes an existing [ErrorWithData][StructType] and returns a new error wrapping it with modified data.
 //
 // This is a convenience function that is mostly equivalent to calling [NewErrorWithData_params], but does not allow changing the interpolation string,
 // automatically deduces the StructType and preserves nil baseError. We also accept fewer flags (because they would be meaningless).
 //
-// If baseError is nil, the returned ret and err are nil (unless one of the panic cases below is also satisfied; in this case, it is unspecified whether we panic or return nil, nil).
+// If baseError is nil, the returned ret and mistake are both nil.
 //
 // As with [NewErrorWithData_params], Parameters are supposed to be passed as string - value pairs. Flags can be mixed into those pairs.
 //
 // If parameter names are repeated, the last value takes precendence. Dito for flags.
-// Note that all flags are processed before any string-value pair, so e.g. [PreferPreviousData] affects string-value pairs preceding the flag.
+// All flags are processed before any string-value pair, so e.g. [PreferPreviousData] affects string-value pairs preceding the flag.
 //
 // We support the following flags:
 //   - [PreferPreviousData], [ReplacePreviousData] (default), [MistakeIfDataIsReplaced], [MistakeIfDataIsReplaced_fun]: Controls how to handle data already present in baseError with the same key.
@@ -620,13 +618,13 @@ func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsE
 //   - [ReturnMistake] (default), [PanicOnAllMistakes]: Controls whether the function should panic on mistakes (useful when creating global errors on init)
 //   - [NoValidation], [ErrorUnlessValidSyntax] (default), [ErrorUnlessValidBase], [ErrorUnlessValidFinal]: Controls validation of created errors
 //
-// The function panics under any of the following conditions:
+// The function panics under any of the following conditions (unless baseError == nil):
 //   - StructType is unsuited, i.e. does not satisfy [StructSuitableForErrorsWithData]
 //   - paramsAndFlags is malformed
 //   - [PanicOnAllMistakes] was set and there is an mistake
 //   - [LetComparisonFunctionPanic] was set and there was a panic in a comparison function (e.g. by comparing values of equal incomparable type)
 //
-// Note that even if err != nil, ret will be a valid [ErrorWithData][StructType].
+// Note that even if mistake != nil, ret will be a valid [ErrorWithData][StructType].
 // For each field of StructType where the provided/inherited parameter has the wrong type, we replace it by a zero value of appropriate type.
 //
 // A nil interface value among the params is converted to a nil of appropriate type if the corresponding field can be nil.
@@ -637,7 +635,7 @@ func AsErrorWithData[StructType any](inputError error, flags ...flagArgument_AsE
 // NOTE: It may be preferable to check whether baseError == nil in the caller and not call this function in this case. The reason is that even though
 // this function is a no-op for baseError == nil, passing the params still involves copying and allocating a slice. Also, due to issues with escape analysis,
 // it may be better to pass pointers to (heap-allocated) *copies* of data and those expensive copies and allocations can be skipped for baseError == nil.
-func AddDataToError[StructType any](baseError ErrorWithData[StructType], paramsAndFlags ...any) (ret ErrorWithData[StructType], err Mistake) {
+func AddDataToError[StructType any](baseError ErrorWithData[StructType], paramsAndFlags ...any) (ret ErrorWithData[StructType], mistake Mistake) {
 
 	if baseError == nil {
 		return
@@ -650,6 +648,7 @@ func AddDataToError[StructType any](baseError ErrorWithData[StructType], paramsA
 
 	// trigger early panic for invalid StructType
 	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
+		// NOTE: Near impossible to trigger -- The issue is that getting hold of a (non-nil) baseError of type ErrorWithData[StructType] is not supposed to be possible.
 		panic(errInvalidStruct)
 	}
 
@@ -679,10 +678,6 @@ func AddDataToError[StructType any](baseError ErrorWithData[StructType], paramsA
 	var config errorCreationConfig // The zero value is the correct default value for the config entries
 	parseFlagArgs(&config, flagArgs...)
 
-	// trigger early panic for invalid StructType
-	if errInvalidStruct := StructSuitableForErrorsWithData[StructType](); errInvalidStruct != nil {
-		panic(errInvalidStruct)
-	}
 
 	ret, errCreateError := newErrorWithData_map[StructType](baseError, "", params_map, config.config_OldData, config_ImplicitZero{}, config_EmptyString{})
 	errValidation := validateError(ret, config.config_Validation)
@@ -690,22 +685,20 @@ func AddDataToError[StructType any](baseError ErrorWithData[StructType], paramsA
 	// merge the two errors
 	if errCreateError != nil {
 		if errValidation != nil {
-			err = fmt.Errorf(ErrorPrefix+"AddDataToError failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
+			mistake = fmt.Errorf(ErrorPrefix+"AddDataToError failed with the following error: %w.\nAdditionally, validation of the error failed with the following error: %w", errCreateError, errValidation)
 		} else {
-			err = fmt.Errorf(ErrorPrefix+"AddDataToError failed with the following error: %w", errCreateError)
+			mistake = fmt.Errorf(ErrorPrefix+"AddDataToError failed with the following error: %w", errCreateError)
 		}
 	} else {
-		err = errValidation // possibly nil
+		mistake = errValidation // possibly nil
 	}
 
-	if err != nil && config.panicOnAllMistakes() {
-		panic(err)
+	if mistake != nil && config.panicOnAllMistakes() {
+		panic(mistake)
 	}
 
 	return
 }
-
-*/
 
 // TEMPORARILY COMMENTED OUT -- DO WE NEED THOSE???
 
