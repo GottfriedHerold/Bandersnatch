@@ -30,7 +30,7 @@ import (
 
 // Uint256 is a 256-bit (unsigned) integer.
 //
-// We provide methods for elementary arithmetic and for arithmetic modulo BaseFieldSize (the latter explicitly say they perform moular reduction)
+// We provide separate methods for elementary arithmetic and for arithmetic modulo BaseFieldSize (the latter explicitly say they perform moular reduction)
 // This type is based on [4]uint64 with low-endian convention as part of the API, so x[i] will retrieve the i'th (low-endian) uint64.
 //
 // This type is mostly for internal and cross-package usage; we do not guarantee that the exported methods (and their names) are stable.

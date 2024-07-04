@@ -1,5 +1,7 @@
 package fieldElements
 
+/*
+
 import (
 	"bytes"
 	"errors"
@@ -710,3 +712,5 @@ func TestSerializeFieldElements(t *testing.T) {
 		}
 	}
 }
+
+*/

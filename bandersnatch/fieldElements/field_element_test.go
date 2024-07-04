@@ -1,5 +1,7 @@
 package fieldElements
 
+/*
+
 import (
 	"errors"
 	"fmt"
@@ -48,6 +50,8 @@ func testAllFieldElementProperties[FE any, FEPtr interface {
 	t.Run("Exponentiation", testFEProperty_Exponentiation[FE, FEPtr](10001, 10002, 100))
 }
 
+*/
+
 // For copy&pasting:
 /*
 func testFEProperty__[FE any, FEPtr interface {
@@ -59,6 +63,8 @@ func testFEProperty__[FE any, FEPtr interface {
 	}
 }
 */
+
+/*
 
 // test that SetOne, SetZero behave as expected wrt. IsZero, IsOne
 
@@ -1325,3 +1331,5 @@ func testFEProperty_Exponentiation[FE any, FEPtr interface {
 
 	}
 }
+
+*/

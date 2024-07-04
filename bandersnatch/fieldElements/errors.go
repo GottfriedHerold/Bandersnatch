@@ -45,7 +45,7 @@ var (
 		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 	errEmptyByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
-		ErrorPrefix+"Trying to deserialize a $v{ValueType} from $! NilSlice != 0{a nil}$! NilSlice == 0 {an empty} slice}",
+		ErrorPrefix+"Trying to deserialize a $v{ValueType} from $! NilSlice != 0{a nil}$! NilSlice == 0 {an empty} slice",
 		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
@@ -109,9 +109,11 @@ var (
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 	ErrPrefixLengthInvalid = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
 
-	errPrefixMismatch, _ error = errorsWithData.NewErrorWithData_any_params(nil,
+	errPrefixMismatch, _ = errorsWithData.NewErrorWithData_any_params(nil,
 		ErrorPrefix+"during deserialization, the read prefix 0b$b{Prefix} did not match the expected 0b$b{ExpectedPrefix}",
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	ErrPrefixMismatch = errorsWithData.BoxErrorAsIncomparable(errPrefixMismatch)
 
 	// ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 	errNonNormalizedDeserialization, _ = errorsWithData.NewErrorWithData_any_params(nil,

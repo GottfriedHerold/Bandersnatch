@@ -13,7 +13,6 @@ import (
 
 // Test that Serialize and Deserialize roundtrip.
 func TestUint256_SerializationRoundtrip(t *testing.T) {
-	prepareTestFieldElements(t)
 	const iterations = 1000
 	var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{allowedRange: twoTo256_Int, seed: 10001}, iterations)
 
@@ -22,13 +21,13 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 		var buf bytes.Buffer
 		for _, x := range xs {
 			bytesWritten, err := x.Serialize(&buf, endianness)
-			testutils.FatalUnless(t, err == nil, "")
+			testutils.FatalUnless(t, err == nil, "Serialization failure %v", err)
 			testutils.FatalUnless(t, bytesWritten == 32, "")
 		}
 		for _, x := range xs {
 			var y Uint256
 			bytesRead, err := y.Deserialize(&buf, endianness)
-			testutils.FatalUnless(t, err == nil, "")
+			testutils.FatalUnless(t, err == nil, "Deserialization failure %v", err)
 			testutils.FatalUnless(t, bytesRead == 32, "")
 			testutils.FatalUnless(t, x == y, "")
 		}
@@ -37,15 +36,17 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 	// buffer -> Uint256 -> buffer
 	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian, DefaultEndian} {
 
+		// initialize data with 32*iteration random bytes and make a copy in dataCopy
 		var data []byte = make([]byte, 32*iterations)
 		var dataCopy []byte = make([]byte, 32*iterations)
 		var rng *rand.Rand = rand.New(rand.NewSource(10002))
 		written, errRng := rng.Read(data)
 		testutils.FatalUnless(t, written == 32*iterations, "internal error")
 		testutils.FatalUnless(t, errRng == nil, "")
-
 		written = copy(dataCopy, data)
 		testutils.FatalUnless(t, written == 32*iterations, "internal error")
+
+		// wrap data in buf (for deserialization). Prepare empty buf2 (buffer for serialization)
 		var buf *bytes.Buffer = bytes.NewBuffer(data)
 		var buf2 *bytes.Buffer = new(bytes.Buffer)
 
@@ -53,6 +54,9 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 		for {
 			var x Uint256
 			bytesRead, errRead := x.Deserialize(buf, endianness)
+			if errRead != nil {
+				testutils.FatalUnless(t, errRead.ValidateError_Final() == nil, "")
+			}
 			if errors.Is(errRead, io.EOF) {
 				testutils.FatalUnless(t, bytesRead == 0, "")
 				errData := errRead.GetData_struct()
@@ -68,6 +72,8 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 			testutils.FatalUnless(t, errWrite == nil, "")
 			testutils.FatalUnless(t, bytesWritten == 32, "")
 		}
+
+		// Check that buf2 contains the bytes we started with.
 		data2 := buf2.Bytes()
 		testutils.FatalUnless(t, bytes.Equal(data2, dataCopy), "")
 	}
@@ -113,10 +119,11 @@ func TestUint256Serialize(t *testing.T) {
 			bytesWritten, err := x.Serialize(faultyBuf, endianness)
 
 			// check correct error handling:
-			testutils.FatalUnless(t, bytesWritten == i, "")
-			testutils.FatalUnless(t, errors.Is(err, designatedErr), "")
+			testutils.FatalUnless(t, bytesWritten == i, "")             // wrote i bytes
+			testutils.FatalUnless(t, errors.Is(err, designatedErr), "") // failed with correct error
+			testutils.FatalUnless(t, err.ValidateError_Final() == nil, "")
 			errData := err.GetData_struct()
-			testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "")
+			testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "") // partial write unless i == 0
 			testutils.FatalUnless(t, errData.BytesWritten == i, "")
 
 			// determine the i bytes that were actually written to faultyBuf
@@ -195,6 +202,7 @@ func TestUint256SerializePrefix(t *testing.T) {
 					if !prefixFit { // we expect an error
 						testutils.FatalUnless(t, writeError != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
 						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
+						testutils.FatalUnless(t, writeError.ValidateError_Final() == nil, "")
 						testutils.FatalUnless(t, bytesWritten == 0, "")
 						errData := writeError.GetData_struct()
 						testutils.FatalUnless(t, errData.PartialWrite == false, "")
