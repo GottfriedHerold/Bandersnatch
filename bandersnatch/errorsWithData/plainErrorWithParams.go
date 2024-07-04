@@ -170,7 +170,19 @@ func (e *errorWithParameters_common) ValidateError_Params(params_passed ParamMap
 	return e.parsedInterpolationString.VerifyParameters_passed(e.params, params_passed, e.wrapped_error)
 }
 
+// NOTE: Struct-embedding Is from errorWithParamters_commont into errorWithParamters_T does *NOT* work as intended.
+// The issue is that the comparison result e == target depends on e's type;
+// If we used struct embedding, then errorWithParameters_T.Is automatically generated method would implicitly compare
+// e.errorWithParameters_common == target, where the LHS has type errorWithParameters_common.
+
+// Is is required to satisfy BoxableError as part of ErrorWithData_any.
 func (e *errorWithParameters_common) Is(target error) bool {
+	target = UnboxError(target)
+	return e == target
+}
+
+// Is is required to satisfy BoxableError as part of ErrorWithData_any.
+func (e *errorWithParameters_T[StructType]) Is(target error) bool {
 	target = UnboxError(target)
 	return e == target
 }

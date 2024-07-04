@@ -29,6 +29,9 @@ func (e plainBoxableError) SupportsBoxingAsIncomparable() {}
 // Also check that double-boxing works as intended.
 // Also check that Unboxing works as intended
 func TestBoxingAsIncomparable(t *testing.T) {
+	didPanic := testutils.CheckPanic(func() { BoxErrorAsIncomparable(nil) })
+	testutils.FatalUnless(t, didPanic == true, "")
+
 	e_plain := plainBoxableError{error: errors.New("foo")}
 	e_any, _ := NewErrorWithData_any_params(e_plain, "", PanicOnAllMistakes)
 	e_T, _ := NewErrorWithData_params[struct{}](e_plain, "", PanicOnAllMistakes)
@@ -184,6 +187,22 @@ func TestMakeIncomparableErrorCreation(t *testing.T) {
 	e_typed, _ = Join[fooType](&[1]error{errBoxed}, PanicOnAllMistakes)
 	testfun(e_typed)
 
+	e_derive_from_unboxed, _ := NewErrorWithData_params[fooType](err2, "")
+	testfun(e_derive_from_unboxed)
+}
+
+func TestSanity(t *testing.T) {
+	err, _ := NewErrorWithData_struct(errors.New("sth"), "Foo", &struct{}{}, PanicOnAllMistakes, ErrorUnlessValidFinal)
+	// err, _ := NewErrorWithData_any_params(nil, "Foo")
+	Err := BoxErrorAsIncomparable(err)
+
+	errDerived, _ := NewErrorWithData_params[struct{}](err, "")
+	testutils.FatalUnless(t, errors.Is(errDerived, err), "")
+	testutils.FatalUnless(t, errors.Is(errDerived, Err), "")
+
+	errDerived, _ = NewErrorWithData_params[struct{}](Err, "")
+	testutils.FatalUnless(t, errors.Is(errDerived, err), "")
+	testutils.FatalUnless(t, errors.Is(errDerived, Err), "")
 }
 
 /*
