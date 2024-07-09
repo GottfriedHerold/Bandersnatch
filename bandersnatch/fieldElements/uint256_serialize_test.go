@@ -11,71 +11,94 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
 
+// iterating over all_uint256_suites allows to run the same test for for Serialize/Deserialize (with bytes.Buffer as io.Writer)
+// and Serialize_Buffer/Deserialize_Buffer
+
+type uint256_sersuite struct {
+	serfun   func(*Uint256, *bytes.Buffer, FieldElementEndianness) (int, SerializationError)
+	deserfun func(*Uint256, *bytes.Buffer, FieldElementEndianness) (int, DeserializationError)
+}
+
+var all_uint256_suites []uint256_sersuite = []uint256_sersuite{
+	uint256_sersuite{serfun: func(x *Uint256, bufptr *bytes.Buffer, fe FieldElementEndianness) (int, SerializationError) {
+		return x.Serialize(bufptr, fe)
+	},
+		deserfun: func(x *Uint256, bufptr *bytes.Buffer, fe FieldElementEndianness) (int, DeserializationError) {
+			return x.Deserialize(bufptr, fe)
+		}},
+	uint256_sersuite{serfun: (*Uint256).Serialize_Buffer, deserfun: (*Uint256).Deserialize_Buffer},
+}
+
 // Test that Serialize and Deserialize roundtrip.
 func TestUint256_SerializationRoundtrip(t *testing.T) {
-	const iterations = 1000
-	var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{allowedRange: twoTo256_Int, seed: 10001}, iterations)
+	// Run test against both the plain and the _Buffer variants
 
-	// Uint256 -> buffer -> Uint256
-	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian, DefaultEndian} {
-		var buf bytes.Buffer
-		for _, x := range xs {
-			bytesWritten, err := x.Serialize(&buf, endianness)
-			testutils.FatalUnless(t, err == nil, "Serialization failure %v", err)
-			testutils.FatalUnless(t, bytesWritten == 32, "")
-		}
-		for _, x := range xs {
-			var y Uint256
-			bytesRead, err := y.Deserialize(&buf, endianness)
-			testutils.FatalUnless(t, err == nil, "Deserialization failure %v", err)
-			testutils.FatalUnless(t, bytesRead == 32, "")
-			testutils.FatalUnless(t, x == y, "")
-		}
-	}
+	for _, sersuite := range all_uint256_suites {
 
-	// buffer -> Uint256 -> buffer
-	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian, DefaultEndian} {
+		const iterations = 1000
+		var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{allowedRange: twoTo256_Int, seed: 10001}, iterations)
 
-		// initialize data with 32*iteration random bytes and make a copy in dataCopy
-		var data []byte = make([]byte, 32*iterations)
-		var dataCopy []byte = make([]byte, 32*iterations)
-		var rng *rand.Rand = rand.New(rand.NewSource(10002))
-		written, errRng := rng.Read(data)
-		testutils.FatalUnless(t, written == 32*iterations, "internal error")
-		testutils.FatalUnless(t, errRng == nil, "")
-		written = copy(dataCopy, data)
-		testutils.FatalUnless(t, written == 32*iterations, "internal error")
-
-		// wrap data in buf (for deserialization). Prepare empty buf2 (buffer for serialization)
-		var buf *bytes.Buffer = bytes.NewBuffer(data)
-		var buf2 *bytes.Buffer = new(bytes.Buffer)
-
-		// copy buf -> buf2 via deserialize and serialize until EOF.
-		for {
-			var x Uint256
-			bytesRead, errRead := x.Deserialize(buf, endianness)
-			if errRead != nil {
-				testutils.FatalUnless(t, errRead.ValidateError_Final() == nil, "")
+		// Uint256 -> buffer -> Uint256
+		for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian, DefaultEndian} {
+			var buf bytes.Buffer
+			for _, x := range xs {
+				bytesWritten, err := sersuite.serfun(&x, &buf, endianness)
+				testutils.FatalUnless(t, err == nil, "Serialization failure %v", err)
+				testutils.FatalUnless(t, bytesWritten == 32, "")
 			}
-			if errors.Is(errRead, io.EOF) {
-				testutils.FatalUnless(t, bytesRead == 0, "")
-				errData := errRead.GetData_struct()
-				testutils.FatalUnless(t, errData.PartialRead == false, "")
-				testutils.FatalUnless(t, errData.BytesRead == 0, "")
-				testutils.FatalUnless(t, len(errData.ActuallyRead) == 0, "") // might be nil or zero-length slice -- either is OK.
-				break
+			for _, x := range xs {
+				var y Uint256
+				bytesRead, err := sersuite.deserfun(&y, &buf, endianness)
+				testutils.FatalUnless(t, err == nil, "Deserialization failure %v", err)
+				testutils.FatalUnless(t, bytesRead == 32, "")
+				testutils.FatalUnless(t, x == y, "Roundtrip failure %x != %x", x, y)
 			}
-			testutils.FatalUnless(t, errRead == nil, "unexpected deserialization error %v", errRead)
-			testutils.FatalUnless(t, bytesRead == 32, "unexpected number %v of bytes read", bytesRead)
-
-			bytesWritten, errWrite := x.Serialize(buf2, endianness)
-			testutils.FatalUnless(t, errWrite == nil, "")
-			testutils.FatalUnless(t, bytesWritten == 32, "")
 		}
 
-		// Check that buf2 contains the bytes we started with.
-		data2 := buf2.Bytes()
-		testutils.FatalUnless(t, bytes.Equal(data2, dataCopy), "")
+		// buffer -> Uint256 -> buffer
+		for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian, DefaultEndian} {
+
+			// initialize data with 32*iteration random bytes and make a copy in dataCopy
+			var data []byte = make([]byte, 32*iterations)
+			var dataCopy []byte = make([]byte, 32*iterations)
+			var rng *rand.Rand = rand.New(rand.NewSource(10002))
+			written, errRng := rng.Read(data)
+			testutils.FatalUnless(t, written == 32*iterations, "internal error")
+			testutils.FatalUnless(t, errRng == nil, "")
+			written = copy(dataCopy, data)
+			testutils.FatalUnless(t, written == 32*iterations, "internal error")
+
+			// wrap data in buf (for deserialization). Prepare empty buf2 (buffer for serialization)
+			var buf *bytes.Buffer = bytes.NewBuffer(data)
+			var buf2 *bytes.Buffer = new(bytes.Buffer)
+
+			// copy buf -> buf2 via deserialize and serialize until EOF.
+			for {
+				var x Uint256
+				bytesRead, errRead := sersuite.deserfun(&x, buf, endianness)
+				if errRead != nil {
+					testutils.FatalUnless(t, errRead.ValidateError_Final() == nil, "")
+				}
+				if errors.Is(errRead, io.EOF) {
+					testutils.FatalUnless(t, bytesRead == 0, "")
+					errData := errRead.GetData_struct()
+					testutils.FatalUnless(t, errData.PartialRead == false, "")
+					testutils.FatalUnless(t, errData.BytesRead == 0, "")
+					testutils.FatalUnless(t, len(errData.ActuallyRead) == 0, "") // might be nil or zero-length slice -- either is OK.
+					break
+				}
+				testutils.FatalUnless(t, errRead == nil, "unexpected deserialization error %v", errRead)
+				testutils.FatalUnless(t, bytesRead == 32, "unexpected number %v of bytes read", bytesRead)
+
+				bytesWritten, errWrite := sersuite.serfun(&x, buf2, endianness)
+				testutils.FatalUnless(t, errWrite == nil, "")
+				testutils.FatalUnless(t, bytesWritten == 32, "")
+			}
+
+			// Check that buf2 contains the bytes we started with.
+			data2 := buf2.Bytes()
+			testutils.FatalUnless(t, bytes.Equal(data2, dataCopy), "")
+		}
 	}
 }
 

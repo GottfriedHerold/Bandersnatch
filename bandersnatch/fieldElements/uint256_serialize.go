@@ -272,8 +272,8 @@ func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElement
 	}
 
 	// Otherwise, Write to z directly. This cannot fail.
-	byteOrder.Uint256_indirect(input.Bytes(), (*[4]uint64)(z))
-	return
+	byteOrder.Uint256_indirect(input.Next(32), (*[4]uint64)(z))
+	return 32, nil
 }
 
 // Deserialize_Bytes is a equivalent to [Deserialize], but reads from a byte slice.

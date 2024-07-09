@@ -10,6 +10,9 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
 )
 
+type SerializationError = errorconsts.SerializationError
+type DeserializationError = errorconsts.DeserializationError
+
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
 // This file collects all errors that can be returned by functions in this package.
