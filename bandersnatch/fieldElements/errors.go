@@ -52,7 +52,7 @@ var (
 		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
-	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.EOF,
+	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.ErrUnexpectedEOF,
 		ErrorPrefix+"Called (de)serializion method or function on too small slice", // NOTE: This is never used for ouput. We use either the serialization or the deserialization version below.
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
@@ -62,7 +62,7 @@ var (
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
 	errTooSmallByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
-		ErrorPrefix+"Tryting to deserialize a $v{ValueType} from a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+		ErrorPrefix+"Trying to deserialize a $v{ValueType} from a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
 		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 

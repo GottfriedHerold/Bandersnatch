@@ -54,7 +54,9 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 // Serialize_Buffer performs the same functionality as [Serialize], but with output of concrete type [*bytes.Buffer].
 //
 // Due to known issues with Go's escape analysis, this is an order of magnitude more efficient than the general [Serialize].
-// On failure, this method panics (because that is what [bytes.Buffer] does), so the return value is guaranteed to be (32, nil)
+// On failure, this method panics (because that is what [bytes.Buffer] does), so the return value is guaranteed to be (32, nil).
+//
+// Note that the only way for this to fail really is running out of memory / the buffer exceeding a limit controlled by the Go runtime.
 func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))

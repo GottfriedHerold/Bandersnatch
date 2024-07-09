@@ -9,6 +9,7 @@ import (
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
+	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
 )
 
 // iterating over all_uint256_suites allows to run the same test for for Serialize/Deserialize (with bytes.Buffer as io.Writer)
@@ -102,12 +103,31 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 	}
 }
 
-func TestUint256Serialize(t *testing.T) {
+func TestUIn256SerializationVariantsConsistency(t *testing.T) {
+	// Check that the output of serialization is the same for each case:
+	const iterations = 1000
+	var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{allowedRange: twoTo256_Int, seed: 10001}, iterations)
+	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian, DefaultEndian} {
+
+		var buf1, buf2 bytes.Buffer
+		var buf3 []byte = make([]byte, iterations*32)
+		for i, x := range xs {
+			x.Serialize(&buf1, endianness)
+			x.Serialize_Buffer(&buf2, endianness)
+			x.Serialize_Bytes(buf3[i*32:(i+1)*32], endianness)
+		}
+		testutils.FatalUnless(t, utils.CompareSlices(buf1.Bytes(), buf2.Bytes()), "")
+		testutils.FatalUnless(t, utils.CompareSlices(buf1.Bytes(), buf3), "")
+	}
+}
+
+func TestUint256SerializeKAT(t *testing.T) {
 
 	// known answer test
 
 	// InitUint256FromString works via big.Int, so "natural" way of writing i.e. BigEndian.
 	// This means that x's msbyte is 0x01 and lsbyte is 0x20 == 32
+
 	x := InitUint256FromString("0x0102030405060708090a0b0c0d0e0f10_1112131415161718191a1b1c1d1e1f20")
 	var buf bytes.Buffer
 	bytesWritten, errWrite := x.Serialize(&buf, LittleEndian)
@@ -125,13 +145,19 @@ func TestUint256Serialize(t *testing.T) {
 	for i := 0; i < 32; i++ {
 		testutils.FatalUnless(t, xBytes[i] == byte(i+1), "")
 	}
+}
 
+// Check that Serialize behaves correctly on IO errors.
+// Note that we don't check Serialize_Buffer here, because bytes.Buffer cannot fail
+// (apart from global failures such as the system running out of memory)
+func TestUint256SerializeError(t *testing.T) {
 	// check behaviour under errors:
 	designatedErr := errors.New("fresh error")
 
+	x := InitUint256FromString("0x0102030405060708090a0b0c0d0e0f10_1112131415161718191a1b1c1d1e1f20")
 	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian} {
 		// get correct result with given endianness
-		buf.Reset()
+		var buf bytes.Buffer
 		x.Serialize(&buf, endianness)
 		correctResult := buf.Bytes()
 
@@ -158,6 +184,60 @@ func TestUint256Serialize(t *testing.T) {
 			testutils.FatalUnless(t, bytes.Equal(readBuf, expected), "Expected to have written: 0x%X, actually wrote 0x%X", expected, readBuf)
 		}
 	}
+}
+
+func TestUint256Serialize_Bytes_Error(t *testing.T) {
+	// arbitrary value, in this case.
+	x := InitUint256FromString("123456789123456789123456789123456789")
+	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian} {
+		bytesWritten, errWriting := x.Serialize_Bytes(nil, endianness)
+		testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
+		testutils.FatalUnless(t, errWriting != nil, "")
+		testutils.FatalUnless(t, errWriting.ValidateError_Final() == nil, "")
+		testutils.FatalUnless(t, errors.Is(errWriting, ErrEmptyByteSlice), "")
+		testutils.FatalUnless(t, errors.Is(errWriting, io.EOF), "")
+
+		errData := errWriting.GetData_struct()
+		testutils.FatalUnless(t, errData.IoError == true, "")
+		testutils.FatalUnless(t, errData.PartialWrite == false, "")
+		testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+
+		testutils.FatalUnless(t, errWriting.Error() == ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a nil slice",
+			"Unexpected error message %v", errWriting)
+
+		for _, allowed_cap := range []int{0, 32} {
+			// check error behaviour for empty byte slice.
+			var bytes_slice []byte = make([]byte, 0, allowed_cap)
+			bytesWritten, errWriting := x.Serialize_Bytes(bytes_slice, endianness)
+			testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
+			testutils.FatalUnless(t, errWriting != nil, "")
+			testutils.FatalUnless(t, errWriting.ValidateError_Final() == nil, "")
+			testutils.FatalUnless(t, errors.Is(errWriting, ErrEmptyByteSlice), "")
+			testutils.FatalUnless(t, errors.Is(errWriting, io.EOF), "")
+			testutils.FatalUnless(t, errWriting.Error() == ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into an empty slice",
+				"Unexpected error message %v", errWriting)
+			errData := errWriting.GetData_struct()
+			testutils.FatalUnless(t, errData.IoError == true, "")
+			testutils.FatalUnless(t, errData.PartialWrite == false, "")
+			testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+
+			// Check error behaviour for slice of insufficient size
+			bytes_slice = make([]byte, 16, 16+allowed_cap)
+			bytesWritten, errWriting = x.Serialize_Bytes(bytes_slice, endianness)
+			testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
+			testutils.FatalUnless(t, errWriting != nil, "")
+			testutils.FatalUnless(t, errWriting.ValidateError_Final() == nil, "")
+			testutils.FatalUnless(t, errors.Is(errWriting, ErrTooSmallByteSlice), "")
+			testutils.FatalUnless(t, errors.Is(errWriting, io.ErrUnexpectedEOF), "")
+			testutils.FatalUnless(t, errWriting.Error() == ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a slice of insufficient size 16 instead of the required 32",
+				"Unexpected error message %v", errWriting)
+			errData = errWriting.GetData_struct()
+			testutils.FatalUnless(t, errData.IoError == true, "")
+			testutils.FatalUnless(t, errData.PartialWrite == false, "")
+			testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+		}
+	}
+
 }
 
 func TestUint256Deserialize(t *testing.T) {
