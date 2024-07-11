@@ -377,6 +377,8 @@ func (z *Uint256) IsOne() bool {
 	return (z[0]-1)|z[1]|z[2]|z[3] == 0
 }
 
+// only really needed for error reporting, but I guess it's nice to have.
+
 // LeadingZeroes256 returns the number of leading 0 bits that z has, when interpreted as a 256-bit integer.
 func (z *Uint256) LeadingZeroes256() (ret int) {
 	ret = bits.LeadingZeros64(z[3])
@@ -582,14 +584,15 @@ func (z *Uint256) Cmp(x *Uint256) int {
 	return 0
 }
 
-// IsLessThan compares two uin256's.
+// IsLessThan compares two Uint256's.
 //
 // The behaviour is as the name suggests: z.IsLessThan(x) is true iff z < x.
 func (z *Uint256) IsLessThan(x *Uint256) bool {
 	return z.Cmp(x) == -1
 }
 
-// unsignedExponentDecompositionEntry models entries of a decomposition of a Uint256 x into a sum x = exp_0 << pos_0 + exp_1 << pos_1 + ...
+// unsignedExponentDecompositionEntry models entries of a decomposition of a Uint256 x into a sum
+// x = (exp_0 << pos_0) + (exp_1 << pos_1) + ...
 //
 // such decompositions arise in sliding windows algorithms for exponentiation.
 // Note that the actual exponentiation algorithms are in uint256_modular.go and/or uint256_montgomery.go,

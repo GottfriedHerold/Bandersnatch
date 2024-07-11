@@ -90,7 +90,7 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 			var rng *rand.Rand = rand.New(rand.NewSource(10002))
 			written, errRng := rng.Read(data)
 			testutils.FatalUnless(t, written == 32*iterations, "internal error")
-			testutils.FatalUnless(t, errRng == nil, "")
+			testutils.FatalUnless(t, errRng == nil, "internal")
 			written = copy(dataCopy, data)
 			testutils.FatalUnless(t, written == 32*iterations, "internal error")
 
@@ -257,11 +257,11 @@ func TestUint256Serialize_Bytes_Error(t *testing.T) {
 
 }
 
-func TestUint256Deserialize(t *testing.T) {
+// correctness of Deserialization is handeld by roundtrip and KAT for serialize.
 
-	// no known answer test. the KAT for Serialize & rountrip takes care of that.
-
-	// check behaviour under errors:
+// Test that Uint256.Deserialize handles errors correctly
+func TestUint256DeserializeError(t *testing.T) {
+	// check behaviour of Deserialize under errors:
 	designatedErr := errors.New("fresh error")
 	x := InitUint256FromString("0x0102030405060708090a0b0c0d0e0f10_1112131415161718191a1b1c1d1e1f20")
 
@@ -290,6 +290,13 @@ func TestUint256Deserialize(t *testing.T) {
 			testutils.FatalUnless(t, bytes.Equal(actuallyRead, correctResult[0:i]), "Expected to have read: 0x%X, actually read 0x%X", correctResult[0:i], actuallyRead)
 		}
 	}
+}
+
+// Test that Uint256.Deserialize_Buffer handles error correctly.
+//
+// Note: The only relevant error that can occur is if the buffer is too small.
+func TestUint256Deserialize_BufferError(t *testing.T) {
+
 }
 
 func TestUint256SerializePrefixRoundtrip(t *testing.T) {

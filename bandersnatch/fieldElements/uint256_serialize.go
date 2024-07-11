@@ -137,7 +137,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", z.LeadingZeroes256(),
+			"LeadingZeroes", 256-z.BitLen(), // we don't use leadingZeroes64 because then the error message would be incorrect.
 			"ValueType", "Uint256")
 		return
 	}
@@ -172,7 +172,7 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", z.LeadingZeroes256(),
+			"LeadingZeroes", 256-z.BitLen(), // we don't use leadingZeroes64 because then the error message would be incorrect.
 			"ValueType", "Uint256")
 		return
 	}
@@ -209,7 +209,7 @@ func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byt
 			"Value", *z,
 			"ValueType", "Uint256",
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", z.LeadingZeroes256()) // we don't use leadingZeroes64 because then the error message would be incorrect.
+			"LeadingZeroes", 256-z.BitLen()) // we don't use leadingZeroes64 because then the error message would be incorrect.
 		return
 	}
 
@@ -263,6 +263,8 @@ func (z *Uint256) Deserialize(input io.Reader, byteOrder FieldElementEndianness)
 //
 // This version is equivalent to, but more efficient than the general version.
 func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
+
+	// TODO: The failure cases causes escape analysis failure for the happy path. Fix this.
 
 	// Optimization: Instead of copying the input into buf, we check for the correct size (this is the only possible error condition) and then read directly from the underlying wrapped []byte.
 	if input.Len() < 32 {

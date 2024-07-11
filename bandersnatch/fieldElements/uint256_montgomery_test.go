@@ -47,7 +47,6 @@ func TestToNonMontgomery_fc(t *testing.T) {
 		var z2 Uint256
 		z2.FromMontgomeryRepresentation_fc(&xCopy)
 		testutils.FatalUnless(t, z2 == z, "FromMontgomery differs from ToNonMontgomery")
-
 	}
 }
 
