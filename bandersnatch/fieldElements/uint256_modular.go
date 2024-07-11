@@ -881,7 +881,6 @@ func (z *Uint256) ComputeModularNegative_Weak_a() (r Uint256) {
 
 	r[3], r[2], r[1], r[0] = t3, t2, t1, t0
 	return
-
 }
 
 // DoubleEqAndReduce_a doubles a number modulo m, weakly reduced reduce to to the interval [0..2**256)

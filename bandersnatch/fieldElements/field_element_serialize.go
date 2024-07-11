@@ -5,7 +5,6 @@ import (
 	"io"
 	"math/bits"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
@@ -35,7 +34,7 @@ var (
 // This function fully reduces z and returns an error wrapping ErrNonNormalizedDeserialization.
 // The bytesRead and bitHeader parameters are only used to get the error metadata right:
 // we use them to write the unreduced z back to a buffer to reconstruct the actually read data.
-func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHeader, byteOrder FieldElementEndianness) (err bandersnatchErrors.DeserializationError) {
+func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHeader, byteOrder FieldElementEndianness) (err common.DeserializationError) {
 
 	var data [32]byte
 	var buf *bytes.Buffer = bytes.NewBuffer(data[0:0:32])
@@ -49,7 +48,7 @@ func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHea
 
 	// fully reduce z
 	z.Reduce_fa()
-	err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errNonNormalizedDeserialization, "",
+	err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errNonNormalizedDeserialization, "",
 		"PartialRead", false,
 		"BytesRead", bytesRead,
 		"ActuallyRead", buf.Bytes(), // Note: buf.Bytes() does not copy, but that's OK here, as we stop using buf.
@@ -72,13 +71,13 @@ func handleNonNormalizedReads(z *Uint256, bytesRead int, bitHeader common.BitHea
 // In particular, it always writes in non-Montgomery form.
 //
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
-func SerializeFieldElement(x FieldElementInterface_common, output io.Writer, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.SerializationError) {
+func SerializeFieldElement(x FieldElementInterface_common, output io.Writer, byteOrder FieldElementEndianness) (bytesRead int, err common.SerializationError) {
 	// could do more efficiently by unrolling (thereby saving a copy).
 	var x256 Uint256
 	x.ToUint256(&x256)
 	bytesRead, err = x256.Serialize(output, byteOrder)
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "",
 			"ValueType", "FieldElemet", // we don't try to deduce the type of *x here.
 		)
 	}
@@ -95,11 +94,11 @@ func SerializeFieldElement(x FieldElementInterface_common, output io.Writer, byt
 // Other values for err are possible: in particular io errors from input.
 //
 // If any error other than [ErrNonNormalizedDeserialization] occurs, we keep z untouched.
-func DeserializeFieldElement(z FieldElementInterface_common, input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func DeserializeFieldElement(z FieldElementInterface_common, input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 	var zUint256 Uint256
 	bytesRead, err = zUint256.Deserialize(input, byteOrder)
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "",
 			"ValueType", "FieldElement")
 		return
 	}
@@ -133,13 +132,13 @@ func DeserializeFieldElement(z FieldElementInterface_common, input io.Reader, by
 //
 // Possible errors: io errors and ErrPrefixDoesNotFit (all possibly wrapped)
 // The error data's BytesWritten always equals the directly returned bytesWritten
-func SerializeFieldElementWithPrefix(x FieldElementInterface_common, output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func SerializeFieldElementWithPrefix(x FieldElementInterface_common, output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 	// could do more efficiently by unrolling (thereby saving a copy).
 	var x256 Uint256
 	x.ToUint256(&x256)
 	bytesWritten, err = x256.SerializeWithPrefix(output, prefix, byteOrder)
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "",
 			"ValueType", "FieldElement")
 	}
 	return
@@ -162,11 +161,11 @@ func SerializeFieldElementWithPrefix(x FieldElementInterface_common, output io.W
 //
 // possible errors: errors wrapping [ErrPrefixLengthInvalid], [ErrNonNormalizedDeserialization], io errors
 // The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read; ActuallyRead is nil if no read attempt was made due to invalid function arguments.
-func DeserializeFieldElementAndGetPrefix(z FieldElementInterface_common, input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+func DeserializeFieldElementAndGetPrefix(z FieldElementInterface_common, input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	var zUint256 Uint256
 	bytesRead, prefix, err = zUint256.DeserializeAndGetPrefix(input, prefixLength, byteOrder)
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "",
 			"ValueType", "FieldElement")
 		return
 	}
@@ -188,11 +187,11 @@ func DeserializeFieldElementAndGetPrefix(z FieldElementInterface_common, input i
 // NOTE2: In the big endian case, the prefix is contained in the first byte read, so prefix mismatches can be detected early.
 // On such a prefix mismatch, it is unspecificed (and subject to possible changes) whether we actually read the full 32 bytes.
 // Make sure to check the bytesRead returned.
-func DeserializeFieldElementWithExpectedPrefix(z FieldElementInterface_common, input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func DeserializeFieldElementWithExpectedPrefix(z FieldElementInterface_common, input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 	var zUint256 Uint256
 	bytesRead, err = zUint256.DeserializeWithExpectedPrefix(input, expectedPrefix, byteOrder)
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "",
 			"ValueType", "FieldElement")
 		return
 	}
@@ -215,7 +214,7 @@ func DeserializeFieldElementWithExpectedPrefix(z FieldElementInterface_common, i
 // In this case, we write the value to z, reduced modulo BaseFieldSize.
 //
 // If any error other than ErrNonNormalizedDeserialization occurs, we keep z untouched.
-func (z *bsFieldElement_MontgomeryNonUnique) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 	// TODO: Make more efficient?
 	bytesRead, _, err = z.DeserializeAndGetPrefix(input, 0, byteOrder) // The ignored _ is guaranteed to be 0
 	return
@@ -227,7 +226,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) Deserialize(input io.Reader, byteOr
 // 32 bytes to output. byteOrder should be BigEndian or LittleEndian and refers to the ordering of bytes (not words) in output.
 // The return values are the actual number of bytes written and a potential error (such as io errors).
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
-func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	var zUint256 Uint256 // = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
 	zUint256.FromMontgomeryRepresentation_fc(&z.words)
@@ -238,7 +237,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrd
 	byteOrder.PutUint256(buf, zUint256)
 	bytesWritten, errIO = output.Write(buf)
 	if errIO != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errIO, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errIO, "",
 			"PartialWrite", bytesWritten != 0 && bytesWritten != 32,
 			"BytesWritten", bytesWritten,
 			"IoError", true,
@@ -271,13 +270,13 @@ func (z *bsFieldElement_MontgomeryNonUnique) Serialize(output io.Writer, byteOrd
 //
 // Possible errors: io errors and [ErrPrefixDoesNotFit] (all wrapped)
 // The error data's BytesWritten always equals the directly returned bytesWritten
-func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 	var zUint256 Uint256 // = z.words.ToNonMontgomery_fc() // words in low endian order in the "obvious" representation.
 	zUint256.FromMontgomeryRepresentation_fc(&z.words)
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if leading_zeroes := bits.LeadingZeros64(zUint256[3]); leading_zeroes < int(prefix_length) {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errPrefixDoesNotFit, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errPrefixDoesNotFit, "",
 			"PartialWrite", false,
 			"BytesWritten", 0,
 			"IoError", false,
@@ -297,7 +296,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Write
 	var errIO error
 	bytesWritten, errIO = output.Write(buf)
 	if errIO != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errIO, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errIO, "",
 			"PartialWrite", bytesWritten != 0 && bytesWritten != 32,
 			"BytesWritten", bytesWritten,
 			"IoError", true,
@@ -321,10 +320,10 @@ func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Write
 //
 // possible errors: errors wrapping [ErrPrefixLengthInvalid], [ErrInvalidByteOrder], [ErrNonNormalizedDeserialization], io errors
 // The error data's ActuallyRead and BytesRead are guaranteed to contain the raw bytes and their number that were read; ActuallyRead is nil if no read attempt was made due to invalid function arguments.
-func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	bytesRead, prefix, err = z.words.DeserializeAndGetPrefix(input, prefixLength, byteOrder)
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "",
 			"ValueType", "FieldElement")
 		return
 	}
@@ -337,7 +336,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Re
 			panic(ErrorPrefix + "cannot happen")
 		}
 
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errNonNormalizedDeserialization, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errNonNormalizedDeserialization, "",
 			"PartialRead", false,
 			"BytesRead", bytesRead, // 32
 			"ActuallyRead", buf.Bytes(), // NOTE: buf may no longer be used.
@@ -364,7 +363,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeAndGetPrefix(input io.Re
 // NOTE2: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
 // For the little endian case, we always try to read 32 bytes.
 // This behaviour might change in the future. Do not rely on it and check the returned bytesRead.
-func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 
 	// var fieldElementBuffer bsFieldElement_64
 	var little_endian_words [4]uint64 // we do not write to z directly, because we need to check for errors first.
@@ -379,7 +378,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		bytesRead, errIO = io.ReadFull(input, buf[0:1])
 		if errIO != nil { // ioError (most likely EOF)
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errIO, "",
 				"PartialRead", bytesRead != 0,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -390,7 +389,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		}
 		if readPrefix := buf[0] >> (8 - expectedPrefixLength); readPrefix != byte(expectedPrefixBits) {
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
 				"PartialRead", true,
 				"BytesRead", bytesRead, // 1
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -407,7 +406,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		if errIO != nil {
 			errorTransform.UnexpectEOF(&errIO) // Replace io.EOF -> io.ErrUnexpectedEOF
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
 				"PartialRead", bytesRead != 32,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -420,7 +419,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		bytesRead, errIO = io.ReadFull(input, buf[0:32])
 		if errIO != nil {
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
 				"PartialRead", bytesRead != 32 && bytesRead != 0,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -440,7 +439,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 	if readPrefixBits != expectedPrefixBits {
 		testutils.Assert(!byteOrder.StartsWithMSB()) // We already checked the prefix above and should not have come this far.
 		bufCopy := buf
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
 			"PartialRead", false,
 			"BytesRead", bytesRead, // 32
 			"ActuallyRead", bufCopy[0:bytesRead],
@@ -460,7 +459,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 	// Note: We need to call isNormalized before restoreMontgomery (because the latter would normalize).
 	if !z.isNormalized() {
 		bufCopy := buf
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errNonNormalizedDeserialization, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errNonNormalizedDeserialization, "",
 			"PartialRead", false,
 			"BytesRead", bytesRead, // 32
 			"ActuallyRead", bufCopy[0:32], // Note: Need slice, not array.

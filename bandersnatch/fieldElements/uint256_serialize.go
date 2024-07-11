@@ -6,7 +6,6 @@ import (
 	"math/bits"
 	"reflect"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorTransform"
@@ -26,7 +25,7 @@ import (
 //
 // There are special-case methods [Serialize_Buffer] and [Serialize_Bytes] for the same functionality for writing to a [bytes.Buffer] and []byte.
 // (These are orders of magnitude faster because of the way interfaces in Go work and how they interact with escape analysis.)
-func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	var errPlain error
 
@@ -41,7 +40,7 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 		err, _ = errorsWithData.NewErrorWithData_struct(errPlain, "", errorconsts.NewIntermediateWriteErrorData(bytesWritten, 32), errorsWithData.PanicOnAllMistakes)
 		// Note: We do not use %T{Writer} and put "Writer" as parameter of type io.Writer in the returned error.
 		// The reason is that output is not immutable and we cannot easily clone it. So we only provide information about the type.
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err,
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err,
 			ErrorPrefix+"call to Serialize with receiver ${ValueType} with value ${Value} and io.Writer of type ${WriterType} failed after writing %{BytesWritten} bytes with the following error:\n$w",
 			errorsWithData.PanicOnAllMistakes,
 			"Value", *z,
@@ -57,7 +56,7 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 // On failure, this method panics (because that is what [bytes.Buffer] does), so the return value is guaranteed to be (32, nil).
 //
 // Note that the only way for this to fail really is running out of memory / the buffer exceeding a limit controlled by the Go runtime.
-func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 
@@ -74,20 +73,20 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 // The return values are the actual number of bytes written (alywas 32 or 0) and a potential error.
 // If output does not have sufficient length, returns errors wrapping [ErrEmptyByteSlice] (if len(output)==0) or [ErrTooSmallByteSlice] (if 0<len(output)<32).
 // For consistency with [Serialize], these errors wrap [io.EOF] respectively [io.UnexpectedEOF]
-func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	// handle error cases before writing anything: PutUint256_ptr panics on insufficent slice length (for consistency reasons with binary.ByteOrder's interface)
 	// We want Serialize_Bytes to be consistent with the other Serialize methods, so we catch this.
 	if len(output) < 32 {
 		if len(output) == 0 {
 			// NilSlice == true resp. NilSlice == false changes the error message to refer to an nil resp. empty slice.
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errEmptyByteSlice_Serialize, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errEmptyByteSlice_Serialize, "",
 				"Value", *z,
 				"ValueType", "Uint256",
 				"NilSlice", output == nil,
 				errorsWithData.ErrorUnlessValidFinal, errorsWithData.PanicOnAllMistakes)
 		} else { // 0 < len(output) < 32
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errTooSmallByteSlice_Serialize, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errTooSmallByteSlice_Serialize, "",
 				"Value", *z,
 				"SliceSize", len(output),
 				"ValueType", "Uint256",
@@ -130,15 +129,15 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 //
 // Possible errors: I/O errors (depending on output's type) and ErrPrefixDoesNotFit, all wrapped.
 // If an error occurs, err.GetData().BytesWritten always equals the bytesWritten value directly returned.
-func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
-	if leadingZeroes := bits.LeadingZeros64(z[3]); leadingZeroes < int(prefix_length) {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrPrefixDoesNotFit, "",
+	if leadingZeroes64 := bits.LeadingZeros64(z[3]); leadingZeroes64 < int(prefix_length) {
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", leadingZeroes,
+			"LeadingZeroes", z.LeadingZeroes256(),
 			"ValueType", "Uint256")
 		return
 	}
@@ -152,7 +151,7 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 
 	// The error message actually refers to the value to be serialized. We need to set it to *z rather than zCopy.
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", "Value", *z)
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "", "Value", *z)
 	}
 
 	return
@@ -162,18 +161,18 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 
 // SerializeWithPrefix_Buffer is a specialiazition of [SerializeWithPrefix] for the case where the output is a [*bytes.Buffer].
 //
-// Due to the way interfaces in Go work, this method is an order of magnitude faster.
-func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+// Due to the way interfaces in Go work, this method is much faster.
+func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	// almost literally the same code as the general version (except for using Serialize_Buffer)
 
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
-	if leadingZeroes := bits.LeadingZeros64(z[3]); leadingZeroes < int(prefix_length) {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrPrefixDoesNotFit, "",
+	if leadingZeroes64 := bits.LeadingZeros64(z[3]); leadingZeroes64 < int(prefix_length) {
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", leadingZeroes,
+			"LeadingZeroes", z.LeadingZeroes256(),
 			"ValueType", "Uint256")
 		return
 	}
@@ -187,7 +186,7 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 
 	// The error message actually refers to the value to be serialized. We need to set it to *z rather than zCopy.
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", "Value", *z)
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "", "Value", *z)
 	}
 
 	return
@@ -201,16 +200,16 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 // which in turn wrap io.EOF resp. io.UnexpectedEOF. We do not write anything in these cases.
 //
 // Due to the way interfaces in Go work, this method is an order of magnitude faster than [SerializeWithPrefix].
-func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
-	if leadingZeroes := bits.LeadingZeros64(z[3]); leadingZeroes < int(prefix_length) {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](ErrPrefixDoesNotFit, "",
+	if leadingZeroes64 := bits.LeadingZeros64(z[3]); leadingZeroes64 < int(prefix_length) {
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"Value", *z,
 			"ValueType", "Uint256",
 			"PrefixLength", prefix_length,
-			"LeadingZeroes", leadingZeroes)
+			"LeadingZeroes", z.LeadingZeroes256()) // we don't use leadingZeroes64 because then the error message would be incorrect.
 		return
 	}
 
@@ -223,7 +222,7 @@ func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byt
 
 	// The error message actually refers to the value to be serialized. We need to set it to *z rather than zCopy.
 	if err != nil {
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", "Value", *z)
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "", "Value", *z)
 	}
 
 	return
@@ -236,14 +235,14 @@ func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byt
 //
 // For input of type [bytes.Buffer] or to deserialize from a []byte, we have more efficienct, special-cased methods
 // [Derserialize_Buffer] resp. [Deserialize_Bytes]
-func (z *Uint256) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) Deserialize(input io.Reader, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 	// We read all input into buf first, because we don't want to touch z on intermediate IO errors.
 	var errPlain error
 	var buf [32]byte
 	bytesRead, errPlain = io.ReadFull(input, buf[:])
 	if errPlain != nil {
 		bufCopy := buf // to avoid allocating buf on the heap in the happy case.
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPlain, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPlain, "",
 			"PartialRead", bytesRead != 0 && bytesRead != 32,
 			"BytesRead", bytesRead,
 			"ActuallyRead", bufCopy[0:bytesRead],
@@ -263,7 +262,7 @@ func (z *Uint256) Deserialize(input io.Reader, byteOrder FieldElementEndianness)
 // Deserialize_Buffer is a special-cased version of [Deserialize] for input of type [*bytes.Buffer].
 //
 // This version is equivalent to, but more efficient than the general version.
-func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 
 	// Optimization: Instead of copying the input into buf, we check for the correct size (this is the only possible error condition) and then read directly from the underlying wrapped []byte.
 	if input.Len() < 32 {
@@ -281,19 +280,19 @@ func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElement
 // Deserialize_Bytes is a equivalent to [Deserialize], but reads from a byte slice.
 //
 // This is more efficient than wrapping the byte slice in a [bytes.Buffer] and using either [Deserialize] or [Deserialize_Buffer].
-func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 
 	// handle the (only) error case first:
 	if len(input) < 32 {
 		if len(input) == 0 {
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errEmptyByteSlice_Deserialize, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errEmptyByteSlice_Deserialize, "",
 				"ValueType", "Uint256",
 				"NilSlice", input == nil, // NilSlice == true resp. NilSlice == false changes the error message to refer to an nil resp. empty slice.
 				"SliceSize", 0,
 				"RequiredSize", 32,
 				errorsWithData.ErrorUnlessValidFinal)
 		} else { // 0 < len(input) < 32
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errTooSmallByteSlice_Deserialize, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errTooSmallByteSlice_Deserialize, "",
 				"ValueType", "Uint256",
 				"SliceSize", len(input),
 				"RequiredSize", 32,
@@ -324,9 +323,9 @@ func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianne
 // ActuallyRead is nil if no read attempt was made due to invalid function arguments.
 //
 // We have special-cased methods [DeserializeAndGetPrefix_Buffer] and [DeserializeAndGetPrefix_Bytes] for inputs of type bytes.Buffer and []byte. These are more efficient.
-func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
 			"ValueType", "Uint256",
 			"PrefixLength", prefixLength,
 		)
@@ -341,7 +340,7 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 	if errPlain != nil {
 		bufCopy := buf // copy to avoid buf escaping to the heap here.
 		// NOTE: May escape to heap nonetheless for other reasons
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPlain, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPlain, "",
 			"PartialRead", bytesRead != 0 && bytesRead != 32,
 			"BytesRead", bytesRead,
 			"ActuallyRead", bufCopy[0:bytesRead],
@@ -367,9 +366,9 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 // DeserializeAndGetPrefix_Buffer is the special-cased version [DeserializeAndGetPrefix] for input of type [*bytes.Buffer].
 //
 // It is more efficient than the general case.
-func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
 			"ValueType", "Uint256",
 			"PrefixLength", prefixLength,
 		)
@@ -389,7 +388,8 @@ func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLeng
 	// NOTE: We cannot fail if we get here.
 
 	// Write to z directly.
-	byteOrder.Uint256_indirect(input.Bytes(), (*[4]uint64)(z))
+	byteOrder.Uint256_indirect(input.Next(32), (*[4]uint64)(z))
+	bytesRead = 32
 
 	// read out the top prefixLength many bits.
 	prefix = common.PrefixBits(z[3] >> (64 - prefixLength))
@@ -401,9 +401,9 @@ func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLeng
 	return
 }
 
-func (z *Uint256) DeserializeAndGetPrefix_Bytes(input []byte, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) DeserializeAndGetPrefix_Bytes(input []byte, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
 			"ValueType", "Uint256 and Prefix",
 			"PrefixLength", prefixLength,
 		)
@@ -412,14 +412,14 @@ func (z *Uint256) DeserializeAndGetPrefix_Bytes(input []byte, prefixLength uint8
 
 	if len(input) < 32 {
 		if len(input) == 0 {
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errEmptyByteSlice_Deserialize, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errEmptyByteSlice_Deserialize, "",
 				"ValueType", "Uint256 and Prefix",
 				"NilSlice", input == nil, // NilSlice == true resp. NilSlice == false changes the error message to refer to an nil resp. empty slice.
 				"SliceSize", 0,
 				"RequiredSize", 32,
 				errorsWithData.ErrorUnlessValidFinal)
 		} else { // 0 < len(input) < 32
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errTooSmallByteSlice_Deserialize, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errTooSmallByteSlice_Deserialize, "",
 				"ValueType", "Uint256 and Prefix",
 				"SliceSize", len(input),
 				"RequiredSize", 32,
@@ -450,7 +450,7 @@ func (z *Uint256) DeserializeAndGetPrefix_Bytes(input []byte, prefixLength uint8
 // NOTE2: In the big endian case, we only read 1 byte (which contains the prefix) in case of a prefix-mismatch.
 // For the little endian case, we always try to read 32 bytes.
 // This behaviour might change in the future. Do not rely on it and check the returned bytesRead.
-func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (bytesRead int, err common.DeserializationError) {
 	// var fieldElementBuffer bsFieldElement_64
 	var zTemp [4]uint64 // we do not write to z directly, because we need to check for errors first.
 	var buf [32]byte    // for receiving the input of io.ReadFull
@@ -466,7 +466,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		bytesRead, errIO = io.ReadFull(input, buf[0:1])
 		if errIO != nil { // ioError (most likely EOF)
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errIO, "",
 				"PartialRead", bytesRead != 0 && bytesRead != 32,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -480,7 +480,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		// Check prefix already here
 		if readPrefix := buf[0] >> (8 - expectedPrefixLength); readPrefix != byte(expectedPrefixBits) {
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
 				"PartialRead", true,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -499,7 +499,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		if errIO != nil {
 			errorTransform.UnexpectEOF(&errIO) // Replace io.EOF -> io.ErrUnexpectedEOF
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errIO, "",
 				"PartialRead", bytesRead != 0 && bytesRead != 32,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -516,7 +516,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 		bytesRead, errIO = io.ReadFull(input, buf[0:32])
 		if errIO != nil {
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errIO, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errIO, "",
 				"PartialRead", bytesRead != 0 && bytesRead != 32,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -539,7 +539,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 			panic(ErrorPrefix + "Cannot happen") // We already checked the prefix above and should not have come this far.
 		}
 		bufCopy := buf
-		err, _ = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](errPrefixMismatch, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
 			"PartialRead", false,
 			"BytesRead", bytesRead,
 			"ActuallyRead", bufCopy[0:bytesRead],

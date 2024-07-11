@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 )
 
@@ -138,9 +137,9 @@ type FieldElementInterface[FieldElementPointer any] interface {
 // temporary interface, may be changed.
 // NOTE: We have free functions as well that do essentially the same.
 type FieldElementSerializeMethods interface {
-	Serialize(io.Writer, FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError)
-	Deserialize(io.Reader, FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError)
-	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (bytesWritten int, err bandersnatchErrors.SerializationError)
-	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err bandersnatchErrors.DeserializationError)
-	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	Serialize(io.Writer, FieldElementEndianness) (bytesWritten int, err common.SerializationError)
+	Deserialize(io.Reader, FieldElementEndianness) (bytesRead int, err common.DeserializationError)
+	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (bytesWritten int, err common.SerializationError)
+	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError)
+	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (bytesRead int, err common.DeserializationError)
 }

@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
@@ -264,7 +263,7 @@ func TestValuesSerializersRoundtrip(t *testing.T) {
 				if !errors.Is(err, designatedErr) {
 					t.Fatalf("Did not get expected designated error upon writing for %v", typeName)
 				}
-				Partial := errorsWithData.GetData_struct[bandersnatchErrors.WriteErrorData](err).PartialWrite
+				Partial := errorsWithData.GetData_struct[common.WriteErrorData](err).PartialWrite
 				if Partial != (faultPos != 0) {
 					t.Fatalf("Did not set PartialWrite correctly on error for %v", typeName)
 				}
@@ -282,7 +281,7 @@ func TestValuesSerializersRoundtrip(t *testing.T) {
 				if !errors.Is(err, designatedErr) {
 					t.Fatalf("Did not get expceted designated error reading from faulty buffer for %v", typeName)
 				}
-				Partial = errorsWithData.GetData_struct[bandersnatchErrors.ReadErrorData](err).PartialRead
+				Partial = errorsWithData.GetData_struct[common.ReadErrorData](err).PartialRead
 				if Partial != (faultPos != 0) {
 					t.Fatalf("Did not set PartialRead correctly on error for %v", typeName)
 				}

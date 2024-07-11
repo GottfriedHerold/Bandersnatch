@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
@@ -379,7 +378,7 @@ func TestErrorBehaviourSingleSerializeMultiSerializer(t *testing.T) {
 				testutils.FatalUnless(t, bytesRead == i, "Did not read until error")
 				testutils.FatalUnless(t, err != nil, "Did not get read error on faulty buffer")
 				testutils.FatalUnless(t, errors.Is(err, designatedError), "Did not get expected error")
-				var errData bandersnatchErrors.ReadErrorData = err.GetData_struct()
+				var errData common.ReadErrorData = err.GetData_struct()
 				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "Invalid PartialRead flag")
 
 				faultyBuf = testutils.NewFaultyBuffer(i, designatedError)

@@ -16,18 +16,43 @@ import (
 // and Serialize_Buffer/Deserialize_Buffer
 
 type uint256_sersuite struct {
-	serfun   func(*Uint256, *bytes.Buffer, FieldElementEndianness) (int, SerializationError)
-	deserfun func(*Uint256, *bytes.Buffer, FieldElementEndianness) (int, DeserializationError)
+	serfun   func(*Uint256, *bytes.Buffer, FieldElementEndianness) (int, common.SerializationError)
+	deserfun func(*Uint256, *bytes.Buffer, FieldElementEndianness) (int, common.DeserializationError)
 }
 
 var all_uint256_suites []uint256_sersuite = []uint256_sersuite{
-	uint256_sersuite{serfun: func(x *Uint256, bufptr *bytes.Buffer, fe FieldElementEndianness) (int, SerializationError) {
+	uint256_sersuite{serfun: func(x *Uint256, bufptr *bytes.Buffer, fe FieldElementEndianness) (int, common.SerializationError) {
 		return x.Serialize(bufptr, fe)
 	},
-		deserfun: func(x *Uint256, bufptr *bytes.Buffer, fe FieldElementEndianness) (int, DeserializationError) {
+		deserfun: func(x *Uint256, bufptr *bytes.Buffer, fe FieldElementEndianness) (int, common.DeserializationError) {
 			return x.Deserialize(bufptr, fe)
 		}},
 	uint256_sersuite{serfun: (*Uint256).Serialize_Buffer, deserfun: (*Uint256).Deserialize_Buffer},
+}
+
+type uint256_sersuites_prefix struct {
+	serWithPrefix      func(*Uint256, *bytes.Buffer, BitHeader, FieldElementEndianness) (int, common.SerializationError)
+	derserGetPrefix    func(*Uint256, *bytes.Buffer, uint8, FieldElementEndianness) (int, common.PrefixBits, common.DeserializationError)
+	derserExpectPrefix func(*Uint256, *bytes.Buffer, BitHeader, FieldElementEndianness) (int, common.DeserializationError)
+}
+
+var all_uint256_prefix_suites []uint256_sersuites_prefix = []uint256_sersuites_prefix{
+	uint256_sersuites_prefix{
+		serWithPrefix: func(x *Uint256, bufptr *bytes.Buffer, header BitHeader, fe FieldElementEndianness) (int, common.SerializationError) {
+			return x.SerializeWithPrefix(bufptr, header, fe)
+		},
+		derserGetPrefix: func(x *Uint256, bufptr *bytes.Buffer, prefixLen uint8, fe FieldElementEndianness) (int, common.PrefixBits, common.DeserializationError) {
+			return x.DeserializeAndGetPrefix(bufptr, prefixLen, fe)
+		},
+		derserExpectPrefix: func(x *Uint256, bufptr *bytes.Buffer, expected BitHeader, fe FieldElementEndianness) (int, common.DeserializationError) {
+			return x.DeserializeWithExpectedPrefix(bufptr, expected, fe)
+		},
+	},
+	uint256_sersuites_prefix{
+		serWithPrefix:      (*Uint256).SerializeWithPrefix_Buffer,
+		derserGetPrefix:    (*Uint256).DeserializeAndGetPrefix_Buffer,
+		derserExpectPrefix: nil,
+	},
 }
 
 // Test that Serialize and Deserialize roundtrip.
@@ -77,9 +102,7 @@ func TestUint256_SerializationRoundtrip(t *testing.T) {
 			for {
 				var x Uint256
 				bytesRead, errRead := sersuite.deserfun(&x, buf, endianness)
-				if errRead != nil {
-					testutils.FatalUnless(t, errRead.ValidateError_Final() == nil, "")
-				}
+				testutils.CheckErrorValidity(t, errRead)
 				if errors.Is(errRead, io.EOF) {
 					testutils.FatalUnless(t, bytesRead == 0, "")
 					errData := errRead.GetData_struct()
@@ -170,7 +193,7 @@ func TestUint256SerializeError(t *testing.T) {
 			// check correct error handling:
 			testutils.FatalUnless(t, bytesWritten == i, "")             // wrote i bytes
 			testutils.FatalUnless(t, errors.Is(err, designatedErr), "") // failed with correct error
-			testutils.FatalUnless(t, err.ValidateError_Final() == nil, "")
+			testutils.CheckErrorValidity(t, err)
 			errData := err.GetData_struct()
 			testutils.FatalUnless(t, errData.PartialWrite == (i != 0), "") // partial write unless i == 0
 			testutils.FatalUnless(t, errData.BytesWritten == i, "")
@@ -193,7 +216,6 @@ func TestUint256Serialize_Bytes_Error(t *testing.T) {
 		bytesWritten, errWriting := x.Serialize_Bytes(nil, endianness)
 		testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
 		testutils.FatalUnless(t, errWriting != nil, "")
-		testutils.FatalUnless(t, errWriting.ValidateError_Final() == nil, "")
 		testutils.FatalUnless(t, errors.Is(errWriting, ErrEmptyByteSlice), "")
 		testutils.FatalUnless(t, errors.Is(errWriting, io.EOF), "")
 
@@ -202,8 +224,7 @@ func TestUint256Serialize_Bytes_Error(t *testing.T) {
 		testutils.FatalUnless(t, errData.PartialWrite == false, "")
 		testutils.FatalUnless(t, errData.BytesWritten == 0, "")
 
-		testutils.FatalUnless(t, errWriting.Error() == ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a nil slice",
-			"Unexpected error message %v", errWriting)
+		testutils.CheckErrorMessage(t, errWriting, ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a nil slice")
 
 		for _, allowed_cap := range []int{0, 32} {
 			// check error behaviour for empty byte slice.
@@ -211,11 +232,9 @@ func TestUint256Serialize_Bytes_Error(t *testing.T) {
 			bytesWritten, errWriting := x.Serialize_Bytes(bytes_slice, endianness)
 			testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
 			testutils.FatalUnless(t, errWriting != nil, "")
-			testutils.FatalUnless(t, errWriting.ValidateError_Final() == nil, "")
 			testutils.FatalUnless(t, errors.Is(errWriting, ErrEmptyByteSlice), "")
 			testutils.FatalUnless(t, errors.Is(errWriting, io.EOF), "")
-			testutils.FatalUnless(t, errWriting.Error() == ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into an empty slice",
-				"Unexpected error message %v", errWriting)
+			testutils.CheckErrorMessage(t, errWriting, ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into an empty slice")
 			errData := errWriting.GetData_struct()
 			testutils.FatalUnless(t, errData.IoError == true, "")
 			testutils.FatalUnless(t, errData.PartialWrite == false, "")
@@ -226,11 +245,9 @@ func TestUint256Serialize_Bytes_Error(t *testing.T) {
 			bytesWritten, errWriting = x.Serialize_Bytes(bytes_slice, endianness)
 			testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
 			testutils.FatalUnless(t, errWriting != nil, "")
-			testutils.FatalUnless(t, errWriting.ValidateError_Final() == nil, "")
 			testutils.FatalUnless(t, errors.Is(errWriting, ErrTooSmallByteSlice), "")
 			testutils.FatalUnless(t, errors.Is(errWriting, io.ErrUnexpectedEOF), "")
-			testutils.FatalUnless(t, errWriting.Error() == ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a slice of insufficient size 16 instead of the required 32",
-				"Unexpected error message %v", errWriting)
+			testutils.CheckErrorMessage(t, errWriting, ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a slice of insufficient size 16 instead of the required 32")
 			errData = errWriting.GetData_struct()
 			testutils.FatalUnless(t, errData.IoError == true, "")
 			testutils.FatalUnless(t, errData.PartialWrite == false, "")
@@ -263,6 +280,7 @@ func TestUint256Deserialize(t *testing.T) {
 			bytesRead, err := x.Deserialize(faultyBuf, endianness)
 
 			// check correct error handling:
+			testutils.CheckErrorValidity(t, err)
 			testutils.FatalUnless(t, bytesRead == i, "")
 			testutils.FatalUnless(t, errors.Is(err, designatedErr), "")
 			errData := err.GetData_struct()
@@ -270,6 +288,65 @@ func TestUint256Deserialize(t *testing.T) {
 			testutils.FatalUnless(t, errData.BytesRead == i, "")
 			actuallyRead := errData.ActuallyRead
 			testutils.FatalUnless(t, bytes.Equal(actuallyRead, correctResult[0:i]), "Expected to have read: 0x%X, actually read 0x%X", correctResult[0:i], actuallyRead)
+		}
+	}
+}
+
+func TestUint256SerializePrefixRoundtrip(t *testing.T) {
+	// needs to be large enough such that we get numbers where any of the prefixes below fits and
+	// number where they don't. > 256 should suffice for constant prob even for the last one.
+	const num = 2000
+
+	var xs []Uint256 = CachedUint256.GetElements(SeedAndRange{allowedRange: twoTo256_Int, seed: 10001}, num)
+	var prefixes []BitHeader = []BitHeader{
+		BitHeader{}, // == MakeBitHeader(0,0)
+		common.MakeBitHeader(0b0, 1),
+		common.MakeBitHeader(0b1, 1),
+		common.MakeBitHeader(0b10, 2),
+		common.MakeBitHeader(0b00, 2),
+		common.MakeBitHeader(0b100, 3),
+		common.MakeBitHeader(0b11111111, 8),
+	}
+
+	for _, suite := range all_uint256_prefix_suites {
+		for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian, DefaultEndian} {
+			for _, x := range xs {
+				bitLen := x.BitLen()
+				var buf bytes.Buffer
+
+				for _, prefix := range prefixes {
+					// try writing with prefix and check if it works.
+
+					lenStored := len(buf.Bytes()) // previous lenght of buffer.
+					bytesWritten, err := suite.serWithPrefix(&x, &buf, prefix, endianness)
+					testutils.CheckErrorValidity(t, err)
+					testutils.FatalUnless(t, len(buf.Bytes()) == lenStored+bytesWritten, "bytesWritten wrong")
+					var prefixFit bool = bitLen+int(prefix.PrefixLen()) <= 256
+
+					if !prefixFit { // we expect an error
+						testutils.FatalUnless(t, err != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
+						testutils.FatalUnless(t, errors.Is(err, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", err)
+						testutils.FatalUnless(t, bytesWritten == 0, "") // we don't actually write, because we detect the error beforehand
+						errData := err.GetData_struct()
+						testutils.FatalUnless(t, errData.PartialWrite == false, "")
+						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+						testutils.FatalUnless(t, errData.IoError == false, "")
+						testutils.CheckErrorMessage(t, err, ErrorPrefix+
+							"while trying to serialize a Uint256 with value %v with a prefix, the prefix of length %v did not fit, because the number was too large, having only %v leading zeroes",
+							x, prefix.PrefixLen(), x.LeadingZeroes256())
+						continue // no roundtrip tests
+					}
+
+					// we expect roundtrip
+					testutils.FatalUnless(t, err == nil && bytesWritten == 32, "") // double-check
+					var y Uint256
+					bytesRead, prefixBits, readError := suite.derserGetPrefix(&y, &buf, prefix.PrefixLen(), endianness)
+					testutils.FatalUnless(t, readError == nil, "Unexpected error:\n%v", readError)
+					testutils.FatalUnless(t, bytesRead == 32, "unexpected number %v of bytes read", bytesRead)
+					testutils.FatalUnless(t, x == y, "Roundtrip error for SerializeWithPrefix: field element")
+					testutils.FatalUnless(t, prefixBits == prefix.PrefixBits(), "Roundtrip error for SerializeWithPrefix: prefix")
+				}
+			}
 		}
 	}
 }

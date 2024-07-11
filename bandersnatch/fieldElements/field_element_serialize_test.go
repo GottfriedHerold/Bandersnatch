@@ -27,27 +27,27 @@ import (
 // Due to interplay with generics and how they work with Go, there is some meaningless, but complicated boilerplate.
 // First, we define (generic) function types that match the signatures of the methods that we want to test.
 
-type fe_serialization_fun[FEPtr FieldElementInterface_common] func(x FEPtr, output io.Writer, byteOrder FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
-type fe_deserialization_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, byteOrder FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
-type fe_serializeWithPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
-type fe_deserializeAndGetPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (int, common.PrefixBits, bandersnatchErrors.DeserializationError)
-type fe_deserializeWithExpectedPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+type fe_serialization_fun[FEPtr FieldElementInterface_common] func(x FEPtr, output io.Writer, byteOrder FieldElementEndianness) (int, common.SerializationError)
+type fe_deserialization_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, byteOrder FieldElementEndianness) (int, common.DeserializationError)
+type fe_serializeWithPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, output io.Writer, prefix BitHeader, byteOrder FieldElementEndianness) (int, common.SerializationError)
+type fe_deserializeAndGetPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (int, common.PrefixBits, common.DeserializationError)
+type fe_deserializeWithExpectedPrefix_fun[FEPtr FieldElementInterface_common] func(x FEPtr, input io.Reader, expectedPrefix BitHeader, byteOrder FieldElementEndianness) (int, common.DeserializationError)
 
 // serialization / deserialization routines are currently not part of the FieldElement interface. So we need to type-assert to actually retrieve the methods.
 
 // TODO: Rename and export, once things have stabilized.
 
 type hasSerializer interface {
-	Serialize(io.Writer, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
+	Serialize(io.Writer, FieldElementEndianness) (int, common.SerializationError)
 }
 type hasDeserializer interface {
-	Deserialize(io.Reader, FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+	Deserialize(io.Reader, FieldElementEndianness) (int, common.DeserializationError)
 }
 
 type hasPrefixSerializerAndDeserializer interface {
-	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (int, bandersnatchErrors.SerializationError)
-	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (int, common.PrefixBits, bandersnatchErrors.DeserializationError)
-	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (int, bandersnatchErrors.DeserializationError)
+	SerializeWithPrefix(io.Writer, BitHeader, FieldElementEndianness) (int, common.SerializationError)
+	DeserializeAndGetPrefix(io.Reader, uint8, FieldElementEndianness) (int, common.PrefixBits, common.DeserializationError)
+	DeserializeWithExpectedPrefix(io.Reader, BitHeader, FieldElementEndianness) (int, common.DeserializationError)
 }
 
 // internal sanity check if the above was typo-free.
@@ -89,23 +89,23 @@ func testFESerialization_All[FEType any, FEPtr interface {
 	var funDeserWithExpectedPrefix fe_deserializeWithExpectedPrefix_fun[FEPtr]
 
 	if _, ok := any(dummy).(hasSerializer); ok {
-		funSer = func(x FEPtr, output io.Writer, e FieldElementEndianness) (int, bandersnatchErrors.SerializationError) {
+		funSer = func(x FEPtr, output io.Writer, e FieldElementEndianness) (int, common.SerializationError) {
 			return any(x).(hasSerializer).Serialize(output, e)
 		}
 	}
 	if _, ok := any(dummy).(hasDeserializer); ok {
-		funDeser = func(x FEPtr, input io.Reader, e FieldElementEndianness) (int, bandersnatchErrors.DeserializationError) {
+		funDeser = func(x FEPtr, input io.Reader, e FieldElementEndianness) (int, common.DeserializationError) {
 			return any(x).(hasDeserializer).Deserialize(input, e)
 		}
 	}
 	if _, ok := any(dummy).(hasPrefixSerializerAndDeserializer); ok {
-		funSerWithPrefix = func(x FEPtr, output io.Writer, prefix BitHeader, e FieldElementEndianness) (int, bandersnatchErrors.SerializationError) {
+		funSerWithPrefix = func(x FEPtr, output io.Writer, prefix BitHeader, e FieldElementEndianness) (int, common.SerializationError) {
 			return any(x).(hasPrefixSerializerAndDeserializer).SerializeWithPrefix(output, prefix, e)
 		}
-		funDeserAndGetPrefix = func(x FEPtr, input io.Reader, prefixLength uint8, e FieldElementEndianness) (int, common.PrefixBits, bandersnatchErrors.DeserializationError) {
+		funDeserAndGetPrefix = func(x FEPtr, input io.Reader, prefixLength uint8, e FieldElementEndianness) (int, common.PrefixBits, common.DeserializationError) {
 			return any(x).(hasPrefixSerializerAndDeserializer).DeserializeAndGetPrefix(input, prefixLength, e)
 		}
-		funDeserWithExpectedPrefix = func(x FEPtr, input io.Reader, expectedPrefix BitHeader, e FieldElementEndianness) (int, bandersnatchErrors.DeserializationError) {
+		funDeserWithExpectedPrefix = func(x FEPtr, input io.Reader, expectedPrefix BitHeader, e FieldElementEndianness) (int, common.DeserializationError) {
 			return any(x).(hasPrefixSerializerAndDeserializer).DeserializeWithExpectedPrefix(input, expectedPrefix, e)
 		}
 	}
@@ -518,7 +518,7 @@ func testFESerialization_PrefixErrorHandling[FEType any, FEPtr interface {
 				// function to test a given buffer with a given expected error. We define a function to avoid writing it 4 times:
 				// We test this with deserTest ~ DeserializeAndGetPrefix or deserTest ~DeserializeWithExpectedPrefix
 				// and buf == truncated buffer and buf == io.Reader that gives an io.error after reading i bytes.
-				testBuf := func(buf io.Reader, expectedError error, deserTest func(SerArg, io.Reader) (int, bandersnatchErrors.DeserializationError)) {
+				testBuf := func(buf io.Reader, expectedError error, deserTest func(SerArg, io.Reader) (int, common.DeserializationError)) {
 					var y FEType
 					yPtr := FEPtr(&y)
 					ySer := any(&y).(SerArg)
@@ -534,11 +534,11 @@ func testFESerialization_PrefixErrorHandling[FEType any, FEPtr interface {
 				}
 
 				// wrap functions to be tested to be usable by the above by creating a closure fixing some arguments.
-				wrapDeserAndGetPrefix := func(x SerArg, reader io.Reader) (int, bandersnatchErrors.DeserializationError) {
+				wrapDeserAndGetPrefix := func(x SerArg, reader io.Reader) (int, common.DeserializationError) {
 					bytesRead, _, errRead := deserAndGetPrefix(x, reader, prefix.PrefixLen(), endianness)
 					return bytesRead, errRead
 				}
-				wrapDeserWithExpectedPrefix := func(x SerArg, reader io.Reader) (int, bandersnatchErrors.DeserializationError) {
+				wrapDeserWithExpectedPrefix := func(x SerArg, reader io.Reader) (int, common.DeserializationError) {
 					return deserWithExpectedPrefix(x, reader, prefix, endianness)
 				}
 

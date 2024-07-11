@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 )
@@ -180,7 +181,7 @@ func TestWriteFull(t *testing.T) {
 	testutils.FatalUnless(t, bytesWritten == 2, "writeFull wrote %v bytes instead of the expected 2 on faultyBuf2", bytesWritten)
 	testutils.FatalUnless(t, errors.Is(err, designatedErr), "writeFull did not fail on write with faultyBuf2 with the expected error. Error was %v", err)
 
-	var errData bandersnatchErrors.WriteErrorData = err.GetData_struct()
+	var errData common.WriteErrorData = err.GetData_struct()
 	testutils.FatalUnless(t, errData.PartialWrite == true, "writeFull did not report partialWrite")
 	testutils.FatalUnless(t, errData.BytesWritten == 2, "writeFull did not report BytesWritten")
 	intendedToWrite := errorsWithData.GetData_struct[struct{ Data []byte }](err).Data

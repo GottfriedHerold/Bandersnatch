@@ -377,6 +377,24 @@ func (z *Uint256) IsOne() bool {
 	return (z[0]-1)|z[1]|z[2]|z[3] == 0
 }
 
+// LeadingZeroes256 returns the number of leading 0 bits that z has, when interpreted as a 256-bit integer.
+func (z *Uint256) LeadingZeroes256() (ret int) {
+	ret = bits.LeadingZeros64(z[3])
+	if z[3] != 0 {
+		return
+	}
+	ret += bits.LeadingZeros64(z[2])
+	if z[2] != 0 {
+		return
+	}
+	ret += bits.LeadingZeros64(z[1])
+	if z[1] != 0 {
+		return
+	}
+	ret += bits.LeadingZeros64(z[0])
+	return
+}
+
 // ShiftRightEq_64 right-shifts the internal uint64 array by 64 bit (equivalent to truncated-towards-minus-infinity division by 2^64) and returns the shifted-out uint64
 func (z *Uint256) ShiftRightEq_64() (ShiftOut uint64) {
 	ShiftOut = z[0]

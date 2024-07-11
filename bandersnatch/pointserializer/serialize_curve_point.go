@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/curvePoints"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
@@ -91,7 +90,7 @@ import (
 // TODO: Rename this vs. the *_Modifyable variants?
 
 type CurvePointDeserializer interface {
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError)
 	IsSubgroupOnly() bool                             // Equivalent to GetParameter("SubgroupOnly") This indicates whether the deserializer is restricted to subgroup point. Note: If the target curve point type can only hold subgroup elements, this serializer flag is irrelevant and this is the preferred method.
 	OutputLength() int32                              // returns the length in bytes that this serializer will try at most to read per curve point.
 	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try at most to read if deserializing a slice of numPoints many points.
@@ -123,7 +122,7 @@ type CurvePointSerializer interface {
 
 	// similar to curvePointSerializer_basic. We repeat everthing because of go-doc
 
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError)
 	IsSubgroupOnly() bool                             // Equivalent to GetParameter("SubgroupOnly").(bool)
 	OutputLength() int32                              // returns the length in bytes that this serializer will try to read/write per curve point.
 	SliceOutputLength(numPoints int32) (int32, error) // returns the length in bytes that this serializer will try to read/write if serializing a slice of numPoints many points.
@@ -137,7 +136,7 @@ type CurvePointSerializer interface {
 	RecognizedParameters() []string
 	HasParameter(parameterName string) bool
 
-	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError)
 
 	DeserializeCurvePoints(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoints curvePoints.CurvePointSlice) (bytesRead int, err BatchDeserializationError)
 	DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceMaker DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError)
@@ -238,7 +237,7 @@ var ErrInsufficientBufferForDeserialization BatchDeserializationError = errorsWi
 	ErrorPrefix+"The provided buffer is too small to store the curve point slice",
 	&BatchDeserializationErrorData{
 		PointsDeserialized: 0, // We check this before we do any IO on the actual points
-		ReadErrorData: bandersnatchErrors.ReadErrorData{
+		ReadErrorData: common.ReadErrorData{
 			PartialRead: true, // We still performed IO prior to this error, because we needed to determine the required size of the buffer from the in-band information.
 		}})
 
@@ -534,12 +533,12 @@ func (md *multiSerializer[_, _, _, _]) WithEndianness(newEndianness binary.ByteO
 // trustLevel indicates whether the input is to be trusted that the data represents any (subgroup)point at all.
 //
 // On error, outputPoint may or may not be changed.
-func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	bytesRead, err = md.headerDeserializer.deserializeSinglePointHeader(inputStream)
 	if err != nil {
 		if bytesRead > 0 {
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -558,7 +557,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
 		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
 		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerDeserializer.trivialSinglePointFooter() && bytesRead > 0) {
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		return
 	}
@@ -567,7 +566,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 	if err != nil {
 		errorTransform.UnexpectEOF2(&err)
 		if bytesJustRead == 0 {
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
@@ -578,12 +577,12 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Re
 // trustLevel indicates whether the input is to be trusted that the data represents any (subgroup)point at all.
 //
 // On error, outputPoint may or may not be changed.
-func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	bytesRead, err = md.headerSerializer.deserializeSinglePointHeader(inputStream)
 	if err != nil {
 		if bytesRead > 0 {
 			errorTransform.UnexpectEOF2(&err) // not really doing anything, since bytesRead > 0 contradicts err is EOF.
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 
 		return
@@ -604,7 +603,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 		// So assume the footer is trivial. If err does not alreay contain the partial read_flag, bytesJustRead is either 0 or everything was read.
 		// In the latter case, we really have no partial read; if bytesJustRead, we have a partial read situation if there was a header.
 		if (bytesJustRead == 0 && bytesRead > 0) || (!md.headerSerializer.trivialSinglePointFooter() && bytesRead > 0) {
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 
 		return
@@ -614,7 +613,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 	if err != nil {
 		errorTransform.UnexpectEOF2(&err)
 		if bytesJustRead == 0 {
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
+			err = errorsWithData.NewErrorWithData_params[common.ReadErrorData](err, "", FIELDNAME_PARTIAL_READ, true)
 		}
 		// outputPoint.SetFrom(originalPoint)
 	}
@@ -623,12 +622,12 @@ func (md *multiSerializer[_, _, _, _]) DeserializeCurvePoint(inputStream io.Read
 }
 
 // SerializeCurvePoint serializes the given input point to the outputStream.
-func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError) {
 	bytesWritten, err = md.headerSerializer.serializeSinglePointHeader(outputStream)
 	if err != nil {
 		if bytesWritten > 0 {
 			errorTransform.UnexpectEOF2(&err) // does nothing, actually, because err cannot be EOF for bytesWritten > 0
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 		return
 	}
@@ -637,7 +636,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
 			errorTransform.UnexpectEOF2(&err)
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 		return
 	}
@@ -646,7 +645,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeCurvePoint(outputStream io.Write
 	if err != nil {
 		if bytesWritten > 0 && bytesWritten < int(md.OutputLength()) {
 			errorTransform.UnexpectEOF2(&err)
-			err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
+			err = errorsWithData.NewErrorWithData_params[common.WriteErrorData](err, "", FIELDNAME_PARTIAL_WRITE, true)
 		}
 	}
 	return

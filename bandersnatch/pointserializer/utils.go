@@ -8,6 +8,7 @@ import (
 	"math"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 )
 
@@ -16,7 +17,7 @@ const FIELDNAME_PARTIAL_WRITE = bandersnatchErrors.FIELDNAME_PARTIAL_WRITE
 const FIELDNAME_ACTUALLY_READ = bandersnatchErrors.FIELDNAME_ACTUALLY_READ
 const FIELDNAME_BYTES_READ = bandersnatchErrors.FIELDNAME_BYTES_READ
 
-// additional data contained in errors returned by consumeExpectRead. Note that this "extends" bandersnatchErrors.ReadErrorData
+// additional data contained in errors returned by consumeExpectRead. Note that this "extends" common.ReadErrorData
 type headerRead struct {
 	PartialRead    bool
 	ActuallyRead   []byte
@@ -25,7 +26,7 @@ type headerRead struct {
 }
 
 func init() {
-	errorsWithData.CheckIsSubtype[bandersnatchErrors.ReadErrorData, headerRead]() // ensure that headerRead extends bandersnatchErrors.ReadErorData
+	errorsWithData.CheckIsSubtype[common.ReadErrorData, headerRead]() // ensure that headerRead extends bandersnatchErrors.ReadErorData
 }
 
 const ErrorPrefix = "bandersnatch / serialization: "
@@ -35,11 +36,11 @@ var ErrDidNotReadExpectedString = bandersnatchErrors.ErrDidNotReadExpectedString
 // Our code below makes use of formatting in the form %v{FieldName}. If we ever refactor field names, this would break.
 // This init - routine panics if we change field names to alert to this.
 func init() {
-	errorsWithData.CheckParameterForStruct[bandersnatchErrors.ReadErrorData]("PartialRead")
-	errorsWithData.CheckParameterForStruct[bandersnatchErrors.ReadErrorData]("BytesRead")
-	errorsWithData.CheckParameterForStruct[bandersnatchErrors.ReadErrorData]("ActuallyRead")
-	errorsWithData.CheckParameterForStruct[bandersnatchErrors.WriteErrorData]("BytesWritten")
-	errorsWithData.CheckParameterForStruct[bandersnatchErrors.WriteErrorData]("PartialWrite")
+	errorsWithData.CheckParameterForStruct[common.ReadErrorData]("PartialRead")
+	errorsWithData.CheckParameterForStruct[common.ReadErrorData]("BytesRead")
+	errorsWithData.CheckParameterForStruct[common.ReadErrorData]("ActuallyRead")
+	errorsWithData.CheckParameterForStruct[common.WriteErrorData]("BytesWritten")
+	errorsWithData.CheckParameterForStruct[common.WriteErrorData]("PartialWrite")
 	errorsWithData.CheckParameterForStruct[headerRead]("ExpectedToRead")
 	errorsWithData.CheckParameterForStruct[headerRead]("PartialRead")
 	errorsWithData.CheckParameterForStruct[headerRead]("ActuallyRead")
@@ -161,7 +162,7 @@ func copySlice[T any](v []T) (ret []T) {
 // writeFull(output, data) wraps around output.Write(data) by adding error data.
 //
 // On error, the returned error has an extra data field in addition to WriteErrorData (accessible via errorsWithData) called "Data" that holds (a deep copy of) the data that we tried to write.
-func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func writeFull(output io.Writer, data []byte) (bytesWritten int, err common.SerializationError) {
 	// Note: output.Write may interpret a nil byte slice as an empty []byte array and actually work.
 	// However, since this is an internal function and we never intend to call it with something that may be nil, we panic.
 	if data == nil {
@@ -170,7 +171,7 @@ func writeFull(output io.Writer, data []byte) (bytesWritten int, err bandersnatc
 
 	bytesWritten, errPlain := output.Write(data)
 	if errPlain != nil {
-		err = errorsWithData.NewErrorWithData_params[bandersnatchErrors.WriteErrorData](errPlain, ErrorPrefix+"An error occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data. The error was:\n%w",
+		err = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errPlain, ErrorPrefix+"An error occured when trying to write %v{Data} to io.Writer. We only wrote %v{BytesWritten} data. The error was:\n%w",
 			"Data", copyByteSlice(data),
 			bandersnatchErrors.FIELDNAME_BYTES_WRITTEN, bytesWritten,
 			FIELDNAME_PARTIAL_WRITE, bytesWritten != 0 && bytesWritten < len(data),

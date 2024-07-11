@@ -12,12 +12,12 @@ import (
 
 // This file contains common code that is often needed to modify errors. This will be moved to internal utils at some point, I guess.
 
-// UnexpectEOF turns an (error wrapping an) io.EOF error into an io.UnexpectedEOF or an error wrapping io.UnexpectedEOF.
-// io.UnexpectedEOF is commonly used by the standard library to indicate an EOF when reading multiple bytes from a stream and there was an EOF in the middle of reading.
-// By contrast, io.EOF is returned when there is an EOF at the beginning.
+// UnexpectEOF turns an (error wrapping an) [io.EOF] error into an [io.UnexpectedEOF] or an error wrapping [io.UnexpectedEOF].
+// [io.UnexpectedEOF] is commonly used by the standard library to indicate an EOF when reading multiple bytes from a stream and there was an EOF in the middle of reading.
+// By contrast, [io.EOF] is returned when there is an EOF at the beginning (i.e. the reader was empty to start with).
 //
-// Note: If the error wraps io.EOF then the additional errors in the error chain are lost.
-// However, extra data embedding via the ErrorWithParameters interface are retained; if such parameters are present, the error will wrap io.UnexpectedEOF
+// Note: If the error wraps [io.EOF] then the additional errors in the error chain are lost.
+// However, extra data embedded via the [errorsWithData] package are retained; if such parameters are present, the error will wrap [io.UnexpectedEOF]
 // rather than being equal to it.
 func UnexpectEOF(errPtr *error) {
 	if errors.Is(*errPtr, io.EOF) {
@@ -30,7 +30,7 @@ func UnexpectEOF(errPtr *error) {
 	}
 }
 
-// UnexpectEOF2 does the same as UnexpectEOF, except that it preserves the compile-time information about the StructType in ErrorWithGuaranteedParameters[StructType]
+// UnexpectEOF2 does the same as UnexpectEOF, except that it preserves the compile-time information about the StructType in [errorsWithData.ErrorWithData][StructType]
 func UnexpectEOF2[StructType any](errPtr *errorsWithData.ErrorWithData[StructType]) {
 	if errors.Is(*errPtr, io.EOF) {
 		m := errorsWithData.GetData_map(*errPtr)

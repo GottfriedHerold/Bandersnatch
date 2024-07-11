@@ -3,7 +3,6 @@ package pointserializer
 import (
 	"io"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/fieldElements"
@@ -48,8 +47,8 @@ type valuesSerializer interface {
 	// NOTE: The above extends parameterAware
 	// Functions not well-expressible via interface:
 	// Clone() PointerReceiver -- Returns an independent copy of itself. Would require making the interface generic, which we do not want.
-	// SerializeValues(output io.Writer, [...]) (bytesWritten int, err bandersnatchErrors.SerializationError)
-	// DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, [...])
+	// SerializeValues(output io.Writer, [...]) (bytesWritten int, err common.SerializationError)
+	// DeserializeValues(input io.Reader) (bytesRead int, err common.DeserializationError, [...])
 	// WithParameter(parameterName string, newParam any) PointerReceiver
 }
 
@@ -69,10 +68,10 @@ type valuesSerializer interface {
 // updateReadError is used to update "PartialRead" in the metadata contained in the error;
 // bytesRead is passed via pointer because this function is called via defer and arguments to deferred functions
 // get evaluated at the time of defer, not when the function is actually run.
-func updateReadError(errPtr *bandersnatchErrors.DeserializationError, bytesReadPtr *int, expectToRead int) {
+func updateReadError(errPtr *common.DeserializationError, bytesReadPtr *int, expectToRead int) {
 	if *errPtr != nil {
 		var bytesRead int = *bytesReadPtr
-		*errPtr = errorsWithData.AddDataToError_params[bandersnatchErrors.ReadErrorData](*errPtr,
+		*errPtr = errorsWithData.AddDataToError_params[common.ReadErrorData](*errPtr,
 			FIELDNAME_PARTIAL_READ, bytesRead != 0 && bytesRead != expectToRead,
 			// NOTE: We do not update the "BytesRead" metadata in the error. This is intentional: "BytesRead" refers to the failing sub-call.
 		)
@@ -82,10 +81,10 @@ func updateReadError(errPtr *bandersnatchErrors.DeserializationError, bytesReadP
 // updateWriteError is used to update the "PartialWrite" metadata contained in the error;
 // bytesWritten is passed via pointer because this function is called via defer and arguments to deferred functions
 // get evaluated at the time of defer, not when the functon is run.
-func updateWriteError(errPtr *bandersnatchErrors.SerializationError, bytesWrittenPtr *int, expectToWrite int) {
+func updateWriteError(errPtr *common.SerializationError, bytesWrittenPtr *int, expectToWrite int) {
 	if *errPtr != nil {
 		var bytesWritten int = *bytesWrittenPtr
-		*errPtr = errorsWithData.AddDataToError_params[bandersnatchErrors.WriteErrorData](*errPtr,
+		*errPtr = errorsWithData.AddDataToError_params[common.WriteErrorData](*errPtr,
 			FIELDNAME_PARTIAL_WRITE, (bytesWritten != 0) && (bytesWritten != expectToWrite),
 			// NOTE: We do not update the "BytesWritten" metadata in the error. This is intentional: "BytesWritten" refers to the failing sub-call.
 		)
@@ -109,7 +108,7 @@ type valuesSerializerFeFe struct {
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
-func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
+func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int, err common.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
 	defer updateReadError(&err, &bytesRead, int(s.OutputLength())) // ensures PartialRead is correctly set on error.
 	bytesRead, err = fieldElement1.Deserialize(input, s.fieldElementEndianness)
 	// Note: This aborts on ErrNonNormalizedDeserialization. I.e. if the first read field element is not in normalized form, we don't even read the second.
@@ -126,7 +125,7 @@ func (s *valuesSerializerFeFe) DeserializeValues(input io.Reader) (bytesRead int
 // SerializeValues writes the given values (and possibly header) to output.
 //
 // For valuesSerializerFeFe, it writes 2 field elements.
-func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *valuesSerializerFeFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *fieldElements.FieldElement) (bytesWritten int, err common.SerializationError) {
 	defer updateWriteError(&err, &bytesWritten, int(s.OutputLength())) // ensures PartialWrite is correctly set on error.
 
 	bytesWritten, err = fieldElement1.Serialize(output, s.fieldElementEndianness)
@@ -206,7 +205,7 @@ type valuesSerializerHeaderFeHeaderFe struct {
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
-func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
+func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err common.DeserializationError, fieldElement1, fieldElement2 fieldElements.FieldElement) {
 	defer updateReadError(&err, &bytesRead, int(s.OutputLength())) // Ensure correctess of PartialRead flag on error.
 
 	bytesRead, err = fieldElement1.DeserializeWithExpectedPrefix(input, s.bitHeader, s.fieldElementEndianness)
@@ -224,7 +223,7 @@ func (s *valuesSerializerHeaderFeHeaderFe) DeserializeValues(input io.Reader) (b
 // SerializeValues writes the given values (and possibly header) to output.
 //
 // For valuesSerializerHeaderFeHeaderFe, it writes 2 field elements and headers.
-func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *valuesSerializerHeaderFeHeaderFe) SerializeValues(output io.Writer, fieldElement1, fieldElement2 *fieldElements.FieldElement) (bytesWritten int, err common.SerializationError) {
 	defer updateWriteError(&err, &bytesWritten, int(s.OutputLength())) // Ensure correctness of PartialWrite flag on error
 
 	bytesWritten, err = fieldElement1.SerializeWithPrefix(output, s.bitHeader, s.fieldElementEndianness)
@@ -315,7 +314,7 @@ type valuesSerializerFe struct {
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
-func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement fieldElements.FieldElement) {
+func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, err common.DeserializationError, fieldElement fieldElements.FieldElement) {
 	// no need for defer updateReadError(...)
 	bytesRead, err = fieldElement.Deserialize(input, s.fieldElementEndianness)
 	return
@@ -324,7 +323,7 @@ func (s *valuesSerializerFe) DeserializeValues(input io.Reader) (bytesRead int, 
 // SerializeValues writes the given values (and possibly header) to output.
 //
 // For valuesSerializerFe, it writes 1 field element.
-func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *valuesSerializerFe) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement) (bytesWritten int, err common.SerializationError) {
 	// no need for defer updateWriteError(...)
 	bytesWritten, err = fieldElement.Serialize(output, s.fieldElementEndianness)
 	return
@@ -394,7 +393,7 @@ type valuesSerializerHeaderFe struct {
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
-func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement fieldElements.FieldElement) {
+func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead int, err common.DeserializationError, fieldElement fieldElements.FieldElement) {
 	bytesRead, err = fieldElement.DeserializeWithExpectedPrefix(input, s.bitHeader, s.fieldElementEndianness)
 	return
 }
@@ -402,7 +401,7 @@ func (s *valuesSerializerHeaderFe) DeserializeValues(input io.Reader) (bytesRead
 // SerializeValues writes the given values (and possibly header) to output.
 //
 // For valuesSerializerHeaderFe, it writes 1 field element with header.
-func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *valuesSerializerHeaderFe) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement) (bytesWritten int, err common.SerializationError) {
 	bytesWritten, err = fieldElement.SerializeWithPrefix(output, s.bitHeader, s.fieldElementEndianness)
 	return
 }
@@ -477,7 +476,7 @@ var truePrefixBitHeader = common.MakeBitHeader(truePrefix, 1)
 // Note the err is returned as second rather than last return value. This may trigger linters warnings.
 // This choice is because it simplifies some reflection-using code using these methods, which is written for methods returning (int, error, ...) - tuples.
 // Having the unknown-length part at the end makes things simpler.
-func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err bandersnatchErrors.DeserializationError, fieldElement fieldElements.FieldElement, bit bool) {
+func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (bytesRead int, err common.DeserializationError, fieldElement fieldElements.FieldElement, bit bool) {
 	var prefix common.PrefixBits
 	bytesRead, prefix, err = fieldElement.DeserializeAndGetPrefix(input, 1, s.fieldElementEndianness) // Get one prefix bit and deserialize the rest as field element.
 	bit = (prefix != falsePrefix)
@@ -487,7 +486,7 @@ func (s *valuesSerializerFeCompressedBit) DeserializeValues(input io.Reader) (by
 // SerializeValues writes the given values (and possibly header) to output.
 //
 // For valuesSerializerFeFe, it writes 1 field element and 1 Bit.
-func (s *valuesSerializerFeCompressedBit) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement, bit bool) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *valuesSerializerFeCompressedBit) SerializeValues(output io.Writer, fieldElement *fieldElements.FieldElement, bit bool) (bytesWritten int, err common.SerializationError) {
 	var embeddedPrefix common.BitHeader
 	if bit {
 		embeddedPrefix = truePrefixBitHeader

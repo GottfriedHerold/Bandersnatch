@@ -5,15 +5,15 @@ package bandersnatchErrors
 import (
 	"errors"
 
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
-	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
 )
 
 type (
-	WriteErrorData       = errorconsts.WriteErrorData
-	ReadErrorData        = errorconsts.ReadErrorData
-	SerializationError   = errorconsts.SerializationError
-	DeserializationError = errorconsts.DeserializationError
+	WriteErrorData       = common.WriteErrorData
+	ReadErrorData        = common.ReadErrorData
+	SerializationError   = common.SerializationError
+	DeserializationError = common.DeserializationError
 )
 
 // This file contains common definitions of errors and error data that are not restricted to a single package.

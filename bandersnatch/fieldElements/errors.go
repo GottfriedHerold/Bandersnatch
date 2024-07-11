@@ -10,9 +10,6 @@ import (
 	"github.com/GottfriedHerold/Bandersnatch/internal/errorconsts"
 )
 
-type SerializationError = errorconsts.SerializationError
-type DeserializationError = errorconsts.DeserializationError
-
 // This file is part of the fieldElements package. See the documentation of field_element.go for general remarks.
 
 // This file collects all errors that can be returned by functions in this package.
@@ -22,58 +19,84 @@ type DeserializationError = errorconsts.DeserializationError
 // ErrorPrefix is the prefix used by all error message strings originating from this package.
 const ErrorPrefix = "bandersnatch / field element: "
 
+// NOTE: $v{ValueType} may be a reflect.Type or a string -- we actually use both.
+
 /*
 var errNoWriteEOF, _ = errorsWithData.NewErrorWithData_struct(io.EOF, "",
-	&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+	&common.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
 	errorsWithData.PanicOnAllMistakes)
 */
 
 var (
-	errNoWriteUnexpectedEOF, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true}, errorsWithData.PanicOnAllMistakes)
+	errNoWriteUnexpectedEOF, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &common.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true}, errorsWithData.PanicOnAllMistakes)
 	// emptySliceForByteSer, _    = errorsWithData.NewErrorWithData_struct(io.EOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 	// tooSmallSliceForByteSer, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 )
 
-// TODO: Doc
+var ()
 
-// NOTE: $v{ValueType} may be a reflect.Type or a string -- we actually use both.
-
+// ErrTooSmallByteSlice and ErrPrefixDoesNotFit are the errors reported when trying to use variants of Serialize_*_Bytes on too small/nil/empty byte slices.
 var (
+	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.ErrUnexpectedEOF,
+		ErrorPrefix+"Called (de)serializion method or function on too small slice", // NOTE: This should never be used directly. We use either the serialization or the deserialization version below.
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	errTooSmallByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
+		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+		&common.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	errTooSmallByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
+		ErrorPrefix+"Trying to deserialize a $v{ValueType} from a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+		&common.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+
+	// errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.ErrUnexpectedEOF,
+	// 	ErrorPrefix+"Called (de)serializion method or function on too small slice", // NOTE: This should never be used directly. We use either the serialization or the deserialization version below.
+	// 	errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	// errTooSmallByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
+	// 	ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+	// 	&common.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+	// 	errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	// errTooSmallByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
+	// 	ErrorPrefix+"Trying to deserialize a $v{ValueType} from a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
+	// 	&common.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+	// 	errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	ErrTooSmallByteSlice = errorsWithData.BoxErrorAsIncomparable(errTooSmallByteSlice)
+
 	errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_any_params(io.EOF,
 		"Called (de)serializion method or function on empty or nil slice", // NOTE: This is never used for ouput. We use either the serialization or the deserialization version below.
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-
 	errEmptyByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
-		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into $! NilSlice != 0{a nil}$! NilSlice == 0{an empty} slice",
-		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+		ErrorPrefix+"Trying to serialize a $T{Value} with value ${Value} into $! NilSlice != 0{a nil}$! NilSlice == 0{an empty} slice",
+		&common.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 	errEmptyByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
-		ErrorPrefix+"Trying to deserialize a $v{ValueType} from $! NilSlice != 0{a nil}$! NilSlice == 0 {an empty} slice",
-		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+		ErrorPrefix+"Trying to deserialize a ${ValueType} from $! NilSlice != 0{a nil}$! NilSlice == 0 {an empty} slice",
+		&common.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 
-	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.ErrUnexpectedEOF,
-		ErrorPrefix+"Called (de)serializion method or function on too small slice", // NOTE: This is never used for ouput. We use either the serialization or the deserialization version below.
-		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-
-	errTooSmallByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
-		ErrorPrefix+"Trying to serialize a $T{Value} with value $v{Value} into a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
-		&errorconsts.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
-		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-
-	errTooSmallByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errTooSmallByteSlice,
-		ErrorPrefix+"Trying to deserialize a $v{ValueType} from a slice of insufficient size $v{SliceSize} instead of the required $v{RequiredSize}",
-		&errorconsts.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
-		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-
-	errPrefixDoesNotFit, _ = errorsWithData.NewErrorWithData_struct(nil,
-		ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLength} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeros",
-		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-
-	ErrEmptyByteSlice    = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
-	ErrTooSmallByteSlice = errorsWithData.BoxErrorAsIncomparable(errTooSmallByteSlice)
-	ErrPrefixDoesNotFit  = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
+	// errEmptyBytesSlice, _ = errorsWithData.NewErrorWithData_any_params(io.EOF,
+	// 	"Called (de)serializion method or function on empty or nil slice", // NOTE: This is never used for ouput. We use either the serialization or the deserialization version below.
+	// 	errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	// errEmptyByteSlice_Serialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
+	// 	ErrorPrefix+"Trying to serialize a $T{Value} with value ${Value} into $! NilSlice != 0{a nil}$! NilSlice == 0{an empty} slice",
+	// 	&common.WriteErrorData{PartialWrite: false, BytesWritten: 0, IoError: true},
+	// 	errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	// errEmptyByteSlice_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errEmptyBytesSlice,
+	// 	ErrorPrefix+"Trying to deserialize a ${ValueType} from $! NilSlice != 0{a nil}$! NilSlice == 0 {an empty} slice",
+	// 	&common.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+	// 	errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	ErrEmptyByteSlice = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
 )
+
+var (
+	errPrefixDoesNotFit, _ = errorsWithData.NewErrorWithData_struct(nil,
+		ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLength} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeroes",
+		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
+	ErrPrefixDoesNotFit = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
+)
+
+// XYZ refers to [ErrEmptyByteSlice]
+var XYZ = 5
 
 /*
 func init() {

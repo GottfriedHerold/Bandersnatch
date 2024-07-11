@@ -30,7 +30,7 @@ type curvePointDeserializer_basic interface {
 	// TrustLevel determines whether we trust the input to be a valid representation of a curve point.
 	// (The latter includes subgroup checks if outputPoint can only store subgroup points)
 	// On error, outputPoint is kept unchanged.
-	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError)
+	DeserializeCurvePoint(inputStream io.Reader, trustLevel common.IsInputTrusted, outputPoint curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError)
 	IsSubgroupOnly() bool // Can be called on nil pointers of concrete type. This indicates whether the deserializer is only for subgroup points.
 	OutputLength() int32  // returns the length in bytes that this serializer will try to read/write per curve point. For deserializers without serializers, it is an upper bound.
 
@@ -59,7 +59,7 @@ type modifyableDeserializer_basic[SelfPtr any] interface {
 // curvePointSerializer_basic is a serializer+deserializer for single curve points.
 type curvePointSerializer_basic interface {
 	curvePointDeserializer_basic
-	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError)
+	SerializeCurvePoint(outputStream io.Writer, inputPoint curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError)
 }
 
 // modifyableDeserializer_basic is the interface for a serializer+deserializer of single curve points that allow parameter modifications.
@@ -102,11 +102,11 @@ type subgroupOnly = common.SubgroupOnly
 
 // addErrorDataNoWrite turns an arbitrary error into a SerializationError; the additional data added is trivial.
 // this is supposed to be used if serialization fails before any io is even attempted.
-func addErrorDataNoWrite(err error) bandersnatchErrors.SerializationError {
+func addErrorDataNoWrite(err error) common.SerializationError {
 	if err == nil {
 		return nil
 	}
-	return errorsWithData.NewErrorWithData_struct(err, "", &bandersnatchErrors.WriteErrorData{
+	return errorsWithData.NewErrorWithData_struct(err, "", &common.WriteErrorData{
 		PartialWrite: false,
 		BytesWritten: 0,
 	})
@@ -130,7 +130,7 @@ type pointSerializerXY struct {
 // Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
 //
 // The format is X||Y for affine X and Y coordinates.
-func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError) {
 	var errPlain error = checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
 		err = addErrorDataNoWrite(errPlain)
@@ -145,7 +145,7 @@ func (s *pointSerializerXY) SerializeCurvePoint(output io.Writer, point curvePoi
 // On error, point is untouched.
 //
 // The format is X||Y for affine X and Y coordinates.
-func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	var X, Y fieldElements.FieldElement
 	// var errPlain error
 	bytesRead, err, X, Y = s.DeserializeValues(input)
@@ -159,7 +159,7 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 		var P curvePoints.Point_axtw_subgroup
 		P, errPlain := curvePoints.CurvePointFromXYAffine_subgroup(&X, &Y, trustLevel)
 		if errPlain != nil {
-			err = errorsWithData.NewErrorWithData_struct(errPlain, "", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errPlain, "", &common.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -175,7 +175,7 @@ func (s *pointSerializerXY) DeserializeCurvePoint(input io.Reader, trustLevel co
 		var P curvePoints.Point_axtw_full
 		P, errPlain := curvePoints.CurvePointFromXYAffine_full(&X, &Y, trustLevel)
 		if errPlain != nil {
-			err = errorsWithData.NewErrorWithData_struct(errPlain, "", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errPlain, "", &common.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -264,7 +264,7 @@ type pointSerializerXAndSignY struct {
 // Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
 //
 // The format written is Sign(Y)||X, with the sign bit (1 for negative, 0 for positive) embedded in the msb of X to save space.
-func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError) {
 	var errPlain error = checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
 		bytesWritten = 0
@@ -282,7 +282,7 @@ func (s *pointSerializerXAndSignY) SerializeCurvePoint(output io.Writer, point c
 // On error, point is untouched.
 //
 // The format expected is Sign(Y)||X, with the sign bit (1 for negative, 0 for positive) embedded in the msb of X.
-func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	var X fieldElements.FieldElement
 	var signBit bool
 	bytesRead, err, X, signBit = s.DeserializeValues(input)
@@ -302,7 +302,7 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 		var P curvePoints.Point_axtw_subgroup
 		P, errCurvePoint := curvePoints.CurvePointFromXAndSignY_subgroup(&X, signInt, trustLevel)
 		if errCurvePoint != nil {
-			err = errorsWithData.NewErrorWithData_struct(errCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errCurvePoint, "%w", &common.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -318,7 +318,7 @@ func (s *pointSerializerXAndSignY) DeserializeCurvePoint(input io.Reader, trustL
 		var P curvePoints.Point_axtw_full
 		P, errCurvePoint := curvePoints.CurvePointFromXAndSignY_full(&X, signInt, trustLevel)
 		if errCurvePoint != nil {
-			err = errorsWithData.NewErrorWithData_struct(errCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
+			err = errorsWithData.NewErrorWithData_struct(errCurvePoint, "%w", &common.ReadErrorData{
 				PartialRead:  false,
 				BytesRead:    int(s.OutputLength()),
 				ActuallyRead: nil,
@@ -418,7 +418,7 @@ func (s *pointSerializerYAndSignX) Validate() {
 // Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
 //
 // The output format is Sign(X)||Y, where Sign(X) is a bit (set iff X<0) stored inside the msb of Y for compression.
-func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError) {
 	errPlain := checkPointSerializability(point, s.IsSubgroupOnly())
 	if errPlain != nil {
 		err = addErrorDataNoWrite(errPlain)
@@ -435,7 +435,7 @@ func (s *pointSerializerYAndSignX) SerializeCurvePoint(output io.Writer, point c
 // On error, point is untouched.
 //
 // The format expected is Sign(X)||Y, where Sign(X) is a bit (0b1 iff X<0) stored inside the msb of Y for compression.
-func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	var Y fieldElements.FieldElement
 	var signBit bool
 	bytesRead, err, Y, signBit = s.DeserializeValues(input)
@@ -449,7 +449,7 @@ func (s *pointSerializerYAndSignX) DeserializeCurvePoint(input io.Reader, trustL
 		signInt = +1
 	}
 
-	errData := bandersnatchErrors.ReadErrorData{PartialRead: false, BytesRead: int(s.OutputLength()), ActuallyRead: nil}
+	errData := common.ReadErrorData{PartialRead: false, BytesRead: int(s.OutputLength()), ActuallyRead: nil}
 
 	// Note: CurvePointFromYAndSignX_* accepts any sign for Y=+/-1.
 	// We need to correct this to ensure uniqueness of the serialized representation.
@@ -579,7 +579,7 @@ func (s *pointSerializerXTimesSignY) Validate() {
 // Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
 //
 // The format written is X*Sign(Y), where Sign(Y) is +1 or -1.
-func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError) {
 	errPlain := checkPointSerializability(point, true)
 	if errPlain != nil {
 		err = addErrorDataNoWrite(errPlain)
@@ -600,7 +600,7 @@ func (s *pointSerializerXTimesSignY) SerializeCurvePoint(output io.Writer, point
 // On error, point is untouched.
 //
 // The format expected is X*Sign(Y), where Sign(Y) is +1 or -1.
-func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	var XSignY fieldElements.FieldElement
 	bytesRead, err, XSignY = s.DeserializeValues(input)
 	if err != nil {
@@ -609,7 +609,7 @@ func (s *pointSerializerXTimesSignY) DeserializeCurvePoint(input io.Reader, trus
 	var P curvePoints.Point_axtw_subgroup
 	P, errConversionToCurvePoint := curvePoints.CurvePointFromXTimesSignY_subgroup(&XSignY, trustLevel)
 	if errConversionToCurvePoint != nil {
-		err = errorsWithData.NewErrorWithData_struct(errConversionToCurvePoint, "%w", &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errConversionToCurvePoint, "%w", &common.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    int(s.OutputLength()),
 			ActuallyRead: nil,
@@ -704,7 +704,7 @@ func (s *pointSerializerYXTimesSignY) Validate() {
 // Since the output format relies on affine coordinates, this currently fails for points at infinity, which might change in the future.
 //
 // The format written is Y*Sign(Y)||X*Sign(Y), where  Sign(Y) = +1 or -1
-func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err bandersnatchErrors.SerializationError) {
+func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, point curvePoints.CurvePointPtrInterfaceRead) (bytesWritten int, err common.SerializationError) {
 	errPlain := checkPointSerializability(point, true)
 	if errPlain != nil {
 		err = addErrorDataNoWrite(errPlain)
@@ -726,7 +726,7 @@ func (s *pointSerializerYXTimesSignY) SerializeCurvePoint(output io.Writer, poin
 // On error, point is untouched.
 //
 // The format expected is Y*Sign(Y)||X*Sign(Y), with Sign(Y)=+1 or -1.
-func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err bandersnatchErrors.DeserializationError) {
+func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, trustLevel common.IsInputTrusted, point curvePoints.CurvePointPtrInterfaceWrite) (bytesRead int, err common.DeserializationError) {
 	var XSignY, YSignY fieldElements.FieldElement
 	bytesRead, err, YSignY, XSignY = s.DeserializeValues(input)
 	if err != nil {
@@ -736,7 +736,7 @@ func (s *pointSerializerYXTimesSignY) DeserializeCurvePoint(input io.Reader, tru
 	var P curvePoints.Point_axtw_subgroup
 	P, errConversionToCurvePoint := curvePoints.CurvePointFromXYTimesSignY_subgroup(&XSignY, &YSignY, trustLevel)
 	if errConversionToCurvePoint != nil {
-		err = errorsWithData.NewErrorWithData_struct(errConversionToCurvePoint, "", &bandersnatchErrors.ReadErrorData{
+		err = errorsWithData.NewErrorWithData_struct(errConversionToCurvePoint, "", &common.ReadErrorData{
 			PartialRead:  false,
 			BytesRead:    int(s.OutputLength()),
 			ActuallyRead: nil,

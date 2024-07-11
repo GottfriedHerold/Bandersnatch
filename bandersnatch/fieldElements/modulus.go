@@ -2,10 +2,6 @@ package fieldElements
 
 // DEPRECATED FILE
 
-import (
-	"math/bits"
-)
-
 // m is an alias for BaseFiledSize
 // re is the reciprocral of the modulus
 // mmu0 is the largest multiple of the modulus such that  mmu0 < 2^256
@@ -57,6 +53,8 @@ The following functions can be used to calculate the reciprical, mmu0 and mmu1 o
 the constants above are used instead.
 
 */
+
+/*
 
 // modulus contains a modulus `m` as well as derived values that help speed up computations.
 // The allowed range for `m` is `2^192` to `2^256-1`.
@@ -459,16 +457,17 @@ func (z *modulus) reciprocal() {
 	}
 
 	// subtract y from q
-	/*q0*/
+	// q_0
+
 	_, b = bits.Sub64(q0, y[0], 0)
-	/*q1*/ _, b = bits.Sub64(q1, y[1], b)
-	/*q2*/ _, b = bits.Sub64(q2, y[2], b)
-	/*q3*/ _, b = bits.Sub64(q3, y[3], b)
-	/*q4*/ _, b = bits.Sub64(q4, 0, b)
-	/*q5*/ _, b = bits.Sub64(q5, 0, b)
-	/*q6*/ _, b = bits.Sub64(q6, 0, b)
-	/*q7*/ _, b = bits.Sub64(q7, 0, b)
-	/*q8*/ _, b = bits.Sub64(q8, 0, b)
+	 _, b = bits.Sub64(q1, y[1], b)
+	 _, b = bits.Sub64(q2, y[2], b)
+	 _, b = bits.Sub64(q3, y[3], b)
+	 _, b = bits.Sub64(q4, 0, b)
+	 _, b = bits.Sub64(q5, 0, b)
+	 _, b = bits.Sub64(q6, 0, b)
+	 _, b = bits.Sub64(q7, 0, b)
+	 _, b = bits.Sub64(q8, 0, b)
 
 	// increment the result
 	x0, t = bits.Add64(r4l, 1, 0)
@@ -569,3 +568,5 @@ func shiftleft256(x Uint256, s uint) (z Uint256) {
 }
 
 //The bandersnatch values are
+
+*/

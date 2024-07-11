@@ -7,7 +7,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/bandersnatchErrors"
+	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
 	"github.com/GottfriedHerold/Bandersnatch/internal/testutils"
 	"github.com/GottfriedHerold/Bandersnatch/internal/utils"
@@ -205,8 +205,8 @@ func TestSerializeHeaders(t *testing.T) {
 }
 
 // Note: these are methods
-type ser_fun = func(io.Writer) (int, bandersnatchErrors.SerializationError)
-type deser_fun = func(io.Reader) (int, bandersnatchErrors.DeserializationError)
+type ser_fun = func(io.Writer) (int, common.SerializationError)
+type deser_fun = func(io.Reader) (int, common.DeserializationError)
 
 // Note: these are unbound methods (i.e. functions)
 var hs_setter_funs = []func(*simpleHeaderDeserializer, []byte){(*simpleHeaderDeserializer).SetPerPointHeader, (*simpleHeaderDeserializer).SetPerPointFooter, (*simpleHeaderDeserializer).SetSinglePointHeader, (*simpleHeaderDeserializer).SetSinglePointFooter, (*simpleHeaderDeserializer).SetGlobalSliceFooter, (*simpleHeaderDeserializer).SetGlobalSliceHeader}
@@ -244,7 +244,7 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 			faultyBuf.Reset()
 			if ((i >= L) && (j < 5)) || ((i >= L+simpleHeaderSliceLengthOverhead) && (j == 5)) {
 				var bytesWritten int
-				var writeErr bandersnatchErrors.SerializationError
+				var writeErr common.SerializationError
 
 				if j < 5 {
 					bytesWritten, writeErr = serializers[j](faultyBuf)
@@ -262,7 +262,7 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 					t.Fatalf("Unexpected number of bytes written @%v", j)
 				}
 				var bytesRead int
-				var readErr bandersnatchErrors.DeserializationError
+				var readErr common.DeserializationError
 				var sizeRead int32
 
 				if j < 5 {
@@ -283,7 +283,7 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 				}
 			} else { // we expect to get errors
 				var bytesWritten int
-				var writeErr bandersnatchErrors.SerializationError
+				var writeErr common.SerializationError
 
 				if j < 5 {
 					bytesWritten, writeErr = serializers[j](faultyBuf)
@@ -302,7 +302,7 @@ func TestHeaderDeserializationIOErrors(t *testing.T) {
 				}
 
 				var bytesRead int
-				var readErr bandersnatchErrors.DeserializationError
+				var readErr common.DeserializationError
 
 				if j < 5 {
 					bytesRead, readErr = deserializers[j](faultyBuf)

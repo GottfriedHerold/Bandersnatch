@@ -18,8 +18,8 @@ import (
 // This data is obtainable via the [errorsWithData] framework.
 // Concretely, we extend our usual serialization error data by an int field indication how many points were actually fully serialized before the error occurred.
 type BatchSerializationErrorData struct {
-	bandersnatchErrors.WriteErrorData     // Note [errorsWithData]'s behaviour for struct embedding
-	PointsSerialized                  int // Number of points fully serialized
+	common.WriteErrorData     // Note [errorsWithData]'s behaviour for struct embedding
+	PointsSerialized      int // Number of points fully serialized
 }
 
 // BatchDeserializationErrorData is the struct that hold additional data contained in errors reported by batch deserialization methods.
@@ -28,8 +28,8 @@ type BatchSerializationErrorData struct {
 // Note that in this context, "fully deserialized" includes potential subgroup and validity checks and actually writing to the target buffer.
 // We guarantee that this is equal to the number of buffer elements that were written to.
 type BatchDeserializationErrorData struct {
-	bandersnatchErrors.ReadErrorData     // Note [errorsWithData]'s behaviour for struct embedding
-	PointsDeserialized               int // Number of points fully deserialized
+	common.ReadErrorData     // Note [errorsWithData]'s behaviour for struct embedding
+	PointsDeserialized   int // Number of points fully deserialized
 }
 
 const FIELDNAME_POINTSDESERIALIZED = "PointsDeserialized"
@@ -187,7 +187,7 @@ func DeserializeCurvePoints_Variadic[PtrType curvePoints.CurvePointPtrInterface]
 
 func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputTrusted, targetSlice curvePoints.CurvePointSlice, deserializer_header headerDeserializerInterface, deserializer_point curvePointDeserializer_basic, size32 int32) (bytesRead int, err BatchDeserializationError) {
 	var bytesJustRead int
-	var errNonBatch bandersnatchErrors.DeserializationError
+	var errNonBatch common.DeserializationError
 	size := int(size32) // i in the loop below should be int (because of type-unsafe inclusion in BatchDeserializationErrorData)
 	for i := 0; i < size; i++ {
 		// Read/consume per-point header
@@ -244,8 +244,8 @@ func deserializeSlice_mainloop(inputStream io.Reader, trustLevel common.IsInputT
 // error contains as data (accessible via errorsWithData) a PointsDeserialized field.
 // This indicates how many points were successfully writen to slice.
 func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceMaker DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError) {
-	var size int32                                          // size of the slice
-	var errNonBatch bandersnatchErrors.DeserializationError // error returned from individual deserialization routines
+	var size int32                              // size of the slice
+	var errNonBatch common.DeserializationError // error returned from individual deserialization routines
 
 	// read slice header, including the size of the slice to be deserialized.
 	bytesRead, size, errNonBatch = md.headerDeserializer.deserializeGlobalSliceHeader(inputStream)
@@ -261,7 +261,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 	// Make sure the total number of bytes that we will read from will not overflow int32. If it does, we bail out early.
 	_, overflowErr := md.SliceOutputLength(size)
 	if overflowErr != nil {
-		err = errorsWithData.NewErrorWithData_struct(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		err = errorsWithData.NewErrorWithData_struct(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: common.ReadErrorData{PartialRead: true}})
 		output, _, _ = sliceMaker(-1) // create a dummy value for output
 		return
 	}
@@ -272,7 +272,7 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 	output, outputPointSlice, errSliceCreate = sliceMaker(size)
 	if errSliceCreate != nil {
 		err = errorsWithData.NewErrorWithData_struct(errSliceCreate, "%w", &BatchDeserializationErrorData{
-			ReadErrorData:      bandersnatchErrors.ReadErrorData{PartialRead: true},
+			ReadErrorData:      common.ReadErrorData{PartialRead: true},
 			PointsDeserialized: 0,
 		})
 		return
@@ -314,8 +314,8 @@ func (md *multiDeserializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader,
 // On error, at least for the two DeserializeSliceMaker's above, output has the correct type, but is meaningless (possibly a nil slice).
 // error contains as data (accessible via errorsWithData) a PointsDeserialized field. This indicates how many points were successfully writen to slice.
 func (md *multiSerializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, trustLevel common.IsInputTrusted, sliceMaker DeserializeSliceMaker) (output any, bytesRead int, err BatchDeserializationError) {
-	var size int32                                          // size of the slice
-	var errNonBatch bandersnatchErrors.DeserializationError // error returned from individual deserialization routines
+	var size int32                              // size of the slice
+	var errNonBatch common.DeserializationError // error returned from individual deserialization routines
 
 	bytesRead, size, errNonBatch = md.headerSerializer.deserializeGlobalSliceHeader(inputStream)
 	if errNonBatch != nil {
@@ -326,7 +326,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, t
 	}
 	_, overflowErr := md.SliceOutputLength(size)
 	if overflowErr != nil {
-		err = errorsWithData.NewErrorWithData_struct(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: bandersnatchErrors.ReadErrorData{PartialRead: true}})
+		err = errorsWithData.NewErrorWithData_struct(overflowErr, ErrorPrefix+"when deserializing a slice, the slice header indicated a length for which the number of bytesRead during deserialization may overflow int32: %w", &BatchDeserializationErrorData{PointsDeserialized: 0, ReadErrorData: common.ReadErrorData{PartialRead: true}})
 		output, _, _ = sliceMaker(-1)
 		return
 	}
@@ -336,7 +336,7 @@ func (md *multiSerializer[_, _, _, _]) DeserializeSlice(inputStream io.Reader, t
 	output, outputPointSlice, errSliceCreate = sliceMaker(size)
 	if errSliceCreate != nil {
 		err = errorsWithData.NewErrorWithData_struct(errSliceCreate, "%w", &BatchDeserializationErrorData{
-			ReadErrorData:      bandersnatchErrors.ReadErrorData{PartialRead: true},
+			ReadErrorData:      common.ReadErrorData{PartialRead: true},
 			PointsDeserialized: 0,
 		})
 		return
@@ -514,7 +514,7 @@ func (md *multiSerializer[_, _, _, _]) SerializeSlice(outputStream io.Writer, in
 		// Without knowing about the capabilities of the underlying serializers and point type, we cannot do anything about that.
 	}
 
-	var errNonBatch bandersnatchErrors.SerializationError
+	var errNonBatch common.SerializationError
 	// write each point. Note that i is int, not int32 -- this is important to include it as parameter in errors.
 	for i := 0; i < LInt; i++ {
 		// write per-point-header
