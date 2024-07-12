@@ -277,9 +277,11 @@ func TestUint256DeserializeError(t *testing.T) {
 			faultyBuf := testutils.NewFaultyBuffer(i, designatedErr)
 			faultyBuf.SetContent(correctResult) // correctResult may be longer than i.
 
+			y := x
 			bytesRead, err := x.Deserialize(faultyBuf, endianness)
 
 			// check correct error handling:
+			testutils.FatalUnless(t, x == y, "Deserialize modified receiver on error.")
 			testutils.CheckErrorValidity(t, err)
 			testutils.FatalUnless(t, bytesRead == i, "")
 			testutils.FatalUnless(t, errors.Is(err, designatedErr), "")
@@ -292,11 +294,50 @@ func TestUint256DeserializeError(t *testing.T) {
 	}
 }
 
-// Test that Uint256.Deserialize_Buffer handles error correctly.
+// Test that Uint256.Deserialize_Buffer handle error correctly.
 //
-// Note: The only relevant error that can occur is if the buffer is too small.
+// Note: The only relevant error that can occur for Buffer is if the buffer is too small.
+// We also run the exact same checks on Uint256.Deserialize here.
 func TestUint256Deserialize_BufferError(t *testing.T) {
+	// arbitrary values, really.
+	var base_array [32]byte
+	for i := 0; i < 32; i++ {
+		base_array[i] = byte(i + 1)
+	}
 
+	var x Uint256
+	x.SetUint64(2) // arbitrary value, really.
+	xCopy := x
+
+	for _, suite := range all_uint256_suites {
+		for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian} {
+
+			for i := 0; i < 32; i++ {
+				arrayCopy := base_array
+				var bufptr *bytes.Buffer = bytes.NewBuffer(arrayCopy[:i])
+
+				bytesRead, err := suite.deserfun(&x, bufptr, endianness) // this is supposed to fail
+
+				// make sure x is not modified
+				testutils.FatalUnless(t, x == xCopy, "Uint256 modified on failing Deserialize or Deserialize_buffer")
+
+				// check errors:
+				testutils.FatalUnless(t, err != nil, "Unexpectedly got no error")
+				testutils.CheckErrorValidity(t, err)
+				testutils.FatalUnless(t, bytesRead == i, "Unexpected value for bytesRead: Got %v, expected %v", bytesRead, i)
+				if i == 0 {
+					testutils.FatalUnless(t, errors.Is(err, io.EOF), "")
+				} else {
+					testutils.FatalUnless(t, errors.Is(err, io.ErrUnexpectedEOF), "")
+				}
+				errData := err.GetData_struct()
+				testutils.FatalUnless(t, errData.IoError == true, "")
+				testutils.FatalUnless(t, errData.PartialRead == (i != 0), "")
+				testutils.FatalUnless(t, utils.CompareSlices(errData.ActuallyRead, arrayCopy[:i]), "")
+				testutils.FatalUnless(t, bytesRead == errData.BytesRead, "")
+			}
+		}
+	}
 }
 
 func TestUint256SerializePrefixRoundtrip(t *testing.T) {
