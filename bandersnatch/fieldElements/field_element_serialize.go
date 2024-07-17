@@ -276,7 +276,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) SerializeWithPrefix(output io.Write
 	prefix_length := prefix.PrefixLen()
 	prefix_bits := prefix.PrefixBits()
 	if leading_zeroes := bits.LeadingZeros64(zUint256[3]); leading_zeroes < int(prefix_length) {
-		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](errPrefixDoesNotFit, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.WriteErrorData](ErrPrefixDoesNotFit, "",
 			"PartialWrite", false,
 			"BytesWritten", 0,
 			"IoError", false,

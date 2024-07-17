@@ -1,9 +1,11 @@
 package fieldElements
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/common"
 	"github.com/GottfriedHerold/Bandersnatch/bandersnatch/errorsWithData"
@@ -33,9 +35,7 @@ var (
 	// tooSmallSliceForByteSer, _ = errorsWithData.NewErrorWithData_struct(io.ErrUnexpectedEOF, "", &errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes)
 )
 
-var ()
-
-// ErrTooSmallByteSlice and ErrPrefixDoesNotFit are the errors reported when trying to use variants of Serialize_*_Bytes on too small/nil/empty byte slices.
+// ErrTooSmallByteSlice and ErrEmptyByteSlice are the errors reported when trying to use variants of Serialize_*_Bytes or Deserialize_*_Bytes on too small/nil/empty byte slices.
 var (
 	errTooSmallByteSlice, _ = errorsWithData.NewErrorWithData_any_params(io.ErrUnexpectedEOF,
 		ErrorPrefix+"Called (de)serializion method or function on too small slice", // NOTE: This should never be used directly. We use either the serialization or the deserialization version below.
@@ -88,21 +88,102 @@ var (
 	ErrEmptyByteSlice = errorsWithData.BoxErrorAsIncomparable(errEmptyBytesSlice)
 )
 
-var (
-	errPrefixDoesNotFit, _ = errorsWithData.NewErrorWithData_struct(nil,
-		ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLength} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeroes",
-		&errorconsts.NoWriteAttempt, errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-	ErrPrefixDoesNotFit = errorsWithData.BoxErrorAsIncomparable(errPrefixDoesNotFit)
-)
+// handleTooSMallBuffer is the utility functions used to handle I/O errors when deserializing from a bytes.Buffer.
+// The only possible error that can happen here is that input's length is too small.
+// We mimick the general behaviour of our Deserialization function that take an io.Reader as input:
+// We return an error either wrapping [io.EOF] or [io.ErrUnexpectedEOF] and we drain the buffer.
+//
+// params contains any additional paramters that we include in the returned error that may be call-site specific.
+func handleTooSMallBuffer(input *bytes.Buffer, extra_params errorsWithData.ParamMap) (bytesRead int, err common.DeserializationError) {
+	inputLen := input.Len()
+	bytesRead = inputLen
+	var errPlain error
+	if inputLen == 0 {
+		errPlain = io.EOF
+	} else {
+		errPlain = io.ErrUnexpectedEOF
+	}
+	buf := make([]byte, inputLen)
+	copy(buf, input.Bytes())
+	params := errorsWithData.ParamMap{
+		"PartialRead":  bytesRead != 0,
+		"BytesRead":    bytesRead,
+		"ActuallyRead": buf,
+		"IoError":      true,
+	}
+	if len(extra_params) != 0 {
+		maps.Copy(params, extra_params)
+	}
 
-// XYZ refers to [ErrEmptyByteSlice]
-var XYZ = 5
+	err, _ = errorsWithData.NewErrorWithData_map[common.ReadErrorData](errPlain, "", params)
+	input.Reset()
+	return
+}
+
+func handleTooSmallByteSlice_deserialize(input []byte, extra_params errorsWithData.ParamMap) (bytesRead int, err common.DeserializationError) {
+	params := errorsWithData.ParamMap{
+		"NilSlice":  input == nil,
+		"SliceSize": 0,
+	}
+	if len(extra_params) > 0 {
+		maps.Copy(params, extra_params)
+	}
+
+	if len(input) == 0 {
+
+		err, _ = errorsWithData.NewErrorWithData_map[common.ReadErrorData](errEmptyByteSlice_Deserialize, "", params)
+		return 0, err
+	} else {
+		err, _ = errorsWithData.NewErrorWithData_map[common.ReadErrorData](errTooSmallByteSlice_Deserialize, "", params)
+		return 0, err
+	}
+}
+
+func handleTooSmallByteSlice_serialize(output []byte, extra_params errorsWithData.ParamMap) (bytesRead int, err common.SerializationError) {
+	params := errorsWithData.ParamMap{
+		"NilSlice":  output == nil,
+		"SliceSize": 0,
+	}
+	if len(extra_params) > 0 {
+		maps.Copy(params, extra_params)
+	}
+
+	if len(output) == 0 {
+
+		err, _ = errorsWithData.NewErrorWithData_map[common.WriteErrorData](errEmptyByteSlice_Serialize, "", params)
+		return 0, err
+	} else {
+		err, _ = errorsWithData.NewErrorWithData_map[common.WriteErrorData](errTooSmallByteSlice_Serialize, "", params)
+		return 0, err
+	}
+
+}
 
 /*
-func init() {
-	errorsWithData.EnsureErrorsValid_Final(errPrefixDoesNotFit, errNoWriteEOF, errNoWriteUnexpectedEOF)
-}
+var errTooSmallBufferForDeserialize, _ = errorsWithData.NewErrorWithData_struct[common.ReadErrorData](nil,
+	"${ErrorPrefix}Called ${FunctionName} to deserialize a ${ValueType} with a too small bytes.Buffer of lenght ${Len} instead of ${ExpectedLen}",
+	&common.ReadErrorData{PartialRead: false, BytesRead: 0, ActuallyRead: nil, IoError: true},
+	errorsWithData.ErrorUnlessValidBase, errorsWithData.PanicOnAllMistakes,
+)
+
+// ErrTooSmallBufferForDeserialize is the error output by Deserialization methods
+var ErrTooSmallBufferForDeserialize = errorsWithData.CreateIncomparableError[common.ReadErrorData](nil,
+	"${ErrorPrefix}Called ${FunctionName} to deserialize a ${ValueType} with a too small bytes.Buffer of lenght ${Len} instead of ${ExpectedLen}",
+	errorsWithData.ParamMap{
+		"PartialRead":  false,
+		"BytesRead":    0,
+		"ActuallyRead": nil,
+		"IoError":      true})
+
 */
+
+// ErrPrefixDoesNotFit is the error returned by SerializeWithPrefix methods when the prefix does not actually fit.
+var ErrPrefixDoesNotFit = errorsWithData.CreateIncomparableError[common.WriteErrorData](nil,
+	ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLength} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeroes",
+	errorsWithData.ParamMap{
+		"ParialWrite":  false,
+		"BytesWritten": 0,
+		"IoError":      false})
 
 // Base error when ToUint64 or ToInt64 fail. Note that we always return an error wrapping this; for that reason, the error message given here will never occur.
 // var ErrCannotRepresentFieldElement = errors.New(ErrorPrefix + "field element not representable by the given data type")
@@ -127,7 +208,7 @@ var _ = func() int {
 // These are the errors that can occur during (de)serialization.
 var (
 	errPrefixLengthInvalid, _ = errorsWithData.NewErrorWithData_any_params(nil,
-		ErrorPrefix+"in FieldElement (de)serializitation, an invalid prefix length ${PrefixLength} > 8 was requested",
+		ErrorPrefix+"during (de)serializitation involving a prefix, an invalid prefix length ${PrefixLength} > 8 was requested",
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 	errPrefixLengthInvalid_Deserialize, _ = errorsWithData.NewErrorWithData_struct(errPrefixLengthInvalid,
 		ErrorPrefix+"When deserializing a $v{ValueType}, an invalid prefix length ${PrefixLength} > 8 was requested",
@@ -135,11 +216,8 @@ var (
 		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
 	ErrPrefixLengthInvalid = errorsWithData.BoxErrorAsIncomparable(errPrefixLengthInvalid)
 
-	errPrefixMismatch, _ = errorsWithData.NewErrorWithData_any_params(nil,
-		ErrorPrefix+"during deserialization, the read prefix 0b$b{Prefix} did not match the expected 0b$b{ExpectedPrefix}",
-		errorsWithData.PanicOnAllMistakes, errorsWithData.ErrorUnlessValidBase)
-
-	ErrPrefixMismatch = errorsWithData.BoxErrorAsIncomparable(errPrefixMismatch)
+	ErrPrefixMismatch = errorsWithData.CreateIncomparableError_any(nil,
+		ErrorPrefix+"during deserialization, the read prefix 0b$b{Prefix} did not match the expected 0b$b{ExpectedPrefix}", nil)
 
 	// ErrNonNormalizedDeserialization error = errors.New(ErrorPrefix + "during FieldElement deserialization, the read number was not the minimal representative modulo BaseFieldSize")
 	errNonNormalizedDeserialization, _ = errorsWithData.NewErrorWithData_any_params(nil,

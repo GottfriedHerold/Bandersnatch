@@ -323,6 +323,49 @@ func BoxErrorAsIncomparable(e BoxableError) incomparableError {
 	return incomparableError{BoxableError: e}
 }
 
+// CreateIncomparableError is a utility function to create a new incomparableError from the given parameters as global variables.
+//
+// Namely,
+//
+//	var ErrUnboxed = CreateIncomparableError[StructType](baseError, interpolationString, newParams, flags...)
+//
+// is equivalent to calling (if Go would allow automatically appending variadic arguments)
+//
+//	 var (
+//		errUnboxed, _ = NewErrorWithData_map[StructType](baseError, interpolationString, newParams PanicOnAllMistakes, ErrorUnlessValidBase, MissingDataIsMistake, flags...)
+//		ErrUnboxed    = BoxErrorAsIncomparable(errUnboxed)
+//	 )
+//
+// The sole point of using this function rather than spelling the above out is that the passed arguments end up in the documentation.
+// (the definition of the intentionally unexported errUnboxed would not shown up in the automatically generated documentation)
+// NOTE: The boxed error forgets about StructType; StructType is only useful for checking whether you forget a parameter.
+func CreateIncomparableError[StructType any](baseError error, interpolationString string, newParams ParamMap, flags ...flagArgument_NewErrorParams) incomparableError {
+	default_flags := append([]flagArgument_NewErrorParams{PanicOnAllMistakes, ErrorUnlessValidBase, MissingDataIsMistake}, flags...)
+	unboxedError, _ := NewErrorWithData_map[StructType](baseError, interpolationString, newParams, default_flags...)
+	return incomparableError{BoxableError: unboxedError}
+}
+
+// CreateIncomparableError_any is a utility function to create a new incomparableError from the given parameters as global variables.
+//
+// Namely,
+//
+//	var ErrUnboxed = CreateIncomparableError_any(baseError, interpolationString, newParams, flags...)
+//
+// is equivalent to calling (if Go would allow automatically appending variadic arguments)
+//
+//	 var (
+//		errUnboxed, _ = NewErrorWithData_any_map(baseError, interpolationString, newParams, PanicOnAllMistakes, ErrorUnlessValidBase, flags...)
+//		ErrUnboxed    = BoxErrorAsIncomparable(errUnboxed)
+//	 )
+//
+// The sole point of using this function rather than spelling the above out is that the passed arguments end up in the documentation.
+// (the definition of the intentionally unexported errUnboxed would not shown up in the automatically generated documentation)
+func CreateIncomparableError_any(baseError error, interpolationString string, newParams ParamMap, flags ...flagArgument_NewErrorStruct) incomparableError {
+	default_flags := append([]flagArgument_NewErrorStruct{PanicOnAllMistakes, ErrorUnlessValidBase}, flags...)
+	unboxedError, _ := NewErrorWithData_any_map(baseError, interpolationString, newParams, default_flags...)
+	return incomparableError{BoxableError: unboxedError}
+}
+
 /*
 // BoxErrorWithDataAsIncomparable_any returns a boxed version of the given error which is not comparable.
 // Note that this function does not return an interface, but a struct containing an interface.

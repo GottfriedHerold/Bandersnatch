@@ -86,6 +86,24 @@ func (s FieldElementEndianness) StartsWithMSB() bool {
 	return s.v == v_bigEndian
 }
 
+// GetMSB returns the most significant byte of z, when z is interpreted as a 256-bit number according to the given Endianness s.
+func (s FieldElementEndianness) GetMSB(z *[32]byte) byte {
+	if s.v == v_littleEndian {
+		return z[31]
+	} else {
+		return z[0]
+	}
+}
+
+// GetLSB returns the least significant byte of z, when z is interpreted as a 256-bit number according to the given Endianness s.
+func (s FieldElementEndianness) GetLSB(z *[32]byte) byte {
+	if s.v == v_littleEndian {
+		return z[0]
+	} else {
+		return z[31]
+	}
+}
+
 // Interface consistent with PutUint16, etc.
 // NOTE: We would like to have a PutUint256([]byte, Uint256) for the actual Uint256 type
 
