@@ -389,7 +389,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		}
 		if readPrefix := buf[0] >> (8 - expectedPrefixLength); readPrefix != byte(expectedPrefixBits) {
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](ErrPrefixMismatch, "",
 				"PartialRead", true,
 				"BytesRead", bytesRead, // 1
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -406,7 +406,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		if errIO != nil {
 			errorTransform.UnexpectEOF(&errIO) // Replace io.EOF -> io.ErrUnexpectedEOF
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](ErrPrefixMismatch, "",
 				"PartialRead", bytesRead != 32,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -419,7 +419,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 		bytesRead, errIO = io.ReadFull(input, buf[0:32])
 		if errIO != nil {
 			bufCopy := buf
-			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
+			err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](ErrPrefixMismatch, "",
 				"PartialRead", bytesRead != 32 && bytesRead != 0,
 				"BytesRead", bytesRead,
 				"ActuallyRead", bufCopy[0:bytesRead],
@@ -439,7 +439,7 @@ func (z *bsFieldElement_MontgomeryNonUnique) DeserializeWithExpectedPrefix(input
 	if readPrefixBits != expectedPrefixBits {
 		testutils.Assert(!byteOrder.StartsWithMSB()) // We already checked the prefix above and should not have come this far.
 		bufCopy := buf
-		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixMismatch, "",
+		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](ErrPrefixMismatch, "",
 			"PartialRead", false,
 			"BytesRead", bytesRead, // 32
 			"ActuallyRead", bufCopy[0:bytesRead],

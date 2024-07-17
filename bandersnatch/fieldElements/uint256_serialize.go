@@ -77,10 +77,12 @@ func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndiannes
 	// We want Serialize_Bytes to be consistent with the other Serialize methods, so we catch this.
 	if len(output) < 32 {
 		return handleTooSmallByteSlice_serialize(output, errorsWithData.ParamMap{
-			"Value":       *z,
-			"ValueType":   "Uint256",
-			"NilSlice":    output == nil,
-			"ErrorPrefix": ErrorPrefix})
+			"Value":        *z,
+			"ValueType":    "Uint256",
+			"NilSlice":     output == nil,
+			"ErrorPrefix":  ErrorPrefix,
+			"RequiredSize": 32,
+		})
 	}
 	byteOrder.PutUint256_ptr(output, (*[4]uint64)(z))
 	bytesWritten = 32
@@ -322,7 +324,7 @@ func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianne
 func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
 		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
-			"ValueType", "Uint256",
+			"ValueType", "Uint256 and prefix",
 			"PrefixLength", prefixLength,
 		)
 		// Should we panic(err) ???
@@ -335,13 +337,12 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 	bytesRead, errPlain = io.ReadFull(input, buf[:])
 	if errPlain != nil {
 		bufCopy := buf // copy to avoid buf escaping to the heap here.
-		// NOTE: May escape to heap nonetheless for other reasons
 		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPlain, "",
 			"PartialRead", bytesRead != 0 && bytesRead != 32,
 			"BytesRead", bytesRead,
 			"ActuallyRead", bufCopy[0:bytesRead],
 			"IoError", true,
-			"ValueType", "Uint256",
+			"ValueType", "Uint256 and prefix",
 		)
 		return
 	}
@@ -367,7 +368,7 @@ func (z *Uint256) DeserializeAndGetPrefix(input io.Reader, prefixLength uint8, b
 func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
 		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
-			"ValueType", "Uint256",
+			"ValueType", "Uint256 and prefix",
 			"PrefixLength", prefixLength,
 		)
 		return
@@ -376,7 +377,7 @@ func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLeng
 	// check that the input has sufficient size. If not, mimick the behaviour of DeserializeAndGetPrefix.
 	if input.Len() < 32 {
 		bytesRead, err = handleTooSMallBuffer(input, errorsWithData.ParamMap{
-			"ValueType":   "Uint256",
+			"ValueType":   "Uint256 and prefix",
 			"ErrorPrefix": ErrorPrefix,
 		})
 		// prefix is zero-initialized.
@@ -462,7 +463,7 @@ func (z *Uint256) DeserializeWithExpectedPrefix(input io.Reader, expectedPrefix 
 			"BytesRead":      bytesRead,
 			"ActuallyRead":   bufCopy[0:bytesRead],
 			"IoError":        true,
-			"ValueType":      "Uint256",
+			"ValueType":      "Uint256 with expected prefix",
 			"ExpectedPrefix": byte(expectedPrefixBits),
 		})
 		return
@@ -514,11 +515,37 @@ func (z *Uint256) DeserializeWithExpectedPrefix_Buffer(input *bytes.Buffer, expe
 			"ErrorPrefix": ErrorPrefix,
 		})
 	}
+	// read bytes; note that input.Next avoids copying: the returned slice references the internal storage of input.
+	buf := input.Next(32)
+	bytesRead = 32
 
-	panic(0)
+	// Check prefix:
+	expectedPrefixLength := expectedPrefix.PrefixLen()
+	expectedPrefixBits := expectedPrefix.PrefixBits()
+	readPrefixBits := common.PrefixBits(byteOrder.GetMSB((*[32]byte)(buf))) >> (8 - expectedPrefixLength)
 
-	// Placeholder implementation for now.
-	// Having this mostly, because writing the tests *once* for all variants is less work than extending the tests later.
+	// handle wrong prefix
+	if readPrefixBits != expectedPrefixBits {
+		var bufCopy [32]byte
+		copy(bufCopy[:], buf[:])
+		err, _ = errorsWithData.NewErrorWithData_map[common.ReadErrorData](ErrPrefixMismatch, "", errorsWithData.ParamMap{
+			"PartialRead":    false,
+			"BytesRead":      bytesRead, // == 32
+			"ActuallyRead":   bufCopy[0:bytesRead],
+			"IoError":        false,
+			"Prefix":         byte(readPrefixBits),
+			"ExpectedPrefix": byte(expectedPrefixBits),
+			"ValueType":      "Uint256 with expected prefix",
+			"ErrorPrefix":    ErrorPrefix,
+		})
+		return // bytesRead == 32
+	}
+
+	// no error if we get here:
+	byteOrder.Uint256_indirect(buf, (*[4]uint64)(z))
+	var bitmask_remaining uint64 = 0xFFFFFFFF_FFFFFFFF >> expectedPrefixLength
+	z[3] &= bitmask_remaining
+	return
 
 }
 
@@ -527,10 +554,39 @@ func (z *Uint256) DeserializeWithExpectedPrefix_Bytes(input []byte, expectedPref
 
 	if len(input) < 32 {
 		return handleTooSmallByteSlice_deserialize(input, errorsWithData.ParamMap{
-			"ValueType":   "Uint256 with expected prefix",
-			"Errorprefix": ErrorPrefix,
+			"ValueType":    "Uint256 with expected prefix",
+			"Errorprefix":  ErrorPrefix,
+			"RequiredSize": 32,
 		})
 	}
+	bytesRead = 32
 
-	panic(0)
+	// Check prefix:
+	expectedPrefixLength := expectedPrefix.PrefixLen()
+	expectedPrefixBits := expectedPrefix.PrefixBits()
+	readPrefixBits := common.PrefixBits(byteOrder.GetMSB((*[32]byte)(input))) >> (8 - expectedPrefixLength)
+
+	// handle wrong prefix
+	if readPrefixBits != expectedPrefixBits {
+		var bufCopy [32]byte
+		copy(bufCopy[:], input[0:32])
+		err, _ = errorsWithData.NewErrorWithData_map[common.ReadErrorData](ErrPrefixMismatch, "", errorsWithData.ParamMap{
+			"PartialRead":    false,
+			"BytesRead":      bytesRead, // == 32
+			"ActuallyRead":   bufCopy[0:bytesRead],
+			"IoError":        false,
+			"Prefix":         byte(readPrefixBits),
+			"ExpectedPrefix": byte(expectedPrefixBits),
+			"ValueType":      "Uint256 with expected prefix",
+			"ErrorPrefix":    ErrorPrefix,
+		})
+		return // bytesRead == 32
+	}
+
+	// no error if we get here:
+	byteOrder.Uint256_indirect(input[0:32], (*[4]uint64)(z))
+	var bitmask_remaining uint64 = 0xFFFFFFFF_FFFFFFFF >> expectedPrefixLength
+	z[3] &= bitmask_remaining
+	return
+
 }

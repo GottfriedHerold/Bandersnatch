@@ -121,15 +121,16 @@ func handleTooSMallBuffer(input *bytes.Buffer, extra_params errorsWithData.Param
 }
 
 func handleTooSmallByteSlice_deserialize(input []byte, extra_params errorsWithData.ParamMap) (bytesRead int, err common.DeserializationError) {
+	inputLen := len(input)
 	params := errorsWithData.ParamMap{
 		"NilSlice":  input == nil,
-		"SliceSize": 0,
+		"SliceSize": inputLen,
 	}
 	if len(extra_params) > 0 {
 		maps.Copy(params, extra_params)
 	}
 
-	if len(input) == 0 {
+	if inputLen == 0 {
 
 		err, _ = errorsWithData.NewErrorWithData_map[common.ReadErrorData](errEmptyByteSlice_Deserialize, "", params)
 		return 0, err
@@ -140,15 +141,16 @@ func handleTooSmallByteSlice_deserialize(input []byte, extra_params errorsWithDa
 }
 
 func handleTooSmallByteSlice_serialize(output []byte, extra_params errorsWithData.ParamMap) (bytesRead int, err common.SerializationError) {
+	outputLen := len(output)
 	params := errorsWithData.ParamMap{
 		"NilSlice":  output == nil,
-		"SliceSize": 0,
+		"SliceSize": outputLen,
 	}
 	if len(extra_params) > 0 {
 		maps.Copy(params, extra_params)
 	}
 
-	if len(output) == 0 {
+	if outputLen == 0 {
 
 		err, _ = errorsWithData.NewErrorWithData_map[common.WriteErrorData](errEmptyByteSlice_Serialize, "", params)
 		return 0, err
@@ -181,7 +183,7 @@ var ErrTooSmallBufferForDeserialize = errorsWithData.CreateIncomparableError[com
 var ErrPrefixDoesNotFit = errorsWithData.CreateIncomparableError[common.WriteErrorData](nil,
 	ErrorPrefix+"while trying to serialize a $!ValueType{$v{ValueType}}$! !ValueType{$T{Value}} with value $v{Value} with a prefix, the prefix of length $v{PrefixLength} did not fit, because the number was too large, having only $v{LeadingZeroes} leading zeroes",
 	errorsWithData.ParamMap{
-		"ParialWrite":  false,
+		"PartialWrite": false,
 		"BytesWritten": 0,
 		"IoError":      false})
 
