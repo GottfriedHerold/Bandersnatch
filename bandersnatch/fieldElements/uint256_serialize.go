@@ -416,7 +416,7 @@ func (z *Uint256) DeserializeAndGetPrefix_Buffer(input *bytes.Buffer, prefixLeng
 func (z *Uint256) DeserializeAndGetPrefix_Bytes(input []byte, prefixLength uint8, byteOrder FieldElementEndianness) (bytesRead int, prefix common.PrefixBits, err common.DeserializationError) {
 	if prefixLength > common.MaxLengthPrefixBits { // prefixLength > 8
 		err, _ = errorsWithData.NewErrorWithData_params[common.ReadErrorData](errPrefixLengthInvalid_Deserialize, "",
-			"ValueType", "Uint256 and Prefix",
+			"ValueType", "Uint256 and prefix",
 			"PrefixLength", prefixLength,
 		)
 		return

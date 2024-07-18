@@ -525,9 +525,9 @@ func TestUint256SerializeWithPrefix_IOError(t *testing.T) {
 						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
 						testutils.FatalUnless(t, bytesWritten == 0, "") // we don't actually write, because we detect the error beforehand
 						errData := writeError.GetData_struct()
-						testutils.FatalUnless(t, errData.PartialWrite == false, "")
-						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
-						testutils.FatalUnless(t, errData.IoError == false, "")
+						testutils.FatalUnlessEqual(t, errData.PartialWrite, false)
+						testutils.FatalUnlessEqual(t, errData.BytesWritten, 0)
+						testutils.FatalUnlessEqual(t, errData.IoError, false)
 						testutils_errors.CheckErrorMessage(t, writeError, ErrorPrefix+
 							"while trying to serialize a Uint256 with value %v with a prefix, the prefix of length %v did not fit, because the number was too large, having only %v leading zeroes",
 							x, prefix.PrefixLen(), x.LeadingZeroes256())
@@ -544,6 +544,98 @@ func TestUint256SerializeWithPrefix_IOError(t *testing.T) {
 					testutils.FatalUnlessEqual(t, errData.BytesWritten, 16)
 					testutils.FatalUnlessEqual(t, errData.IoError, true)
 				}
+			}
+		}
+	}
+}
+
+// Checks that an invalid prefix length fails in the right way.
+//
+// Note that this check is only relevant for deserialization that retrieves the prefix.
+// The other methods (SerializeWithPrefix, DeserializeWithExpectedPrefix) all take a [BitHeader] as input.
+// We assert (and do not check here) that this is a valid object. Ensuring that is the job of [BitHeader] and
+// indeed the API provides no way to create an invalid [BitHeader].
+func TestUint256DeserializeAndGetPrefix_InvalidPrefix(t *testing.T) {
+	// set up a bytes.Buffer and a slice to read from (one valid and two invalid each. We also try a nil)
+	var arr1 [32]byte
+	var arr2 [31]byte
+	var arr3 [0]byte
+	for i := 0; i < 32; i++ {
+		arr1[i] = byte(i + 1)
+	}
+	for i := 0; i < 31; i++ {
+		arr2[i] = byte(i + 1)
+	}
+	tmp1 := arr1
+	tmp2 := arr2
+	buf1 := bytes.NewBuffer(tmp1[:])
+	buf2 := bytes.NewBuffer(tmp2[:])
+	buf3 := bytes.NewBuffer(make([]byte, 0)) // or just &bytes.Buffer{}
+
+	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian} {
+		for _, buf := range []*bytes.Buffer{buf1, buf2, buf3, nil} {
+			var bufLen int
+			if buf == nil {
+				bufLen = 0
+			} else {
+				bufLen = buf.Len()
+			}
+
+			for _, suite := range all_uint256_prefix_suites { // check for plain and _Buffer
+				deserializeAndGetPrefix := suite.derserGetPrefix
+				var x Uint256
+				x.SetUint64(2)
+				xCopy := x
+
+				bytesRead, prefix, err := deserializeAndGetPrefix(&x, buf, 9, endianness)
+				_ = prefix
+				testutils.FatalUnlessEqual(t, bytesRead, 0)
+				testutils.FatalUnless(t, err != nil, "")
+				testutils_errors.CheckErrorValidity(t, err)
+				testutils.FatalUnless(t, errors.Is(err, ErrPrefixLengthInvalid), "")
+				testutils_errors.CheckErrorMessage(t, err,
+					ErrorPrefix+"When deserializing a Uint256 and prefix, an invalid prefix length 9 > 8 was requested")
+				errorData := err.GetData_struct()
+				testutils.FatalUnless(t, errorData.ActuallyRead == nil, "")
+				testutils.FatalUnlessEqual(t, errorData.IoError, false)
+				testutils.FatalUnlessEqual(t, errorData.BytesRead, 0)
+				testutils.FatalUnlessEqual(t, errorData.PartialRead, false)
+				testutils.FatalUnlessEqual(t, x, xCopy) // don't write to x
+				if buf == nil {
+					continue
+				}
+
+				testutils.FatalUnlessEqual(t, buf.Len(), bufLen) // didn't actually read from buf
+				for j := 0; j < buf.Len(); j++ {
+					testutils.FatalUnlessEqual(t, buf.Bytes()[j], byte(j+1))
+				}
+			}
+		}
+		for _, arrSlice := range [][]byte{arr1[:], arr2[:], arr3[:], nil} {
+			arrLen := len(arrSlice)
+			var x Uint256
+			x.SetUint64(3)
+			xCopy := x
+			bytesRead, prefix, err := x.DeserializeAndGetPrefix_Bytes(arrSlice, 9, endianness)
+
+			// copied from above
+			_ = prefix
+			testutils.FatalUnlessEqual(t, bytesRead, 0)
+			testutils.FatalUnless(t, err != nil, "")
+			testutils_errors.CheckErrorValidity(t, err)
+			testutils.FatalUnless(t, errors.Is(err, ErrPrefixLengthInvalid), "")
+			testutils_errors.CheckErrorMessage(t, err,
+				ErrorPrefix+"When deserializing a Uint256 and prefix, an invalid prefix length 9 > 8 was requested")
+			errorData := err.GetData_struct()
+			testutils.FatalUnless(t, errorData.ActuallyRead == nil, "")
+			testutils.FatalUnlessEqual(t, errorData.IoError, false)
+			testutils.FatalUnlessEqual(t, errorData.BytesRead, 0)
+			testutils.FatalUnlessEqual(t, errorData.PartialRead, false)
+			testutils.FatalUnlessEqual(t, x, xCopy) // don't write to x
+
+			// check that arrSlice was not written to:
+			for j := 0; j < arrLen; j++ {
+				testutils.FatalUnlessEqual(t, arrSlice[j], byte(j+1))
 			}
 		}
 	}
@@ -566,35 +658,6 @@ func TestUint256SerializePrefix(t *testing.T) {
 
 	for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian, DefaultEndian} {
 		for _, x := range xs {
-			bitLen := x.BitLen()
-
-			// same as above, but writing to bad buffer where we get IO errors.
-			{
-				var faultyBuf testutils.FaultyBuffer = *testutils.NewFaultyBuffer(16, designatedError)
-				for _, prefix := range prefixes {
-					faultyBuf.Reset()
-					prefixFit := bitLen+int(prefix.PrefixLen()) <= 256
-					bytesWritten, writeError := x.SerializeWithPrefix(&faultyBuf, prefix, endianness)
-					if !prefixFit {
-						// same as above
-						testutils.FatalUnless(t, writeError != nil, "Uint256.SerializeWithPrefix did not report error, even though prefix did not fit")
-						testutils.FatalUnless(t, errors.Is(writeError, ErrPrefixDoesNotFit), "Uint256.SerializeWithPrefix did not return expected error: Got %v", writeError)
-						testutils.FatalUnless(t, bytesWritten == 0, "")
-						errData := writeError.GetData_struct()
-						testutils.FatalUnless(t, errData.PartialWrite == false, "")
-						testutils.FatalUnless(t, errData.BytesWritten == 0, "")
-						continue
-					}
-					// expect IO error:
-					testutils.FatalUnless(t, writeError != nil, "Write to faulty buf did not cause error")
-					testutils.FatalUnless(t, errors.Is(writeError, designatedError), "Write to faulty buf gave unexpected error %v", writeError)
-					testutils.FatalUnless(t, bytesWritten == 16, "Write to faulty buf gave unexpted number of bytes Written %v", bytesWritten)
-
-					errData := writeError.GetData_struct()
-					testutils.FatalUnless(t, errData.PartialWrite == true, "")
-					testutils.FatalUnless(t, errData.BytesWritten == 16, "")
-				}
-			}
 
 			// reading too large prefix ought to fail as specified
 			{
