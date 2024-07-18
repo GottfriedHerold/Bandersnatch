@@ -190,6 +190,25 @@ var CachedInt64 = testutils.MakePrecomputedCache[int64, int64](
 	nil,
 )
 
+// CachedRandomBytes is used to retrieve precomputed precomputed slices of random (seeded by int64 key) bytes.
+//
+// Note: Due to the generality of [testutils.MakePrecomputedCache], this used a somewhat inefficient way and creates the bytes one-by-one.
+// It is much faster to just directly use
+//
+//	rng := rand.New(rand.NewSource(seed)) and use
+//	result := make([]byte, len)
+//	rng.Read(result)
+//
+// (Note that this gives different determistic results than CachedRandomByes for the same seed).
+// The only advantage of CachedRandomBytes is the caching, i.e. if using the same seed multiple times to get the same sequence.
+var CachedRandomBytes = testutils.MakePrecomputedCache[int64, byte](
+	testutils.DefaultCreateRandFromSeed,
+	func(rng *rand.Rand, key int64) (ret byte) {
+		return byte(rng.Uint32() % 256)
+	},
+	nil,
+)
+
 // _makePrecomputedCacheForFieldElements is an utility function for GetPrecomputedFieldElements.
 // It is used to generially create a testutils.PrecomputedCache[int64, FieldElementType] for arbitrary FieldElementType
 func _makePrecomputedCacheForFieldElements[FieldElementType any, FieldElementPtr interface {

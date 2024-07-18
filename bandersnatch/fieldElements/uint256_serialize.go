@@ -17,17 +17,16 @@ import (
 // The reason is that we serialize field elements in "plain", non-Montgomery format and do not want the serialization format be dependent
 // on the field element type used.
 
-// Serialize(output, byteOrder) serializes the receiver to output. byteOrder should be BigEndian or LittleEndian and refers to the ordering of bytes in the output.
+// Serialize(output, byteOrder) serializes the receiver to output. byteOrder should be [BigEndian] or [LittleEndian] and refers to the ordering of bytes in the output.
 //
 // The return values are the actual number of bytes written and a potential error (such as io errors).
 // If no error happened, err == nil. In that case we are guaranteed that bytes_written == 32.
 //
-// There are special-case methods [Serialize_Buffer] and [Serialize_Bytes] for the same functionality for writing to a [bytes.Buffer] and []byte.
+// There are special-cased methods [Serialize_Buffer] and [Serialize_Bytes] for essentially the same functionality for writing to a [bytes.Buffer] and []byte.
 // (These are orders of magnitude faster because of the way interfaces in Go work and how they interact with escape analysis.)
 func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	var errPlain error
-
 	var buf [32]byte // = make([]byte, 32)
 	byteOrder.PutUint256_array(&buf, (*[4]uint64)(z))
 	bytesWritten, errPlain = output.Write(buf[:]) // Note: because output is an interface, this causes escape analysis to fail, so buf is heap-allocated.
@@ -51,7 +50,7 @@ func (z *Uint256) Serialize(output io.Writer, byteOrder FieldElementEndianness) 
 // Serialize_Buffer performs the same functionality as [Serialize], but with output of concrete type [*bytes.Buffer].
 //
 // Due to known issues with Go's escape analysis, this is an order of magnitude more efficient than the general [Serialize].
-// On failure, this method panics (because that is what [bytes.Buffer] does), so the return value is guaranteed to be (32, nil).
+// On failure, this method panics (because that is what [bytes.Buffer] does), so the return values are guaranteed to be (32, nil).
 //
 // Note that the only way for this to fail really is running out of memory / the buffer exceeding a limit controlled by the Go runtime.
 func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
@@ -61,7 +60,7 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 	// bytes.Buffer's Write method is guaranteed to never return an error. It panics instead (if out-of-memory, e.g.)
 	// So we don't need to handle errors here.
 	bytesWritten, _ = output.Write(buf[:])
-	return
+	return // always (32, nil) according to bytes.Buffer.Write
 }
 
 // Serialize_Bytes performs the same functionality as [Serialize], but is special-cased for writing to a []byte slice.
@@ -70,7 +69,9 @@ func (z *Uint256) Serialize_Buffer(output *bytes.Buffer, byteOrder FieldElementE
 //
 // The return values are the actual number of bytes written (alywas 32 or 0) and a potential error.
 // If output does not have sufficient length, returns errors wrapping [ErrEmptyByteSlice] (if len(output)==0) or [ErrTooSmallByteSlice] (if 0<len(output)<32).
-// For consistency with [Serialize], these errors wrap [io.EOF] respectively [io.UnexpectedEOF]
+// For consistency with [Serialize], these errors wrap [io.EOF] respectively [io.UnexpectedEOF].
+//
+// Note that on error, this function will never write anything to output and bytesWritte is always 0; this behaviour differs from [Serialize].
 func (z *Uint256) Serialize_Bytes(output []byte, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	// handle error cases before writing anything: PutUint256_ptr panics on insufficent slice length (for consistency reasons with binary.ByteOrder's interface)
@@ -152,6 +153,10 @@ func (z *Uint256) SerializeWithPrefix(output io.Writer, prefix BitHeader, byteOr
 // SerializeWithPrefix_Buffer is a specialiazition of [SerializeWithPrefix] for the case where the output is a [*bytes.Buffer].
 //
 // Due to the way interfaces in Go work, this method is much faster.
+//
+// Error handling: Due to the fact that writes to [bytes.Buffer] never return an error
+// (the only failure cases are running out of memory, in which case we get a panic in the Go runtime), the only potential error reported by this function is
+// [ErrPrefixDoesNotFit].
 func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
 
 	// almost literally the same code as the general version (except for using Serialize_Buffer and not needing to handle error from that.)
@@ -179,7 +184,7 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 	// NOTE: Serialize_Buffer cannot fail, so we don't need to handle he error.
 	bytesWritten, _ = zCopy.Serialize_Buffer(output, byteOrder)
 
-	return
+	return // alawys (32, nil) if we get here.
 }
 
 // SerializeWithPrefix_Bytes is a specialization of [SerializeWithPrefix] for the case where the output is a []byte.
@@ -187,7 +192,7 @@ func (z *Uint256) SerializeWithPrefix_Buffer(output *bytes.Buffer, prefix BitHea
 // The output slice must have at least a size of 32 bytes.
 // We follow the same conventions as [Serialize_Bytes]:
 // for insufficient output length, we return an error wrapping either [ErrEmptyByteSlice] (if len(output)==0) or [ErrTooSmallByteSlice] (0<len(output)<32),
-// which in turn wrap io.EOF resp. io.UnexpectedEOF. We do not write anything in these cases.
+// which in turn wrap [io.EOF] resp. [io.ErrUnexpectedEOF]. We do not write anything in these cases.
 //
 // Due to the way interfaces in Go work, this method is an order of magnitude faster than [SerializeWithPrefix].
 func (z *Uint256) SerializeWithPrefix_Bytes(output []byte, prefix BitHeader, byteOrder FieldElementEndianness) (bytesWritten int, err common.SerializationError) {
@@ -284,7 +289,7 @@ func (z *Uint256) Deserialize_Buffer(input *bytes.Buffer, byteOrder FieldElement
 // Deserialize_Bytes is a equivalent to [Deserialize], but reads from a byte slice.
 //
 // This is more efficient than wrapping the byte slice in a [bytes.Buffer] and using either [Deserialize] or [Deserialize_Buffer].
-// Also, note that Deserialize_Bytes has no notion of "consuming" its inputs.
+// Also, note that Deserialize_Bytes has no notion of "consuming" its inputs. If the input is larger than 32 bytes, we ignore the remaining bytes.
 //
 // If the input silce is too small or nil, we return an error wrapping [ErrTooSmalBytesSlice] or [ErrEmptyByteSlice] as appropriate.
 // We do not modify *z on error.
@@ -293,9 +298,9 @@ func (z *Uint256) Deserialize_Bytes(input []byte, byteOrder FieldElementEndianne
 	// handle the (only) error case first:
 	if len(input) < 32 {
 		return handleTooSmallByteSlice_deserialize(input, errorsWithData.ParamMap{
-			"ValueType":   "Uint256",
-			"RequredSize": 32,
-			"ErrorPrefix": ErrorPrefix,
+			"ValueType":    "Uint256",
+			"RequiredSize": 32,
+			"ErrorPrefix":  ErrorPrefix,
 		})
 	}
 

@@ -244,18 +244,54 @@ func TestUint256Serialize_Bytes_Error(t *testing.T) {
 			// Check error behaviour for slice of insufficient size
 			bytes_slice = make([]byte, 16, 16+allowed_cap)
 			bytesWritten, errWriting = x.Serialize_Bytes(bytes_slice, endianness)
-			testutils.FatalUnless(t, bytesWritten == 0, "%v", bytesWritten)
-			testutils.FatalUnless(t, errWriting != nil, "")
+			testutils.FatalUnlessEqual(t, bytesWritten, 0)
+			testutils.FatalUnlessEqual(t, errWriting, nil)
 			testutils.FatalUnless(t, errors.Is(errWriting, ErrTooSmallByteSlice), "")
 			testutils.FatalUnless(t, errors.Is(errWriting, io.ErrUnexpectedEOF), "")
 			testutils_errors.CheckErrorMessage(t, errWriting, ErrorPrefix+"Trying to serialize a fieldElements.Uint256 with value 123456789123456789123456789123456789 into a slice of insufficient size 16 instead of the required 32")
 			errData = errWriting.GetData_struct()
-			testutils.FatalUnless(t, errData.IoError == true, "")
-			testutils.FatalUnless(t, errData.PartialWrite == false, "")
-			testutils.FatalUnless(t, errData.BytesWritten == 0, "")
+			testutils.FatalUnlessEqual(t, errData.IoError, true)
+			testutils.FatalUnlessEqual(t, errData.PartialWrite, false)
+			testutils.FatalUnlessEqual(t, errData.BytesWritten, 0)
 		}
 	}
+}
 
+func TestUint256Deserialize_Consistency(t *testing.T) {
+	// Check consistency of Uint256.Deserialize, Uint256.Deserialize_Buffer and Uint256.Deserialize_Bytes
+
+	const iterations = 1000
+	var random_data [32 * iterations]byte
+	const seed = 1000
+	rng := rand.New(rand.NewSource(seed))
+	n, err := rng.Read(random_data[:])
+	testutils.FatalUnless(t, n == 32*iterations, "internal error")
+	testutils.FatalUnless(t, err == nil, "internal error")
+
+	for _, endianness := range []FieldElementEndianness{LittleEndian, BigEndian} {
+		dataCopy1 := random_data
+		dataCopy2 := random_data
+		dataCopy3 := random_data
+		buf1 := bytes.NewBuffer(dataCopy1[:])
+		buf2 := bytes.NewBuffer(dataCopy2[:])
+		for i := 0; i < iterations; i++ {
+			var x1, x2, x3 Uint256
+			bytesRead1, err1 := x1.Deserialize(buf1, endianness)
+			bytesRead2, err2 := x2.Deserialize_Buffer(buf2, endianness)
+			bytesRead3, err3 := x3.Deserialize_Bytes(dataCopy3[i*32:(i+1)*32], endianness)
+			testutils.FatalUnlessEqual(t, bytesRead1, 32)
+			testutils.FatalUnlessEqual(t, bytesRead2, 32)
+			testutils.FatalUnlessEqual(t, bytesRead3, 32)
+			testutils.FatalUnlessEqual(t, err1, nil)
+			testutils.FatalUnlessEqual(t, err2, nil)
+			testutils.FatalUnlessEqual(t, err3, nil)
+			testutils.FatalUnless(t, x1 == x2, "Different values\n%v\nand\n%v\nfor Uint256.Deserialize and Uint256.Deserialize_Buffer", x1, x2)
+			testutils.FatalUnless(t, x2 == x3, "Different values\n%v\nand\n%v\nfor Uint256.Deserialize_Buffer and Uint256.Deserialize_Bytes", x2, x3)
+		}
+		testutils.FatalUnless(t, dataCopy1 == random_data, "Deserialze modified input stream")
+		testutils.FatalUnless(t, dataCopy2 == random_data, "Deserialze_Buffer modified input stream")
+		testutils.FatalUnless(t, dataCopy3 == random_data, "Deserialze_Bytes modified input stream")
+	}
 }
 
 // correctness of Deserialization is handeld by roundtrip and KAT for serialize.
@@ -339,6 +375,59 @@ func TestUint256Deserialize_BufferError(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Test that Uint256.Deserialize_Bytes handle error correctly.
+//
+// Note: The only relevant error that can here is a too small byte slice.
+func TestUint256Deserialize_BytesError(t *testing.T) {
+	// arbitrary values, really.
+	var base_array [64]byte // larger than 32 on purpose.
+	for i := 0; i < 64; i++ {
+		base_array[i] = byte(i + 1)
+	}
+
+	var x Uint256
+	x.SetUint64(2) // arbitrary value, really.
+	xCopy := x
+
+	for _, endianness := range []FieldElementEndianness{BigEndian, LittleEndian} {
+
+		for i := 0; i < 64; i++ {
+			arrayCopy := base_array
+
+			bytesRead, err := x.Deserialize_Bytes(base_array[0:i], endianness)
+
+			if i >= 32 { // no error
+				testutils.FatalUnless(t, err == nil, "")
+				testutils.FatalUnless(t, bytesRead == 32, "")
+				testutils.FatalUnless(t, utils.CompareSlices(base_array[:], arrayCopy[:]), "")
+				x = xCopy // Undo modification of x.
+				continue
+			}
+
+			// make sure x is not modified
+			testutils.FatalUnless(t, x == xCopy, "Uint256 modified on failing Deserialize or Deserialize_buffer")
+
+			// check errors:
+			testutils.FatalUnless(t, err != nil, "Unexpectedly got no error")
+			testutils_errors.CheckErrorValidity(t, err)
+			testutils.FatalUnless(t, bytesRead == 0, "Unexpected value for bytesRead: Got %v, expected 0", bytesRead)
+			if i == 0 {
+				testutils.FatalUnless(t, errors.Is(err, io.EOF), "")
+				testutils.FatalUnless(t, errors.Is(err, ErrEmptyByteSlice), "")
+			} else {
+				testutils.FatalUnless(t, errors.Is(err, io.ErrUnexpectedEOF), "")
+				testutils.FatalUnless(t, errors.Is(err, ErrTooSmallByteSlice), "")
+			}
+			errData := err.GetData_struct()
+			testutils.FatalUnless(t, errData.IoError == true, "")
+			testutils.FatalUnless(t, errData.PartialRead == false, "")
+			testutils.FatalUnless(t, errData.ActuallyRead == nil, "")
+			testutils.FatalUnless(t, errData.BytesRead == 0, "")
+		}
+	}
+
 }
 
 func TestUint256SerializePrefixRoundtrip(t *testing.T) {

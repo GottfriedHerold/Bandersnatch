@@ -32,3 +32,14 @@ func FatalUnless(t *testing.T, condition bool, formatstring string, args ...any)
 		t.Fatalf(formatstring, args...)
 	}
 }
+
+// FatalUnlessEqual is used in testing functions. It validates that givenValue == expectedValue and aborts with failure otherwise.
+//
+// This is slightly preferable to [FatalUnless] because it automatically populates the formatstring to display on failure.
+func FatalUnlessEqual[ValueType comparable](t *testing.T, givenValue ValueType, expectedValue ValueType) {
+	// We do not call FatalUnless to have less clutter on the stack (debug.PrintStack would display even more useless stuff)
+	if givenValue != expectedValue {
+		debug.PrintStack()
+		t.Fatalf("Did not get the expected value. Value received was:\n%v\nValue expected was:\n%v", givenValue, expectedValue)
+	}
+}
